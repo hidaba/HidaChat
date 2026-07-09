@@ -29,7 +29,6 @@ Public Class SettingsWindow
         Next
 
         ' 3. Set Checkbox checks
-        ChkKeepAppInEnglish.IsChecked = _settingsController.KeepAppInEnglish
         ChkTranslateMessageButton.IsChecked = _settingsController.TranslateMessageButton
         ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
         ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
@@ -84,14 +83,6 @@ Public Class SettingsWindow
         Dim selectedLang = TryCast(ComboLanguage.SelectedItem, LanguageInfo)
         If selectedLang IsNot Nothing Then
             Dim langCode = selectedLang.Code
-
-            ' Se l'utente seleziona italiano, disabilita automaticamente KeepAppInEnglish
-            If langCode <> "en" AndAlso _settingsController.KeepAppInEnglish Then
-                _settingsController.KeepAppInEnglish = False
-                ChkKeepAppInEnglish.IsChecked = False
-                Await _settingsController.SaveSettingAsync("keepAppInEnglish", False)
-            End If
-
             Await _settingsController.UpdateLanguageAsync(langCode)
 
             RefreshLocalization()
@@ -115,12 +106,6 @@ Public Class SettingsWindow
         
         Dim chk = CType(sender, CheckBox)
         Select Case chk.Name
-            Case "ChkKeepAppInEnglish"
-                _settingsController.KeepAppInEnglish = chk.IsChecked.Value
-                Await _settingsController.SaveSettingAsync("keepAppInEnglish", chk.IsChecked.Value)
-                ' Force reload translation system
-                Await _settingsController.UpdateLanguageAsync(_settingsController.Language)
-                RefreshLocalization()
             Case "ChkTranslateMessageButton"
                 _settingsController.TranslateMessageButton = chk.IsChecked.Value
                 Await _settingsController.SaveSettingAsync("translateMessageButton", chk.IsChecked.Value)
@@ -202,7 +187,6 @@ Public Class SettingsWindow
         LabelAppTheme.Text = loc.Get("match_cohesive")
         SectionLanguage.Text = loc.Get("language")
         LabelSelectLanguage.Text = loc.Get("language")
-        ChkKeepAppInEnglish.Content = loc.Get("keep_app_in_english")
         ChkTranslateMessageButton.Content = loc.Get("translate_message_button")
         ChkFullPageTranslation.Content = loc.Get("full_page_translation")
         ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")

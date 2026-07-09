@@ -174,8 +174,7 @@
                         <ComboBox x:Name="ComboLanguage" Grid.Column="1" Width="150" DisplayMemberPath="Name" SelectionChanged="ComboLanguage_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}"/>
                     </Grid>
 
-                    <CheckBox x:Name="ChkKeepAppInEnglish" Content="Keep app UI in English" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkTranslateMessageButton" Content="Translate message button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <CheckBox x:Name="ChkTranslateMessageButton" Content="Translate message button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,10,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
                     <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
                     <CheckBox x:Name="ChkShowTranslateAllButton" Content="Title bar translate all messages button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
 
@@ -189,7 +188,7 @@
                     <ItemsControl x:Name="AccountsList" Margin="0,5,0,15">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderThickness="0,0,0,1" BorderBrush="#222e35" Padding="0,8">
+                                <Border BorderThickness="0,0,0,1" BorderBrush="#222e35" Background="#1f2c34" Padding="0,8">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -199,8 +198,8 @@
                                         <!-- Editable Account Name TextBox -->
                                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                                                  LostFocus="TxtAccountName_LostFocus"
-                                                 Foreground="#e9edef" Background="#374955" BorderBrush="#00a884" 
-                                                 Padding="8,4" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
+                                                 Foreground="#ffffff" Background="#2a3942" BorderBrush="#00a884" 
+                                                 Padding="8,6" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
 
                                         <!-- Delete Account Button -->
                                         <Button Grid.Column="1" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>

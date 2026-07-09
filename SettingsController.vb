@@ -64,18 +64,6 @@ Public Class SettingsController
         End Set
     End Property
 
-    Private _keepAppInEnglish As Boolean = False
-    Public Property KeepAppInEnglish As Boolean
-        Get
-            Return _keepAppInEnglish
-        End Get
-        Set(value As Boolean)
-            If _keepAppInEnglish <> value Then
-                _keepAppInEnglish = value
-                NotifyPropertyChanged()
-            End If
-        End Set
-    End Property
 
     Private _fullPageTranslation As Boolean = False
     Public Property FullPageTranslation As Boolean
@@ -236,7 +224,6 @@ Public Class SettingsController
         _alwaysShowTabBar = GetBoolSetting(settings, "alwaysShowTabBar", True)
         _checkForUpdates = GetBoolSetting(settings, "checkForUpdates", True)
         _translateMessageButton = GetBoolSetting(settings, "translateMessageButton", GetBoolSetting(settings, "enableHoverTranslation", True))
-        _keepAppInEnglish = GetBoolSetting(settings, "keepAppInEnglish", GetBoolSetting(settings, "translateContentOnly", False))
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)
         _translateNotifications = GetBoolSetting(settings, "translateNotifications", True)
@@ -309,11 +296,6 @@ Public Class SettingsController
     End Function
 
     Private Sub FallbackOrLoadTranslations()
-        If _keepAppInEnglish Then
-            Localizations = New AppLocalizations(AppLocalizations.EnStrings)
-            Return
-        End If
-
         Select Case _language
             Case "en"
                 Localizations = New AppLocalizations(AppLocalizations.EnStrings)
@@ -334,7 +316,7 @@ Public Class SettingsController
         settings("language") = newLanguage
         Await WriteSettingsAsync(settings)
 
-        If _keepAppInEnglish OrElse newLanguage = "en" Then
+        If newLanguage = "en" Then
             Localizations = New AppLocalizations(AppLocalizations.EnStrings)
         ElseIf newLanguage = "it" Then
             Localizations = New AppLocalizations(AppLocalizations.ItStrings)

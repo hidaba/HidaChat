@@ -46,6 +46,9 @@ Public Class MainWindow
         
         ' Update active tab styling
         UpdateAccountTabStyling()
+
+        ' Apply localized UI text
+        RefreshLocalization()
     End Sub
 
     Private Sub ConfigureSystemTray()
@@ -227,6 +230,8 @@ Public Class MainWindow
     Private Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(SettingsController.Theme) Then
             ApplyWpfTheme()
+        ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
+            RefreshLocalization()
         End If
     End Sub
 
@@ -234,6 +239,11 @@ Public Class MainWindow
         If e.PropertyName = NameOf(AccountManager.HasAnyNotification) Then
             UpdateTrayIconImage()
         End If
+    End Sub
+
+    Private Sub RefreshLocalization()
+        Dim loc = _settingsController.Localizations
+        BtnAddAccount.Content = "+ " & loc.Get("add_account")
     End Sub
 
     Private Sub ApplyWpfTheme()
