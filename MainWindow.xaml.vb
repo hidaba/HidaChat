@@ -46,9 +46,6 @@ Public Class MainWindow
         
         ' Update active tab styling
         UpdateAccountTabStyling()
-
-        ' Set version in title bar (last to avoid being overwritten)
-        TitleText.Text = "WhatsApp v" & Constants.AppVersion
     End Sub
 
     Private Sub ConfigureSystemTray()
@@ -218,13 +215,6 @@ Public Class MainWindow
                 MessageBoxImage.Error
             )
         End Try
-    End Sub
-
-    Private Async Sub BtnTranslatePage_Click(sender As Object, e As RoutedEventArgs)
-        Dim activeAcc = _accountManager.CurrentAccount
-        If activeAcc IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
-            Await activeAcc.WebView.CoreWebView2.ExecuteScriptAsync("if (window.translatePage) { window.translatePage(); }")
-        End If
     End Sub
 
     Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)

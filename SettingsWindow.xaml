@@ -58,6 +58,25 @@
                 <Setter Property="Foreground" Value="#e9edef"/>
                 <Setter Property="BorderBrush" Value="#222e35"/>
                 <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="ItemContainerStyle">
+                    <Setter.Value>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="Background" Value="#2a3942"/>
+                            <Setter Property="Foreground" Value="#e9edef"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#00a884"/>
+                                    <Setter Property="Foreground" Value="#ffffff"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#374955"/>
+                                    <Setter Property="Foreground" Value="#ffffff"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <Style x:Key="ActionButtonStyle" TargetType="Button">
@@ -119,7 +138,7 @@
 
             <!-- Draggable Titlebar -->
             <Grid Grid.Row="0" x:Name="TitleBar" Background="#202c33" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <TextBlock Text="Settings" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="20,0,0,0"/>
+                <TextBlock x:Name="TitleText" Text="Settings" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="20,0,0,0"/>
                 <Button Click="BtnClose_Click" HorizontalAlignment="Right" Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SettingsCloseBtnStyle}">
                     <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
                 </Button>
@@ -130,13 +149,13 @@
                 <StackPanel Margin="10,0,10,15">
                     
                     <!-- THEME SECTION -->
-                    <TextBlock Text="Theme" Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock x:Name="SectionTheme" Text="Theme" Style="{StaticResource SectionHeaderStyle}"/>
                     <Grid Margin="0,5,0,15">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="App Theme Color" Foreground="#aebac1" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="LabelAppTheme" Text="App Theme Color" Foreground="#aebac1" VerticalAlignment="Center"/>
                         <ComboBox x:Name="ComboTheme" Grid.Column="1" Width="120" SelectionChanged="ComboTheme_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
                             <ComboBoxItem Content="System"/>
                             <ComboBoxItem Content="Light"/>
@@ -145,34 +164,28 @@
                     </Grid>
 
                     <!-- LANGUAGE SECTION -->
-                    <TextBlock Text="Language &amp; Translation" Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock x:Name="SectionLanguage" Text="Language &amp; Translation" Style="{StaticResource SectionHeaderStyle}"/>
                     <Grid Margin="0,5,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Select Language" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboLanguage" Grid.Column="1" Width="150" SelectionChanged="ComboLanguage_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding [name]}" Foreground="#e9edef"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
+                        <TextBlock x:Name="LabelSelectLanguage" Text="Select Language" Foreground="#aebac1" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ComboLanguage" Grid.Column="1" Width="150" DisplayMemberPath="Name" SelectionChanged="ComboLanguage_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}"/>
                     </Grid>
 
                     <CheckBox x:Name="ChkKeepAppInEnglish" Content="Keep app UI in English" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkTranslateMessageButton" Content="Show translate button on message hover" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page automatically" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkShowTranslateAllButton" Content="Show 'Translate all messages' in titlebar" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <CheckBox x:Name="ChkTranslateMessageButton" Content="Translate message button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <CheckBox x:Name="ChkShowTranslateAllButton" Content="Title bar translate all messages button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
 
                     <!-- NOTIFICATIONS SECTION -->
-                    <TextBlock Text="Notifications" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkTranslateNotifications" Content="Translate incoming notifications" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkShowTranslateNotificationBtn" Content="Show translate button in notification bubble" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <TextBlock x:Name="SectionNotifications" Text="Notifications" Style="{StaticResource SectionHeaderStyle}"/>
+                    <CheckBox x:Name="ChkTranslateNotifications" Content="Translate notification messages" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <CheckBox x:Name="ChkShowTranslateNotificationBtn" Content="Show translate button in notifications" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
 
                     <!-- ACCOUNTS MANAGEMENT SECTION -->
-                    <TextBlock Text="Manage Accounts" Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock x:Name="SectionAccounts" Text="Manage Accounts" Style="{StaticResource SectionHeaderStyle}"/>
                     <ItemsControl x:Name="AccountsList" Margin="0,5,0,15">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -186,7 +199,7 @@
                                         <!-- Editable Account Name TextBox -->
                                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                                                  LostFocus="TxtAccountName_LostFocus"
-                                                 Foreground="#e9edef" Background="#2a3942" BorderBrush="#222e35" 
+                                                 Foreground="#e9edef" Background="#374955" BorderBrush="#00a884" 
                                                  Padding="8,4" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
 
                                         <!-- Delete Account Button -->
@@ -198,10 +211,10 @@
                     </ItemsControl>
 
                     <!-- DEVELOPER TOOLS & CACHE -->
-                    <TextBlock Text="Developer Tools &amp; Actions" Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock x:Name="SectionDevTools" Text="DevTools" Style="{StaticResource SectionHeaderStyle}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                        <Button Content="Debug Active Tab (DevTools)" Click="BtnDevTools_Click" Style="{StaticResource ActionButtonStyle}" Margin="0,0,10,0"/>
-                        <Button Content="Check Updates Now" Click="BtnCheckUpdates_Click" Style="{StaticResource ActionButtonStyle}"/>
+                        <Button x:Name="BtnDebugTab" Content="Debug active tab" Click="BtnDevTools_Click" Style="{StaticResource ActionButtonStyle}" Margin="0,0,10,0"/>
+                        <Button x:Name="BtnCheckUpdates" Content="Check Now" Click="BtnCheckUpdates_Click" Style="{StaticResource ActionButtonStyle}"/>
                     </StackPanel>
 
                 </StackPanel>

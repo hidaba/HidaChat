@@ -15,7 +15,7 @@ Public Class SettingsWindow
         Try
             ' 1. Set Items for Language Dropdown
             ComboLanguage.ItemsSource = _settingsController.SupportedLanguages
-            Dim currentLang = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l("code") = _settingsController.Language)
+            Dim currentLang = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = _settingsController.Language)
             If currentLang IsNot Nothing Then
                 ComboLanguage.SelectedItem = currentLang
             End If
@@ -41,6 +41,9 @@ Public Class SettingsWindow
 
         ' 5. Apply Active Theme
         ApplyTheme()
+
+        ' 6. Apply localized UI text
+        RefreshLocalization()
 
         _isInitializing = False
 
@@ -78,24 +81,28 @@ Public Class SettingsWindow
 
     Private Async Sub ComboLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
-        Dim selectedLang = TryCast(ComboLanguage.SelectedItem, Dictionary(Of String, String))
-        If selectedLang IsNot Nothing AndAlso selectedLang.ContainsKey("code") Then
-            Dim langCode = selectedLang("code")
+        Dim selectedLang = TryCast(ComboLanguage.SelectedItem, LanguageInfo)
+        If selectedLang IsNot Nothing Then
+            Dim langCode = selectedLang.Code
+
+            ' Se l'utente seleziona italiano, disabilita automaticamente KeepAppInEnglish
+            If langCode <> "en" AndAlso _settingsController.KeepAppInEnglish Then
+                _settingsController.KeepAppInEnglish = False
+                ChkKeepAppInEnglish.IsChecked = False
+                Await _settingsController.SaveSettingAsync("keepAppInEnglish", False)
+            End If
+
             Await _settingsController.UpdateLanguageAsync(langCode)
-            
+
+            RefreshLocalization()
+
             ' Notify active webviews of language update
-            Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l("code") = langCode)
+            Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = langCode)
             If langItem IsNot Nothing Then
-                Dim langName = langItem("name")
-                Dim translatedLangName = langName
-                If langCode <> "en" Then
-                    Try
-                        translatedLangName = Await AppLocalizations.TranslateSingle(langName, langCode)
-                    Catch
-                    End Try
-                End If
+                Dim langName = langItem.Name
+                Dim translatedLangName = If(langCode = "it", "Italiano", langName)
                 Dim tooltipLabel = _settingsController.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
-                
+
                 For Each acc In _accountManager.Accounts
                     Await acc.UpdateWebviewLanguageAsync(langCode, translatedLangName, tooltipLabel, _settingsController.TranslateMessageButton)
                 Next
@@ -113,6 +120,7 @@ Public Class SettingsWindow
                 Await _settingsController.SaveSettingAsync("keepAppInEnglish", chk.IsChecked.Value)
                 ' Force reload translation system
                 Await _settingsController.UpdateLanguageAsync(_settingsController.Language)
+                RefreshLocalization()
             Case "ChkTranslateMessageButton"
                 _settingsController.TranslateMessageButton = chk.IsChecked.Value
                 Await _settingsController.SaveSettingAsync("translateMessageButton", chk.IsChecked.Value)
@@ -132,18 +140,12 @@ Public Class SettingsWindow
 
         ' Notify webviews of hover state changes
         If chk.Name = "ChkTranslateMessageButton" Then
-            Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l("code") = _settingsController.Language)
+            Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = _settingsController.Language)
             If langItem IsNot Nothing Then
-                Dim langName = langItem("name")
-                Dim translatedLangName = langName
-                If _settingsController.Language <> "en" Then
-                    Try
-                        translatedLangName = Await AppLocalizations.TranslateSingle(langName, _settingsController.Language)
-                    Catch
-                    End Try
-                End If
+                Dim langName = langItem.Name
+                Dim translatedLangName = If(_settingsController.Language = "it", "Italiano", langName)
                 Dim tooltipLabel = _settingsController.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
-                
+
                 For Each acc In _accountManager.Accounts
                     Await acc.UpdateWebviewLanguageAsync(_settingsController.Language, translatedLangName, tooltipLabel, chk.IsChecked.Value)
                 Next
@@ -193,6 +195,26 @@ Public Class SettingsWindow
         Await UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager, force:=True)
     End Sub
 
+    Private Sub RefreshLocalization()
+        Dim loc = _settingsController.Localizations
+        TitleText.Text = loc.Get("settings")
+        SectionTheme.Text = loc.Get("theme")
+        LabelAppTheme.Text = loc.Get("match_cohesive")
+        SectionLanguage.Text = loc.Get("language")
+        LabelSelectLanguage.Text = loc.Get("language")
+        ChkKeepAppInEnglish.Content = loc.Get("keep_app_in_english")
+        ChkTranslateMessageButton.Content = loc.Get("translate_message_button")
+        ChkFullPageTranslation.Content = loc.Get("full_page_translation")
+        ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")
+        SectionNotifications.Text = loc.Get("notifications")
+        ChkTranslateNotifications.Content = loc.Get("translate_notifications")
+        ChkShowTranslateNotificationBtn.Content = loc.Get("show_translate_notification_button")
+        SectionAccounts.Text = loc.Get("manage_accounts")
+        SectionDevTools.Text = loc.Get("devtools")
+        BtnDebugTab.Content = loc.Get("debug_active_tab")
+        BtnCheckUpdates.Content = loc.Get("check_now")
+    End Sub
+
     Private Sub ApplyTheme()
         Dim isDark = False
         If _settingsController.Theme = "Dark" Then
@@ -213,6 +235,10 @@ Public Class SettingsWindow
         If isDark Then
             SettingsBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#1f2c34"))
             TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
+            ComboLanguage.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#2a3942"))
+            ComboLanguage.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
+            ComboTheme.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#2a3942"))
+            ComboTheme.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
             ' Refresh styling for all checkboxes and labels in scrollview
             For Each chk In FindLogicalChildren(Of CheckBox)(Me)
                 chk.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#aebac1"))
@@ -225,6 +251,10 @@ Public Class SettingsWindow
         Else
             SettingsBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
             TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
+            ComboLanguage.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
+            ComboLanguage.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
+            ComboTheme.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
+            ComboTheme.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
             ' Refresh styling for all checkboxes and labels in scrollview
             For Each chk In FindLogicalChildren(Of CheckBox)(Me)
                 chk.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))

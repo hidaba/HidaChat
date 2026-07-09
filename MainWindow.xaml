@@ -121,11 +121,8 @@
                 <!-- Quick actions and window controls -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                     
-                    <!-- Translate Full Page Button -->
-                    <Button x:Name="BtnTranslatePage" Click="BtnTranslatePage_Click" Width="32" Height="32" Margin="0,0,5,0" ToolTip="Translate entire page" Style="{StaticResource HeaderIconButtonStyle}">
-                        <Path Data="M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M18.93,8h-2.95c-0.32-1.25-0.78-2.45-1.38-3.56 C16.44,5.07,17.97,6.35,18.93,8z M12,4.04c0.83,1.2,1.48,2.53,1.91,3.96h-3.82C10.52,6.57,11.17,5.24,12,4.04z M4.26,14 C4.1,13.36,4,12.69,4,12s0.1-1.36,0.26-2h3.38c-0.08,0.66-0.14,1.34-0.14,2s0.06,1.34,0.14,2H4.26z M5.08,16h2.95 c0.32,1.25,0.78,2.45,1.38,3.56C7.57,18.93,6.04,17.65,5.08,16z M8.03,8C8.35,6.75,8.81,5.55,9.41,4.44 C7.57,5.07,6.04,6.35,5.08,8H8.03z M12,19.96c-0.83-1.2-1.48-2.53-1.91-3.96h3.82C13.48,17.43,12.83,18.76,12,19.96z M14.34,14H9.66 c-0.09-0.66-0.16-1.34-0.16-2s0.07-1.34,0.16-2h4.68c0.09,0.66,0.16,1.34,0.16,2S14.43,14,14.34,14z M14.62,19.56 c0.6-1.11,1.06-2.31,1.38-3.56h2.95C17.97,17.65,16.44,18.93,14.62,19.56z M16.36,14c0.08-0.66,0.14-1.34,0.14-2s-0.06-1.34-0.14-2 h3.38c0.16,0.64,0.26,1.31,0.26,2s-0.1,1.36-0.26,2H16.36z" 
-                              Fill="#8696a0" Width="18" Height="18" Stretch="Fill"/>
-                    </Button>
+                    <!-- Version number -->
+                    <TextBlock Text="{x:Static local:Constants.AppVersion}" Foreground="#8696a0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
 
                     <!-- Reload Active Tab Button -->
                     <Button x:Name="BtnReloadActiveTab" Click="BtnReloadActiveTab_Click" Width="32" Height="32" Margin="0,0,5,0" ToolTip="Reload active tab" Style="{StaticResource HeaderIconButtonStyle}">

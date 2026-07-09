@@ -131,17 +131,14 @@ Public Class WhatsAppAccount
 
                     ' Inject translation script
                     Dim langName = "English"
-                    Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l("code") = settings.Language)
+                    Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
                     If langItem IsNot Nothing Then
-                        langName = langItem("name")
+                        langName = langItem.Name
                     End If
 
                     Dim translatedLangName = langName
                     If settings.Language <> "en" Then
-                        Try
-                            translatedLangName = Await AppLocalizations.TranslateSingle(langName, settings.Language)
-                        Catch
-                        End Try
+                        translatedLangName = If(settings.Language = "it", "Italiano", langName)
                     End If
 
                     Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})

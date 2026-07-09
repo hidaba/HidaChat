@@ -153,14 +153,15 @@ Public Class SettingsController
         End Set
     End Property
 
-    Private _supportedLanguages As New List(Of Dictionary(Of String, String)) From {
-        New Dictionary(Of String, String) From {{"name", "English"}, {"code", "en"}}
+    Private _supportedLanguages As New List(Of LanguageInfo) From {
+        New LanguageInfo With {.Name = "English", .Code = "en"},
+        New LanguageInfo With {.Name = "Italiano", .Code = "it"}
     }
-    Public Property SupportedLanguages As List(Of Dictionary(Of String, String))
+    Public Property SupportedLanguages As List(Of LanguageInfo)
         Get
             Return _supportedLanguages
         End Get
-        Set(value As List(Of Dictionary(Of String, String)))
+        Set(value As List(Of LanguageInfo))
             _supportedLanguages = value
             NotifyPropertyChanged()
         End Set
@@ -254,20 +255,6 @@ Public Class SettingsController
                 If Not String.IsNullOrEmpty(cacheContent) Then
                     Using doc As JsonDocument = JsonDocument.Parse(cacheContent)
                         Dim root = doc.RootElement
-                        
-                        ' Load cached languages
-                        Dim cachedLangsElement As JsonElement = Nothing
-                        If root.TryGetProperty("supported_languages", cachedLangsElement) Then
-                            Dim newLangs As New List(Of Dictionary(Of String, String))()
-                            For Each item In cachedLangsElement.EnumerateArray()
-                                Dim dict As New Dictionary(Of String, String)()
-                                For Each prop In item.EnumerateObject()
-                                    dict(prop.Name) = prop.Value.GetString()
-                                Next
-                                newLangs.Add(dict)
-                            Next
-                            _supportedLanguages = newLangs
-                        End If
 
                         ' Load cached translations
                         _cachedTranslations.Clear()
@@ -289,9 +276,6 @@ Public Class SettingsController
         End If
 
         FallbackOrLoadTranslations()
-        
-        ' Run async task to fetch fresh languages list from Google
-        Dim ignore = LoadSupportedLanguagesAsync()
 
         NotifyAllPropertiesChanged()
     End Function
@@ -309,23 +293,9 @@ Public Class SettingsController
         Return defaultVal
     End Function
 
-    Private Async Function LoadSupportedLanguagesAsync() As Task
-        Try
-            Dim langs = Await AppLanguages.FetchSupportedLanguages()
-            If langs.Count > 0 Then
-                _supportedLanguages = langs
-                NotifyPropertyChanged(NameOf(SupportedLanguages))
-                Await SaveCacheFileAsync()
-            End If
-        Catch ex As Exception
-            Debug.WriteLine($"Failed to load supported languages async: {ex.Message}")
-        End Try
-    End Function
-
     Private Async Function SaveCacheFileAsync() As Task
         Try
             Dim cacheData As New Dictionary(Of String, Object)()
-            cacheData("supported_languages") = _supportedLanguages
             cacheData("cached_translations") = _cachedTranslations
             
             Dim options As New JsonSerializerOptions With {
@@ -339,33 +309,21 @@ Public Class SettingsController
     End Function
 
     Private Sub FallbackOrLoadTranslations()
-        If _language = "en" OrElse _keepAppInEnglish Then
+        If _keepAppInEnglish Then
             Localizations = New AppLocalizations(AppLocalizations.EnStrings)
-        ElseIf _cachedTranslations.ContainsKey(_language) Then
-            Dim cached = _cachedTranslations(_language)
-            Dim hasAllKeys = AppLocalizations.EnStrings.Keys.All(Function(key) cached.ContainsKey(key))
-            If hasAllKeys Then
-                Localizations = New AppLocalizations(cached)
-            Else
-                Dim ignore = LoadTranslationsAsync(_language)
-            End If
-        Else
-            Dim ignore = LoadTranslationsAsync(_language)
+            Return
         End If
-    End Sub
 
-    Private Async Function LoadTranslationsAsync(langCode As String) As Task
-        IsTranslating = True
-        Try
-            Dim fetched = Await AppLocalizations.FetchTranslations(langCode)
-            Localizations = New AppLocalizations(fetched)
-            _cachedTranslations(langCode) = fetched
-            Await SaveCacheFileAsync()
-        Catch ex As Exception
-            Debug.WriteLine($"Failed to load translations async: {ex.Message}")
-        End Try
-        IsTranslating = False
-    End Function
+        Select Case _language
+            Case "en"
+                Localizations = New AppLocalizations(AppLocalizations.EnStrings)
+            Case "it"
+                Localizations = New AppLocalizations(AppLocalizations.ItStrings)
+            Case Else
+                ' Lingua non più supportata (es. selezionata prima della 1.1.0) → ricade in inglese
+                Localizations = New AppLocalizations(AppLocalizations.EnStrings)
+        End Select
+    End Sub
 
     Public Async Function UpdateLanguageAsync(newLanguage As String) As Task
         If _language = newLanguage Then Return
@@ -376,18 +334,12 @@ Public Class SettingsController
         settings("language") = newLanguage
         Await WriteSettingsAsync(settings)
 
-        If newLanguage = "en" OrElse _keepAppInEnglish Then
+        If _keepAppInEnglish OrElse newLanguage = "en" Then
             Localizations = New AppLocalizations(AppLocalizations.EnStrings)
-        ElseIf _cachedTranslations.ContainsKey(newLanguage) Then
-            Dim cached = _cachedTranslations(newLanguage)
-            Dim hasAllKeys = AppLocalizations.EnStrings.Keys.All(Function(key) cached.ContainsKey(key))
-            If hasAllKeys Then
-                Localizations = New AppLocalizations(cached)
-            Else
-                Await LoadTranslationsAsync(newLanguage)
-            End If
-        Else
-            Await LoadTranslationsAsync(newLanguage)
+        ElseIf newLanguage = "it" Then
+            Localizations = New AppLocalizations(AppLocalizations.ItStrings)
+            _cachedTranslations("it") = AppLocalizations.ItStrings
+            Await SaveCacheFileAsync()
         End If
     End Function
 

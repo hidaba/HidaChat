@@ -13,8 +13,8 @@ Public Module AppLanguages
         Return RtlCodes.Contains(baseCode)
     End Function
 
-    Public Async Function FetchSupportedLanguages() As Task(Of List(Of Dictionary(Of String, String)))
-        Dim langs As New List(Of Dictionary(Of String, String))()
+    Public Async Function FetchSupportedLanguages() As Task(Of List(Of LanguageInfo))
+        Dim langs As New List(Of LanguageInfo)()
         Using client As New HttpClient()
             Try
                 Dim url = "https://translate.googleapis.com/translate_a/l?client=gtx&hl=en"
@@ -23,12 +23,12 @@ Public Module AppLanguages
                     Dim tlElement As JsonElement = Nothing
                     If doc.RootElement.TryGetProperty("tl", tlElement) Then
                         For Each prop In tlElement.EnumerateObject()
-                            Dim lang As New Dictionary(Of String, String)()
-                            lang("code") = prop.Name
-                            lang("name") = prop.Value.ToString()
-                            langs.Add(lang)
+                            langs.Add(New LanguageInfo With {
+                                .Code = prop.Name,
+                                .Name = prop.Value.ToString()
+                            })
                         Next
-                        langs.Sort(Function(a, b) a("name").CompareTo(b("name")))
+                        langs.Sort(Function(a, b) a.Name.CompareTo(b.Name))
                     End If
                 End Using
             Catch ex As Exception
@@ -162,4 +162,44 @@ Public Class AppLocalizations
         End Try
         Return text
     End Function
+    Public Shared ReadOnly ItStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+        {"settings", "Impostazioni"},
+        {"theme", "Tema"},
+        {"system", "Sistema"},
+        {"light", "Chiaro"},
+        {"dark", "Scuro"},
+        {"match_cohesive", "Abbina questa impostazione in WhatsApp per un aspetto coerente."},
+        {"manage_accounts", "Gestione Account"},
+        {"add_account", "Aggiungi account"},
+        {"always_show_tab_bar", "Mostra sempre la barra delle schede"},
+        {"updates", "Aggiornamenti"},
+        {"check_updates_launch", "Controlla aggiornamenti all'avvio"},
+        {"check_now", "Verifica ora"},
+        {"devtools", "Strumenti sviluppatore"},
+        {"debug_active_tab", "Debug scheda attiva"},
+        {"delete_account_title", "Elimina Account"},
+        {"delete_account_confirm", "Eliminare ""{name}""? Tutti i dati di questo account verranno rimossi."},
+        {"cancel", "Annulla"},
+        {"delete", "Elimina"},
+        {"rename", "Rinomina"},
+        {"language", "Lingua"},
+        {"translate_to_lang", "Traduci in {lang}"},
+        {"translate_all_messages", "Traduci tutti i messaggi"},
+        {"toggle_window", "Mostra/Nascondi finestra"},
+        {"exit", "Esci"},
+        {"translate_message_button", "Pulsante traduzione messaggio"},
+        {"keep_app_in_english", "Mantieni interfaccia in Inglese"},
+        {"full_page_translation", "Traduci l'intera pagina"},
+        {"show_translate_all_messages_button", "Pulsante traduci tutti i messaggi nella barra"},
+        {"reload_active_tab", "Ricarica scheda attiva"},
+        {"notifications", "Notifiche"},
+        {"translate_notifications", "Traduci messaggi delle notifiche"},
+        {"show_translate_notification_button", "Mostra pulsante traduci nelle notifiche"},
+        {"notification_button_info", "Prolungherà la durata di visualizzazione della notifica."}
+    }
+End Class
+
+Public Class LanguageInfo
+    Public Property Name As String
+    Public Property Code As String
 End Class
