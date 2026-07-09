@@ -1,0 +1,342 @@
+Imports System.IO
+Imports System.ComponentModel
+Imports System.Windows.Interop
+Imports Microsoft.Web.WebView2.Wpf
+Imports Microsoft.Toolkit.Uwp.Notifications
+
+Public Class MainWindow
+    Private ReadOnly _settingsController As New SettingsController()
+    Private _accountManager As AccountManager
+    Private _trayIcon As System.Windows.Forms.NotifyIcon
+    Private _allowExit As Boolean = False
+
+    Public Sub New()
+        InitializeComponent()
+        _accountManager = New AccountManager(_settingsController)
+    End Sub
+
+    Private Async Sub MainWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        ' 1. Load User Settings
+        Await _settingsController.LoadSettingsAsync()
+        
+        ' 2. Initialize Account Manager and Accounts
+        Await _accountManager.LoadAccountsAsync()
+        
+        ' 3. Apply WPF Theme Colors (Dark/Light) based on loaded settings
+        ApplyWpfTheme()
+        
+        ' 4. Configure System Tray Icon
+        ConfigureSystemTray()
+        
+        ' 5. Set ItemsSource for Horizontal Tabs
+        AccountsList.ItemsSource = _accountManager.Accounts
+        
+        ' 6. Instanciate all WebView2 controls dynamically
+        PopulateWebViews()
+        
+        ' 7. Listen to changes in settings or accounts
+        AddHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+        AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+        
+        ' 8. Configure Toast notifications click routing
+        ConfigureToastNotifications()
+        
+        ' 9. Check updates on launch asynchronously
+        Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
+        
+        ' Update active tab styling
+        UpdateAccountTabStyling()
+    End Sub
+
+    Private Sub ConfigureSystemTray()
+        _trayIcon = New System.Windows.Forms.NotifyIcon()
+        UpdateTrayIconImage()
+        _trayIcon.Text = "WhatsApp Portable"
+        _trayIcon.Visible = True
+        
+        ' Double click restores window
+        AddHandler _trayIcon.DoubleClick, Sub()
+            ToggleWindow()
+        End Sub
+
+        ' Context menu
+        Dim contextMenu As New System.Windows.Forms.ContextMenuStrip()
+        contextMenu.Items.Add("Toggle Window", Nothing, Sub() ToggleWindow())
+        contextMenu.Items.Add("-")
+        contextMenu.Items.Add("Exit", Nothing, Sub() ExitApplication())
+        
+        _trayIcon.ContextMenuStrip = contextMenu
+    End Sub
+
+    Private Sub UpdateTrayIconImage()
+        If _trayIcon Is Nothing Then Return
+        Try
+            Dim iconName = If(_accountManager.HasAnyNotification, "icon_notification.ico", "icon.ico")
+            Dim iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "images", iconName)
+            If File.Exists(iconPath) Then
+                _trayIcon.Icon = New System.Drawing.Icon(iconPath)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to update tray icon image: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Sub ToggleWindow()
+        If Me.Visibility = Visibility.Visible Then
+            Me.Hide()
+        Else
+            Me.Show()
+            Me.WindowState = WindowState.Normal
+            Me.Activate()
+            Me.Focus()
+        End If
+    End Sub
+
+    Private Sub ExitApplication()
+        _allowExit = True
+        If _trayIcon IsNot Nothing Then
+            _trayIcon.Visible = False
+            _trayIcon.Dispose()
+        End If
+        ' Uninstall toast listeners
+        ToastNotificationManagerCompat.Uninstall()
+        Application.Current.Shutdown()
+    End Sub
+
+    Private Sub MainWindow_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
+        If Not _allowExit Then
+            e.Cancel = True
+            Me.Hide()
+        End If
+    End Sub
+
+    Private Sub TitleBar_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
+        If e.ChangedButton = MouseButton.Left Then
+            Me.DragMove()
+        End If
+    End Sub
+
+    Private Sub BtnMinimize_Click(sender As Object, e As RoutedEventArgs)
+        Me.WindowState = WindowState.Minimized
+    End Sub
+
+    Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
+        Me.Hide()
+    End Sub
+
+    Private Sub PopulateWebViews()
+        WebViewsGrid.Children.Clear()
+        
+        For Each account In _accountManager.Accounts
+            Dim wv = account.WebView
+            wv.HorizontalAlignment = HorizontalAlignment.Stretch
+            wv.VerticalAlignment = VerticalAlignment.Stretch
+            wv.Visibility = If(account.IsActive, Visibility.Visible, Visibility.Collapsed)
+            
+            WebViewsGrid.Children.Add(wv)
+            
+            ' Async configuration of WebView environment and scripts injection
+            Dim ignore = account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
+        Next
+    End Sub
+
+    Private Sub OnAccountNotificationChanged(accountId As String, hasNotification As Boolean)
+        _accountManager.HandleNotificationStateChanged(accountId, hasNotification)
+    End Sub
+
+    Private Async Sub AccountTab_Click(sender As Object, e As RoutedEventArgs)
+        Dim btn = CType(sender, Button)
+        Dim accountId = btn.Tag.ToString()
+        Await SwitchToAccountAsync(accountId)
+    End Sub
+
+    Private Async Function SwitchToAccountAsync(accountId As String) As Task
+        Await _accountManager.SwitchAccountAsync(accountId)
+        
+        ' Update layout visibilities
+        For Each child In WebViewsGrid.Children
+            If TypeOf child Is WebView2 Then
+                Dim wv = CType(child, WebView2)
+                Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.WebView Is wv)
+                If acc IsNot Nothing Then
+                    wv.Visibility = If(acc.Id = accountId, Visibility.Visible, Visibility.Collapsed)
+                End If
+            End If
+        Next
+        
+        UpdateAccountTabStyling()
+    End Function
+
+    Private Sub UpdateAccountTabStyling()
+        ' Force UI refresh on active buttons
+        For i As Integer = 0 To AccountsList.Items.Count - 1
+            Dim container = AccountsList.ItemContainerGenerator.ContainerFromIndex(i)
+            If container IsNot Nothing Then
+                Dim contentPresenter = FindVisualChild(Of ContentPresenter)(container)
+                If contentPresenter IsNot Nothing Then
+                    Dim dt = contentPresenter.ContentTemplate
+                    Dim btn = CType(dt.FindName("AccountTabButton", contentPresenter), Button) ' Actually we clicked. We can style them dynamically.
+                End If
+            End If
+        Next
+        
+        ' Alternatively, we can find buttons manually by walking the visual tree:
+        Dim buttons = FindVisualChildren(Of Button)(AccountsList)
+        For Each btn In buttons
+            Dim accId = btn.Tag?.ToString()
+            If accId IsNot Nothing Then
+                Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accId)
+                If acc IsNot Nothing Then
+                    If acc.IsActive Then
+                        btn.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
+                        btn.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
+                    Else
+                        btn.Background = New SolidColorBrush(Colors.Transparent)
+                        btn.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#8696a0"))
+                    End If
+                End If
+            End If
+        Next
+    End Sub
+
+    Private Async Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
+        Await _accountManager.AddAccountAsync()
+        PopulateWebViews()
+        AccountsList.ItemsSource = Nothing
+        AccountsList.ItemsSource = _accountManager.Accounts
+        UpdateAccountTabStyling()
+    End Sub
+
+    Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
+        _accountManager.IsDialogOpen = True
+        Dim settingsWin As New SettingsWindow(_settingsController, _accountManager)
+        settingsWin.Owner = Me
+        settingsWin.ShowDialog()
+        _accountManager.IsDialogOpen = False
+        
+        ' Apply changes to layout
+        ApplyWpfTheme()
+        UpdateAccountTabStyling()
+    End Sub
+
+    Private Async Sub BtnTranslatePage_Click(sender As Object, e As RoutedEventArgs)
+        Dim activeAcc = _accountManager.CurrentAccount
+        If activeAcc IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
+            Await activeAcc.WebView.CoreWebView2.ExecuteScriptAsync("if (window.translatePage) { window.translatePage(); }")
+        End If
+    End Sub
+
+    Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)
+        Dim activeAcc = _accountManager.CurrentAccount
+        If activeAcc IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
+            activeAcc.WebView.CoreWebView2.Reload()
+        End If
+    End Sub
+
+    Private Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+        If e.PropertyName = NameOf(SettingsController.Theme) Then
+            ApplyWpfTheme()
+        End If
+    End Sub
+
+    Private Sub OnAccountManagerPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+        If e.PropertyName = NameOf(AccountManager.HasAnyNotification) Then
+            UpdateTrayIconImage()
+        End If
+    End Sub
+
+    Private Sub ApplyWpfTheme()
+        Dim isDark = False
+        If _settingsController.Theme = "Dark" Then
+            isDark = True
+        ElseIf _settingsController.Theme = "System" Then
+            Try
+                Dim key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+                If key IsNot Nothing Then
+                    Dim val = key.GetValue("AppsUseLightTheme")
+                    If val IsNot Nothing AndAlso Convert.ToInt32(val) = 0 Then
+                        isDark = True
+                    End If
+                End If
+            Catch
+            End Try
+        End If
+
+        If isDark Then
+            RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
+            RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#2f3e46"))
+            TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
+            ' Refresh active theme inside each WebView
+            For Each acc In _accountManager.Accounts
+                If acc.WebView.CoreWebView2 IsNot Nothing Then
+                    acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
+                End If
+            Next
+        Else
+            RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#f0f2f5"))
+            RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#d1d7db"))
+            TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
+            ' Refresh active theme inside each WebView
+            For Each acc In _accountManager.Accounts
+                If acc.WebView.CoreWebView2 IsNot Nothing Then
+                    acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                End If
+            Next
+        End If
+        
+        UpdateAccountTabStyling()
+    End Sub
+
+    Private Sub ConfigureToastNotifications()
+        ' Handle Toast clicks when app is running or launched from toast
+        AddHandler ToastNotificationManagerCompat.OnActivated, Sub(toastArgs)
+            Dim args = toastArgs.Argument
+            If Not String.IsNullOrEmpty(args) Then
+                ' Parse parameters from toast arguments
+                Dim accountId = toastArgs.Argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith("accountId=")).Split("="c)(1)
+                Dim notificationId = toastArgs.Argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith("notificationId=")).Split("="c)(1)
+                
+                ' Switch to account and restore window on UI Thread
+                Application.Current.Dispatcher.Invoke(Async Function() As Task
+                    ToggleWindow()
+                    Await SwitchToAccountAsync(accountId)
+                    
+                    Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
+                    If acc IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
+                        Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
+                    End If
+                End Function)
+            End If
+        End Sub
+    End Sub
+
+    ' Helpers for finding children in WPF XAML visual tree
+    Private Shared Function FindVisualChild(Of T As DependencyObject)(obj As DependencyObject) As T
+        For i As Integer = 0 To VisualTreeHelper.GetChildrenCount(obj) - 1
+            Dim child = VisualTreeHelper.GetChild(obj, i)
+            If child IsNot Nothing AndAlso TypeOf child Is T Then
+                Return CType(child, T)
+            Else
+                Dim childOfChild = FindVisualChild(Of T)(child)
+                If childOfChild IsNot Nothing Then
+                    Return childOfChild
+                End If
+            End If
+        Next
+        Return Nothing
+    End Function
+
+    Private Shared Function FindVisualChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
+        Dim list As New List(Of T)()
+        If depObj IsNot Nothing Then
+            For i As Integer = 0 To VisualTreeHelper.GetChildrenCount(depObj) - 1
+                Dim child = VisualTreeHelper.GetChild(depObj, i)
+                If child IsNot Nothing AndAlso TypeOf child Is T Then
+                    list.Add(CType(child, T))
+                End If
+                list.AddRange(FindVisualChildren(Of T)(child))
+            Next
+        End If
+        Return list
+    End Function
+End Class
