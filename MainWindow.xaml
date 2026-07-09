@@ -115,7 +115,7 @@
                 <!-- Icon and Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
                     <Image Source="images/icon.ico" Width="20" Height="20" Margin="0,0,10,0"/>
-                    <TextBlock Text="WhatsApp" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TitleText" Text="WhatsApp" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Quick actions and window controls -->

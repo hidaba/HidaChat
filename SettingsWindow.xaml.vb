@@ -12,9 +12,13 @@ Public Class SettingsWindow
     End Sub
 
     Private Sub SettingsWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
-        ' 1. Set Items for Language Dropdown
-        ComboLanguage.ItemsSource = _settingsController.SupportedLanguages
-        ComboLanguage.SelectedValue = _settingsController.Language
+        Try
+            ' 1. Set Items for Language Dropdown
+            ComboLanguage.ItemsSource = _settingsController.SupportedLanguages
+            Dim currentLang = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l("code") = _settingsController.Language)
+            If currentLang IsNot Nothing Then
+                ComboLanguage.SelectedItem = currentLang
+            End If
 
         ' 2. Select Theme Selection
         For Each item As ComboBoxItem In ComboTheme.Items
@@ -39,6 +43,17 @@ Public Class SettingsWindow
         ApplyTheme()
 
         _isInitializing = False
+
+        Catch ex As Exception
+            MessageBox.Show(
+                "Errore nel caricamento delle impostazioni:" & vbCrLf & vbCrLf &
+                ex.ToString(),
+                "Errore",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+            Me.Close()
+        End Try
     End Sub
 
     Private Sub TitleBar_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
@@ -63,8 +78,9 @@ Public Class SettingsWindow
 
     Private Async Sub ComboLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
-        If ComboLanguage.SelectedValue IsNot Nothing Then
-            Dim langCode = ComboLanguage.SelectedValue.ToString()
+        Dim selectedLang = TryCast(ComboLanguage.SelectedItem, Dictionary(Of String, String))
+        If selectedLang IsNot Nothing AndAlso selectedLang.ContainsKey("code") Then
+            Dim langCode = selectedLang("code")
             Await _settingsController.UpdateLanguageAsync(langCode)
             
             ' Notify active webviews of language update

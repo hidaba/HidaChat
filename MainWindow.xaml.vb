@@ -46,6 +46,9 @@ Public Class MainWindow
         
         ' Update active tab styling
         UpdateAccountTabStyling()
+
+        ' Set version in title bar (last to avoid being overwritten)
+        TitleText.Text = "WhatsApp v" & Constants.AppVersion
     End Sub
 
     Private Sub ConfigureSystemTray()
@@ -168,19 +171,7 @@ Public Class MainWindow
     End Function
 
     Private Sub UpdateAccountTabStyling()
-        ' Force UI refresh on active buttons
-        For i As Integer = 0 To AccountsList.Items.Count - 1
-            Dim container = AccountsList.ItemContainerGenerator.ContainerFromIndex(i)
-            If container IsNot Nothing Then
-                Dim contentPresenter = FindVisualChild(Of ContentPresenter)(container)
-                If contentPresenter IsNot Nothing Then
-                    Dim dt = contentPresenter.ContentTemplate
-                    Dim btn = CType(dt.FindName("AccountTabButton", contentPresenter), Button) ' Actually we clicked. We can style them dynamically.
-                End If
-            End If
-        Next
-        
-        ' Alternatively, we can find buttons manually by walking the visual tree:
+        ' Find buttons manually by walking the visual tree:
         Dim buttons = FindVisualChildren(Of Button)(AccountsList)
         For Each btn In buttons
             Dim accId = btn.Tag?.ToString()
@@ -208,15 +199,25 @@ Public Class MainWindow
     End Sub
 
     Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
-        _accountManager.IsDialogOpen = True
-        Dim settingsWin As New SettingsWindow(_settingsController, _accountManager)
-        settingsWin.Owner = Me
-        settingsWin.ShowDialog()
-        _accountManager.IsDialogOpen = False
-        
-        ' Apply changes to layout
-        ApplyWpfTheme()
-        UpdateAccountTabStyling()
+        Try
+            _accountManager.IsDialogOpen = True
+            Dim settingsWin As New SettingsWindow(_settingsController, _accountManager)
+            settingsWin.Owner = Me
+            settingsWin.ShowDialog()
+            _accountManager.IsDialogOpen = False
+
+            ApplyWpfTheme()
+            UpdateAccountTabStyling()
+        Catch ex As Exception
+            _accountManager.IsDialogOpen = False
+            MessageBox.Show(
+                "Errore aprendo le impostazioni:" & vbCrLf & vbCrLf &
+                ex.ToString(),
+                "Errore",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+        End Try
     End Sub
 
     Private Async Sub BtnTranslatePage_Click(sender As Object, e As RoutedEventArgs)
@@ -266,6 +267,7 @@ Public Class MainWindow
             RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
             RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#2f3e46"))
             TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
+            TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
             ' Refresh active theme inside each WebView
             For Each acc In _accountManager.Accounts
                 If acc.WebView.CoreWebView2 IsNot Nothing Then
@@ -276,6 +278,7 @@ Public Class MainWindow
             RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#f0f2f5"))
             RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#d1d7db"))
             TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
+            TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
             ' Refresh active theme inside each WebView
             For Each acc In _accountManager.Accounts
                 If acc.WebView.CoreWebView2 IsNot Nothing Then
