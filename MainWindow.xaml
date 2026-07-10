@@ -120,7 +120,7 @@
 
                 <!-- Quick actions and window controls -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                    
+
                     <!-- Version number -->
                     <TextBlock Text="{Binding Source={x:Static local:Constants.AppVersion}, StringFormat='v{0}'}" Foreground="#8696a0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
 
@@ -146,6 +146,7 @@
                         <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
                     </Button>
                 </StackPanel>
+                <Image Grid.Column="1" HorizontalAlignment="Left" Height="69" Margin="600,0,0,0" VerticalAlignment="Center" Width="100" Source="/images/annoni.png" Grid.ColumnSpan="2"/>
             </Grid>
 
             <!-- Custom Horizontal Account Bar -->
@@ -155,7 +156,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    
+
                     <!-- Horizontal list of accounts -->
                     <ItemsControl x:Name="AccountsList">
                         <ItemsControl.ItemsPanel>
@@ -181,6 +182,7 @@
 
             <!-- Main WebViews Holder Grid -->
             <Grid Grid.Row="2" x:Name="WebViewsGrid" Background="#0b141a">
+                <TextBlock x:Name="TitleText_Copia" Text="Gruppo Annoni" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" Margin="623,-71,267,665"/>
                 <!-- WebView2 controls will be populated dynamically in VB.NET -->
             </Grid>
         </Grid>
