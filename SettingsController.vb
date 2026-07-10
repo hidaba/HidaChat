@@ -12,6 +12,7 @@ Public Class SettingsController
         RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(propertyName))
     End Sub
 
+    ' --- Impostazioni tema ---
     Private _theme As String = "System"
     Public Property Theme As String
         Get
@@ -25,6 +26,7 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Barra schede sempre visibile ---
     Private _alwaysShowTabBar As Boolean = True
     Public Property AlwaysShowTabBar As Boolean
         Get
@@ -38,6 +40,7 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Controllo aggiornamenti all'avvio ---
     Private _checkForUpdates As Boolean = True
     Public Property CheckForUpdates As Boolean
         Get
@@ -51,6 +54,7 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Pulsante traduci al passaggio del mouse ---
     Private _translateMessageButton As Boolean = True
     Public Property TranslateMessageButton As Boolean
         Get
@@ -63,6 +67,7 @@ Public Class SettingsController
             End If
         End Set
     End Property
+
 
 
     Private _fullPageTranslation As Boolean = False
@@ -170,18 +175,26 @@ Public Class SettingsController
 
     Private _cachedTranslations As New Dictionary(Of String, Dictionary(Of String, String))(StringComparer.OrdinalIgnoreCase)
 
+    ' --- File JSON delle impostazioni ---
     Private ReadOnly Property SettingsFile As String
         Get
-            Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
+            ' Prima cerca settings.json nella cartella base, poi in data\ (fallback per OTA)
+            Dim basePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
+            If File.Exists(basePath) Then Return basePath
+            Dim dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "settings.json")
+            If File.Exists(dataPath) Then Return dataPath
+            Return basePath
         End Get
     End Property
 
+    ' --- Cache traduzioni scaricate ---
     Private ReadOnly Property CacheFile As String
         Get
             Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translations_cache.json")
         End Get
     End Property
 
+    ' Legge il file settings.json dal disco
     Public Async Function ReadSettingsAsync() As Task(Of Dictionary(Of String, Object))
         If Not File.Exists(SettingsFile) Then Return New Dictionary(Of String, Object)()
         Try
@@ -193,6 +206,7 @@ Public Class SettingsController
         End Try
     End Function
 
+    ' Salva le impostazioni su disco come JSON
     Public Async Function WriteSettingsAsync(settings As Dictionary(Of String, Object)) As Task
         Try
             Dim options As New JsonSerializerOptions With {
@@ -205,6 +219,7 @@ Public Class SettingsController
         End Try
     End Function
 
+    ' Carica tutte le impostazioni dal file JSON all'avvio
     Public Async Function LoadSettingsAsync() As Task
         Dim settings = Await ReadSettingsAsync()
         
@@ -229,13 +244,14 @@ Public Class SettingsController
         _translateNotifications = GetBoolSetting(settings, "translateNotifications", True)
         _showTranslateNotificationButton = GetBoolSetting(settings, "showTranslateNotificationButton", False)
         
+        ' Lingua salvata nelle impostazioni
         If settings.ContainsKey("language") Then
             _language = settings("language").ToString()
         Else
             _language = "en"
         End If
 
-        ' Load translations cache
+        ' Carica cache traduzioni da disco
         If File.Exists(CacheFile) Then
             Try
                 Dim cacheContent = Await File.ReadAllTextAsync(CacheFile)

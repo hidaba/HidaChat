@@ -15,33 +15,48 @@ Public Class MainWindow
         _accountManager = New AccountManager(_settingsController)
     End Sub
 
+    ' Caricamento iniziale: impostazioni, account, tema, webview, notifiche
     Private Async Sub MainWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
         ' 1. Load User Settings
         Await _settingsController.LoadSettingsAsync()
         
-        ' 2. Initialize Account Manager and Accounts
+        ' 2. Verifica che WebView2 runtime sia installato
+        If Not CheckWebView2Installed() Then
+            MessageBox.Show(
+                "Il runtime WebView2 non è installato." & vbCrLf & vbCrLf &
+                "Scaricalo da: https://developer.microsoft.com/microsoft-edge/webview2/" & vbCrLf & vbCrLf &
+                "Oppure esegui lo script di installazione: .\install_webview2.bat",
+                "WebView2 mancante",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+            Application.Current.Shutdown()
+            Return
+        End If
+
+        ' 3. Initialize Account Manager and Accounts
         Await _accountManager.LoadAccountsAsync()
         
-        ' 3. Apply WPF Theme Colors (Dark/Light) based on loaded settings
+        ' 4. Apply WPF Theme Colors (Dark/Light) based on loaded settings
         ApplyWpfTheme()
         
-        ' 4. Configure System Tray Icon
+        ' 5. Configure System Tray Icon
         ConfigureSystemTray()
         
-        ' 5. Set ItemsSource for Horizontal Tabs
+        ' 6. Set ItemsSource for Horizontal Tabs
         AccountsList.ItemsSource = _accountManager.Accounts
         
-        ' 6. Instanciate all WebView2 controls dynamically
+        ' 7. Instanciate all WebView2 controls dynamically
         PopulateWebViews()
         
-        ' 7. Listen to changes in settings or accounts
+        ' 8. Listen to changes in settings or accounts
         AddHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
         
-        ' 8. Configure Toast notifications click routing
+        ' 9. Configure Toast notifications click routing
         ConfigureToastNotifications()
         
-        ' 9. Check updates on launch asynchronously
+        ' 10. Check updates on launch asynchronously
         Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
         
         ' Update active tab styling
@@ -153,6 +168,7 @@ Public Class MainWindow
         Await SwitchToAccountAsync(accountId)
     End Sub
 
+    ' Passa alla scheda account selezionata e nasconde/mostra webview corrispondente
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
         Await _accountManager.SwitchAccountAsync(accountId)
         
@@ -170,6 +186,7 @@ Public Class MainWindow
         UpdateAccountTabStyling()
     End Function
 
+    ' Colora la scheda attiva di verde, le altre in grigio
     Private Sub UpdateAccountTabStyling()
         ' Find buttons manually by walking the visual tree:
         Dim buttons = FindVisualChildren(Of Button)(AccountsList)
@@ -190,6 +207,7 @@ Public Class MainWindow
         Next
     End Sub
 
+    ' Aggiunge un nuovo account WhatsApp
     Private Async Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
         Await _accountManager.AddAccountAsync()
         PopulateWebViews()
@@ -198,6 +216,7 @@ Public Class MainWindow
         UpdateAccountTabStyling()
     End Sub
 
+    ' Apre la finestra Impostazioni
     Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
         Try
             _accountManager.IsDialogOpen = True
@@ -241,10 +260,21 @@ Public Class MainWindow
         End If
     End Sub
 
+    ' Applica le traduzioni ai pulsanti della finestra principale
     Private Sub RefreshLocalization()
         Dim loc = _settingsController.Localizations
         BtnAddAccount.Content = "+ " & loc.Get("add_account")
     End Sub
+
+    ' Verifica che WebView2 runtime sia installato
+    Private Shared Function CheckWebView2Installed() As Boolean
+        Try
+            Dim ver = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString()
+            Return Not String.IsNullOrEmpty(ver)
+        Catch
+            Return False
+        End Try
+    End Function
 
     Private Sub ApplyWpfTheme()
         Dim isDark = False

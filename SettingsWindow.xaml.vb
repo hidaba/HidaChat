@@ -11,6 +11,7 @@ Public Class SettingsWindow
         _accountManager = accountManager
     End Sub
 
+    ' All'apertura della finestra carica lingue, tema, checkbox e account
     Private Sub SettingsWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
         Try
             ' 1. Set Items for Language Dropdown
@@ -78,6 +79,7 @@ Public Class SettingsWindow
         End If
     End Sub
 
+    ' Cambio lingua dal menu a tendina
     Private Async Sub ComboLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
         Dim selectedLang = TryCast(ComboLanguage.SelectedItem, LanguageInfo)
@@ -101,6 +103,7 @@ Public Class SettingsWindow
         End If
     End Sub
 
+    ' Abilita/disabilita opzioni dalle checkbox
     Private Async Sub ChkSetting_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
         
@@ -180,6 +183,7 @@ Public Class SettingsWindow
         Await UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager, force:=True)
     End Sub
 
+    ' Applica le traduzioni italiane a tutti i label della finestra
     Private Sub RefreshLocalization()
         Dim loc = _settingsController.Localizations
         TitleText.Text = loc.Get("settings")
@@ -199,6 +203,7 @@ Public Class SettingsWindow
         BtnCheckUpdates.Content = loc.Get("check_now")
     End Sub
 
+    ' Applica tema scuro/chiaro a sfondi, combo e testi
     Private Sub ApplyTheme()
         Dim isDark = False
         If _settingsController.Theme = "Dark" Then

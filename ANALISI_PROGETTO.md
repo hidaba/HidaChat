@@ -2,7 +2,7 @@
 
 ## 1. SCOPO DELL'APPLICAZIONE
 
-**WhatsAppVB** (versione 2.4.0, alias "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per WhatsApp Web. Non è un'app ufficiale, bensì un **wrapper** che carica `web.whatsapp.com` all'interno di un controllo **WebView2** (Chromium Edge), aggiungendo funzionalità non disponibili nel browser standard:
+**WhatsAppVB** (versione 1.1.5, alias "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per WhatsApp Web. Non è un'app ufficiale, bensì un **wrapper** che carica `web.whatsapp.com` all'interno di un controllo **WebView2** (Chromium Edge), aggiungendo funzionalità non disponibili nel browser standard:
 
 - **Multi-account**: gestione simultanea di più account WhatsApp con tab separati
 - **Tema scuro/chiaro personalizzato** con rilevamento automatico del tema di sistema Windows
@@ -17,16 +17,18 @@
 ## 2. STACK TECNOLOGICO
 
 | Componente | Tecnologia |
-|---|---|
+|---|---|---|
 | Linguaggio | **VB.NET** (Visual Basic .NET) |
 | Framework | **.NET 9.0** con target **Windows 10.0.19041.0** (Windows 10 20H1+) |
 | UI | **WPF** (Windows Presentation Foundation) + `UseWindowsForms` per System Tray |
 | Embedded Browser | **Microsoft.Web.WebView2** v1.0.4078.44 (Chromium Edge) |
 | Notifiche native | **Microsoft.Toolkit.Uwp.Notifications** v7.1.3 (Toast notifications) |
-| IDE | Visual Studio 2022 17.14 |
+| IDE | Visual Studio 2022 |
 | Serializzazione | `System.Text.Json` |
-| Traduzioni | **Google Translate API** non ufficiale (`translate.googleapis.com`) |
+| Traduzioni UI | **Pre-compilate** (dizionari `EnStrings`/`ItStrings`) |
+| Traduzione messaggi | **Google Translate API** non ufficiale (`translate.googleapis.com`) |
 | Tema di sistema rilevato | Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` |
+| Repository OTA | `\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\` |
 
 ---
 
@@ -71,13 +73,13 @@ JsScripts           ──  JavaScript injection in WebView2
 
 ### `Application.xaml` / `Application.xaml.vb` – Entry point
 - StartupUri punta a `MainWindow.xaml`
-- Code-behind vuoto (nessuna gestione eventi applicazione)
+- Code-behind: **Mutex** per single instance (impedisce avvio di copie multiple)
 
 ### `MainWindow.xaml` – UI principale
 - Finestra `1000x700`, `WindowStyle=None`, `AllowsTransparency=True` (bordi personalizzati con DropShadow)
 - Layout a 3 righe:
-  1. **TitleBar** personalizzata (icona, titolo, pulsanti traduzione pagina/ricarica/impostazioni/minimizza/chiudi)
-  2. **Account bar** (`ItemsControl` orizzontale) con pulsante "+ Add Account"
+  1. **TitleBar** personalizzata (icona, titolo con versione `v{0}`, pulsanti traduzione pagina/ricarica/impostazioni/minimizza/chiudi)
+  2. **Account bar** (`ItemsControl` orizzontale) con pulsante "+ Add Account" (tradotto)
   3. **WebViewsGrid** container per i controlli WebView2
 - Stili personalizzati per bottoni header, tab account, pulsante aggiunta account
 
@@ -93,6 +95,7 @@ JsScripts           ──  JavaScript injection in WebView2
   7. Sottoscrive `PropertyChanged` di SettingsController e AccountManager
   8. Configura Toast notifications click handler
   9. Check aggiornamenti in background
+  10. **RefreshLocalization** per testi tradotti (es. pulsante "Add Account")
 - **System Tray**: icona dinamica (normale/notifica), doppio click toggle finestra, chiusura a tray (nasconde invece di chiudere)
 - **Closing**: se `_allowExit = False`, cancella la chiusura e nasconde la finestra
 - **AccountTab_Click**: switch account via `_accountManager.SwitchAccountAsync(accountId)`
@@ -100,6 +103,8 @@ JsScripts           ──  JavaScript injection in WebView2
 - **BtnReloadActiveTab_Click**: ricarica il WebView2 attivo
 - **BtnSettings_Click**: apre `SettingsWindow` come dialog modale, bloccando `_accountManager.IsDialogOpen`
 - **ApplyWpfTheme**: imposta colori scuri/chiari su `RootBorder` e `TitleBar`, e inietta CSS tema in tutti i WebView
+- **RefreshLocalization**: aggiorna `BtnAddAccount.Content` con traduzione corrente
+- **OnSettingsPropertyChanged**: reagisce a cambio tema (riapplica) e cambio lingua (refresh localizzazione)
 - **Helper**: `FindVisualChild`, `FindVisualChildren` per navigazione visual tree WPF
 
 ### `AccountManager.vb` – Gestore account (258 righe)
@@ -139,35 +144,37 @@ JsScripts           ──  JavaScript injection in WebView2
 - **UpdateWebviewLanguageAsync**: chiama `window.setTargetLanguage()` nel WebView
 
 ### `Constants.vb` – Costanti globali
-- `AppVersion = "2.4.0"`
-- `RemoteVersionUrl = "https://raw.githubusercontent.com/Faeq-F/whatsappPortable/main/Version"`
-- `RepoReleasesUrl = "https://github.com/Faeq-F/whatsappPortable/releases"`
+- `AppVersion = "1.1.5"`
+- `UpdateFilesPath = "\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\"`
+- `UpdateVersionFile = UpdateFilesPath + "version.txt"`
+- `MutexId = "WhatsAppVB_SingleInstanceMutex"`
 
-### `SettingsController.vb` – Controller impostazioni (411 righe)
+### `SettingsController.vb` – Controller impostazioni (345 righe)
 - Implementa `INotifyPropertyChanged`
-- **Proprietà**: `Theme`, `AlwaysShowTabBar`, `CheckForUpdates`, `TranslateMessageButton`, `KeepAppInEnglish`, `FullPageTranslation`, `ShowTranslateAllMessagesButton`, `TranslateNotifications`, `ShowTranslateNotificationButton`, `Language`, `Localizations` (AppLocalizations), `SupportedLanguages`, `IsTranslating`
+- **Proprietà**: `Theme`, `AlwaysShowTabBar`, `CheckForUpdates`, `TranslateMessageButton`, `FullPageTranslation`, `ShowTranslateAllMessagesButton`, `TranslateNotifications`, `ShowTranslateNotificationButton`, `Language`, `Localizations` (AppLocalizations), `SupportedLanguages`, `IsTranslating`
 - **Persistenza**: file `settings.json` + cache traduzioni `translations_cache.json`
-- **LoadSettingsAsync**: carica da JSON, setta tutte le proprietà, carica cache lingue/traduzioni, fetch async lingue supportate da Google Translate
+- **LoadSettingsAsync**: carica da JSON, setta tutte le proprietà, carica cache traduzioni, applica lingua (fallback a inglese per lingue non supportate)
 - **SaveThemeAsync**: salva tema, notifica cambiamento
-- **UpdateLanguageAsync**: cambia lingua, carica traduzioni (da cache o fetch), notifica
+- **UpdateLanguageAsync**: cambia lingua, carica traduzioni pre-compilate (en/it), salva in cache
 - **GetBoolSetting**: helper per parsare booleani da JSON (supporta JsonElement + convert)
-- **FallbackOrLoadTranslations**: carica traduzioni dalla cache o le fetch
-- **LoadSupportedLanguagesAsync**: fetch lingue da Google Translate API, salva in cache
-- **SaveCacheFileAsync**: salva lingue e traduzioni cache su disco
+- **FallbackOrLoadTranslations**: seleziona traduzioni inglese o italiano pre-compilate
 
 ### `SettingsWindow.xaml` / `SettingsWindow.xaml.vb` – Finestra impostazioni
 - Dialog modale `500x550`, Owner = MainWindow
-- Sezioni: **Tema** (ComboBox System/Light/Dark), **Lingua e Traduzione** (ComboBox lingue, checkboxes), **Notifiche** (checkboxes), **Gestione Account** (ItemsControl con TextBox e pulsante Delete), **DevTools** (Debug + Check Updates)
+- Sezioni: **Tema** (ComboBox System/Light/Dark), **Lingua** (ComboBox Inglese/Italiano, checkboxes traduzione), **Notifiche** (checkboxes), **Gestione Account** (ItemsControl con TextBox e pulsante Delete), **DevTools** (Debug + Check Updates)
+- **Tutti i label tradotti** dinamicamente via `RefreshLocalization()` (legge da dizionario italiano/inglese)
 - Stili personalizzati: chiudi, sezioni, checkbox, combobox, bottoni azione, delete
-- **Loaded**: popola dropdown, setta checkbox, applica tema
+- **Combo adattivi al tema**: sfondo e testo cambiano con tema scuro/chiaro
+- **Loaded**: popola dropdown, setta checkbox, applica tema, applica traduzioni
 - **ComboTheme_SelectionChanged**: salva tema, applica colore alla finestra
-- **ComboLanguage_SelectionChanged**: aggiorna lingua, notifica tutti i WebView (`UpdateWebviewLanguageAsync`)
+- **ComboLanguage_SelectionChanged**: aggiorna lingua, aggiorna UI, notifica tutti i WebView
 - **ChkSetting_Changed**: switch su nome checkbox per salvare impostazione, notifica hover state ai WebView
 - **TxtAccountName_LostFocus**: rinomina account via `_accountManager.UpdateAccountNameAsync`
 - **BtnDeleteAccount_Click**: conferma eliminazione account, chiama `RemoveAccountAsync`
 - **BtnDevTools_Click**: apre DevTools del WebView attivo
 - **BtnCheckUpdates_Click**: chiama `UpdateChecker.CheckForUpdatesAsync(force:=True)`
-- **ApplyTheme**: imposta background/foreground sulla finestra e su tutti i controlli figli via `FindLogicalChildren`
+- **ApplyTheme**: imposta background/foreground sulla finestra e su tutti i controlli figli via `FindLogicalChildren` (combo inclusi)
+- **RefreshLocalization**: carica tutti i label dal dizionario `Localizations`
 - **Helper**: `FindLogicalChildren(Of T)` per navigazione logical tree
 
 ### `Localization.vb` – Sistema di localizzazione e traduzione (165 righe)
@@ -176,14 +183,11 @@ Due componenti:
 
 - **`AppLanguages` (Module)**:
   - `IsRtl(code)`: controlla se una lingua è RTL (arabo, ebraico, farsi, urdu, ecc.)
-  - `FetchSupportedLanguages()`: chiamata a `translate.googleapis.com/translate_a/l?client=gtx&hl=en` per ottenere lista lingue supportate
 
 - **`AppLocalizations` (Class)**:
   - `EnStrings`: dizionario con tutte le chiavi di localizzazione (76 chiavi: settings, theme, manage_accounts, translate_to_lang, ecc.)
+  - `ItStrings`: dizionario con tutte le chiavi tradotte in italiano
   - `[Get](key, args)`: recupera traduzione con supporto placeholder `{name}`, `{lang}`
-  - `FetchTranslations(targetLang)`: traduce tutte le 76 chiavi via Google Translate API una per una (con escaping placeholder `___` per `delete_account_confirm` e prefisso per `translate_to_lang`)
-  - `TranslateSingle(text, targetLang)`: traduce un singolo testo via Google Translate API
-  - `TranslateTextInternal`: chiamata HTTP a `translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={targetLang}&dt=t&q={text}`, parsifica array JSON annidato per estrarre testo tradotto
 
 ### `JsScripts.vb` – Script JavaScript injection (606 righe)
 
@@ -212,11 +216,14 @@ Tre classi statiche che contengono JavaScript inline:
     - `TranslationCallbacksJS`: `onBatchTranslationReceived`, `onTranslationReceived` per ricevere risultati traduzione dal backend VB.NET
   - `GetTranslationJS(...)`: metodo che assembla lo script completo sostituendo placeholder (`$$LANG_CODE$$`, `$$LANG_NAME$$`, ecc.) con i valori correnti
 
-### `UpdateChecker.vb` – Controllo aggiornamenti (96 righe)
+### `UpdateChecker.vb` – Controllo aggiornamenti (157 righe)
 - `_hasChecked` statico per evitare doppio check
-- `CheckForUpdatesAsync(settings, accountManager, force)`: fetch versione remota da GitHub raw, confronta con `Constants.AppVersion`, se diverso mostra MessageBox con link alle release
-- `FetchLatestVersionAsync()`: HTTP GET a `Constants.RemoteVersionUrl` con timeout 5s
-- `ShowUpdateDialog`: MessageBox su UI thread
+- `CheckForUpdatesAsync(settings, accountManager, force)`: legge versione remota da file OTA di rete (`version.txt`), confronta con `Constants.AppVersion`, se diverso esegue `PerformUpdateAsync`
+- `ReadVersionFromFileAsync()`: legge `Constants.UpdateVersionFile` (percorso UNC)
+- `PerformUpdateAsync(latestVersion, installDir)`:
+  1. Verifica permessi scrittura nella cartella d'installazione
+  2. Copia tutti i file dall'OTA a una cartella temporanea
+  3. Genera `update.bat` che attende la chiusura dell'app, copia con robocopy, riavvia
 
 ### `AssemblyInfo.vb`
 - Attribute `ThemeInfo` per WPF (nessun dizionario tematico esterno, solo assembly)
@@ -230,9 +237,9 @@ Tre classi statiche che contengono JavaScript inline:
 | `Microsoft.Web.WebView2` | 1.0.4078.44 | Controllo browser Chromium embedded |
 | `Microsoft.Toolkit.Uwp.Notifications` | 7.1.3 | Toast notification native Windows 10+ |
 | `System.Text.Json` | (built-in .NET 9) | Serializzazione settings, cache, messaggi bridge |
-| `System.Net.Http` | (built-in) | Chiamate API Google Translate e GitHub |
-| **Google Translate API** | (non ufficiale) | `translate.googleapis.com/translate_a/single` e `translate_a/l` |
-| **GitHub raw** | (nessun pacchetto) | Check versione da `raw.githubusercontent.com/Faeq-F/whatsappPortable/main/Version` |
+| `System.Net.Http` | (built-in) | Chiamate API Google Translate (traduzione messaggi) |
+| **Google Translate API** | (non ufficiale) | Solo per traduzione messaggi in webview (`translate_a/single`) |
+| **Repository OTA locale** | (rete interna) | Check versione e auto-update da `\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\` |
 | **System.Windows.Forms** | (built-in) | `NotifyIcon` per system tray |
 | `System.Windows.Interop` | (built-in) | Interop WPF/Win32 |
 
@@ -295,21 +302,21 @@ Tre classi statiche che contengono JavaScript inline:
 
 ## 7. CRITICITÀ E NOTE
 
-| Criticità | Descrizione |
-|---|---|
-| **Google Translate API non ufficiale** | Le chiamate a `translate.googleapis.com` senza API key sono un endpoint non documentato, potrebbe smettere di funzionare o rate-limitare |
-| **Traduzioni UI one-by-one** | `FetchTranslations` traduce ogni chiave singolarmente (76 richieste HTTP separate), molto inefficiente |
-| **Messaggio di delete_account** | La finestra modale SettingsWindow non è tradotta: il MessageBox di conferma eliminazione usa stringa hardcoded in inglese |
-| **Race condition in LoadAccountsAsync** | `SaveAccountsAsync` può essere chiamato mentre `LoadSettingsAsync` è ancora in esecuzione |
-| **Assenza gestione errori WebView2** | Se WebView2 non è installato, l'applicazione crasha senza messaggio informativo |
-| **IsDialogOpen non bloccante** | La variabile `IsDialogOpen` non impedisce effettivamente apertura multipla (usata solo per notifiche) |
-| **No MVVM pattern** | Codice UI e logica mescolati nei code-behind, difficile da testare e mantenere |
-| **Dipendenze fisse** | WebView2 versione 1.0.4078.44 e UWP Notifications 7.1.3 non aggiornate automaticamente |
-| **Spike di CPU a ogni richiesta HTTP** | LoadSupportedLanguagesAsync e FetchTranslations bloccano il thread UI se non gestiti correttamente (usano `Await`) |
-| **Bridge token con timestamp** | `GenerateBridgeToken` usa timestamp millisecondi + random 6-digit, non è crittograficamente sicuro ma sufficiente per uso locale |
-| **Localizzazione solo UI inglese** | Le chiavi di traduzione sono tutte in inglese; la UI è sempre basata su quelle, la traduzione UI usa Google Translate live (e non file .resx) |
-| **Progetto open source** | Il repository originale è `Faeq-F/whatsappPortable` su GitHub, nome "WhatsApp Portable" |
-| **Tema System letto da registry** | Il rilevamento tema Windows via registry key `AppsUseLightTheme` è specifico Windows 10/11 |
+| Criticità | Descrizione | Stato |
+|---|---|---|
+| **Google Translate API non ufficiale** | Le chiamate a `translate.googleapis.com` senza API key sono un endpoint non documentato, potrebbe smettere di funzionare o rate-limitare | ~~Usata per fetch lingue e traduzioni UI~~ → **RIMOSSA** (lingue hardcoded, traduzioni pre-compilate). Ancora usata per traduzione messaggi in webview |
+| ~~**Traduzioni UI one-by-one**~~ | ~~`FetchTranslations` traduce ogni chiave singolarmente (76 richieste HTTP separate)~~ | ~~**RISOLTA**: non più usata, traduzioni pre-compilate~~ |
+| **Messaggio di delete_account** | La finestra modale SettingsWindow non è tradotta: il MessageBox di conferma eliminazione usa stringa hardcoded in inglese | ❌ **ANCORA DA FARE** |
+| **Race condition in LoadAccountsAsync** | `SaveAccountsAsync` può essere chiamato mentre `LoadSettingsAsync` è ancora in esecuzione | ❌ **ANCORA DA FARE** |
+| ~~**Assenza gestione errori WebView2**~~ | ~~Se WebView2 non è installato, l'applicazione crasha senza messaggio informativo~~ | ~~**RISOLTA**: check all'avvio con `GetAvailableBrowserVersionString()`, mostra MessageBox con link download e chiude l'app~~ |
+| **IsDialogOpen non bloccante** | La variabile `IsDialogOpen` non impedisce effettivamente apertura multipla (usata solo per notifiche) | ❌ **ANCORA DA FARE** |
+| **No MVVM pattern** | Codice UI e logica mescolati nei code-behind, difficile da testare e mantenere | ❌ **ANCORA DA FARE** |
+| ~~**Dipendenze fisse**~~ | ~~WebView2 versione 1.0.4078.44 e UWP Notifications 7.1.3 non aggiornate automaticamente~~ | ~~Non critico, funzionano~~ |
+| ~~**Spike di CPU a ogni richiesta HTTP**~~ | ~~`LoadSupportedLanguagesAsync` e `FetchTranslations` bloccano il thread UI~~ | ~~**RISOLTA**: metodi rimossi~~ |
+| **Bridge token con timestamp** | `GenerateBridgeToken` usa timestamp millisecondi + random 6-digit, non è crittograficamente sicuro ma sufficiente per uso locale | ⚠️ Accettabile per uso locale |
+| ~~**Localizzazione solo UI inglese**~~ | ~~Le chiavi di traduzione sono tutte in inglese; la UI è sempre basata su quelle, la traduzione UI usa Google Translate live~~ | ~~**RISOLTA**: italiano pre-compilato, UI si aggiorna dinamicamente~~ |
+| **Progetto open source** | Il repository originale è `Faeq-F/whatsappPortable` su GitHub, nome "WhatsApp Portable" | ℹ️ Fork personalizzato per uso interno |
+| **Tema System letto da registry** | Il rilevamento tema Windows via registry key `AppsUseLightTheme` è specifico Windows 10/11 | ℹ️ Funziona solo su Windows 10+ |
 
 ---
 
@@ -319,20 +326,21 @@ Tre classi statiche che contengono JavaScript inline:
 WhatsAppVB/
 ├── WhatsAppVB.sln
 ├── WhatsAppVB.vbproj
-├── Application.xaml / .vb          ← Entry point WPF
-├── AssemblyInfo.vb                  ← Tema WPF
-├── Constants.vb                     ← Versioni e URL
-├── MainWindow.xaml / .vb            ← Finestra principale (342 righe)
-├── AccountManager.vb               ← Gestione multi-account (258 righe)
-├── WhatsAppAccount.vb              ← Modello account + WebView bridge (324 righe)
-├── SettingsController.vb           ← Impostazioni e persistenza (411 righe)
-├── SettingsWindow.xaml / .vb       ← Finestra impostazioni modale (240+205 righe)
-├── Localization.vb                  ← Traduzioni UI e messaggi (165 righe)
-├── JsScripts.vb                     ← Script JS iniettati (606 righe — il file più lungo)
-├── UpdateChecker.vb                 ← Controllo aggiornamenti (96 righe)
+├── ANALISI_PROGETTO.md                ← Questo documento
+├── Application.xaml / .vb             ← Entry point WPF + Mutex single instance
+├── AssemblyInfo.vb                    ← Tema WPF
+├── Constants.vb                       ← Versioni e percorsi OTA
+├── MainWindow.xaml / .vb              ← Finestra principale (345 righe)
+├── AccountManager.vb                  ← Gestione multi-account (258 righe)
+├── WhatsAppAccount.vb                 ← Modello account + WebView bridge (321 righe)
+├── SettingsController.vb              ← Impostazioni e persistenza (345 righe)
+├── SettingsWindow.xaml / .vb          ← Finestra impostazioni modale (225+270 righe)
+├── Localization.vb                    ← Traduzioni UI pre-compilate (205 righe)
+├── JsScripts.vb                       ← Script JS iniettati (606 righe)
+├── UpdateChecker.vb                   ← Controllo aggiornamenti OTA (157 righe)
 ├── images/
 │   ├── icon.ico
 │   └── icon_notification.ico
-├── settings.json                    ← Impostazioni utente (generato a runtime)
-└── translations_cache.json          ← Cache traduzioni (generato a runtime)
+├── settings.json                      ← Impostazioni utente (generato a runtime)
+└── translations_cache.json            ← Cache traduzioni (generato a runtime)
 ```

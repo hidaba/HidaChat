@@ -159,6 +159,8 @@ Public Class WhatsAppAccount
 
         Catch ex As Exception
             Debug.WriteLine($"Error configuring WebView2 for account {Id}: {ex.Message}")
+            ' Se WebView2 non è installato, il controllo viene fatto all'avvio in MainWindow,
+            ' quindi qui l'eccezione è probabilmente un errore di rete/navigazione.
         End Try
     End Function
 

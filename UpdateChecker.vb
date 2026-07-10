@@ -6,6 +6,7 @@ Imports System.Windows
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
 
+    ' Controlla se esiste una versione più recente sul repository OTA
     Public Shared Async Function CheckForUpdatesAsync(
         settings As SettingsController,
         accountManager As AccountManager,
@@ -77,6 +78,7 @@ Public Class UpdateChecker
         End Try
     End Function
 
+    ' Scarica i nuovi file dall'OTA, genera un batch e riavvia l'app
     Private Shared Async Function PerformUpdateAsync(latestVersion As String, installDir As String) As Task
         Await Task.Run(Sub()
             Try
@@ -107,8 +109,12 @@ Public Class UpdateChecker
                 If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
                 Directory.CreateDirectory(tempDir)
 
+                ' Copia solo i file dell'app, ESCLUDE la cartella data\ (impostazioni utente, cache, profili webview)
                 For Each f In Directory.GetFiles(Constants.UpdateFilesPath, "*.*", SearchOption.AllDirectories)
-                    Dim destFile = f.Replace(Constants.UpdateFilesPath, tempDir + "\")
+                    Dim relPath = f.Substring(Constants.UpdateFilesPath.TrimEnd("\"c).Length + 1)
+                    ' Salta file dentro data\
+                    If relPath.StartsWith("data\", StringComparison.OrdinalIgnoreCase) Then Continue For
+                    Dim destFile = Path.Combine(tempDir, relPath)
                     Dim destDir = Path.GetDirectoryName(destFile)
                     If Not Directory.Exists(destDir) Then Directory.CreateDirectory(destDir)
                     IO.File.Copy(f, destFile, True)
