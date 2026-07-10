@@ -6,8 +6,8 @@
         xmlns:local="clr-namespace:WhatsAppVB"
         mc:Ignorable="d"
         Title="Settings" 
-        Height="550" 
-        Width="500"
+        Height="580" 
+        Width="520"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -188,7 +188,7 @@
                     <ItemsControl x:Name="AccountsList" Margin="0,5,0,15">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderThickness="0,0,0,1" BorderBrush="#222e35" Background="#1f2c34" Padding="0,8">
+                                <Border BorderThickness="0,0,0,1" Padding="0,8">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

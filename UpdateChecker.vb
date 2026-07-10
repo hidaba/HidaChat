@@ -2,6 +2,7 @@ Imports System.IO
 Imports System.Diagnostics
 Imports System.Threading.Tasks
 Imports System.Windows
+Imports System.Text.Json
 
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
@@ -15,12 +16,18 @@ Public Class UpdateChecker
         If Not force AndAlso _hasChecked Then Return
         _hasChecked = True
 
+        Dim installDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName)
+
+        ' Se la versione locale corrisponde già all'app, salta il check (evita loop post-aggiornamento)
+        If Not force AndAlso IsLocalVersionCurrent(installDir) Then
+            Debug.WriteLine("Local version marker matches, update check skipped.")
+            Return
+        End If
+
         If Not force AndAlso Not settings.CheckForUpdates Then
             Debug.WriteLine("Update check on launch is disabled by user.")
             Return
         End If
-
-        Dim installDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName)
 
         ' If running directly from the OTA repository, skip update
         If installDir.TrimEnd("\"c).Equals(Constants.UpdateFilesPath.TrimEnd("\"c), StringComparison.OrdinalIgnoreCase) Then
@@ -109,16 +116,25 @@ Public Class UpdateChecker
                 If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
                 Directory.CreateDirectory(tempDir)
 
-                ' Copia solo i file dell'app, ESCLUDE la cartella data\ (impostazioni utente, cache, profili webview)
+                ' Copia solo i file dell'app, ESCLUDE cartella data\ e file utente (settings, cache traduzioni, version)
                 For Each f In Directory.GetFiles(Constants.UpdateFilesPath, "*.*", SearchOption.AllDirectories)
                     Dim relPath = f.Substring(Constants.UpdateFilesPath.TrimEnd("\"c).Length + 1)
-                    ' Salta file dentro data\
+                    ' Salta dati utente e metadati
                     If relPath.StartsWith("data\", StringComparison.OrdinalIgnoreCase) Then Continue For
+                    If relPath.Equals("settings.json", StringComparison.OrdinalIgnoreCase) Then Continue For
+                    If relPath.Equals("translations_cache.json", StringComparison.OrdinalIgnoreCase) Then Continue For
+                    If relPath.Equals("version.txt", StringComparison.OrdinalIgnoreCase) Then Continue For
                     Dim destFile = Path.Combine(tempDir, relPath)
                     Dim destDir = Path.GetDirectoryName(destFile)
                     If Not Directory.Exists(destDir) Then Directory.CreateDirectory(destDir)
                     IO.File.Copy(f, destFile, True)
                 Next
+
+                ' Merge nuove chiavi da settings.json dell'OTA nel settings.json locale
+                MergeSettingsFromOta(installDir)
+
+                ' Marca la versione locale prima del riavvio per evitare loop di aggiornamento
+                WriteLocalVersionMarker(installDir, latestVersion)
 
                 Dim batchPath = Path.Combine(tempDir, "update.bat")
                 Dim batchContent = $"@echo off
@@ -133,6 +149,7 @@ if errorlevel 8 (
     pause
     exit /b 1
 )
+echo {latestVersion}>""{installDir}\.app_version""
 start """" ""{installDir}\WhatsAppVB.exe""
 del ""%~f0""
 "
@@ -160,4 +177,66 @@ del ""%~f0""
             End Try
         End Sub)
     End Function
+    ' Legge il settings.json dell'OTA e aggiunge le chiavi mancanti al settings.json locale
+    Private Shared Sub MergeSettingsFromOta(installDir As String)
+        Try
+            Dim otaSettingsPath = Path.Combine(Constants.UpdateFilesPath, "settings.json")
+            Dim localSettingsPath As String = Nothing
+            ' Cerca settings.json: prima in base, poi in data\
+            Dim basePath = Path.Combine(installDir, "settings.json")
+            If File.Exists(basePath) Then
+                localSettingsPath = basePath
+            Else
+                Dim dataPath = Path.Combine(installDir, "data", "settings.json")
+                If File.Exists(dataPath) Then localSettingsPath = dataPath
+            End If
+
+            If Not File.Exists(otaSettingsPath) OrElse localSettingsPath Is Nothing Then Return
+
+            Dim otaJson = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(
+                File.ReadAllText(otaSettingsPath))
+            Dim localJson = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(
+                File.ReadAllText(localSettingsPath))
+
+            Dim hasNewKeys As Boolean = False
+            For Each kvp In otaJson
+                If Not localJson.ContainsKey(kvp.Key) Then
+                    localJson(kvp.Key) = kvp.Value
+                    hasNewKeys = True
+                End If
+            Next
+
+            If hasNewKeys Then
+                Dim options As New JsonSerializerOptions With {.WriteIndented = True}
+                File.WriteAllText(localSettingsPath, JsonSerializer.Serialize(localJson, options))
+                Debug.WriteLine("Merge completato: nuove chiavi aggiunte da OTA settings.json")
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"Merge settings failed (non bloccante): {ex.Message}")
+        End Try
+    End Sub
+
+    ' Legge il marker .app_version locale e verifica se corrisponde alla versione corrente
+    Private Shared Function IsLocalVersionCurrent(installDir As String) As Boolean
+        Try
+            Dim markerPath = Path.Combine(installDir, ".app_version")
+            If File.Exists(markerPath) Then
+                Dim localVersion = File.ReadAllText(markerPath).Trim()
+                Return localVersion = Constants.AppVersion
+            End If
+        Catch
+        End Try
+        Return False
+    End Function
+
+    ' Scrive il marker .app_version nella directory di installazione
+    Private Shared Sub WriteLocalVersionMarker(installDir As String, version As String)
+        Try
+            Dim markerPath = Path.Combine(installDir, ".app_version")
+            File.WriteAllText(markerPath, version.Trim())
+            Debug.WriteLine($"Local version marker written: {version}")
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to write local version marker: {ex.Message}")
+        End Try
+    End Sub
 End Class

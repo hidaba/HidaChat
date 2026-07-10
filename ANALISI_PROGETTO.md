@@ -2,7 +2,7 @@
 
 ## 1. SCOPO DELL'APPLICAZIONE
 
-**WhatsAppVB** (versione 1.1.5, alias "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per WhatsApp Web. Non è un'app ufficiale, bensì un **wrapper** che carica `web.whatsapp.com` all'interno di un controllo **WebView2** (Chromium Edge), aggiungendo funzionalità non disponibili nel browser standard:
+**WhatsAppVB** (versione 1.2.1, alias "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per WhatsApp Web. Non è un'app ufficiale, bensì un **wrapper** che carica `web.whatsapp.com` all'interno di un controllo **WebView2** (Chromium Edge), aggiungendo funzionalità non disponibili nel browser standard:
 
 - **Multi-account**: gestione simultanea di più account WhatsApp con tab separati
 - **Tema scuro/chiaro personalizzato** con rilevamento automatico del tema di sistema Windows
@@ -144,7 +144,7 @@ JsScripts           ──  JavaScript injection in WebView2
 - **UpdateWebviewLanguageAsync**: chiama `window.setTargetLanguage()` nel WebView
 
 ### `Constants.vb` – Costanti globali
-- `AppVersion = "1.1.5"`
+- `AppVersion = "1.2.1"`
 - `UpdateFilesPath = "\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\"`
 - `UpdateVersionFile = UpdateFilesPath + "version.txt"`
 - `MutexId = "WhatsAppVB_SingleInstanceMutex"`
@@ -160,7 +160,7 @@ JsScripts           ──  JavaScript injection in WebView2
 - **FallbackOrLoadTranslations**: seleziona traduzioni inglese o italiano pre-compilate
 
 ### `SettingsWindow.xaml` / `SettingsWindow.xaml.vb` – Finestra impostazioni
-- Dialog modale `500x550`, Owner = MainWindow
+- Dialog modale `520x580`, Owner = MainWindow
 - Sezioni: **Tema** (ComboBox System/Light/Dark), **Lingua** (ComboBox Inglese/Italiano, checkboxes traduzione), **Notifiche** (checkboxes), **Gestione Account** (ItemsControl con TextBox e pulsante Delete), **DevTools** (Debug + Check Updates)
 - **Tutti i label tradotti** dinamicamente via `RefreshLocalization()` (legge da dizionario italiano/inglese)
 - Stili personalizzati: chiudi, sezioni, checkbox, combobox, bottoni azione, delete
@@ -173,9 +173,9 @@ JsScripts           ──  JavaScript injection in WebView2
 - **BtnDeleteAccount_Click**: conferma eliminazione account, chiama `RemoveAccountAsync`
 - **BtnDevTools_Click**: apre DevTools del WebView attivo
 - **BtnCheckUpdates_Click**: chiama `UpdateChecker.CheckForUpdatesAsync(force:=True)`
-- **ApplyTheme**: imposta background/foreground sulla finestra e su tutti i controlli figli via `FindLogicalChildren` (combo inclusi)
+- **ApplyTheme**: imposta background/foreground sulla finestra e su tutti i controlli figli via `FindLogicalChildren` (combo inclusi); stile account items via `StyleAccountItems` con `Dispatcher.BeginInvoke` (differito per attesa generazione item containers)
 - **RefreshLocalization**: carica tutti i label dal dizionario `Localizations`
-- **Helper**: `FindLogicalChildren(Of T)` per navigazione logical tree
+- **Helper**: `FindLogicalChildren(Of T)` per navigazione logical tree, `FindVisualChildren(Of T)` per visual tree
 
 ### `Localization.vb` – Sistema di localizzazione e traduzione (165 righe)
 
@@ -216,14 +216,15 @@ Tre classi statiche che contengono JavaScript inline:
     - `TranslationCallbacksJS`: `onBatchTranslationReceived`, `onTranslationReceived` per ricevere risultati traduzione dal backend VB.NET
   - `GetTranslationJS(...)`: metodo che assembla lo script completo sostituendo placeholder (`$$LANG_CODE$$`, `$$LANG_NAME$$`, ecc.) con i valori correnti
 
-### `UpdateChecker.vb` – Controllo aggiornamenti (157 righe)
+### `UpdateChecker.vb` – Controllo aggiornamenti (207 righe)
 - `_hasChecked` statico per evitare doppio check
 - `CheckForUpdatesAsync(settings, accountManager, force)`: legge versione remota da file OTA di rete (`version.txt`), confronta con `Constants.AppVersion`, se diverso esegue `PerformUpdateAsync`
 - `ReadVersionFromFileAsync()`: legge `Constants.UpdateVersionFile` (percorso UNC)
 - `PerformUpdateAsync(latestVersion, installDir)`:
-  1. Verifica permessi scrittura nella cartella d'installazione
-  2. Copia tutti i file dall'OTA a una cartella temporanea
-  3. Genera `update.bat` che attende la chiusura dell'app, copia con robocopy, riavvia
+   1. Verifica permessi scrittura nella cartella d'installazione
+   2. Copia tutti i file dall'OTA a una cartella temporanea (esclusi `data\`, `settings.json`, `translations_cache.json`)
+   3. `MergeSettingsFromOta()`: confronta chiavi tra OTA e settings locale, aggiunge quelle mancanti (merge nuove impostazioni)
+   4. Genera `update.bat` che attende la chiusura dell'app, copia con robocopy, riavvia
 
 ### `AssemblyInfo.vb`
 - Attribute `ThemeInfo` per WPF (nessun dizionario tematico esterno, solo assembly)
@@ -281,9 +282,9 @@ Tre classi statiche che contengono JavaScript inline:
 4. Chiamata HTTP a Google Translate API
 5. Risultato reinserito via `ExecuteScriptAsync("onTranslationReceived(...)")` → bubble UI aggiornata
 
-### Cambio account
-1. Click tab account
-2. AccountTab_Click → SwitchToAccountAsync(accountId)
+### Cambio / rinomina account
+1. Click tab account → SwitchToAccountAsync
+2. Tasto destro → "Rename" → InputBox → UpdateAccountNameAsync
 3. AccountManager.SwitchAccountAsync: imposta IsActive, salva
 4. MainWindow aggiorna visibilità WebView2 e stile tab
 
@@ -306,7 +307,7 @@ Tre classi statiche che contengono JavaScript inline:
 |---|---|---|
 | **Google Translate API non ufficiale** | Le chiamate a `translate.googleapis.com` senza API key sono un endpoint non documentato, potrebbe smettere di funzionare o rate-limitare | ~~Usata per fetch lingue e traduzioni UI~~ → **RIMOSSA** (lingue hardcoded, traduzioni pre-compilate). Ancora usata per traduzione messaggi in webview |
 | ~~**Traduzioni UI one-by-one**~~ | ~~`FetchTranslations` traduce ogni chiave singolarmente (76 richieste HTTP separate)~~ | ~~**RISOLTA**: non più usata, traduzioni pre-compilate~~ |
-| **Messaggio di delete_account** | La finestra modale SettingsWindow non è tradotta: il MessageBox di conferma eliminazione usa stringa hardcoded in inglese | ❌ **ANCORA DA FARE** |
+| ~~**Messaggio di delete_account**~~ | ~~La finestra modale SettingsWindow non è tradotta: il MessageBox di conferma eliminazione usa stringa hardcoded in inglese~~ | ~~**RISOLTA**: MessageBox localizzato con chiavi `delete_account_last` e `delete_account_confirm`~~ |
 | **Race condition in LoadAccountsAsync** | `SaveAccountsAsync` può essere chiamato mentre `LoadSettingsAsync` è ancora in esecuzione | ❌ **ANCORA DA FARE** |
 | ~~**Assenza gestione errori WebView2**~~ | ~~Se WebView2 non è installato, l'applicazione crasha senza messaggio informativo~~ | ~~**RISOLTA**: check all'avvio con `GetAvailableBrowserVersionString()`, mostra MessageBox con link download e chiude l'app~~ |
 | **IsDialogOpen non bloccante** | La variabile `IsDialogOpen` non impedisce effettivamente apertura multipla (usata solo per notifiche) | ❌ **ANCORA DA FARE** |
@@ -317,6 +318,7 @@ Tre classi statiche che contengono JavaScript inline:
 | ~~**Localizzazione solo UI inglese**~~ | ~~Le chiavi di traduzione sono tutte in inglese; la UI è sempre basata su quelle, la traduzione UI usa Google Translate live~~ | ~~**RISOLTA**: italiano pre-compilato, UI si aggiorna dinamicamente~~ |
 | **Progetto open source** | Il repository originale è `Faeq-F/whatsappPortable` su GitHub, nome "WhatsApp Portable" | ℹ️ Fork personalizzato per uso interno |
 | **Tema System letto da registry** | Il rilevamento tema Windows via registry key `AppsUseLightTheme` è specifico Windows 10/11 | ℹ️ Funziona solo su Windows 10+ |
+| ~~**Account list tema scuro in chiaro**~~ | ~~Gli account in SettingsWindow rimangono scuri/illeggibili in tema chiaro: FindVisualChildren su ItemsControl non trova i container perché non ancora generati~~ | ~~**RISOLTA**: styling differito con `Dispatcher.BeginInvoke(DispatcherPriority.Background)`~~ |
 
 ---
 

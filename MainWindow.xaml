@@ -170,7 +170,13 @@
                                         Click="AccountTab_Click"
                                         Tag="{Binding Id}"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource AccountTabButtonStyle}"/>
+                                        Style="{StaticResource AccountTabButtonStyle}">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Rename" Click="AccountTabRename_Click"/>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

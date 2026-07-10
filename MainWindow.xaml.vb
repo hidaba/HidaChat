@@ -168,6 +168,18 @@ Public Class MainWindow
         Await SwitchToAccountAsync(accountId)
     End Sub
 
+    Private Async Sub AccountTabRename_Click(sender As Object, e As RoutedEventArgs)
+        Dim menuItem = CType(sender, MenuItem)
+        Dim contextMenu = CType(menuItem.Parent, ContextMenu)
+        Dim btn = CType(contextMenu.PlacementTarget, Button)
+        Dim acc = CType(btn.DataContext, WhatsAppAccount)
+
+        Dim newName = Microsoft.VisualBasic.Interaction.InputBox("Enter new name:", "Rename Account", acc.Name)
+        If Not String.IsNullOrWhiteSpace(newName) Then
+            Await _accountManager.UpdateAccountNameAsync(acc.Id, newName.Trim())
+        End If
+    End Sub
+
     ' Passa alla scheda account selezionata e nasconde/mostra webview corrispondente
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
         Await _accountManager.SwitchAccountAsync(accountId)

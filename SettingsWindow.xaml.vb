@@ -1,4 +1,6 @@
 Imports System.ComponentModel
+Imports System.Windows.Media
+Imports System.Windows.Threading
 
 Public Class SettingsWindow
     Private ReadOnly _settingsController As SettingsController
@@ -156,13 +158,25 @@ Public Class SettingsWindow
         Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
         If acc Is Nothing Then Return
 
+        Dim loc = _settingsController.Localizations
+
         If _accountManager.Accounts.Count <= 1 Then
-            MessageBox.Show("You cannot delete the last active account.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning)
+            MessageBox.Show(
+                loc.Get("delete_account_last"),
+                loc.Get("delete_account_title"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            )
             Return
         End If
 
-        Dim confirmMsg = $"Delete ""{acc.Name}""? This will remove all data for this account."
-        Dim result = MessageBox.Show(confirmMsg, "Delete Account", MessageBoxButton.YesNo, MessageBoxImage.Question)
+        Dim confirmMsg = loc.Get("delete_account_confirm", New Dictionary(Of String, String) From {{"name", acc.Name}})
+        Dim result = MessageBox.Show(
+            confirmMsg,
+            loc.Get("delete_account_title"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question
+        )
         
         If result = MessageBoxResult.Yes Then
             Await _accountManager.RemoveAccountAsync(accountId)
@@ -254,6 +268,35 @@ Public Class SettingsWindow
                 End If
             Next
         End If
+
+        ' Applica stile agli account dopo che gli item sono stati generati
+        StyleAccountItems(isDark)
+    End Sub
+
+    ' Applica sfondo/colori agli item della lista account (dopo che sono stati generati)
+    Private Sub StyleAccountItems(isDark As Boolean)
+        Dispatcher.BeginInvoke(New Action(Sub()
+            For Each border In FindVisualChildren(Of Border)(AccountsList)
+                If isDark Then
+                    border.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#1f2c34"))
+                    border.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#222e35"))
+                Else
+                    border.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#f0f2f5"))
+                    border.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#d1d7db"))
+                End If
+            Next
+            For Each txt As TextBox In FindVisualChildren(Of TextBox)(AccountsList)
+                If isDark Then
+                    txt.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#2a3942"))
+                    txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
+                    txt.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
+                Else
+                    txt.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
+                    txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
+                    txt.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
+                End If
+            Next
+        End Sub), DispatcherPriority.Background)
     End Sub
 
     ' Helpers for finding logical children
@@ -268,6 +311,21 @@ Public Class SettingsWindow
                     End If
                     list.AddRange(FindLogicalChildren(Of T)(depChild))
                 End If
+            Next
+        End If
+        Return list
+    End Function
+
+    ' Helper per trovare elementi nel visual tree (funziona anche dentro DataTemplate)
+    Private Shared Function FindVisualChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
+        Dim list As New List(Of T)()
+        If depObj IsNot Nothing Then
+            For i As Integer = 0 To VisualTreeHelper.GetChildrenCount(depObj) - 1
+                Dim child = VisualTreeHelper.GetChild(depObj, i)
+                If child IsNot Nothing AndAlso TypeOf child Is T Then
+                    list.Add(CType(child, T))
+                End If
+                list.AddRange(FindVisualChildren(Of T)(child))
             Next
         End If
         Return list
