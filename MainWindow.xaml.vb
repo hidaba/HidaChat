@@ -153,8 +153,10 @@ Public Class MainWindow
             
             WebViewsGrid.Children.Add(wv)
             
-            ' Async configuration of WebView environment and scripts injection
-            Dim ignore = account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
+            ' Setup solo se non già inizializzato (evita reinit che rompe connessione WhatsApp)
+            If wv.CoreWebView2 Is Nothing Then
+                Dim ignore = account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
+            End If
         Next
     End Sub
 
@@ -163,9 +165,16 @@ Public Class MainWindow
     End Sub
 
     Private Async Sub AccountTab_Click(sender As Object, e As RoutedEventArgs)
-        Dim btn = CType(sender, Button)
-        Dim accountId = btn.Tag.ToString()
-        Await SwitchToAccountAsync(accountId)
+        Try
+            Dim btn = CType(sender, Button)
+            Dim accountId = btn.Tag?.ToString()
+            If Not String.IsNullOrEmpty(accountId) Then
+                Await SwitchToAccountAsync(accountId)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTab_Click error: {ex.Message}")
+            MessageBox.Show("Errore nel cambio account: " & ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
+        End Try
     End Sub
 
     Private Async Sub AccountTabRename_Click(sender As Object, e As RoutedEventArgs)

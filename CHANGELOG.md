@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.3] - 2026-07-10
+
+### Fixed
+- L'uscita dal programma al cambio account con 2+ account era causata dalla re-inizializzazione del WebView2 esistente in `PopulateWebViews()`: quando si aggiungeva un account, tutti i WebView venivano rimossi e re-aggiunti al grid, chiamando `SetupWebViewAsync` anche per quelli già inizializzati, causando la rottura della connessione WhatsApp. Risolto skippando `SetupWebViewAsync` se `wv.CoreWebView2` è già popolato.
+- Aggiunto try-catch in `AccountTab_Click` per mostrare eventuali errori di cambio account.
+
 ## [1.2.2] - 2026-07-10
 
 ### Fixed
