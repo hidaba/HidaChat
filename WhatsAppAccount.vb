@@ -74,6 +74,18 @@ Public Class WhatsAppAccount
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
             
+            ' Grant notifications permission automatically
+            AddHandler WebView.CoreWebView2.PermissionRequested, Sub(sender, e)
+                If e.PermissionKind = CoreWebView2PermissionKind.Notifications Then
+                    e.State = CoreWebView2PermissionState.Allow
+                    e.Handled = True
+                End If
+            End Sub
+
+            ' Inject bridge token and notification override before any script runs (combined to avoid races)
+            Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & vbCrLf & NotificationJsScripts.NotificationOverrideJS
+            Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
+
             ' Handle navigation and links
             AddHandler WebView.CoreWebView2.NewWindowRequested, Sub(sender, e)
                 e.Handled = True
@@ -99,8 +111,6 @@ Public Class WhatsAppAccount
             ' Setup script injection and theme injection on page finished load
             AddHandler WebView.CoreWebView2.NavigationCompleted, Async Sub(sender, e)
                 If e.IsSuccess Then
-                    ' Inject bridge token
-                    Await WebView.CoreWebView2.ExecuteScriptAsync($"window.__bridgeToken = '{BridgeToken}';")
                     
                     ' Inject theme CSS
                     Dim brightnessDark = False
@@ -125,9 +135,6 @@ Public Class WhatsAppAccount
                     Else
                         Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
                     End If
-
-                    ' Inject notification override
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(NotificationJsScripts.NotificationOverrideJS)
 
                     ' Inject translation script
                     Dim langName = "English"
@@ -165,6 +172,7 @@ Public Class WhatsAppAccount
     End Function
 
     Private Async Function HandleWebMessageAsync(messageJson As String, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
+        Debug.WriteLine($"[WebMessageReceived] accountId={Id}, RAW JSON: {messageJson}")
         Try
             Using doc As JsonDocument = JsonDocument.Parse(messageJson)
                 Dim root = doc.RootElement
@@ -190,6 +198,8 @@ Public Class WhatsAppAccount
     Private Function HandleNotificationMessageAsync(root As JsonElement, onNotificationChanged As Action(Of String, Boolean)) As Task
         Dim type = root.GetProperty("type").GetString()
         Dim notificationId = root.GetProperty("id").GetString()
+        
+        Debug.WriteLine($"[NotificationChannel] accountId={Id}, type={type}, id={notificationId}")
 
         If type = "NOTIFICATION_RECEIVED" Then
             ActiveNotificationIds.Add(notificationId)
@@ -199,15 +209,25 @@ Public Class WhatsAppAccount
             Dim title = root.GetProperty("title").GetString()
             Dim body = root.GetProperty("body").GetString()
 
-            ' Build and show native toast notification
-            Dim builder As New ToastContentBuilder()
-            builder.AddText(title)
-            builder.AddText(body)
-            builder.AddArgument("accountId", Id)
-            builder.AddArgument("notificationId", notificationId)
-            
-            ' Add native click routing
-            builder.Show()
+            Try
+                Dim builder As New ToastContentBuilder()
+                builder.AddText(title)
+                builder.AddText(body)
+                builder.AddArgument("accountId", Id)
+                builder.AddArgument("notificationId", notificationId)
+                builder.Show()
+            Catch ex As Exception
+                Debug.WriteLine($"Failed to show toast notification: {ex.Message}")
+            End Try
+
+            Try
+                Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
+                    Dim popup As New MessagePopup(Id, title, body)
+                    popup.Show()
+                End Sub)
+            Catch ex As Exception
+                Debug.WriteLine($"Failed to show popup: {ex.Message}")
+            End Try
 
         ElseIf type = "NOTIFICATION_CLOSED" Then
             ActiveNotificationIds.Remove(notificationId)

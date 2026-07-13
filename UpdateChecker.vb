@@ -7,6 +7,28 @@ Imports System.Text.Json
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
 
+    Private Shared Function GetUpdateFilesPath(settings As SettingsController) As String
+        Return If(settings.UseBetaChannel, Constants.UpdateFilesPathBeta, Constants.UpdateFilesPath)
+    End Function
+
+    Private Shared Function GetUpdateVersionFile(settings As SettingsController) As String
+        Return If(settings.UseBetaChannel, Constants.UpdateVersionFileBeta, Constants.UpdateVersionFile)
+    End Function
+
+    Private Shared Function IsNewerVersion(remote As String, current As String) As Boolean
+        Dim rParts = remote.Split("."c)
+        Dim cParts = current.Split("."c)
+        For i As Integer = 0 To Math.Min(rParts.Length, cParts.Length) - 1
+            Dim rVal As Integer = 0
+            Dim cVal As Integer = 0
+            Integer.TryParse(rParts(i), rVal)
+            Integer.TryParse(cParts(i), cVal)
+            If rVal > cVal Then Return True
+            If rVal < cVal Then Return False
+        Next
+        Return rParts.Length > cParts.Length
+    End Function
+
     ' Controlla se esiste una versione più recente sul repository OTA
     Public Shared Async Function CheckForUpdatesAsync(
         settings As SettingsController,
@@ -30,7 +52,8 @@ Public Class UpdateChecker
         End If
 
         ' If running directly from the OTA repository, skip update
-        If installDir.TrimEnd("\"c).Equals(Constants.UpdateFilesPath.TrimEnd("\"c), StringComparison.OrdinalIgnoreCase) Then
+        Dim updateFilesPath = GetUpdateFilesPath(settings)
+        If installDir.TrimEnd("\"c).Equals(updateFilesPath.TrimEnd("\"c), StringComparison.OrdinalIgnoreCase) Then
             Debug.WriteLine("Running directly from OTA repository, update check skipped.")
             If force Then
                 MessageBox.Show(
@@ -44,14 +67,15 @@ Public Class UpdateChecker
             Return
         End If
 
-        Dim latestVersion = Await ReadVersionFromFileAsync()
+        Dim latestVersion = Await ReadVersionFromFileAsync(settings)
 
         If String.IsNullOrEmpty(latestVersion) Then
             Debug.WriteLine("Update check failed: could not read version file.")
             If force Then
+                Dim versionFile = GetUpdateVersionFile(settings)
                 MessageBox.Show(
                     "Impossibile leggere il file degli aggiornamenti." & vbCrLf &
-                    "Verifica la connettività al percorso di rete: " & Constants.UpdateVersionFile,
+                    "Verifica la connettività al percorso di rete: " & versionFile,
                     "Errore connessione",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
@@ -62,8 +86,19 @@ Public Class UpdateChecker
 
         Debug.WriteLine($"Current version: {Constants.AppVersion}, Remote version: {latestVersion}")
 
-        If latestVersion <> Constants.AppVersion Then
-            Await PerformUpdateAsync(latestVersion, installDir)
+        If IsNewerVersion(latestVersion, Constants.AppVersion) Then
+            Await PerformUpdateAsync(latestVersion, installDir, settings)
+        ElseIf latestVersion <> Constants.AppVersion Then
+            Debug.WriteLine($"Remote version ({latestVersion}) is older than current ({Constants.AppVersion}), skipping.")
+            If force Then
+                MessageBox.Show(
+                    "La versione remota (" & latestVersion & ") è precedente a quella corrente (" & Constants.AppVersion & ")." & vbCrLf &
+                    "Nessun aggiornamento disponibile.",
+                    "Aggiornamento",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                )
+            End If
         Else
             If force Then
                 MessageBox.Show(
@@ -76,9 +111,9 @@ Public Class UpdateChecker
         End If
     End Function
 
-    Private Shared Async Function ReadVersionFromFileAsync() As Task(Of String)
+    Private Shared Async Function ReadVersionFromFileAsync(settings As SettingsController) As Task(Of String)
         Try
-            Return (Await File.ReadAllTextAsync(Constants.UpdateVersionFile)).Trim()
+            Return (Await File.ReadAllTextAsync(GetUpdateVersionFile(settings))).Trim()
         Catch ex As Exception
             Debug.WriteLine($"Error reading version file: {ex.Message}")
             Return Nothing
@@ -86,7 +121,8 @@ Public Class UpdateChecker
     End Function
 
     ' Scarica i nuovi file dall'OTA, genera un batch e riavvia l'app
-    Private Shared Async Function PerformUpdateAsync(latestVersion As String, installDir As String) As Task
+    Private Shared Async Function PerformUpdateAsync(latestVersion As String, installDir As String, settings As SettingsController) As Task
+        Dim updateFilesPath = GetUpdateFilesPath(settings)
         Await Task.Run(Sub()
             Try
                 ' Verify we can write to the install directory
@@ -101,7 +137,7 @@ Public Class UpdateChecker
                             "L'applicazione non ha i permessi di scrittura nella cartella di installazione." & vbCrLf & vbCrLf &
                             "Esegui l'applicazione da una cartella locale (es. C:\Programmi\WhatsAppVB)" & vbCrLf &
                             "oppure copia manualmente i file da:" & vbCrLf &
-                            Constants.UpdateFilesPath & vbCrLf & vbCrLf &
+                            updateFilesPath & vbCrLf & vbCrLf &
                             "Versione disponibile: " & latestVersion,
                             "Aggiornamento non disponibile",
                             MessageBoxButton.OK,
@@ -117,8 +153,8 @@ Public Class UpdateChecker
                 Directory.CreateDirectory(tempDir)
 
                 ' Copia solo i file dell'app, ESCLUDE cartella data\ e file utente (settings, cache traduzioni, version)
-                For Each f In Directory.GetFiles(Constants.UpdateFilesPath, "*.*", SearchOption.AllDirectories)
-                    Dim relPath = f.Substring(Constants.UpdateFilesPath.TrimEnd("\"c).Length + 1)
+                For Each f In Directory.GetFiles(updateFilesPath, "*.*", SearchOption.AllDirectories)
+                    Dim relPath = f.Substring(updateFilesPath.TrimEnd("\"c).Length + 1)
                     ' Salta dati utente e metadati
                     If relPath.StartsWith("data\", StringComparison.OrdinalIgnoreCase) Then Continue For
                     If relPath.Equals("settings.json", StringComparison.OrdinalIgnoreCase) Then Continue For
@@ -131,7 +167,7 @@ Public Class UpdateChecker
                 Next
 
                 ' Merge nuove chiavi da settings.json dell'OTA nel settings.json locale
-                MergeSettingsFromOta(installDir)
+                MergeSettingsFromOta(installDir, updateFilesPath)
 
                 ' Marca la versione locale prima del riavvio per evitare loop di aggiornamento
                 WriteLocalVersionMarker(installDir, latestVersion)
@@ -178,9 +214,9 @@ del ""%~f0""
         End Sub)
     End Function
     ' Legge il settings.json dell'OTA e aggiunge le chiavi mancanti al settings.json locale
-    Private Shared Sub MergeSettingsFromOta(installDir As String)
+    Private Shared Sub MergeSettingsFromOta(installDir As String, updateFilesPath As String)
         Try
-            Dim otaSettingsPath = Path.Combine(Constants.UpdateFilesPath, "settings.json")
+            Dim otaSettingsPath = Path.Combine(updateFilesPath, "settings.json")
             Dim localSettingsPath As String = Nothing
             ' Cerca settings.json: prima in base, poi in data\
             Dim basePath = Path.Combine(installDir, "settings.json")

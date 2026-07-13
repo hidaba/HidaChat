@@ -178,11 +178,6 @@
                     <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
                     <CheckBox x:Name="ChkShowTranslateAllButton" Content="Title bar translate all messages button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
 
-                    <!-- NOTIFICATIONS SECTION -->
-                    <TextBlock x:Name="SectionNotifications" Text="Notifications" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkTranslateNotifications" Content="Translate notification messages" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkShowTranslateNotificationBtn" Content="Show translate button in notifications" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
-
                     <!-- ACCOUNTS MANAGEMENT SECTION -->
                     <TextBlock x:Name="SectionAccounts" Text="Manage Accounts" Style="{StaticResource SectionHeaderStyle}"/>
                     <ItemsControl x:Name="AccountsList" Margin="0,5,0,15">
@@ -208,6 +203,10 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- UPDATES SECTION -->
+                    <TextBlock x:Name="SectionUpdates" Text="Updates" Style="{StaticResource SectionHeaderStyle}"/>
+                    <CheckBox x:Name="ChkUseBetaChannel" Content="Use beta update channel" Checked="ChkUseBetaChannel_Changed" Unchecked="ChkUseBetaChannel_Changed" Margin="0,5,0,10" Style="{StaticResource CustomCheckBoxStyle}"/>
 
                     <!-- DEVELOPER TOOLS & CACHE -->
                     <TextBlock x:Name="SectionDevTools" Text="DevTools" Style="{StaticResource SectionHeaderStyle}"/>

@@ -54,6 +54,20 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Canale aggiornamenti beta ---
+    Private _useBetaChannel As Boolean = False
+    Public Property UseBetaChannel As Boolean
+        Get
+            Return _useBetaChannel
+        End Get
+        Set(value As Boolean)
+            If _useBetaChannel <> value Then
+                _useBetaChannel = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
     ' --- Pulsante traduci al passaggio del mouse ---
     Private _translateMessageButton As Boolean = True
     Public Property TranslateMessageButton As Boolean
@@ -91,32 +105,6 @@ Public Class SettingsController
         Set(value As Boolean)
             If _showTranslateAllMessagesButton <> value Then
                 _showTranslateAllMessagesButton = value
-                NotifyPropertyChanged()
-            End If
-        End Set
-    End Property
-
-    Private _translateNotifications As Boolean = True
-    Public Property TranslateNotifications As Boolean
-        Get
-            Return _translateNotifications
-        End Get
-        Set(value As Boolean)
-            If _translateNotifications <> value Then
-                _translateNotifications = value
-                NotifyPropertyChanged()
-            End If
-        End Set
-    End Property
-
-    Private _showTranslateNotificationButton As Boolean = False
-    Public Property ShowTranslateNotificationButton As Boolean
-        Get
-            Return _showTranslateNotificationButton
-        End Get
-        Set(value As Boolean)
-            If _showTranslateNotificationButton <> value Then
-                _showTranslateNotificationButton = value
                 NotifyPropertyChanged()
             End If
         End Set
@@ -238,12 +226,10 @@ Public Class SettingsController
 
         _alwaysShowTabBar = GetBoolSetting(settings, "alwaysShowTabBar", True)
         _checkForUpdates = GetBoolSetting(settings, "checkForUpdates", True)
+        _useBetaChannel = GetBoolSetting(settings, "useBetaChannel", False)
         _translateMessageButton = GetBoolSetting(settings, "translateMessageButton", GetBoolSetting(settings, "enableHoverTranslation", True))
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)
-        _translateNotifications = GetBoolSetting(settings, "translateNotifications", True)
-        _showTranslateNotificationButton = GetBoolSetting(settings, "showTranslateNotificationButton", False)
-        
         ' Lingua salvata nelle impostazioni
         If settings.ContainsKey("language") Then
             _language = settings("language").ToString()

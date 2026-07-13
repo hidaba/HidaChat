@@ -1,5 +1,7 @@
 Public Module Constants
-    Public Const AppVersion As String = "1.2.3"
-    Public Const UpdateVersionFile As String = "\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\version.txt"
-    Public Const UpdateFilesPath As String = "\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\"
+    Public Const AppVersion As String = "1.3.9"
+    Public Const UpdateVersionFile As String = "\\fs1\Annoni-New\IT\OTARepository\Whatsapp\version.txt"
+    Public Const UpdateFilesPath As String = "\\fs1\Annoni-New\IT\OTARepository\Whatsapp\"
+    Public Const UpdateVersionFileBeta As String = "\\fs1\Annoni-New\IT\OTARepository\WhatsappBeta\version.txt"
+    Public Const UpdateFilesPathBeta As String = "\\fs1\Annoni-New\IT\OTARepository\WhatsappBeta\"
 End Module

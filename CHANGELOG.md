@@ -1,5 +1,71 @@
 # Changelog
 
+## [1.3.9] - 2026-07-13
+
+### Added
+- Supporto per canale di pubblicazione beta con percorso OTA separato.
+- Impostazione "Usa canale aggiornamenti beta" nelle impostazioni: se abilitata, l'app controlla gli aggiornamenti dal repository beta invece che da quello stabile.
+
+### Fixed
+- Tasto "Aggiungi account" disabilitato durante operazioni (settings aperto o aggiunta account in corso) per evitare click multipli.
+- Confronto versioni OTA: ora aggiorna solo se la versione remota è più recente, evitando downgrade.
+
+## [1.3.8] - 2026-07-13
+
+### Fixed
+- Fixed JS bridge payload double-stringification that prevented VB.NET from parsing the Notification and Translation messages.
+
+## [1.3.7] - 2026-07-13
+
+### Fixed
+- Intercepted ServiceWorkerRegistration.prototype.showNotification instead of blocking service workers to fix notifications.
+
+## [1.3.6] - 2026-07-13
+
+### Changed
+- Added debug logging for notifications
+
+## [1.3.5] - 2026-07-10
+
+### Fixed
+- Disabilitati e rimossi i Service Worker all'avvio della pagina per forzare WhatsApp Web a usare le notifiche standard della pagina (WebSocket), risolvendo il problema delle notifiche che non venivano intercettate dal wrapper.
+
+## [1.3.4] - 2026-07-10
+
+### Fixed
+- Corretto il caricamento delle notifiche (toast e popup): iniezione anticipata degli script di override prima del caricamento della pagina (`AddScriptToExecuteOnDocumentCreatedAsync`), abilitazione automatica dei permessi e gestione delle eccezioni native sui Toast per evitare il blocco dei popup.
+
+## [1.3.3] - 2026-07-10
+
+### Fixed
+- Notifiche (toast e popup) non funzionanti: il JavaScript con `fetch()` su blob URL e la gestione icona in VB causavano blocchi. Ripristinato invio sincrono della notifica senza fetch icona e rimosso codice download avatar (i blob URL di WhatsApp Web non sono accessibili da `HttpClient`).
+
+## [1.3.2] - 2026-07-10
+
+### Removed
+- Rimosse dalle Impostazioni le checkbox "Traduci messaggi delle notifiche" e "Mostra pulsante traduci nelle notifiche" e tutto il codice collegato (`TranslateNotifications`, `ShowTranslateNotificationButton` properties, chiavi localizzazione).
+
+## [1.3.1] - 2026-07-10
+
+### Fixed
+- Notifiche (toast e popup) non funzionanti: il JavaScript tentava `fetch()` su URL `blob:` in modo sincrono, bloccando l'invio di `NOTIFICATION_RECEIVED` in WebView2. Ora il messaggio viene inviato immediatamente (icona vuota), e il fetch dell'icona avviene in secondo piano come `NOTIFICATION_ICON`.
+- NullReferenceException in `BtnDeleteAccount_Click` (`SettingsWindow.xaml.vb`): `btn.Tag` poteva essere null. Ora usa `TryCast(btn.Tag, String)` con null check.
+
+### Added
+- Script `publish.ps1`: automatizza bump versione → build Release → copia su OTA → update `version.txt`.
+- `publish.ps1` esclude automaticamente file superflui (`.pdb`, `.xml`) dalla pubblicazione OTA.
+
+## [1.3.0] - 2026-07-10
+
+### Added
+- Popup visivo (`MessagePopup.xaml`/`.vb`): finestra WPF borderless che appare in basso a destra all'arrivo di un messaggio, con iniziali del contatto, nome, messaggio e auto-close dopo 5 secondi. Clicca per ripristinare la finestra principale.
+- Il toast ora include l'avatar del contatto (`AddAppLogoOverride` con crop circolare) scaricato dall'icona della notifica (URL http o data URL base64).
+
+### Changed
+- `HandleNotificationMessageAsync` passata da `Function` a `Async Function` per supportare download asincrono dell'icona.
+- Usato `Dispatcher.BeginInvoke` (non bloccante) invece di `Dispatcher.Invoke` per mostrare il popup.
+- `DispatcherTimer` sostituisce `System.Timers.Timer` nel popup (corretto threading).
+
 ## [1.2.3] - 2026-07-10
 
 ### Fixed

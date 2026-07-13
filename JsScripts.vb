@@ -68,7 +68,36 @@ Public Class NotificationJsScripts
 
   window.activeCustomNotifications = {};
 
+  // Override ServiceWorkerRegistration.showNotification since WhatsApp uses it
+  if (window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype) {
+    const originalShowNotification = window.ServiceWorkerRegistration.prototype.showNotification;
+    window.ServiceWorkerRegistration.prototype.showNotification = function(title, options) {
+      console.log('[NotificationOverride] ServiceWorker showNotification intercepted:', title, options);
+      
+      const id = Math.random().toString(36).substring(2, 9);
+      
+      try {
+        window.chrome.webview.postMessage({
+          channel: 'NotificationChannel',
+          type: 'NOTIFICATION_RECEIVED',
+          id: id,
+          title: title,
+          body: options ? (options.body || '') : '',
+          icon: options ? (options.icon || '') : '',
+          bridgeToken: window.__bridgeToken || ''
+        });
+      } catch(e) {
+        console.error('Failed to postMessage:', e);
+      }
+      
+      // We don't call the original because we want our WPF popup to handle it, not the browser's native toast
+      return Promise.resolve();
+    };
+  }
+
+  // Also override window.Notification as a fallback
   function CustomNotification(title, options) {
+    console.log('[NotificationOverride] CustomNotification triggered:', title, options);
     var self = this;
     this.title = title;
     this.options = options || {};
@@ -78,26 +107,27 @@ Public Class NotificationJsScripts
     this._listeners = {};
 
     try {
-      window.chrome.webview.postMessage(JSON.stringify({
+      window.chrome.webview.postMessage({
         channel: 'NotificationChannel',
         type: 'NOTIFICATION_RECEIVED',
         id: this.id,
         title: this.title,
         body: this.options.body || '',
+        icon: this.options.icon || '',
         bridgeToken: window.__bridgeToken || ''
-      }));
+      });
     } catch(e) {}
 
     this.close = function() {
       if (window.activeCustomNotifications[self.id]) {
         delete window.activeCustomNotifications[self.id];
         try {
-          window.chrome.webview.postMessage(JSON.stringify({
+          window.chrome.webview.postMessage({
             channel: 'NotificationChannel',
             type: 'NOTIFICATION_CLOSED',
             id: self.id,
             bridgeToken: window.__bridgeToken || ''
-          }));
+          });
         } catch(e) {}
       }
     };
@@ -124,6 +154,11 @@ Public Class NotificationJsScripts
   CustomNotification.requestPermission = function(callback) {
     if (typeof callback === 'function') callback('granted');
     return Promise.resolve('granted');
+  };
+  
+  // Trick WhatsApp into thinking this is native
+  CustomNotification.toString = function() {
+    return "function Notification() { [native code] }";
   };
 
   window.Notification = CustomNotification;
@@ -305,14 +340,14 @@ Public Class TranslationJsScripts
 
     const targetLang = window.__translationTargetLangCode || 'en';
     try {
-      window.chrome.webview.postMessage(JSON.stringify({
+      window.chrome.webview.postMessage({
         channel: 'TranslationChannel',
         id: transId,
         text: text,
         quotedText: quotedText,
         targetLang: targetLang,
         bridgeToken: window.__bridgeToken || ''
-      }));
+      });
     } catch(e) {
       bodyText.innerText = 'Translation channel error';
     }
@@ -404,14 +439,14 @@ Public Class TranslationJsScripts
         chunkNodes.forEach(n => translatedNodes.add(n));
 
         try {
-          window.chrome.webview.postMessage(JSON.stringify({
+          window.chrome.webview.postMessage({
             channel: 'TranslationChannel',
             type: 'BATCH_TRANSLATE',
             id: transId,
             texts: chunkTexts,
             targetLang: window.__translationTargetLangCode,
             bridgeToken: window.__bridgeToken || ''
-          }));
+          });
         } catch (e) {
           chunkNodes.forEach(n => translatedNodes.delete(n));
         }

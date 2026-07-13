@@ -35,10 +35,10 @@ Public Class SettingsWindow
         ChkTranslateMessageButton.IsChecked = _settingsController.TranslateMessageButton
         ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
         ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
-        ChkTranslateNotifications.IsChecked = _settingsController.TranslateNotifications
-        ChkShowTranslateNotificationBtn.IsChecked = _settingsController.ShowTranslateNotificationButton
+        ' 4. Set Beta Channel Checkbox
+        ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
 
-        ' 4. Bind Accounts List
+        ' 5. Bind Accounts List
         AccountsList.ItemsSource = _accountManager.Accounts
 
         ' 5. Apply Active Theme
@@ -120,12 +120,6 @@ Public Class SettingsWindow
             Case "ChkShowTranslateAllButton"
                 _settingsController.ShowTranslateAllMessagesButton = chk.IsChecked.Value
                 Await _settingsController.SaveSettingAsync("showTranslateAllMessagesButton", chk.IsChecked.Value)
-            Case "ChkTranslateNotifications"
-                _settingsController.TranslateNotifications = chk.IsChecked.Value
-                Await _settingsController.SaveSettingAsync("translateNotifications", chk.IsChecked.Value)
-            Case "ChkShowTranslateNotificationBtn"
-                _settingsController.ShowTranslateNotificationButton = chk.IsChecked.Value
-                Await _settingsController.SaveSettingAsync("showTranslateNotificationButton", chk.IsChecked.Value)
         End Select
 
         ' Notify webviews of hover state changes
@@ -153,8 +147,9 @@ Public Class SettingsWindow
 
     Private Async Sub BtnDeleteAccount_Click(sender As Object, e As RoutedEventArgs)
         Dim btn = CType(sender, Button)
-        Dim accountId = btn.Tag.ToString()
-        
+        Dim accountId = TryCast(btn.Tag, String)
+        If String.IsNullOrEmpty(accountId) Then Return
+
         Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
         If acc Is Nothing Then Return
 
@@ -197,6 +192,13 @@ Public Class SettingsWindow
         Await UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager, force:=True)
     End Sub
 
+    Private Async Sub ChkUseBetaChannel_Changed(sender As Object, e As RoutedEventArgs)
+        If _isInitializing Then Return
+        Dim chk = CType(sender, CheckBox)
+        _settingsController.UseBetaChannel = chk.IsChecked.Value
+        Await _settingsController.SaveSettingAsync("useBetaChannel", chk.IsChecked.Value)
+    End Sub
+
     ' Applica le traduzioni italiane a tutti i label della finestra
     Private Sub RefreshLocalization()
         Dim loc = _settingsController.Localizations
@@ -208,10 +210,9 @@ Public Class SettingsWindow
         ChkTranslateMessageButton.Content = loc.Get("translate_message_button")
         ChkFullPageTranslation.Content = loc.Get("full_page_translation")
         ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")
-        SectionNotifications.Text = loc.Get("notifications")
-        ChkTranslateNotifications.Content = loc.Get("translate_notifications")
-        ChkShowTranslateNotificationBtn.Content = loc.Get("show_translate_notification_button")
         SectionAccounts.Text = loc.Get("manage_accounts")
+        SectionUpdates.Text = loc.Get("updates")
+        ChkUseBetaChannel.Content = loc.Get("use_beta_channel")
         SectionDevTools.Text = loc.Get("devtools")
         BtnDebugTab.Content = loc.Get("debug_active_tab")
         BtnCheckUpdates.Content = loc.Get("check_now")

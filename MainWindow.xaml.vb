@@ -230,26 +230,36 @@ Public Class MainWindow
 
     ' Aggiunge un nuovo account WhatsApp
     Private Async Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
-        Await _accountManager.AddAccountAsync()
-        PopulateWebViews()
-        AccountsList.ItemsSource = Nothing
-        AccountsList.ItemsSource = _accountManager.Accounts
-        UpdateAccountTabStyling()
+        BtnAddAccount.IsEnabled = False
+        Try
+            Await _accountManager.AddAccountAsync()
+            PopulateWebViews()
+            AccountsList.ItemsSource = Nothing
+            AccountsList.ItemsSource = _accountManager.Accounts
+            UpdateAccountTabStyling()
+        Finally
+            If Not _accountManager.IsDialogOpen Then
+                BtnAddAccount.IsEnabled = True
+            End If
+        End Try
     End Sub
 
     ' Apre la finestra Impostazioni
     Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
         Try
             _accountManager.IsDialogOpen = True
+            BtnAddAccount.IsEnabled = False
             Dim settingsWin As New SettingsWindow(_settingsController, _accountManager)
             settingsWin.Owner = Me
             settingsWin.ShowDialog()
             _accountManager.IsDialogOpen = False
+            BtnAddAccount.IsEnabled = True
 
             ApplyWpfTheme()
             UpdateAccountTabStyling()
         Catch ex As Exception
             _accountManager.IsDialogOpen = False
+            BtnAddAccount.IsEnabled = True
             MessageBox.Show(
                 "Errore aprendo le impostazioni:" & vbCrLf & vbCrLf &
                 ex.ToString(),
