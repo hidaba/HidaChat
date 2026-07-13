@@ -129,13 +129,41 @@ Public Class MainWindow
     End Sub
 
     Private Sub TitleBar_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
-        If e.ChangedButton = MouseButton.Left Then
-            Me.DragMove()
+        If e.ChangedButton = MouseButton.Left AndAlso e.ClickCount = 2 Then
+            ToggleMaximize()
+        ElseIf e.ChangedButton = MouseButton.Left Then
+            If Me.WindowState = WindowState.Maximized Then
+                Dim pt = Mouse.GetPosition(Me)
+                Me.WindowState = WindowState.Normal
+                Me.DragMove()
+            Else
+                Me.DragMove()
+            End If
         End If
     End Sub
 
     Private Sub BtnMinimize_Click(sender As Object, e As RoutedEventArgs)
         Me.WindowState = WindowState.Minimized
+    End Sub
+
+    Private Sub BtnMaximize_Click(sender As Object, e As RoutedEventArgs)
+        ToggleMaximize()
+    End Sub
+
+    Private Sub ToggleMaximize()
+        If Me.WindowState = WindowState.Maximized Then
+            Me.WindowState = WindowState.Normal
+        Else
+            Me.WindowState = WindowState.Maximized
+        End If
+    End Sub
+
+    Private Sub MainWindow_StateChanged(sender As Object, e As EventArgs) Handles Me.StateChanged
+        If Me.WindowState = WindowState.Maximized Then
+            MaximizeIcon.Data = Geometry.Parse("M4,1 L11,1 L11,8 L9,8 L9,2 L4,2 Z M1,4 L8,4 L8,11 L1,11 Z")
+        Else
+            MaximizeIcon.Data = Geometry.Parse("M1,1 L11,1 L11,11 L1,11 Z M2,2 L2,10 L10,10 L10,2 Z")
+        End If
     End Sub
 
     Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)

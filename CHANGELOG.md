@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.10] - 2026-07-13
+
+### Changed
+- Finestra principale ora ridimensionabile: aggiunto pulsante massimizza/ripristina, doppio click sulla barra del titolo per massimizzare, grip di resize in basso a destra.
+- La WebView di WhatsApp si adatta automaticamente alle dimensioni della finestra.
+
+### Fixed
+- Tasto "Aggiungi account" disabilitato durante operazioni (settings aperto o aggiunta account in corso) per evitare click multipli.
+- Confronto versioni OTA: ora aggiorna solo se la versione remota è più recente, evitando downgrade.
+
 ## [1.3.9] - 2026-07-13
 
 ### Added
@@ -9,6 +19,10 @@
 ### Fixed
 - Tasto "Aggiungi account" disabilitato durante operazioni (settings aperto o aggiunta account in corso) per evitare click multipli.
 - Confronto versioni OTA: ora aggiorna solo se la versione remota è più recente, evitando downgrade.
+
+### Changed
+- Finestra principale ora ridimensionabile: aggiunto pulsante massimizza/ripristina, doppio click sulla barra del titolo per massimizzare, grip di resize in basso a destra.
+- La WebView di WhatsApp si adatta automaticamente alle dimensioni della finestra.
 
 ## [1.3.8] - 2026-07-13
 
