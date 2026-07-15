@@ -1,6 +1,50 @@
 # Changelog
 
+## [1.3.18] - 2026-07-14
+
+### Fixed
+- Rimosso riferimento `x:Static` a `Constants` (Module VB) dal XAML, sostituito con binding via code-behind per evitare errore "Constants non esiste nello spazio dei nomi" in fase di compilazione.
+
+## [1.3.17] - 2026-07-14
+
+### Fixed
+- Tasto "Aggiungi account" disabilitato durante inizializzazione, cambio account e operazioni in corso.
+
+## [1.3.16] - 2026-07-14
+
+### Changed
+- Timeout wait loop OTA ridotto da 20s a 10s.
+
+## [1.3.15] - 2026-07-14
+
+### Added
+- Test OTA da 1.3.14.
+
+## [1.3.14] - 2026-07-14
+
+### Fixed
+- Timeout nel batch di aggiornamento OTA: dopo 20s senza riuscire a chiudere il processo, l'aggiornamento prosegue comunque.
+
+## [1.3.13] - 2026-07-14
+
+### Added
+- Test OTA update da 1.3.12.
+
+## [1.3.12] - 2026-07-14
+
+### Added
+- Test OTA update.
+
+## [1.3.11] - 2026-07-14
+
+### Fixed
+- **Update non rilevato**: il controllo `.app_version` bloccava la verifica degli aggiornamenti quando il marker corrispondeva alla versione corrente, impedendo di trovare versioni più recenti pubblicate successivamente. Rimosso l'early return: il confronto `IsNewerVersion` gestisce già i casi di versione identica.
+
 ## [1.3.10] - 2026-07-13
+
+### Fixed
+- **Aggiornamento OTA bloccato**: la finestra non si chiudeva realmente durante l'update (`_allowExit = False` bloccava la chiusura), quindi il batch restava in attesa infinita del termine del processo. Ora `ForceExitForUpdate()` viene chiamato prima dello shutdown.
+- Aggiunto log `.update_log.txt` nella cartella d'installazione per tracciare ogni passo del batch di aggiornamento.
 
 ### Changed
 - Finestra principale ora ridimensionabile: aggiunto pulsante massimizza/ripristina, doppio click sulla barra del titolo per massimizzare, grip di resize in basso a destra.

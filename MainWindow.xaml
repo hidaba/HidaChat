@@ -125,7 +125,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
 
                     <!-- Version number -->
-                    <TextBlock Text="{Binding Source={x:Static local:Constants.AppVersion}, StringFormat='v{0}'}" Foreground="#8696a0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock x:Name="VersionText" Text="v1.3.17" Foreground="#8696a0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
 
                     <!-- Reload Active Tab Button -->
                     <Button x:Name="BtnReloadActiveTab" Click="BtnReloadActiveTab_Click" Width="32" Height="32" Margin="0,0,5,0" ToolTip="Reload active tab" Style="{StaticResource HeaderIconButtonStyle}">
@@ -190,7 +190,7 @@
                     </ItemsControl>
 
                     <!-- Quick add account button -->
-                    <Button x:Name="BtnAddAccount" Grid.Column="1" Click="BtnAddAccount_Click" Content="+ Add Account" Style="{StaticResource AddAccountButtonStyle}"/>
+                    <Button x:Name="BtnAddAccount" Grid.Column="1" Click="BtnAddAccount_Click" Content="+ Add Account" Style="{StaticResource AddAccountButtonStyle}" IsEnabled="False"/>
                 </Grid>
             </Border>
 

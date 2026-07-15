@@ -40,12 +40,6 @@ Public Class UpdateChecker
 
         Dim installDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName)
 
-        ' Se la versione locale corrisponde già all'app, salta il check (evita loop post-aggiornamento)
-        If Not force AndAlso IsLocalVersionCurrent(installDir) Then
-            Debug.WriteLine("Local version marker matches, update check skipped.")
-            Return
-        End If
-
         If Not force AndAlso Not settings.CheckForUpdates Then
             Debug.WriteLine("Update check on launch is disabled by user.")
             Return
@@ -172,21 +166,40 @@ Public Class UpdateChecker
                 ' Marca la versione locale prima del riavvio per evitare loop di aggiornamento
                 WriteLocalVersionMarker(installDir, latestVersion)
 
+                Dim logFile = Path.Combine(installDir, ".update_log.txt")
                 Dim batchPath = Path.Combine(tempDir, "update.bat")
                 Dim batchContent = $"@echo off
 title Aggiornamento WhatsAppVB...
+set LOG=""{logFile}""
+echo [%date% %time%] Starting update > %LOG%
+set RETRY=0
 :waitloop
+echo [%date% %time%] Waiting for WhatsAppVB.exe to exit... >> %LOG%
 timeout /t 2 /nobreak > nul
-tasklist /fi ""IMAGENAME eq WhatsAppVB.exe"" 2>nul | find /i ""WhatsAppVB.exe"" >nul
-if not errorlevel 1 goto waitloop
-robocopy ""{tempDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 > nul
-if errorlevel 8 (
-    echo ERRORE: impossibile copiare i file.
+tasklist /fi ""IMAGENAME eq WhatsAppVB.exe"" 2>>%LOG% | find /i ""WhatsAppVB.exe"" >nul
+if errorlevel 1 goto continue
+set /a RETRY=RETRY+1
+if %RETRY% GEQ 5 (
+    echo [%date% %time%] Timeout dopo 10 secondi, forzo prosecuzione... >> %LOG%
+    goto continue
+)
+goto waitloop
+:continue
+echo [%date% %time%] Process exited, copying files... >> %LOG%
+robocopy ""{tempDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 >> %LOG%
+set RC=%ERRORLEVEL%
+echo [%date% %time%] Robocopy exit code: %RC% >> %LOG%
+if %RC% GEQ 8 (
+    echo [%date% %time%] ERRORE: robocopy failed >> %LOG%
+    echo Copia file fallita. Verifica il log: {logFile}
     pause
     exit /b 1
 )
 echo {latestVersion}>""{installDir}\.app_version""
+echo [%date% %time%] Version marker written >> %LOG%
+echo [%date% %time%] Launching app... >> %LOG%
 start """" ""{installDir}\WhatsAppVB.exe""
+echo [%date% %time%] Done >> %LOG%
 del ""%~f0""
 "
                 File.WriteAllText(batchPath, batchContent)
@@ -197,6 +210,10 @@ del ""%~f0""
                 })
 
                 Application.Current.Dispatcher.Invoke(Sub()
+                    Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
+                    If mainWin IsNot Nothing Then
+                        mainWin.ForceExitForUpdate()
+                    End If
                     Application.Current.Shutdown()
                 End Sub)
 

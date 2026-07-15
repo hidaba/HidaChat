@@ -17,6 +17,8 @@ Public Class MainWindow
 
     ' Caricamento iniziale: impostazioni, account, tema, webview, notifiche
     Private Async Sub MainWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        BtnAddAccount.IsEnabled = False
+
         ' 1. Load User Settings
         Await _settingsController.LoadSettingsAsync()
         
@@ -64,6 +66,12 @@ Public Class MainWindow
 
         ' Apply localized UI text
         RefreshLocalization()
+
+        VersionText.Text = "v" & Constants.AppVersion
+
+        If Not _accountManager.IsDialogOpen Then
+            BtnAddAccount.IsEnabled = True
+        End If
     End Sub
 
     Private Sub ConfigureSystemTray()
@@ -119,6 +127,15 @@ Public Class MainWindow
         ' Uninstall toast listeners
         ToastNotificationManagerCompat.Uninstall()
         Application.Current.Shutdown()
+    End Sub
+
+    Public Sub ForceExitForUpdate()
+        _allowExit = True
+        If _trayIcon IsNot Nothing Then
+            _trayIcon.Visible = False
+            _trayIcon.Dispose()
+        End If
+        ToastNotificationManagerCompat.Uninstall()
     End Sub
 
     Private Sub MainWindow_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
@@ -219,6 +236,7 @@ Public Class MainWindow
 
     ' Passa alla scheda account selezionata e nasconde/mostra webview corrispondente
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
+        BtnAddAccount.IsEnabled = False
         Await _accountManager.SwitchAccountAsync(accountId)
         
         ' Update layout visibilities
@@ -233,6 +251,10 @@ Public Class MainWindow
         Next
         
         UpdateAccountTabStyling()
+
+        If Not _accountManager.IsDialogOpen Then
+            BtnAddAccount.IsEnabled = True
+        End If
     End Function
 
     ' Colora la scheda attiva di verde, le altre in grigio
