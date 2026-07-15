@@ -35,6 +35,7 @@ Public Class SettingsWindow
         ChkTranslateMessageButton.IsChecked = _settingsController.TranslateMessageButton
         ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
         ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
+        ChkShowMessagePopup.IsChecked = _settingsController.ShowMessagePopup
         ' 4. Set Beta Channel Checkbox
         ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
 
@@ -120,6 +121,9 @@ Public Class SettingsWindow
             Case "ChkShowTranslateAllButton"
                 _settingsController.ShowTranslateAllMessagesButton = chk.IsChecked.Value
                 Await _settingsController.SaveSettingAsync("showTranslateAllMessagesButton", chk.IsChecked.Value)
+            Case "ChkShowMessagePopup"
+                _settingsController.ShowMessagePopup = chk.IsChecked.Value
+                Await _settingsController.SaveSettingAsync("showMessagePopup", chk.IsChecked.Value)
         End Select
 
         ' Notify webviews of hover state changes
@@ -210,6 +214,8 @@ Public Class SettingsWindow
         ChkTranslateMessageButton.Content = loc.Get("translate_message_button")
         ChkFullPageTranslation.Content = loc.Get("full_page_translation")
         ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")
+        SectionNotifications.Text = loc.Get("notifications")
+        ChkShowMessagePopup.Content = loc.Get("show_message_popup")
         SectionAccounts.Text = loc.Get("manage_accounts")
         SectionUpdates.Text = loc.Get("updates")
         ChkUseBetaChannel.Content = loc.Get("use_beta_channel")

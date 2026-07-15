@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.19] - 2026-07-15
+
+### Added
+- Nuova impostazione "Mostra popup messaggio" nelle notifiche: permette di disabilitare il popup WPF mantenendo attivi i toast nativi Windows.
+
 ## [1.3.18] - 2026-07-14
 
 ### Fixed

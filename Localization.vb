@@ -77,7 +77,9 @@ Public Class AppLocalizations
         {"full_page_translation", "Translate entire page"},
         {"show_translate_all_messages_button", "Title bar translate all messages button"},
         {"reload_active_tab", "Reload active tab"},
-        {"use_beta_channel", "Use beta update channel"}
+        {"use_beta_channel", "Use beta update channel"},
+        {"notifications", "Notifications"},
+        {"show_message_popup", "Show message popup"}
     }
 
     Public Function [Get](key As String, Optional args As Dictionary(Of String, String) = Nothing) As String
@@ -191,7 +193,9 @@ Public Class AppLocalizations
         {"full_page_translation", "Traduci l'intera pagina"},
         {"show_translate_all_messages_button", "Pulsante traduci tutti i messaggi nella barra"},
         {"reload_active_tab", "Ricarica scheda attiva"},
-        {"use_beta_channel", "Usa canale aggiornamenti beta"}
+        {"use_beta_channel", "Usa canale aggiornamenti beta"},
+        {"notifications", "Notifiche"},
+        {"show_message_popup", "Mostra popup messaggio"}
     }
 End Class
 

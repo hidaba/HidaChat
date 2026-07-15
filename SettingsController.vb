@@ -110,6 +110,19 @@ Public Class SettingsController
         End Set
     End Property
 
+    Private _showMessagePopup As Boolean = True
+    Public Property ShowMessagePopup As Boolean
+        Get
+            Return _showMessagePopup
+        End Get
+        Set(value As Boolean)
+            If _showMessagePopup <> value Then
+                _showMessagePopup = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
     Private _language As String = "en"
     Public Property Language As String
         Get
@@ -230,6 +243,7 @@ Public Class SettingsController
         _translateMessageButton = GetBoolSetting(settings, "translateMessageButton", GetBoolSetting(settings, "enableHoverTranslation", True))
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)
+        _showMessagePopup = GetBoolSetting(settings, "showMessagePopup", True)
         ' Lingua salvata nelle impostazioni
         If settings.ContainsKey("language") Then
             _language = settings("language").ToString()

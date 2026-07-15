@@ -185,7 +185,7 @@ Public Class WhatsAppAccount
                 End If
 
                 If channel = "NotificationChannel" Then
-                    Await HandleNotificationMessageAsync(root, onNotificationChanged)
+                    Await HandleNotificationMessageAsync(root, settings, onNotificationChanged)
                 ElseIf channel = "TranslationChannel" Then
                     Await HandleTranslationMessageAsync(root)
                 End If
@@ -195,7 +195,7 @@ Public Class WhatsAppAccount
         End Try
     End Function
 
-    Private Function HandleNotificationMessageAsync(root As JsonElement, onNotificationChanged As Action(Of String, Boolean)) As Task
+    Private Function HandleNotificationMessageAsync(root As JsonElement, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         Dim type = root.GetProperty("type").GetString()
         Dim notificationId = root.GetProperty("id").GetString()
         
@@ -220,14 +220,16 @@ Public Class WhatsAppAccount
                 Debug.WriteLine($"Failed to show toast notification: {ex.Message}")
             End Try
 
-            Try
-                Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
-                    Dim popup As New MessagePopup(Id, title, body)
-                    popup.Show()
-                End Sub)
-            Catch ex As Exception
-                Debug.WriteLine($"Failed to show popup: {ex.Message}")
-            End Try
+            If settings.ShowMessagePopup Then
+                Try
+                    Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
+                        Dim popup As New MessagePopup(Id, title, body)
+                        popup.Show()
+                    End Sub)
+                Catch ex As Exception
+                    Debug.WriteLine($"Failed to show popup: {ex.Message}")
+                End Try
+            End If
 
         ElseIf type = "NOTIFICATION_CLOSED" Then
             ActiveNotificationIds.Remove(notificationId)
