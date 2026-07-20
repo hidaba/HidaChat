@@ -1,5 +1,88 @@
 # Changelog
 
+## [1.3.32] - 2026-07-20
+
+### Fixed
+- Risolto il problema del testo di versione obsoleto (v1.3.17) mostrato nel titolo durante il caricamento iniziale: rimosso il testo hardcoded in XAML e impostata l'inzializzazione immediata nel costruttore `Sub New()` della finestra principale.
+
+## [1.3.31] - 2026-07-20
+
+### Changed
+- Rimozione del backup dei media e focalizzazione esclusiva sul backup delle chat di testo.
+- Implementata la rotazione periodica dei file di backup delle chat ogni X giorni configurata tramite la costante in fase di compilazione `BackupRotationDays`.
+- Applicata la cifratura deterministica AES-256 dei nomi di file conservati nella cartella `Chats_Encrypted`.
+
+## [1.3.30] - 2026-07-18
+
+### Fixed
+- Risolta l'origine precisa delle dimensioni anomale dei file multimediali (1 KB, 368 KB, 490 KB):
+  - **1 KB**: Causato dal tentativo di scaricare direttamente gli URL HTTPS remoti criptati di WhatsApp (`mmg.whatsapp.net`), che restituiscono HTTP 403 Forbidden. Impedita la `fetch` diretta degli URL `http/https` remoti.
+  - **368 KB / 490 KB**: Causato dal download dei soli Blob di anteprima `renderableUrl`.
+  - Integrata l'estrazione dai soli oggetti `Blob` decifrati in memoria (`msg.mediaData.blob`, `msg.mediaObject._blob`, `msg.file`) o tramite l'invocazione di `DownloadManager.downloadAndSave(msg)` nativo di WhatsApp Web per ottenere il file binario originale intero.
+
+## [1.3.29] - 2026-07-18
+
+### Fixed
+- Risolto in modo definitivo il troncamento a 291 KB dei file multimediali:
+  - Implementata la funzione `getMediaDataForContainer` che interroga `Store.Msg.get(id)` con l'ID del messaggio DOM per recuperare il binario video/audio/documento originale `mediaData.blob`.
+  - In caso di fallback DOM, prioritizzata la scansione dei tag `<video>`, `<audio>` e collegamenti `<a>` di download rispetto alle immagini poster di anteprima (`<img>`).
+
+## [1.3.28] - 2026-07-18
+
+### Fixed
+- Risolto il troncamento dei file video e media (precedentemente salvati tutti a 291 KB):
+  - Aggiunta la funzione `getMediaBlobFromMsg(msg)` in JavaScript per accedere direttamente all'oggetto `msg.mediaData.blob` o invocare `msg.downloadMedia()` interno a WhatsApp Web.
+  - Sostituita l'estrazione della sola miniatura preview/poster JPEG dal DOM con lo scaricamento del file video/audio/documento binario originale completo senza limiti di dimensione.
+
+## [1.3.27] - 2026-07-18
+
+### Fixed
+- Risolto problema file media salvati a 1KB:
+  - Sostituita la semplice stringa dell'URL `blob:` con la conversione asincrona `fetchBlobAsBase64` in JavaScript per scaricare ed inviare a VB.NET l'intero payload binario Base64 originale di immagini, audio e video.
+  - Aggiunta la validazione `rawMediaBytes.Length > 0` prima di scrivere il file cifrato `.enc` su disco.
+
+## [1.3.26] - 2026-07-18
+
+### Fixed
+- Risolto il popolamento delle cartelle `Chats_Encrypted/` e `Media_Encrypted/`:
+  - Implementato un **estrattore DOM dinamico** abbinato a un **`MutationObserver` in tempo reale** in JavaScript.
+  - Non appena la pagina viene caricata, o man mano che l'utente naviga tra le conversazioni e scorrere lo storico, ogni messaggio e media visualizzato a schermo viene immediatamente catturato, cifrato in AES-256 e salvato nella cartella `Backup/`.
+
+## [1.3.25] - 2026-07-18
+
+### Fixed
+- Risolto il problema di disconnessione / perdita account al riavvio dell'applicazione:
+  - Corretta l'incompatibilità maiuscole/minuscole nella serializzazione JSON tra la classe `WhatsAppAccount` (Id, Name, IsActive) e `settings.json` (`id`, `name`, `isActive`) tramite attributi `[JsonPropertyName]` e `PropertyNameCaseInsensitive = True`.
+  - Impedito il caricamento di oggetti account vuoti (`Id = Nothing`) che causavano l'apertura di cartelle di profilo anonime non autenticate (`WV2Profile_`).
+
+## [1.3.24] - 2026-07-18
+
+### Fixed
+- Risolto problema cartelle backup vuote: aggiunto un ciclo di attesa attiva (polling fino a 75 secondi) in JavaScript per attendere l'inizializzazione completa dei moduli WhatsApp Web (`window.Store.Chat`) prima di estrarre le chat.
+- Aggiunta sincronizzazione periodica automatica ogni 2 minuti e al click sul pulsante di ricarica tab.
+
+## [1.3.23] - 2026-07-18
+
+### Fixed
+- Migliorata la persistenza della sessione WhatsApp: in caso di assenza o rigenerazione del file `settings.json`, l'applicazione rileva e riutilizza automaticamente la cartella di profilo `WV2Profile_account_*` esistente sul disco invece di crearne una nuova vuota.
+- Disabilitata la cancellazione automatica dei profili non mappati in `settings.json` per prevenire la perdita accidentale delle sessioni di autenticazione.
+
+## [1.3.22] - 2026-07-18
+
+### Added
+- Salvataggio cifrato in background delle chat (.enc) in formato JSON Lines AES-256 e conservazione media con nomi file anonimizzati (Hash/GUID) in cartella Backup.
+- Supporto alla prima sincronizzazione (storico 3 mesi) e sincronizzazione incrementale automatica.
+
+## [1.3.21] - 2026-07-18
+
+### Added
+- Versione beta pubblicata per test con percorsi OTA aggiornati.
+
+## [1.3.20] - 2026-07-18
+
+### Changed
+- Centralizzato il percorso del repository OTA nel file `Constants.vb` (`UpdateFilesPath`), rendendolo l'unica sorgente di verità da cui lo script `publish.ps1` estrae dinamicamente la destinazione per la pubblicazione dell'aggiornamento.
+
 ## [1.3.19] - 2026-07-15
 
 ### Added

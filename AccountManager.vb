@@ -76,8 +76,14 @@ Public Class AccountManager
         If settings.TryGetValue("accounts", accountsListObj) Then
             Try
                 Dim accountsJson = accountsListObj.ToString()
-                Dim accountsData = JsonSerializer.Deserialize(Of List(Of WhatsAppAccount))(accountsJson)
+                Dim jsonOptions As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True}
+                Dim accountsData = JsonSerializer.Deserialize(Of List(Of WhatsAppAccount))(accountsJson, jsonOptions)
                 
+                If accountsData IsNot Nothing Then
+                    ' Rimuovi eventuali istanze non valide prive di Id
+                    accountsData = accountsData.Where(Function(a) Not String.IsNullOrEmpty(a.Id)).ToList()
+                End If
+
                 If accountsData IsNot Nothing AndAlso accountsData.Count > 0 Then
                     _accounts = accountsData
                     
@@ -108,34 +114,30 @@ Public Class AccountManager
     End Function
 
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
-        Try
-            Dim ebWebViewDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, "EBWebView")
-            If Not Directory.Exists(ebWebViewDir) Then Return Task.CompletedTask
-
-            Dim subDirs = Directory.GetDirectories(ebWebViewDir)
-            For Each subDir In subDirs
-                Dim dirName = Path.GetFileName(subDir)
-                If dirName.StartsWith("WV2Profile_") Then
-                    Dim profileId = dirName.Substring("WV2Profile_".Length)
-                    If Not activeIds.Contains(profileId) Then
-                        Debug.WriteLine($"Found unused profile: {dirName}. Deleting...")
-                        Try
-                            Directory.Delete(subDir, True)
-                            Debug.WriteLine($"Deleted unused profile: {dirName}")
-                        Catch ex As Exception
-                            Debug.WriteLine($"Failed to delete profile {dirName}: {ex.Message}")
-                        End Try
-                    End If
-                End If
-            Next
-        Catch ex As Exception
-            Debug.WriteLine($"Error cleanup unused profiles: {ex.Message}")
-        End Try
+        ' Disabilitata la cancellazione automatica sul disco per evitare perdite accidentali di sessione se settings.json è assente o in aggiornamento
         Return Task.CompletedTask
     End Function
 
     Private Async Function CreateDefaultAccountAsync() As Task
-        Dim defaultAccount As New WhatsAppAccount(WhatsAppAccount.GenerateId(), "Account 1", True)
+        Dim existingId As String = Nothing
+
+        Try
+            ' Cerca se esiste già una cartella di profilo salvata precedentemente sul disco
+            Dim sharedDir = WhatsAppAccount.SharedDataDirectory
+            If Directory.Exists(sharedDir) Then
+                ' Cerca direttamente in SharedDataDirectory o in subfolder EBWebView
+                Dim matchingDirs = Directory.GetDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories)
+                If matchingDirs.Length > 0 Then
+                    Dim dirName = Path.GetFileName(matchingDirs(0))
+                    existingId = dirName.Substring("WV2Profile_".Length)
+                End If
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"Error searching existing profile dirs: {ex.Message}")
+        End Try
+
+        Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, WhatsAppAccount.GenerateId())
+        Dim defaultAccount As New WhatsAppAccount(accountId, "Account 1", True)
         defaultAccount.WebView = New WebView2()
         
         _accounts = New List(Of WhatsAppAccount) From {defaultAccount}

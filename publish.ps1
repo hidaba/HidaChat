@@ -1,22 +1,29 @@
 param(
     [ValidateSet("major", "minor", "patch", "none")]
     [string]$Bump = "patch",
-    [string]$OtaDest = "\\fs1\Annoni-New\IT\OTARepository\Whatsapp",
+    [string]$OtaDest = "",
     [switch]$Beta
 )
-
-if ($Beta) {
-    $OtaDest = "\\fs1\Annoni-New\IT\OTARepository\WhatsappBeta"
-}
 
 $constantsPath = Join-Path $PSScriptRoot "Constants.vb"
 $changelogPath = Join-Path $PSScriptRoot "CHANGELOG.md"
 $sourceDir = "$PSScriptRoot\bin\Release\net9.0-windows10.0.19041.0"
+
+# --- Read Constants.vb for Version & OTA Path ---
+$content = Get-Content $constantsPath -Raw
+
+if ([string]::IsNullOrWhiteSpace($OtaDest)) {
+    $otaVarName = if ($Beta) { "UpdateFilesPathBeta" } else { "UpdateFilesPath" }
+    $otaMatch = [regex]::Match($content, "$otaVarName\s+As\s+String\s*=\s*`"([^`"]+)`"")
+    if ($otaMatch.Success) {
+        $OtaDest = $otaMatch.Groups[1].Value.TrimEnd('\')
+    } else {
+        throw "Impossibile estrarre $otaVarName da Constants.vb"
+    }
+}
+
 $otaDest = $OtaDest
 $versionFile = Join-Path $otaDest "version.txt"
-
-# --- Parse & bump version ---
-$content = Get-Content $constantsPath -Raw
 $match = [regex]::Match($content, 'AppVersion As String = "(\d+)\.(\d+)\.(\d+)"')
 if (-not $match.Success) { throw "Cannot parse version" }
 

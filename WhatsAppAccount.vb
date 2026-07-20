@@ -6,8 +6,13 @@ Imports Microsoft.Toolkit.Uwp.Notifications
 Imports System.Text.Json
 
 Public Class WhatsAppAccount
+    <JsonPropertyName("id")>
     Public Property Id As String
+
+    <JsonPropertyName("name")>
     Public Property Name As String
+
+    <JsonPropertyName("isActive")>
     Public Property IsActive As Boolean
     
     <JsonIgnore>
@@ -18,6 +23,17 @@ Public Class WhatsAppAccount
     
     <JsonIgnore>
     Public Property WebView As WebView2
+    
+    Private _syncWorker As ChatSyncBackgroundWorker
+    <JsonIgnore>
+    Public ReadOnly Property SyncWorker As ChatSyncBackgroundWorker
+        Get
+            If _syncWorker Is Nothing Then
+                _syncWorker = New ChatSyncBackgroundWorker(Id)
+            End If
+            Return _syncWorker
+        End Get
+    End Property
     
     <JsonIgnore>
     Public ReadOnly Property ActiveNotificationIds As New HashSet(Of String)()
@@ -158,6 +174,10 @@ Public Class WhatsAppAccount
                         settings.FullPageTranslation
                     )
                     Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
+
+                    ' Inietta lo script di sincronizzazione chat e avvia la sincronizzazione in background
+                    Await WebView.CoreWebView2.ExecuteScriptAsync(ChatSyncJsScripts.ChatSyncJS)
+                    Await SyncWorker.RequestSyncAsync(WebView, BridgeToken)
                 End If
             End Sub
 
@@ -188,6 +208,8 @@ Public Class WhatsAppAccount
                     Await HandleNotificationMessageAsync(root, settings, onNotificationChanged)
                 ElseIf channel = "TranslationChannel" Then
                     Await HandleTranslationMessageAsync(root)
+                ElseIf channel = "ChatSyncChannel" Then
+                    Await SyncWorker.ProcessIncomingBatchAsync(root)
                 End If
             End Using
         Catch ex As Exception

@@ -12,6 +12,7 @@ Public Class MainWindow
 
     Public Sub New()
         InitializeComponent()
+        VersionText.Text = "v" & Constants.AppVersion
         _accountManager = New AccountManager(_settingsController)
     End Sub
 
@@ -68,6 +69,18 @@ Public Class MainWindow
         RefreshLocalization()
 
         VersionText.Text = "v" & Constants.AppVersion
+
+        ' 11. Avvio del timer di sincronizzazione periodica background (ogni 2 minuti)
+        Dim syncTimer As New System.Windows.Threading.DispatcherTimer()
+        syncTimer.Interval = TimeSpan.FromMinutes(2)
+        AddHandler syncTimer.Tick, Sub(s, ev)
+                                       For Each acc In _accountManager.Accounts
+                                           If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
+                                               Dim ignoreSync = acc.SyncWorker.RequestSyncAsync(acc.WebView, acc.BridgeToken)
+                                           End If
+                                       Next
+                                   End Sub
+        syncTimer.Start()
 
         If Not _accountManager.IsDialogOpen Then
             BtnAddAccount.IsEnabled = True
@@ -324,6 +337,7 @@ Public Class MainWindow
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
             activeAcc.WebView.CoreWebView2.Reload()
+            Dim ignoreSync = activeAcc.SyncWorker.RequestSyncAsync(activeAcc.WebView, activeAcc.BridgeToken)
         End If
     End Sub
 
