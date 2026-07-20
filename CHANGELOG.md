@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.34] - 2026-07-20
+
+### Fixed
+- `MigrateOrphanProfile` ora elimina il profilo stale `WV2Profile_{Id}` se esiste già, poi rinomina l'orfano `WV2Profile_` con la sessione più recente.
+- `SetupWebViewAsync`: recupero orfano eseguito anche quando la destinazione esiste già (sostituisce lo stale).
+- Quando sia `WV2Profile_` che `WV2Profile_{Id}` esistono, il profilo stale viene eliminato e sostituito con `WV2Profile_` per preservare la sessione WhatsApp più recente.
+
 ## [1.3.33] - 2026-07-20
 
 ### Fixed

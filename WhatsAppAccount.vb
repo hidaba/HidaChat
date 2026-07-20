@@ -68,22 +68,28 @@ Public Class WhatsAppAccount
         If WebView Is Nothing Then Return
 
         Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
-        If Not Directory.Exists(profileDir) Then
-            ' Ultimo tentativo: ricollega il profilo orfano WV2Profile_ se il target non esiste
-            Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
-            If Directory.Exists(orphanProfile) Then
+        Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
+        If Directory.Exists(orphanProfile) Then
+            If Directory.Exists(profileDir) Then
+                ' Sia l'orfano che la destinazione esistono: la destinazione è stale, la sostituiamo
                 Try
-                    Directory.Move(orphanProfile, profileDir)
-                    Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {profileDir}")
+                    Directory.Delete(profileDir, True)
+                    Debug.WriteLine($"SetupWebView: eliminato profilo stale {profileDir}")
                 Catch ex As Exception
-                    Debug.WriteLine($"SetupWebView: fallito recupero orfano: {ex.Message}")
+                    Debug.WriteLine($"SetupWebView: errore cancellazione stale: {ex.Message}")
                 End Try
             End If
+            Try
+                Directory.Move(orphanProfile, profileDir)
+                Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {profileDir}")
+            Catch ex As Exception
+                Debug.WriteLine($"SetupWebView: fallito recupero orfano: {ex.Message}")
+            End Try
+        End If
 
-            If Not Directory.Exists(profileDir) Then
-                Directory.CreateDirectory(profileDir)
-                Debug.WriteLine($"SetupWebView: creato nuovo profilo {profileDir}")
-            End If
+        If Not Directory.Exists(profileDir) Then
+            Directory.CreateDirectory(profileDir)
+            Debug.WriteLine($"SetupWebView: creato nuovo profilo {profileDir}")
         End If
 
         Try

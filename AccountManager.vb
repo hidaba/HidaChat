@@ -146,15 +146,25 @@ Public Class AccountManager
             For Each acc In _accounts
                 Dim profileDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{acc.Id}")
                 Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
-                If Not Directory.Exists(profileDir) Then
+                If Directory.Exists(profileDir) Then
+                    ' La destinazione esiste già (profilo stale dalla prima esecuzione di v1.3.3):
+                    ' eliminala e rinomina l'orfano che ha la sessione più recente
                     Try
-                        Directory.Move(orphanProfile, profileDir)
-                        Debug.WriteLine($"MigrateOrphanProfile: rinominato {orphanProfile} -> {profileDir}")
+                        Directory.Delete(profileDir, True)
+                        Debug.WriteLine($"MigrateOrphanProfile: eliminato profilo stale {profileDir}")
                     Catch ex As Exception
-                        Debug.WriteLine($"MigrateOrphanProfile: errore rinomina: {ex.Message}")
+                        Debug.WriteLine($"MigrateOrphanProfile: errore cancellazione stale: {ex.Message}")
+                        Continue For
                     End Try
-                    Exit For
                 End If
+
+                Try
+                    Directory.Move(orphanProfile, profileDir)
+                    Debug.WriteLine($"MigrateOrphanProfile: rinominato {orphanProfile} -> {profileDir}")
+                Catch ex As Exception
+                    Debug.WriteLine($"MigrateOrphanProfile: errore rinomina: {ex.Message}")
+                End Try
+                Exit For
             Next
         Catch ex As Exception
             Debug.WriteLine($"MigrateOrphanProfile error: {ex.Message}")
