@@ -1,9 +1,9 @@
 # TODO — Ottimizzazioni Prestazionali
 
-## 1. I/O su `settings.json` — Letture multiple ridondanti
-- `SaveSettingAsync()` fa `ReadSettingsAsync()` + `WriteSettingsAsync()` ogni volta che cambia una singola chiave
-- **Ottimizzazione**: accumulare le modifiche in memoria e scrivere su disco con un debounce (es. 500ms) oppure riscrivere solo il file senza rileggerlo
-- **Impatto**: Alto | **Sforzo**: Basso
+## ~~1. I/O su `settings.json` — Letture multiple ridondanti~~ ✅
+- ~~`SaveSettingAsync()` fa `ReadSettingsAsync()` + `WriteSettingsAsync()` ogni volta che cambia una singola chiave~~
+- ~~**Ottimizzazione**: accumulare le modifiche in memoria e scrivere su disco con un debounce (es. 500ms) oppure riscrivere solo il file senza rileggerlo~~
+- ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
 ## 2. `FetchTranslations()` — N richieste HTTP seriali
 - Per ogni chiave di lingua (30+), fa una richiesta HTTP individuale a Google Translate, una dopo l'altra
