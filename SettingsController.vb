@@ -2,6 +2,7 @@ Imports System.IO
 Imports System.Text.Json
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
+Imports System.Threading
 
 Public Class SettingsController
     Implements INotifyPropertyChanged
@@ -11,6 +12,11 @@ Public Class SettingsController
     Private Sub NotifyPropertyChanged(<CallerMemberName> Optional propertyName As String = Nothing)
         RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(propertyName))
     End Sub
+
+    Private _cachedSettings As Dictionary(Of String, Object) = Nothing
+    Private _dirty As Boolean = False
+    Private _lastFlushTask As Task = Task.CompletedTask
+    Private _flushCts As CancellationTokenSource = Nothing
 
     ' --- Impostazioni tema ---
     Private _theme As String = "System"
@@ -195,20 +201,32 @@ Public Class SettingsController
         End Get
     End Property
 
-    ' Legge il file settings.json dal disco
+    ' Legge il file settings.json dal disco (usa cache se già caricato)
     Public Async Function ReadSettingsAsync() As Task(Of Dictionary(Of String, Object))
-        If Not File.Exists(SettingsFile) Then Return New Dictionary(Of String, Object)()
+        If _cachedSettings IsNot Nothing Then Return _cachedSettings
+        If Not File.Exists(SettingsFile) Then
+            _cachedSettings = New Dictionary(Of String, Object)()
+            Return _cachedSettings
+        End If
         Try
             Dim contents = Await File.ReadAllTextAsync(SettingsFile)
-            If String.IsNullOrEmpty(contents) Then Return New Dictionary(Of String, Object)()
-            Return JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(contents)
+            If String.IsNullOrEmpty(contents) Then
+                _cachedSettings = New Dictionary(Of String, Object)()
+            Else
+                _cachedSettings = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(contents)
+            End If
         Catch
-            Return New Dictionary(Of String, Object)()
+            _cachedSettings = New Dictionary(Of String, Object)()
         End Try
+        If _cachedSettings Is Nothing Then _cachedSettings = New Dictionary(Of String, Object)()
+        Return _cachedSettings
     End Function
 
-    ' Salva le impostazioni su disco come JSON
+    ' Salva le impostazioni su disco come JSON (scrive subito, senza debounce)
     Public Async Function WriteSettingsAsync(settings As Dictionary(Of String, Object)) As Task
+        _cachedSettings = settings
+        _dirty = False
+        If _flushCts IsNot Nothing Then _flushCts.Cancel()
         Try
             Dim options As New JsonSerializerOptions With {
                 .WriteIndented = True
@@ -218,6 +236,22 @@ Public Class SettingsController
         Catch ex As Exception
             Debug.WriteLine($"Failed to write settings: {ex.Message}")
         End Try
+    End Function
+
+    ' Accumula modifiche in memoria e pianifica scrittura differita (debounce 500ms)
+    Private Async Function FlushAfterDebounceAsync() As Task
+        If _flushCts IsNot Nothing Then _flushCts.Cancel()
+        _flushCts = New CancellationTokenSource()
+        Dim token = _flushCts.Token
+        Try
+            Await Task.Delay(500, token)
+        Catch ex As OperationCanceledException
+            Return
+        End Try
+        If _dirty AndAlso _cachedSettings IsNot Nothing Then
+            _dirty = False
+            Await WriteSettingsAsync(_cachedSettings)
+        End If
     End Function
 
     ' Carica tutte le impostazioni dal file JSON all'avvio
@@ -328,9 +362,10 @@ Public Class SettingsController
         _language = newLanguage
         NotifyPropertyChanged(NameOf(Language))
 
-        Dim settings = Await ReadSettingsAsync()
-        settings("language") = newLanguage
-        Await WriteSettingsAsync(settings)
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("language") = newLanguage
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
 
         If newLanguage = "en" Then
             Localizations = New AppLocalizations(AppLocalizations.EnStrings)
@@ -344,15 +379,17 @@ Public Class SettingsController
     Public Async Function SaveThemeAsync(newTheme As String) As Task
         _theme = newTheme
         NotifyPropertyChanged(NameOf(Theme))
-        Dim settings = Await ReadSettingsAsync()
-        settings("theme") = "ThemeMode." & newTheme.ToLower()
-        Await WriteSettingsAsync(settings)
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("theme") = "ThemeMode." & newTheme.ToLower()
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
     End Function
 
     Public Async Function SaveSettingAsync(key As String, value As Object) As Task
-        Dim settings = Await ReadSettingsAsync()
-        settings(key) = value
-        Await WriteSettingsAsync(settings)
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings(key) = value
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
     End Function
 
     Private Sub NotifyAllPropertiesChanged()

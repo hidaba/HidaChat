@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.35] - 2026-07-20
+
+### Performance
+- Ottimizzato I/O su `settings.json`: le modifiche alle impostazioni vengono accumulate in cache in memoria e scritte su disco con debounce di 500ms, eliminando letture ridondanti del file.
+- `SaveSettingAsync`, `SaveThemeAsync`, `UpdateLanguageAsync` ora modificano la cache in memoria senza rileggere il file da disco.
+
 ## [1.3.34] - 2026-07-20
 
 ### Fixed

@@ -1,7 +1,7 @@
 Imports System.IO
 
 Public Module Constants
-    Public Const AppVersion As String = "1.3.34"
+    Public Const AppVersion As String = "1.3.35"
 
     ' Intervallo di rotazione del file di backup della chat (in giorni) - Costante in fase di compilazione
     Public Const BackupRotationDays As Integer = 7
