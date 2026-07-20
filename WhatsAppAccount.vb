@@ -66,10 +66,24 @@ Public Class WhatsAppAccount
 
     Public Async Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
-        
+
         Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
         If Not Directory.Exists(profileDir) Then
-            Directory.CreateDirectory(profileDir)
+            ' Ultimo tentativo: ricollega il profilo orfano WV2Profile_ se il target non esiste
+            Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
+            If Directory.Exists(orphanProfile) Then
+                Try
+                    Directory.Move(orphanProfile, profileDir)
+                    Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {profileDir}")
+                Catch ex As Exception
+                    Debug.WriteLine($"SetupWebView: fallito recupero orfano: {ex.Message}")
+                End Try
+            End If
+
+            If Not Directory.Exists(profileDir) Then
+                Directory.CreateDirectory(profileDir)
+                Debug.WriteLine($"SetupWebView: creato nuovo profilo {profileDir}")
+            End If
         End If
 
         Try

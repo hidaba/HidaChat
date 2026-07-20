@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.33] - 2026-07-20
+
+### Fixed
+- Aggiunto recupero fallback del profilo WebView2 orfano (`WV2Profile_`) direttamente in `SetupWebViewAsync` come ultima difesa prima di creare un nuovo profilo.
+- Aggiunto logging diagnostico in `LoadAccountsAsync`, `MigrateOrphanProfile` e `SetupWebViewAsync` per tracciare la migrazione del profilo WebView2.
+
 ## [1.3.32] - 2026-07-20
 
 ### Fixed

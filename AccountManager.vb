@@ -79,20 +79,41 @@ Public Class AccountManager
                 Dim jsonOptions As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True}
                 Dim accountsData = JsonSerializer.Deserialize(Of List(Of WhatsAppAccount))(accountsJson, jsonOptions)
                 
-                If accountsData IsNot Nothing Then
-                    ' Rimuovi eventuali istanze non valide prive di Id
-                    accountsData = accountsData.Where(Function(a) Not String.IsNullOrEmpty(a.Id)).ToList()
-                End If
-
                 If accountsData IsNot Nothing AndAlso accountsData.Count > 0 Then
-                    _accounts = accountsData
-                    
-                    Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
-                    Await CleanupUnusedProfilesAsync(activeIds)
-                    
-                    For Each acc In _accounts
-                        acc.WebView = New WebView2()
+                    ' Rigenera ID/name per account corrotti dal vecchio formato case-sensitive
+                    Dim needsSave = False
+                    For i As Integer = 0 To accountsData.Count - 1
+                        If String.IsNullOrEmpty(accountsData(i).Id) Then
+                            accountsData(i).Id = WhatsAppAccount.GenerateId()
+                            needsSave = True
+                        End If
+                        If String.IsNullOrEmpty(accountsData(i).Name) Then
+                            accountsData(i).Name = $"Account {i + 1}"
+                            needsSave = True
+                        End If
                     Next
+
+                    _accounts = accountsData
+
+                    Debug.WriteLine($"LoadAccounts: caricati {accountsData.Count} account, needsSave={needsSave}")
+                    For i As Integer = 0 To accountsData.Count - 1
+                        Debug.WriteLine($"  Account[{i}]: Id='{accountsData(i).Id}', Name='{accountsData(i).Name}', IsActive={accountsData(i).IsActive}")
+                    Next
+
+                    MigrateOrphanProfile()
+
+                    If needsSave Then
+                        For Each acc In _accounts
+                            acc.WebView = New WebView2()
+                        Next
+                        Await SaveAccountsAsync()
+                    Else
+                        Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
+                        Await CleanupUnusedProfilesAsync(activeIds)
+                        For Each acc In _accounts
+                            acc.WebView = New WebView2()
+                        Next
+                    End If
                     
                     _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
                     If _currentAccount Is Nothing AndAlso _accounts.Count > 0 Then
@@ -113,23 +134,66 @@ Public Class AccountManager
         Await CreateDefaultAccountAsync()
     End Function
 
+    Private Sub MigrateOrphanProfile()
+        Try
+            Dim orphanProfile = Path.Combine(WhatsAppAccount.SharedDataDirectory, "WV2Profile_")
+            If Not Directory.Exists(orphanProfile) Then
+                Debug.WriteLine("MigrateOrphanProfile: nessun profilo orfano trovato")
+                Return
+            End If
+            Debug.WriteLine($"MigrateOrphanProfile: trovato profilo orfano {orphanProfile}")
+
+            For Each acc In _accounts
+                Dim profileDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{acc.Id}")
+                Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
+                If Not Directory.Exists(profileDir) Then
+                    Try
+                        Directory.Move(orphanProfile, profileDir)
+                        Debug.WriteLine($"MigrateOrphanProfile: rinominato {orphanProfile} -> {profileDir}")
+                    Catch ex As Exception
+                        Debug.WriteLine($"MigrateOrphanProfile: errore rinomina: {ex.Message}")
+                    End Try
+                    Exit For
+                End If
+            Next
+        Catch ex As Exception
+            Debug.WriteLine($"MigrateOrphanProfile error: {ex.Message}")
+        End Try
+    End Sub
+
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
         ' Disabilitata la cancellazione automatica sul disco per evitare perdite accidentali di sessione se settings.json è assente o in aggiornamento
         Return Task.CompletedTask
     End Function
 
     Private Async Function CreateDefaultAccountAsync() As Task
+        Debug.WriteLine("CreateDefaultAccount: nessun account caricato, creo default")
         Dim existingId As String = Nothing
 
         Try
             ' Cerca se esiste già una cartella di profilo salvata precedentemente sul disco
             Dim sharedDir = WhatsAppAccount.SharedDataDirectory
+            Debug.WriteLine($"CreateDefaultAccount: sharedDir={sharedDir}, exists={Directory.Exists(sharedDir)}")
             If Directory.Exists(sharedDir) Then
-                ' Cerca direttamente in SharedDataDirectory o in subfolder EBWebView
-                Dim matchingDirs = Directory.GetDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories)
-                If matchingDirs.Length > 0 Then
-                    Dim dirName = Path.GetFileName(matchingDirs(0))
-                    existingId = dirName.Substring("WV2Profile_".Length)
+                ' Cerca profili orfani con chiave vuota (WV2Profile_)
+                Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
+                If Directory.Exists(orphanProfile) Then
+                    ' Genera nuovo ID e rinomina il profilo orfano
+                    existingId = WhatsAppAccount.GenerateId()
+                    Dim newDir = Path.Combine(sharedDir, $"WV2Profile_{existingId}")
+                    Try
+                        Directory.Move(orphanProfile, newDir)
+                    Catch
+                    End Try
+                End If
+
+                ' Cerca profili esistenti normali
+                If String.IsNullOrEmpty(existingId) Then
+                    Dim matchingDirs = Directory.GetDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories)
+                    If matchingDirs.Length > 0 Then
+                        Dim dirName = Path.GetFileName(matchingDirs(0))
+                        existingId = dirName.Substring("WV2Profile_".Length)
+                    End If
                 End If
             End If
         Catch ex As Exception
@@ -139,6 +203,16 @@ Public Class AccountManager
         Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, WhatsAppAccount.GenerateId())
         Dim defaultAccount As New WhatsAppAccount(accountId, "Account 1", True)
         defaultAccount.WebView = New WebView2()
+
+        ' Ricollega profilo orfano se esiste ancora (primo avvio dopo fix)
+        Dim dir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{accountId}")
+        Dim orphanDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, "WV2Profile_")
+        If Not Directory.Exists(dir) AndAlso Directory.Exists(orphanDir) Then
+            Try
+                Directory.Move(orphanDir, dir)
+            Catch
+            End Try
+        End If
         
         _accounts = New List(Of WhatsAppAccount) From {defaultAccount}
         _currentAccount = defaultAccount
