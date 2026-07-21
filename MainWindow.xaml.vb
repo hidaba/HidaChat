@@ -285,7 +285,7 @@ Public Class MainWindow
 
     Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
-        If activeAcc IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
+        If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
             activeAcc.WebView.CoreWebView2.Reload()
             Dim ignoreSync = activeAcc.SyncWorker.RequestSyncAsync(activeAcc.WebView, activeAcc.BridgeToken)
         End If
@@ -339,7 +339,7 @@ Public Class MainWindow
             TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
             ' Refresh active theme inside each WebView
             For Each acc In _accountManager.Accounts
-                If acc.WebView.CoreWebView2 IsNot Nothing Then
+                If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
                     acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
                 End If
             Next
@@ -350,7 +350,7 @@ Public Class MainWindow
             TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
             ' Refresh active theme inside each WebView
             For Each acc In _accountManager.Accounts
-                If acc.WebView.CoreWebView2 IsNot Nothing Then
+                If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
                     acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
                 End If
             Next
@@ -372,7 +372,7 @@ Public Class MainWindow
                     Await SwitchToAccountAsync(accountId)
                     
                     Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
-                    If acc IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
+                    If acc IsNot Nothing AndAlso acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
                         Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
                     End If
                 End Function)

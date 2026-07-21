@@ -7,7 +7,8 @@
 - Rimosso `Imports Microsoft.Web.WebView2.Wpf` da `AccountManager.vb` (non crea più WebView2).
 
 ### Fixed
-- `SettingsWindow.BtnDevTools_Click`: aggiunto null check per `activeAcc.WebView` (poteva crashare con lazy init).
+- `ApplyWpfTheme`, `BtnReloadActiveTab_Click`, toast handler: aggiunti null check per `acc.WebView` / `activeAcc.WebView` (causavano NullReferenceException con la lazy init, chiudendo l'app dopo pochi secondi).
+- `SettingsWindow.BtnDevTools_Click`: aggiunto null check per `activeAcc.WebView`.
 - `AccountManager.RemoveAccountAsync`: aggiunto null check prima di `WebView.Dispose()`.
 
 ## [1.4.2] - 2026-07-21
