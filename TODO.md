@@ -20,10 +20,10 @@
 - **Ottimizzazione**: usare `ObservableCollection` invece di `List(Of WhatsAppAccount)`
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 5. `FindVisualChildren()` e `FindVisualChild()` — Ricorsione multipla
-- Funzioni ricorsive chiamate 3-4 volte per finestra che visitano TUTTO il visual tree
-- **Ottimizzazione**: memoizzazione (cache dell'albero) o sostituzione con binding/stili dichiarativi
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~5. `FindVisualChildren()` e `FindVisualChild()` — Ricorsione multipla~~ ✅
+- ~~Funzioni ricorsive chiamate 3-4 volte per finestra che visitano TUTTO il visual tree~~
+- ~~**Ottimizzazione**: memoizzazione (cache dell'albero) o sostituzione con binding/stili dichiarativi~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 6. WebView2 — Script injection su ogni navigazione
 - A ogni `NavigationCompleted`, reinietta tema CSS e script di traduzione inutilmente su navigazioni secondarie

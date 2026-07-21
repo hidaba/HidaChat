@@ -7,6 +7,11 @@ Public Class SettingsWindow
     Private ReadOnly _accountManager As AccountManager
     Private _isInitializing As Boolean = True
 
+    Private _cachedCheckBoxes As List(Of CheckBox) = Nothing
+    Private _cachedTextBlocks As List(Of TextBlock) = Nothing
+    Private _cachedAccountBorders As List(Of Border) = Nothing
+    Private _cachedAccountTextBoxes As List(Of TextBox) = Nothing
+
     Public Sub New(settingsController As SettingsController, accountManager As AccountManager)
         InitializeComponent()
         _settingsController = settingsController
@@ -179,6 +184,8 @@ Public Class SettingsWindow
         
         If result = MessageBoxResult.Yes Then
             Await _accountManager.RemoveAccountAsync(accountId)
+            _cachedAccountBorders = Nothing
+            _cachedAccountTextBoxes = Nothing
             ' Refresh List UI
             AccountsList.ItemsSource = Nothing
             AccountsList.ItemsSource = _accountManager.Accounts
@@ -224,6 +231,13 @@ Public Class SettingsWindow
         BtnCheckUpdates.Content = loc.Get("check_now")
     End Sub
 
+    Private Function GetCachedLogicalChildren(Of T As DependencyObject)(ByRef cache As List(Of T)) As List(Of T)
+        If cache Is Nothing Then
+            cache = FindLogicalChildren(Of T)(Me)
+        End If
+        Return cache
+    End Function
+
     ' Applica tema scuro/chiaro a sfondi, combo e testi
     Private Sub ApplyTheme()
         Dim isDark = False
@@ -242,39 +256,24 @@ Public Class SettingsWindow
             End Try
         End If
 
-        If isDark Then
-            SettingsBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#1f2c34"))
-            TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
-            ComboLanguage.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#2a3942"))
-            ComboLanguage.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
-            ComboTheme.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#2a3942"))
-            ComboTheme.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
-            ' Refresh styling for all checkboxes and labels in scrollview
-            For Each chk In FindLogicalChildren(Of CheckBox)(Me)
-                chk.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#aebac1"))
-            Next
-            For Each txt In FindLogicalChildren(Of TextBlock)(Me)
-                If txt.Style Is Nothing Then
-                    txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#aebac1"))
-                End If
-            Next
-        Else
-            SettingsBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
-            TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
-            ComboLanguage.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
-            ComboLanguage.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-            ComboTheme.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
-            ComboTheme.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-            ' Refresh styling for all checkboxes and labels in scrollview
-            For Each chk In FindLogicalChildren(Of CheckBox)(Me)
-                chk.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-            Next
-            For Each txt In FindLogicalChildren(Of TextBlock)(Me)
-                If txt.Style Is Nothing Then
-                    txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-                End If
-            Next
-        End If
+        Dim fgColor = If(isDark, "#aebac1", "#111b21")
+        Dim fgBrush = New SolidColorBrush(ColorConverter.ConvertFromString(fgColor))
+
+        SettingsBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#1f2c34", "#ffffff")))
+        TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#202c33", "#e9edef")))
+        ComboLanguage.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#2a3942", "#ffffff")))
+        ComboLanguage.Foreground = fgBrush
+        ComboTheme.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#2a3942", "#ffffff")))
+        ComboTheme.Foreground = fgBrush
+
+        For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)
+            chk.Foreground = fgBrush
+        Next
+        For Each txt In GetCachedLogicalChildren(_cachedTextBlocks)
+            If txt.Style Is Nothing Then
+                txt.Foreground = fgBrush
+            End If
+        Next
 
         ' Applica stile agli account dopo che gli item sono stati generati
         StyleAccountItems(isDark)
@@ -283,25 +282,24 @@ Public Class SettingsWindow
     ' Applica sfondo/colori agli item della lista account (dopo che sono stati generati)
     Private Sub StyleAccountItems(isDark As Boolean)
         Dispatcher.BeginInvoke(New Action(Sub()
-            For Each border In FindVisualChildren(Of Border)(AccountsList)
-                If isDark Then
-                    border.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#1f2c34"))
-                    border.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#222e35"))
-                Else
-                    border.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#f0f2f5"))
-                    border.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#d1d7db"))
-                End If
+            If _cachedAccountBorders Is Nothing Then
+                _cachedAccountBorders = FindVisualChildren(Of Border)(AccountsList)
+                _cachedAccountTextBoxes = FindVisualChildren(Of TextBox)(AccountsList)
+            End If
+
+            Dim bgColor = If(isDark, "#1f2c34", "#f0f2f5")
+            Dim borderColor = If(isDark, "#222e35", "#d1d7db")
+            Dim tbBg = If(isDark, "#2a3942", "#ffffff")
+            Dim tbFg = If(isDark, "#ffffff", "#111b21")
+
+            For Each border In _cachedAccountBorders
+                border.Background = New SolidColorBrush(ColorConverter.ConvertFromString(bgColor))
+                border.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString(borderColor))
             Next
-            For Each txt As TextBox In FindVisualChildren(Of TextBox)(AccountsList)
-                If isDark Then
-                    txt.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#2a3942"))
-                    txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
-                    txt.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
-                Else
-                    txt.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#ffffff"))
-                    txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-                    txt.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
-                End If
+            For Each txt As TextBox In _cachedAccountTextBoxes
+                txt.Background = New SolidColorBrush(ColorConverter.ConvertFromString(tbBg))
+                txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString(tbFg))
+                txt.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
             Next
         End Sub), DispatcherPriority.Background)
     End Sub

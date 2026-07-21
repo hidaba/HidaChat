@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.4] - 2026-07-21
+
+### Performance
+- **SettingsWindow**: memoizzati i risultati di `FindLogicalChildren` / `FindVisualChildren` in cache (`_cachedCheckBoxes`, `_cachedTextBlocks`, `_cachedAccountBorders`, `_cachedAccountTextBoxes`). La ricorsione del visual/logical tree avviene una sola volta per tipo di controllo invece che a ogni cambio tema.
+- Introdotto helper `GetCachedLogicalChildren(Of T)` per lazy caching con invalidazione esplicita quando `AccountsList.ItemsSource` cambia.
+
 ## [1.4.3] - 2026-07-21
 
 ### Performance
