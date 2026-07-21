@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2] - 2026-07-21
+
+### Performance
+- `UpdateAccountTabStyling()` eliminato: lo stile attivo/inattivo degli account è ora gestito da un `DataTrigger` WPF nel `AccountTabButtonStyle` che reagisce automaticamente a `IsActive` di `WhatsAppAccount`. Rimossi `FindVisualChildren`/`FindVisualChild` da MainWindow.
+- `WhatsAppAccount.IsActive` ora implementa `INotifyPropertyChanged` per abilitare il binding reattivo.
+- **Impatto**: eliminata ricorsione superflua del visual tree a ogni cambio account.
+
 ## [1.4.1] - 2026-07-21
 
 ### Performance

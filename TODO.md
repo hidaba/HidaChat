@@ -10,10 +10,10 @@
 - ~~**Ottimizzazione**: raggruppare le traduzioni in un'unica richiesta batch, o usare `HttpClient` con richieste parallele (`Task.WhenAll`)~~
 - ~~**Impatto**: Alto | **Sforzo**: Medio~~
 
-## 3. `StyleAccountItems()` — Ricorsione visual tree ogni volta
-- Chiama `FindVisualChildren(Of Border)` e `FindVisualChildren(Of TextBox)` sull'intero `AccountsList`
-- **Ottimizzazione**: usare stili WPF con DataTrigger invece di code-behind, oppure usare `Loaded` event handler sugli elementi del DataTemplate
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~3. `StyleAccountItems()` — Ricorsione visual tree ogni volta~~ ✅
+- ~~Chiama `FindVisualChildren(Of Border)` e `FindVisualChildren(Of TextBox)` sull'intero `AccountsList`~~
+- ~~**Ottimizzazione**: usare stili WPF con DataTrigger invece di code-behind, oppure usare `Loaded` event handler sugli elementi del DataTemplate~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 4. `AccountsList.ItemsSource = Nothing` + riassegnazione
 - Dopo eliminazione account, azzera e riassegna `ItemsSource` forzando rigenerazione di TUTTI i DataTemplate

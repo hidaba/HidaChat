@@ -60,9 +60,6 @@ Public Class MainWindow
         ' 10. Check updates on launch asynchronously
         Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
         
-        ' Update active tab styling
-        UpdateAccountTabStyling()
-
         VersionText.Text = "v" & Constants.AppVersion
 
         ' 11. Avvio del timer di sincronizzazione periodica background (ogni 2 minuti)
@@ -253,30 +250,7 @@ Public Class MainWindow
                 End If
             End If
         Next
-        
-        UpdateAccountTabStyling()
     End Function
-
-    ' Colora la scheda attiva di verde, le altre in grigio
-    Private Sub UpdateAccountTabStyling()
-        ' Find buttons manually by walking the visual tree:
-        Dim buttons = FindVisualChildren(Of Button)(AccountsList)
-        For Each btn In buttons
-            Dim accId = btn.Tag?.ToString()
-            If accId IsNot Nothing Then
-                Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accId)
-                If acc IsNot Nothing Then
-                    If acc.IsActive Then
-                        btn.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
-                        btn.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
-                    Else
-                        btn.Background = New SolidColorBrush(Colors.Transparent)
-                        btn.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#8696a0"))
-                    End If
-                End If
-            End If
-        Next
-    End Sub
 
     ' Apre la finestra Impostazioni
     Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
@@ -288,7 +262,6 @@ Public Class MainWindow
             _accountManager.IsDialogOpen = False
 
             ApplyWpfTheme()
-            UpdateAccountTabStyling()
         Catch ex As Exception
             _accountManager.IsDialogOpen = False
             MessageBox.Show(
@@ -373,8 +346,6 @@ Public Class MainWindow
                 End If
             Next
         End If
-        
-        UpdateAccountTabStyling()
     End Sub
 
     Private Sub ConfigureToastNotifications()
@@ -400,33 +371,4 @@ Public Class MainWindow
         End Sub
     End Sub
 
-    ' Helpers for finding children in WPF XAML visual tree
-    Private Shared Function FindVisualChild(Of T As DependencyObject)(obj As DependencyObject) As T
-        For i As Integer = 0 To VisualTreeHelper.GetChildrenCount(obj) - 1
-            Dim child = VisualTreeHelper.GetChild(obj, i)
-            If child IsNot Nothing AndAlso TypeOf child Is T Then
-                Return CType(child, T)
-            Else
-                Dim childOfChild = FindVisualChild(Of T)(child)
-                If childOfChild IsNot Nothing Then
-                    Return childOfChild
-                End If
-            End If
-        Next
-        Return Nothing
-    End Function
-
-    Private Shared Function FindVisualChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
-        Dim list As New List(Of T)()
-        If depObj IsNot Nothing Then
-            For i As Integer = 0 To VisualTreeHelper.GetChildrenCount(depObj) - 1
-                Dim child = VisualTreeHelper.GetChild(depObj, i)
-                If child IsNot Nothing AndAlso TypeOf child Is T Then
-                    list.Add(CType(child, T))
-                End If
-                list.AddRange(FindVisualChildren(Of T)(child))
-            Next
-        End If
-        Return list
-    End Function
 End Class

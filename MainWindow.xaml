@@ -60,6 +60,12 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                        <Setter Property="Background" Value="#202c33"/>
+                        <Setter Property="Foreground" Value="#00a884"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
 

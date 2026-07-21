@@ -1,4 +1,5 @@
 Imports System.IO
+Imports System.ComponentModel
 Imports System.Text.Json.Serialization
 Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.Wpf
@@ -6,14 +7,29 @@ Imports Microsoft.Toolkit.Uwp.Notifications
 Imports System.Text.Json
 
 Public Class WhatsAppAccount
+    Implements INotifyPropertyChanged
+
+    Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
+
     <JsonPropertyName("id")>
     Public Property Id As String
 
     <JsonPropertyName("name")>
     Public Property Name As String
 
+    Private _isActive As Boolean
     <JsonPropertyName("isActive")>
     Public Property IsActive As Boolean
+        Get
+            Return _isActive
+        End Get
+        Set(value As Boolean)
+            If _isActive <> value Then
+                _isActive = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsActive)))
+            End If
+        End Set
+    End Property
     
     <JsonIgnore>
     Public Property HasNotification As Boolean
