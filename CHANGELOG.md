@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2026-07-21
+
+### Release
+- Prima release formale stabile.
+- Rilasciata su GitHub con tag `v1.4.0`.
+- Pubblicata OTA.
+
 ## [1.3.35] - 2026-07-20
 
 ### Performance
