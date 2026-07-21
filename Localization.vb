@@ -108,25 +108,33 @@ Public Class AppLocalizations
         End If
 
         Using client As New HttpClient()
-            For Each entry In EnStrings
-                Try
-                    If entry.Key = "delete_account_confirm" Then
-                        Dim textToTranslate = entry.Value.Replace("{name}", "___")
-                        Dim translatedText = Await TranslateTextInternal(client, textToTranslate, targetLang)
-                        translated(entry.Key) = translatedText.Replace("___", "{name}")
-                    Else If entry.Key = "translate_to_lang" Then
-                        Dim translatedPrefix = Await TranslateTextInternal(client, "Translate to", targetLang)
-                        translated(entry.Key) = translatedPrefix & " {lang}"
-                    Else
-                        translated(entry.Key) = Await TranslateTextInternal(client, entry.Value, targetLang)
-                    End If
-                Catch ex As Exception
-                    Debug.WriteLine($"Failed to translate key '{entry.Key}': {ex.Message}")
-                    translated(entry.Key) = entry.Value
-                End Try
+            Dim tasks = EnStrings.Select(Function(entry) TranslateOneAsync(client, entry.Key, entry.Value, targetLang)).ToArray()
+            Dim results = Await Task.WhenAll(tasks)
+            For Each kvp In results
+                translated(kvp.Key) = kvp.Value
             Next
         End Using
+
         Return translated
+    End Function
+
+    Private Shared Async Function TranslateOneAsync(client As HttpClient, key As String, value As String, targetLang As String) As Task(Of KeyValuePair(Of String, String))
+        Try
+            If key = "delete_account_confirm" Then
+                Dim textToTranslate = value.Replace("{name}", "___")
+                Dim translatedText = Await TranslateTextInternal(client, textToTranslate, targetLang)
+                Return New KeyValuePair(Of String, String)(key, translatedText.Replace("___", "{name}"))
+            ElseIf key = "translate_to_lang" Then
+                Dim translatedPrefix = Await TranslateTextInternal(client, "Translate to", targetLang)
+                Return New KeyValuePair(Of String, String)(key, translatedPrefix & " {lang}")
+            Else
+                Dim translatedText = Await TranslateTextInternal(client, value, targetLang)
+                Return New KeyValuePair(Of String, String)(key, translatedText)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to translate key '{key}': {ex.Message}")
+            Return New KeyValuePair(Of String, String)(key, value)
+        End Try
     End Function
 
     Public Shared Async Function TranslateSingle(text As String, targetLang As String) As Task(Of String)

@@ -18,8 +18,6 @@ Public Class MainWindow
 
     ' Caricamento iniziale: impostazioni, account, tema, webview, notifiche
     Private Async Sub MainWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
-        BtnAddAccount.IsEnabled = False
-
         ' 1. Load User Settings
         Await _settingsController.LoadSettingsAsync()
         
@@ -65,9 +63,6 @@ Public Class MainWindow
         ' Update active tab styling
         UpdateAccountTabStyling()
 
-        ' Apply localized UI text
-        RefreshLocalization()
-
         VersionText.Text = "v" & Constants.AppVersion
 
         ' 11. Avvio del timer di sincronizzazione periodica background (ogni 2 minuti)
@@ -82,9 +77,6 @@ Public Class MainWindow
                                    End Sub
         syncTimer.Start()
 
-        If Not _accountManager.IsDialogOpen Then
-            BtnAddAccount.IsEnabled = True
-        End If
     End Sub
 
     Private Sub ConfigureSystemTray()
@@ -249,7 +241,6 @@ Public Class MainWindow
 
     ' Passa alla scheda account selezionata e nasconde/mostra webview corrispondente
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
-        BtnAddAccount.IsEnabled = False
         Await _accountManager.SwitchAccountAsync(accountId)
         
         ' Update layout visibilities
@@ -264,10 +255,6 @@ Public Class MainWindow
         Next
         
         UpdateAccountTabStyling()
-
-        If Not _accountManager.IsDialogOpen Then
-            BtnAddAccount.IsEnabled = True
-        End If
     End Function
 
     ' Colora la scheda attiva di verde, le altre in grigio
@@ -291,38 +278,19 @@ Public Class MainWindow
         Next
     End Sub
 
-    ' Aggiunge un nuovo account WhatsApp
-    Private Async Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
-        BtnAddAccount.IsEnabled = False
-        Try
-            Await _accountManager.AddAccountAsync()
-            PopulateWebViews()
-            AccountsList.ItemsSource = Nothing
-            AccountsList.ItemsSource = _accountManager.Accounts
-            UpdateAccountTabStyling()
-        Finally
-            If Not _accountManager.IsDialogOpen Then
-                BtnAddAccount.IsEnabled = True
-            End If
-        End Try
-    End Sub
-
     ' Apre la finestra Impostazioni
     Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
         Try
             _accountManager.IsDialogOpen = True
-            BtnAddAccount.IsEnabled = False
             Dim settingsWin As New SettingsWindow(_settingsController, _accountManager)
             settingsWin.Owner = Me
             settingsWin.ShowDialog()
             _accountManager.IsDialogOpen = False
-            BtnAddAccount.IsEnabled = True
 
             ApplyWpfTheme()
             UpdateAccountTabStyling()
         Catch ex As Exception
             _accountManager.IsDialogOpen = False
-            BtnAddAccount.IsEnabled = True
             MessageBox.Show(
                 "Errore aprendo le impostazioni:" & vbCrLf & vbCrLf &
                 ex.ToString(),
@@ -344,8 +312,6 @@ Public Class MainWindow
     Private Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(SettingsController.Theme) Then
             ApplyWpfTheme()
-        ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
-            RefreshLocalization()
         End If
     End Sub
 
@@ -355,11 +321,7 @@ Public Class MainWindow
         End If
     End Sub
 
-    ' Applica le traduzioni ai pulsanti della finestra principale
-    Private Sub RefreshLocalization()
-        Dim loc = _settingsController.Localizations
-        BtnAddAccount.Content = "+ " & loc.Get("add_account")
-    End Sub
+
 
     ' Verifica che WebView2 runtime sia installato
     Private Shared Function CheckWebView2Installed() As Boolean

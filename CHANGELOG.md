@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.1] - 2026-07-21
+
+### Performance
+- `FetchTranslations()`: tradotte tutte le chiavi UI in parallelo (`Task.WhenAll`) invece di 30+ richieste HTTP seriali.
+- **Impatto**: riduzione del tempo di traduzione da ~N round-trip a ~1 round-trip.
+
+### Removed
+- Nascosto il pulsante "Add Account" dalla barra degli account.
+
 ## [1.4.0] - 2026-07-21
 
 ### Release

@@ -62,29 +62,7 @@
                 </Setter>
             </Style>
 
-            <Style x:Key="AddAccountButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#00a884"/>
-                <Setter Property="Foreground" Value="#ffffff"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="FontSize" Value="12"/>
-                <Setter Property="Padding" Value="10,6"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#008f72"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
+
         </ResourceDictionary>
     </Window.Resources>
 
@@ -160,13 +138,8 @@
             <!-- Custom Horizontal Account Bar -->
             <Border Grid.Row="1" Background="#111b21" BorderThickness="0,0,0,1" BorderBrush="#222e35" Padding="10,5">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
                     <!-- Horizontal list of accounts -->
-                    <ItemsControl x:Name="AccountsList">
+                    <ItemsControl x:Name="AccountsList" HorizontalAlignment="Left">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal"/>
@@ -189,8 +162,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <!-- Quick add account button -->
-                    <Button x:Name="BtnAddAccount" Grid.Column="1" Click="BtnAddAccount_Click" Content="+ Add Account" Style="{StaticResource AddAccountButtonStyle}" IsEnabled="False"/>
+
                 </Grid>
             </Border>
 
