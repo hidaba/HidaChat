@@ -134,8 +134,10 @@ Public Class WhatsAppAccount
                 End If
             End Sub
 
-            ' Inject bridge token and notification override before any script runs (combined to avoid races)
-            Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & vbCrLf & NotificationJsScripts.NotificationOverrideJS
+            ' Inject permanent scripts via AddScriptToExecuteOnDocumentCreatedAsync (run in every new document, before page scripts)
+            Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & vbCrLf &
+                NotificationJsScripts.NotificationOverrideJS & vbCrLf &
+                ChatSyncJsScripts.ChatSyncJS
             Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
 
             ' Handle navigation and links
@@ -211,8 +213,7 @@ Public Class WhatsAppAccount
                     )
                     Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
 
-                    ' Inietta lo script di sincronizzazione chat e avvia la sincronizzazione in background
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(ChatSyncJsScripts.ChatSyncJS)
+                    ' Avvia la sincronizzazione chat in background (ChatSyncJS già iniettato via AddScriptToExecuteOnDocumentCreatedAsync)
                     Await SyncWorker.RequestSyncAsync(WebView, BridgeToken)
                 End If
             End Sub

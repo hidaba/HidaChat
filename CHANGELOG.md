@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.5] - 2026-07-21
+
+### Performance
+- **Script injection WebView2**: `ChatSyncJS` spostato da `NavigationCompleted` (re-iniettato a ogni navigazione) a `AddScriptToExecuteOnDocumentCreatedAsync` (eseguito automaticamente su ogni nuovo documento prima del caricamento pagina).
+- **Riduzione lavoro in `NavigationCompleted`**: non re-inietta più il chat sync JS a ogni navigazione, sfruttando l'idempotency guard (`__chatSyncInstalled`) e l'iniezione automatica via document creation.
+
 ## [1.4.4] - 2026-07-21
 
 ### Performance

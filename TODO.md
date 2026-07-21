@@ -25,10 +25,10 @@
 - ~~**Ottimizzazione**: memoizzazione (cache dell'albero) o sostituzione con binding/stili dichiarativi~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 6. WebView2 — Script injection su ogni navigazione
-- A ogni `NavigationCompleted`, reinietta tema CSS e script di traduzione inutilmente su navigazioni secondarie
-- **Ottimizzazione**: iniettare solo su navigazione iniziale, usare `AddScriptToExecuteOnDocumentCreatedAsync` per script permanenti
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~6. WebView2 — Script injection su ogni navigazione~~ ✅
+- ~~A ogni `NavigationCompleted`, reinietta tema CSS e script di traduzione inutilmente su navigazioni secondarie~~
+- ~~**Ottimizzazione**: iniettare solo su navigazione iniziale, usare `AddScriptToExecuteOnDocumentCreatedAsync` per script permanenti~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
 ## 7. Aggiornamento OTA — `ReadVersionFromFileAsync()` su UNC path
 - Il check aggiornamenti legge un file da percorso di rete UNC, operazione bloccante se il server è lento
