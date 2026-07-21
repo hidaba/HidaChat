@@ -189,23 +189,29 @@ Public Class MainWindow
         Me.Hide()
     End Sub
 
-    Private Sub PopulateWebViews()
+    Private Async Sub PopulateWebViews()
         WebViewsGrid.Children.Clear()
-        
-        For Each account In _accountManager.Accounts
-            Dim wv = account.WebView
-            wv.HorizontalAlignment = HorizontalAlignment.Stretch
-            wv.VerticalAlignment = VerticalAlignment.Stretch
-            wv.Visibility = If(account.IsActive, Visibility.Visible, Visibility.Collapsed)
-            
-            WebViewsGrid.Children.Add(wv)
-            
-            ' Setup solo se non già inizializzato (evita reinit che rompe connessione WhatsApp)
-            If wv.CoreWebView2 Is Nothing Then
-                Dim ignore = account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
-            End If
-        Next
+
+        Dim activeAccount = _accountManager.CurrentAccount
+        If activeAccount IsNot Nothing Then
+            Await EnsureWebViewAsync(activeAccount)
+            activeAccount.WebView.Visibility = Visibility.Visible
+        End If
     End Sub
+
+    Private Async Function EnsureWebViewAsync(account As WhatsAppAccount) As Task
+        If account.WebView Is Nothing Then
+            account.WebView = New WebView2()
+            account.WebView.HorizontalAlignment = HorizontalAlignment.Stretch
+            account.WebView.VerticalAlignment = VerticalAlignment.Stretch
+            account.WebView.Visibility = Visibility.Collapsed
+            WebViewsGrid.Children.Add(account.WebView)
+        End If
+
+        If account.WebView.CoreWebView2 Is Nothing Then
+            Await account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
+        End If
+    End Function
 
     Private Sub OnAccountNotificationChanged(accountId As String, hasNotification As Boolean)
         _accountManager.HandleNotificationStateChanged(accountId, hasNotification)
@@ -238,18 +244,21 @@ Public Class MainWindow
 
     ' Passa alla scheda account selezionata e nasconde/mostra webview corrispondente
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
+        Dim prevAccount = _accountManager.CurrentAccount
+
         Await _accountManager.SwitchAccountAsync(accountId)
-        
-        ' Update layout visibilities
-        For Each child In WebViewsGrid.Children
-            If TypeOf child Is WebView2 Then
-                Dim wv = CType(child, WebView2)
-                Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.WebView Is wv)
-                If acc IsNot Nothing Then
-                    wv.Visibility = If(acc.Id = accountId, Visibility.Visible, Visibility.Collapsed)
-                End If
-            End If
-        Next
+
+        Dim newAccount = _accountManager.CurrentAccount
+        If newAccount Is Nothing Then Return
+
+        ' Nascondi precedente
+        If prevAccount IsNot Nothing AndAlso prevAccount.WebView IsNot Nothing Then
+            prevAccount.WebView.Visibility = Visibility.Collapsed
+        End If
+
+        ' Crea/inizializza WebView per il nuovo account se necessario
+        Await EnsureWebViewAsync(newAccount)
+        newAccount.WebView.Visibility = Visibility.Visible
     End Function
 
     ' Apre la finestra Impostazioni

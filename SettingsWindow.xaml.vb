@@ -187,7 +187,7 @@ Public Class SettingsWindow
 
     Private Sub BtnDevTools_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
-        If activeAcc IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
+        If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
             activeAcc.WebView.CoreWebView2.OpenDevToolsWindow()
         End If
     End Sub

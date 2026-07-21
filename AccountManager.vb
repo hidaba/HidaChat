@@ -2,7 +2,6 @@ Imports System.IO
 Imports System.Text.Json
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
-Imports Microsoft.Web.WebView2.Wpf
 
 Public Class AccountManager
     Implements INotifyPropertyChanged
@@ -103,16 +102,10 @@ Public Class AccountManager
                     MigrateOrphanProfile()
 
                     If needsSave Then
-                        For Each acc In _accounts
-                            acc.WebView = New WebView2()
-                        Next
                         Await SaveAccountsAsync()
                     Else
                         Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
                         Await CleanupUnusedProfilesAsync(activeIds)
-                        For Each acc In _accounts
-                            acc.WebView = New WebView2()
-                        Next
                     End If
                     
                     _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
@@ -212,7 +205,6 @@ Public Class AccountManager
 
         Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, WhatsAppAccount.GenerateId())
         Dim defaultAccount As New WhatsAppAccount(accountId, "Account 1", True)
-        defaultAccount.WebView = New WebView2()
 
         ' Ricollega profilo orfano se esiste ancora (primo avvio dopo fix)
         Dim dir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{accountId}")
@@ -251,8 +243,7 @@ Public Class AccountManager
         Dim accountName = If(name, $"Account {_accounts.Count + 1}")
         
         Dim newAccount As New WhatsAppAccount(accountId, accountName, False)
-        newAccount.WebView = New WebView2()
-        
+
         _accounts.Add(newAccount)
         Await SaveAccountsAsync()
         
@@ -280,11 +271,13 @@ Public Class AccountManager
 
         ' Dispose WebView control asynchronously after a brief delay
         Await Task.Delay(100)
-        Try
-            accountToRemove.WebView.Dispose()
-        Catch ex As Exception
-            Debug.WriteLine($"Error disposing webview: {ex.Message}")
-        End Try
+        If accountToRemove.WebView IsNot Nothing Then
+            Try
+                accountToRemove.WebView.Dispose()
+            Catch ex As Exception
+                Debug.WriteLine($"Error disposing webview: {ex.Message}")
+            End Try
+        End If
 
         ' Delete local profiles folder on disk after a brief delay
         Await Task.Delay(500)

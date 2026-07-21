@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.3] - 2026-07-21
+
+### Performance
+- **Lazy initialization WebView2**: i WebView2 non vengono più creati per tutti gli account all'avvio, ma solo per l'account attivo. Gli altri vengono creati e inizializzati on-demand al primo cambio account. Risparmio di ~50-100MB di RAM per account inattivo.
+- Rimosso `Imports Microsoft.Web.WebView2.Wpf` da `AccountManager.vb` (non crea più WebView2).
+
+### Fixed
+- `SettingsWindow.BtnDevTools_Click`: aggiunto null check per `activeAcc.WebView` (poteva crashare con lazy init).
+- `AccountManager.RemoveAccountAsync`: aggiunto null check prima di `WebView.Dispose()`.
+
 ## [1.4.2] - 2026-07-21
 
 ### Performance

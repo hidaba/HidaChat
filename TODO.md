@@ -35,10 +35,10 @@
 - **Ottimizzazione**: timeout più breve (3s), check asincrono senza bloccare l'avvio, caching della versione
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 8. `AccountManager.LoadAccountsAsync()` — Crea tutti i WebView2 all'avvio
-- Crea un WebView2 per OGNI account al caricamento (~50-100MB per istanza)
-- **Ottimizzazione**: lazy initialization — creare WebView2 solo per l'account attivo, gli altri on-demand
-- **Impatto**: Alto | **Sforzo**: Alto
+## ~~8. `AccountManager.LoadAccountsAsync()` — Crea tutti i WebView2 all'avvio~~ ✅
+- ~~Crea un WebView2 per OGNI account al caricamento (~50-100MB per istanza)~~
+- ~~**Ottimizzazione**: lazy initialization — creare WebView2 solo per l'account attivo, gli altri on-demand~~
+- ~~**Impatto**: Alto | **Sforzo**: Alto~~
 
 ## 9. Traduzioni batch — Chunking fisso a 50 testi
 - Dimensione chunk hardcoded a 50, non considera la lunghezza dei testi
@@ -55,10 +55,11 @@
 - **Ottimizzazione**: tenere traccia dell'ultimo account attivo e nascondere solo quello
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 12. Translation cache — Scrittura completa su ogni cambio lingua
-- `SaveCacheFileAsync()` riscrive l'intero file cache anche per modifiche minime
-- **Ottimizzazione**: scrittura differita o incrementale
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~12. Translation cache — Scrittura completa su ogni cambio lingua~~ ✅
+- ~~`SaveCacheFileAsync()` riscrive l'intero file cache anche per modifiche minime~~
+- ~~**Ottimizzazione**: scrittura differita o incrementale~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
+- *Obsoleto: traduzioni UI ormai hardcoded (EN/IT). Cache scritta solo all'inizializzazione, non a ogni cambio lingua.*
 
 ---
 
