@@ -426,30 +426,44 @@ Public Class TranslationJsScripts
         return;
       }
 
-      const chunkSize = 50;
-      for (let i = 0; i < batchTexts.length; i += chunkSize) {
-        const chunkNodes = batchNodes.slice(i, i + chunkSize);
-        const chunkTexts = batchTexts.slice(i, i + chunkSize);
-        
+      const CHUNK_MAX_CHARS = 2000;
+      let charCount = 0;
+      let curNodes = [];
+      let curTexts = [];
+
+      function sendChunk(nodes, texts) {
         const transId = 'batch_' + Math.random().toString(36).substring(2, 9);
-        
         window.__batchMap = window.__batchMap || {};
-        window.__batchMap[transId] = chunkNodes;
-
-        chunkNodes.forEach(n => translatedNodes.add(n));
-
+        window.__batchMap[transId] = nodes;
+        nodes.forEach(n => translatedNodes.add(n));
         try {
           window.chrome.webview.postMessage({
             channel: 'TranslationChannel',
             type: 'BATCH_TRANSLATE',
             id: transId,
-            texts: chunkTexts,
+            texts: texts,
             targetLang: window.__translationTargetLangCode,
             bridgeToken: window.__bridgeToken || ''
           });
         } catch (e) {
-          chunkNodes.forEach(n => translatedNodes.delete(n));
+          nodes.forEach(n => translatedNodes.delete(n));
         }
+      }
+
+      for (let i = 0; i < batchTexts.length; i++) {
+        const textLen = batchTexts[i].length;
+        if (charCount + textLen > CHUNK_MAX_CHARS && curNodes.length > 0) {
+          sendChunk(curNodes, curTexts);
+          curNodes = [];
+          curTexts = [];
+          charCount = 0;
+        }
+        curNodes.push(batchNodes[i]);
+        curTexts.push(batchTexts[i]);
+        charCount += textLen;
+      }
+      if (curNodes.length > 0) {
+        sendChunk(curNodes, curTexts);
       }
     } catch (err) {
       console.error("DOM translation error:", err);

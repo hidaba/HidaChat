@@ -40,10 +40,10 @@
 - ~~**Ottimizzazione**: lazy initialization — creare WebView2 solo per l'account attivo, gli altri on-demand~~
 - ~~**Impatto**: Alto | **Sforzo**: Alto~~
 
-## 9. Traduzioni batch — Chunking fisso a 50 testi
-- Dimensione chunk hardcoded a 50, non considera la lunghezza dei testi
-- **Ottimizzazione**: chunking adattivo basato sulla lunghezza totale dei caratteri (es. max 2000 caratteri per chunk)
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~9. Traduzioni batch — Chunking fisso a 50 testi~~ ✅
+- ~~Dimensione chunk hardcoded a 50, non considera la lunghezza dei testi~~
+- ~~**Ottimizzazione**: chunking adattivo basato sulla lunghezza totale dei caratteri (es. max 2000 caratteri per chunk)~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
 ## 10. `MessagePopup.RepositionAll()` — Itera tutti i popup attivi
 - Ogni volta che un popup viene mostrato/chiuso, ricalcola la posizione di TUTTI i popup attivi

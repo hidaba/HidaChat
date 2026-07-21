@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.6] - 2026-07-21
+
+### Performance
+- **Chunking adattivo traduzioni**: sostituito il chunking fisso a 50 testi con chunking adattivo basato su max 2000 caratteri per chunk in `scanAndTranslateDOM()` (TranslationEngineJS). I chunk vengono formati accumulando testi fino al raggiungimento del limite di caratteri, evitando chunk sovradimensionati che potrebbero causare errori HTTP 414.
+
 ## [1.4.5] - 2026-07-21
 
 ### Performance
