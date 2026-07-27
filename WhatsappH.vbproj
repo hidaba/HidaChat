@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>WhatsappH</RootNamespace>
+    <AssemblyName>WhatsappH</AssemblyName>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>images\icon.ico</ApplicationIcon>

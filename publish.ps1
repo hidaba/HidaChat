@@ -62,7 +62,8 @@ New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
 # Copy release binaries to staging (excluding settings.json, cache, pdbs)
 Get-ChildItem $sourceDir -File | Where-Object {
     $_.Name -notin @("settings.json", "translations_cache.json", "version.txt", ".app_version") -and
-    $_.Extension -notin @(".pdb", ".xml")
+    $_.Extension -notin @(".pdb", ".xml") -and
+    $_.Name -notlike "WhatsAppVB*"
 } | Copy-Item -Destination $stagingDir -Force
 
 foreach ($folder in @("images", "runtimes")) {
