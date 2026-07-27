@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.1.0] - 2026-07-27
+
+### Changed
+- Rimosso il logo superiore dalla barra del titolo in `MainWindow.xaml`.
+- Rimosso l'intero sistema di backup e sincronizzazione chat (`ChatSyncBackgroundWorker`, `ChatJsonStorageService`, `CryptoHelper`, costanti e script JS dedicati).
+- Aggiornata la versione dell'applicazione a `0.1.0`.
+
+## [1.5.6] - 2026-07-24
+
+### Performance
+- **Ottimizzazione `GetTranslationJS` in `JsScripts.vb`**: sostituita la catena di 12 chiamate `.Replace()` su stringa in-memory con `StringBuilder.Replace()` in-place per la generazione dei JS di traduzione, eliminando allocazioni intermedie nella Large Object Heap (LOH).
+
+## [1.5.5] - 2026-07-24
+
+### Fixed
+- **Deduplicazione righe nel file di backup**:
+  - Implementata la deduplicazione automatica dei messaggi per `id` univoco in `ChatJsonStorageService.vb`. Ogni messaggio viene salvato esattamente una volta sola, eliminando righe duplicate nel file di backup.
+- **Estrazione mittenti nei gruppi e numeri di telefono**:
+  - Risolto un problema per cui nei gruppi venivano salvati i messaggi con il nome del gruppo al posto del nome della persona.
+  - Implementata la lettura di `data-pre-plain-text` e dei nodi mittente (`span._ao3e`, `span._ap4a`) nelle bolle del DOM per estrarre l'autore del messaggio nei gruppi (es. `Timmití`, `Marco`, ecc.).
+  - Migliorata la parsificazione dei numeri di telefono dai JID `data-id` (`..._393...@c.us`) e da `msg.author` per popolare sempre il campo `senderPhone`.
+
+## [1.5.4] - 2026-07-24
+
+### Fixed
+- **Estrazione nome contatto e numero di telefono nei backup**:
+  - Risolto un bug nel fallback DOM di `extractMessagesFromDOMAsync()` che catturava erroneamente il titolo del pannello laterale `"Dettagli profilo"` come nome della chat, impostando `senderPhone` vuoto.
+  - Corretto il selettore dell'header per puntare rigorosamente a `#main header` filtrando le etichette di sistema.
+  - Implementata l'estrazione automatica del numero di telefono dal `chatId` (`39...` da `@c.us`) e del nome dal mittente/contatto in JS sia per Store che per fallback DOM.
+  - Aggiunto un arricchimento di sicurezza server-side in `ChatJsonStorageService.vb` per garantire che `senderPhone` e `senderName` siano sempre valorizzati con i dati reali del contatto in ogni riga JSON del backup.
+
+## [1.5.3] - 2026-07-24
+
+### Performance
+- **Enumerazione lazy in `UpdateChecker.vb`**: sostituito `Directory.GetFiles` con `Directory.EnumerateFiles` per la copia dei file dall'OTA repository. L'enumerazione in streaming evita l'allocazione eager di grandi array di stringhe in memoria su condivisioni di rete UNC.
+
+## [1.5.2] - 2026-07-24
+
+### Added
+- **Opzione cifratura backup in `Constants.vb`**: aggiunta la costante `EnableBackupEncryption As Boolean` (impostata di default a `True`).
+  - Se `True`: il backup salvato su disco viene cifrato in formato AES-256-GCM (nomi file e contenuti JSON cifrati).
+  - Se `False`: i file di backup e l'indice delle chat vengono salvati in chiaro (formato JSON standard leggibile nella cartella `Chats_Plain`).
+
+## [1.5.1] - 2026-07-24
+
+### Fixed & Performance (Memoria & Clean-up)
+- **IDisposable su WhatsAppAccount**: gestito il ciclo di vita del WebView2 e delle sue dipendenze alla rimozione degli account.
+- **Unsubscribe handler CoreWebView2**: salvati e rimossi con `RemoveHandler` gli handler `PermissionRequested`, `NewWindowRequested`, `WebMessageReceived` e `NavigationCompleted` alla distruzione dell'account per prevenire memory leak.
+- **IDisposable su Storage e SyncWorker**: implementato `IDisposable` su `ChatJsonStorageService` e `ChatSyncBackgroundWorker` rilasciando la risorsa OS `SemaphoreSlim` (`_fileLock`).
+- **Async/Await in SyncWorker**: eliminato `.GetAwaiter().GetResult()` in `ProcessIncomingBatchAsync`, rendendo l'elaborazione dei batch di messaggi totalmente asincrona ed evitando la starvation del `ThreadPool`.
+- **Limite notifiche attive**: introdotto limite massimo (500 elementi) per `ActiveNotificationIds` in `WhatsAppAccount` con svuotamento automatico.
+- **ArrayPool & Streaming in CryptoHelper**: impiegato `ArrayPool(Of Byte).Shared` per buffer temporanei in `EncryptBytes`/`DecryptBytes` e implementata la cifratura in streaming a blocchi per file multimediali grandi.
+- **Shared HttpClient in Localization**: unificata la gestione di `HttpClient` in una singola istanza condivisa per prevenire socket exhaustion.
+- **ObservableCollection per Accounts**: sostituita `List(Of WhatsAppAccount)` con `ObservableCollection` per evitare la rigenerazione forzata dei DataTemplate WPF alla rimozione di un account.
+- **Dirty Tracking**: aggiunto flag `_isDirty` in `AccountManager` ed eliminati salvataggi su disco se i dati non sono modificati.
+- **Lifecycle MainWindow & Timer**: il timer di sincronizzazione background `_syncTimer` e gli event handler `PropertyChanged` vengono disiscritti e fermati correttamente all'uscita dall'applicazione.
+
 ## [1.4.6] - 2026-07-21
 
 ### Performance

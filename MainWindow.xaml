@@ -102,9 +102,6 @@
                     <TextBlock x:Name="TitleText" Text="WhatsApp" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Annoni logo -->
-                <Image Grid.Column="1" HorizontalAlignment="Right" Height="32" Margin="0,0,10,0" VerticalAlignment="Center" Source="/images/annoni.png"/>
-
                 <!-- Quick actions and window controls -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
 

@@ -147,7 +147,7 @@ Public Class UpdateChecker
                 Directory.CreateDirectory(tempDir)
 
                 ' Copia solo i file dell'app, ESCLUDE cartella data\ e file utente (settings, cache traduzioni, version)
-                For Each f In Directory.GetFiles(updateFilesPath, "*.*", SearchOption.AllDirectories)
+                For Each f In Directory.EnumerateFiles(updateFilesPath, "*.*", SearchOption.AllDirectories)
                     Dim relPath = f.Substring(updateFilesPath.TrimEnd("\"c).Length + 1)
                     ' Salta dati utente e metadati
                     If relPath.StartsWith("data\", StringComparison.OrdinalIgnoreCase) Then Continue For

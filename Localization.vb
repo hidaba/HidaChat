@@ -3,6 +3,8 @@ Imports System.Text.Json
 Imports System.Threading.Tasks
 
 Public Module AppLanguages
+    Private ReadOnly SharedHttpClient As New HttpClient()
+
     Private ReadOnly RtlCodes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
         "ar", "fa", "he", "iw", "ur", "yi", "ps", "sd", "ug", "syc"
     }
@@ -15,31 +17,30 @@ Public Module AppLanguages
 
     Public Async Function FetchSupportedLanguages() As Task(Of List(Of LanguageInfo))
         Dim langs As New List(Of LanguageInfo)()
-        Using client As New HttpClient()
-            Try
-                Dim url = "https://translate.googleapis.com/translate_a/l?client=gtx&hl=en"
-                Dim response = Await client.GetStringAsync(url)
-                Using doc As JsonDocument = JsonDocument.Parse(response)
-                    Dim tlElement As JsonElement = Nothing
-                    If doc.RootElement.TryGetProperty("tl", tlElement) Then
-                        For Each prop In tlElement.EnumerateObject()
-                            langs.Add(New LanguageInfo With {
-                                .Code = prop.Name,
-                                .Name = prop.Value.ToString()
-                            })
-                        Next
-                        langs.Sort(Function(a, b) a.Name.CompareTo(b.Name))
-                    End If
-                End Using
-            Catch ex As Exception
-                Debug.WriteLine($"Failed to fetch supported languages: {ex.Message}")
-            End Try
-        End Using
+        Try
+            Dim url = "https://translate.googleapis.com/translate_a/l?client=gtx&hl=en"
+            Dim response = Await SharedHttpClient.GetStringAsync(url)
+            Using doc As JsonDocument = JsonDocument.Parse(response)
+                Dim tlElement As JsonElement = Nothing
+                If doc.RootElement.TryGetProperty("tl", tlElement) Then
+                    For Each prop In tlElement.EnumerateObject()
+                        langs.Add(New LanguageInfo With {
+                            .Code = prop.Name,
+                            .Name = prop.Value.ToString()
+                        })
+                    Next
+                    langs.Sort(Function(a, b) a.Name.CompareTo(b.Name))
+                End If
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to fetch supported languages: {ex.Message}")
+        End Try
         Return langs
     End Function
 End Module
 
 Public Class AppLocalizations
+    Private Shared ReadOnly SharedHttpClient As New HttpClient()
     Private ReadOnly _translations As Dictionary(Of String, String)
 
     Public Sub New(translations As Dictionary(Of String, String))
@@ -107,13 +108,11 @@ Public Class AppLocalizations
             Return translated
         End If
 
-        Using client As New HttpClient()
-            Dim tasks = EnStrings.Select(Function(entry) TranslateOneAsync(client, entry.Key, entry.Value, targetLang)).ToArray()
-            Dim results = Await Task.WhenAll(tasks)
-            For Each kvp In results
-                translated(kvp.Key) = kvp.Value
-            Next
-        End Using
+        Dim tasks = EnStrings.Select(Function(entry) TranslateOneAsync(SharedHttpClient, entry.Key, entry.Value, targetLang)).ToArray()
+        Dim results = Await Task.WhenAll(tasks)
+        For Each kvp In results
+            translated(kvp.Key) = kvp.Value
+        Next
 
         Return translated
     End Function
@@ -138,9 +137,7 @@ Public Class AppLocalizations
     End Function
 
     Public Shared Async Function TranslateSingle(text As String, targetLang As String) As Task(Of String)
-        Using client As New HttpClient()
-            Return Await TranslateTextInternal(client, text, targetLang)
-        End Using
+        Return Await TranslateTextInternal(SharedHttpClient, text, targetLang)
     End Function
 
     Private Shared Async Function TranslateTextInternal(client As HttpClient, text As String, targetLang As String) As Task(Of String)

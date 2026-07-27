@@ -1,6 +1,7 @@
 Imports System.IO
 Imports System.Text.Json
 Imports System.ComponentModel
+Imports System.Collections.ObjectModel
 Imports System.Runtime.CompilerServices
 
 Public Class AccountManager
@@ -13,14 +14,16 @@ Public Class AccountManager
     End Sub
 
     Private ReadOnly _settingsController As SettingsController
+    Private _isDirty As Boolean = False
 
-    Private _accounts As New List(Of WhatsAppAccount)()
-    Public Property Accounts As List(Of WhatsAppAccount)
+    Private _accounts As New ObservableCollection(Of WhatsAppAccount)()
+    Public Property Accounts As ObservableCollection(Of WhatsAppAccount)
         Get
             Return _accounts
         End Get
-        Set(value As List(Of WhatsAppAccount))
+        Set(value As ObservableCollection(Of WhatsAppAccount))
             _accounts = value
+            _isDirty = True
             NotifyPropertyChanged()
         End Set
     End Property
@@ -33,6 +36,7 @@ Public Class AccountManager
         Set(value As WhatsAppAccount)
             If _currentAccount IsNot value Then
                 _currentAccount = value
+                _isDirty = True
                 NotifyPropertyChanged()
             End If
         End Set
@@ -79,7 +83,6 @@ Public Class AccountManager
                 Dim accountsData = JsonSerializer.Deserialize(Of List(Of WhatsAppAccount))(accountsJson, jsonOptions)
                 
                 If accountsData IsNot Nothing AndAlso accountsData.Count > 0 Then
-                    ' Rigenera ID/name per account corrotti dal vecchio formato case-sensitive
                     Dim needsSave = False
                     For i As Integer = 0 To accountsData.Count - 1
                         If String.IsNullOrEmpty(accountsData(i).Id) Then
@@ -92,7 +95,7 @@ Public Class AccountManager
                         End If
                     Next
 
-                    _accounts = accountsData
+                    _accounts = New ObservableCollection(Of WhatsAppAccount)(accountsData)
 
                     Debug.WriteLine($"LoadAccounts: caricati {accountsData.Count} account, needsSave={needsSave}")
                     For i As Integer = 0 To accountsData.Count - 1
@@ -102,7 +105,7 @@ Public Class AccountManager
                     MigrateOrphanProfile()
 
                     If needsSave Then
-                        Await SaveAccountsAsync()
+                        Await SaveAccountsAsync(force:=True)
                     Else
                         Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
                         Await CleanupUnusedProfilesAsync(activeIds)
@@ -114,6 +117,7 @@ Public Class AccountManager
                         _currentAccount.IsActive = True
                     End If
                     
+                    _isDirty = False
                     NotifyPropertyChanged(NameOf(Accounts))
                     NotifyPropertyChanged(NameOf(CurrentAccount))
                     Return
@@ -123,7 +127,6 @@ Public Class AccountManager
             End Try
         End If
 
-        ' Default account if none loaded
         Await CreateDefaultAccountAsync()
     End Function
 
@@ -140,8 +143,6 @@ Public Class AccountManager
                 Dim profileDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{acc.Id}")
                 Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
                 If Directory.Exists(profileDir) Then
-                    ' La destinazione esiste già (profilo stale dalla prima esecuzione di v1.3.3):
-                    ' eliminala e rinomina l'orfano che ha la sessione più recente
                     Try
                         Directory.Delete(profileDir, True)
                         Debug.WriteLine($"MigrateOrphanProfile: eliminato profilo stale {profileDir}")
@@ -165,7 +166,6 @@ Public Class AccountManager
     End Sub
 
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
-        ' Disabilitata la cancellazione automatica sul disco per evitare perdite accidentali di sessione se settings.json è assente o in aggiornamento
         Return Task.CompletedTask
     End Function
 
@@ -174,14 +174,11 @@ Public Class AccountManager
         Dim existingId As String = Nothing
 
         Try
-            ' Cerca se esiste già una cartella di profilo salvata precedentemente sul disco
             Dim sharedDir = WhatsAppAccount.SharedDataDirectory
             Debug.WriteLine($"CreateDefaultAccount: sharedDir={sharedDir}, exists={Directory.Exists(sharedDir)}")
             If Directory.Exists(sharedDir) Then
-                ' Cerca profili orfani con chiave vuota (WV2Profile_)
                 Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
                 If Directory.Exists(orphanProfile) Then
-                    ' Genera nuovo ID e rinomina il profilo orfano
                     existingId = WhatsAppAccount.GenerateId()
                     Dim newDir = Path.Combine(sharedDir, $"WV2Profile_{existingId}")
                     Try
@@ -190,7 +187,6 @@ Public Class AccountManager
                     End Try
                 End If
 
-                ' Cerca profili esistenti normali
                 If String.IsNullOrEmpty(existingId) Then
                     Dim matchingDirs = Directory.GetDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories)
                     If matchingDirs.Length > 0 Then
@@ -206,7 +202,6 @@ Public Class AccountManager
         Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, WhatsAppAccount.GenerateId())
         Dim defaultAccount As New WhatsAppAccount(accountId, "Account 1", True)
 
-        ' Ricollega profilo orfano se esiste ancora (primo avvio dopo fix)
         Dim dir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{accountId}")
         Dim orphanDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, "WV2Profile_")
         If Not Directory.Exists(dir) AndAlso Directory.Exists(orphanDir) Then
@@ -216,19 +211,21 @@ Public Class AccountManager
             End Try
         End If
         
-        _accounts = New List(Of WhatsAppAccount) From {defaultAccount}
+        _accounts = New ObservableCollection(Of WhatsAppAccount) From {defaultAccount}
         _currentAccount = defaultAccount
+        _isDirty = True
         
-        Await SaveAccountsAsync()
+        Await SaveAccountsAsync(force:=True)
         
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
     End Function
 
-    Public Async Function SaveAccountsAsync() As Task
+    Public Async Function SaveAccountsAsync(Optional force As Boolean = False) As Task
+        If Not _isDirty AndAlso Not force Then Return
+
         Dim settings = Await _settingsController.ReadSettingsAsync()
         
-        ' Convert accounts to JSON structure
         settings("accounts") = _accounts.Select(Function(a) New With {
             .id = a.Id,
             .name = a.Name,
@@ -236,6 +233,7 @@ Public Class AccountManager
         }).ToList()
         
         Await _settingsController.WriteSettingsAsync(settings)
+        _isDirty = False
     End Function
 
     Public Async Function AddAccountAsync(Optional name As String = Nothing) As Task
@@ -245,6 +243,7 @@ Public Class AccountManager
         Dim newAccount As New WhatsAppAccount(accountId, accountName, False)
 
         _accounts.Add(newAccount)
+        _isDirty = True
         Await SaveAccountsAsync()
         
         NotifyPropertyChanged(NameOf(Accounts))
@@ -260,6 +259,7 @@ Public Class AccountManager
         If accountToRemove Is Nothing Then Return
 
         _accounts.Remove(accountToRemove)
+        _isDirty = True
 
         If _currentAccount.Id = accountId Then
             _currentAccount = _accounts.First()
@@ -269,17 +269,14 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
 
-        ' Dispose WebView control asynchronously after a brief delay
         Await Task.Delay(100)
-        If accountToRemove.WebView IsNot Nothing Then
-            Try
-                accountToRemove.WebView.Dispose()
-            Catch ex As Exception
-                Debug.WriteLine($"Error disposing webview: {ex.Message}")
-            End Try
-        End If
+        Try
+            ' Invocazione esplicita IDisposable sul WebView e listener
+            accountToRemove.Dispose()
+        Catch ex As Exception
+            Debug.WriteLine($"Error disposing accountToRemove: {ex.Message}")
+        End Try
 
-        ' Delete local profiles folder on disk after a brief delay
         Await Task.Delay(500)
         Try
             Dim profileDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{accountId}")
@@ -307,6 +304,7 @@ Public Class AccountManager
         _currentAccount = newAccount
         _currentAccount.IsActive = True
 
+        _isDirty = True
         Await SaveAccountsAsync()
         
         NotifyPropertyChanged(NameOf(Accounts))
@@ -317,6 +315,7 @@ Public Class AccountManager
         Dim account = _accounts.FirstOrDefault(Function(a) a.Id = accountId)
         If account IsNot Nothing Then
             account.Name = newName
+            _isDirty = True
             Await SaveAccountsAsync()
             NotifyPropertyChanged(NameOf(Accounts))
         End If

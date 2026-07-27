@@ -15,10 +15,10 @@
 - ~~**Ottimizzazione**: usare stili WPF con DataTrigger invece di code-behind, oppure usare `Loaded` event handler sugli elementi del DataTemplate~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 4. `AccountsList.ItemsSource = Nothing` + riassegnazione
-- Dopo eliminazione account, azzera e riassegna `ItemsSource` forzando rigenerazione di TUTTI i DataTemplate
-- **Ottimizzazione**: usare `ObservableCollection` invece di `List(Of WhatsAppAccount)`
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~4. `AccountsList.ItemsSource = Nothing` + riassegnazione~~ ✅
+- ~~Dopo eliminazione account, azzera e riassegna `ItemsSource` forzando rigenerazione di TUTTI i DataTemplate~~
+- ~~**Ottimizzazione**: usare `ObservableCollection` invece di `List(Of WhatsAppAccount)`~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
 ## ~~5. `FindVisualChildren()` e `FindVisualChild()` — Ricorsione multipla~~ ✅
 - ~~Funzioni ricorsive chiamate 3-4 volte per finestra che visitano TUTTO il visual tree~~
@@ -65,26 +65,26 @@
 
 # Memoria — Ottimizzazioni e Fix Leak
 
-## 12. `WhatsAppAccount` — Implementare `IDisposable`
-- WebView2 (COM/GPU), `ChatSyncBackgroundWorker`, `ActiveNotificationIds` mai rilasciati quando un account viene rimosso
-- **Ottimizzazione**: implementare `IDisposable` e chiamarlo da `AccountManager` alla rimozione dell'account
-- **Impatto**: Alto | **Sforzo**: Medio
+## ~~12. `WhatsAppAccount` — Implementare `IDisposable`~~ ✅
+- ~~WebView2 (COM/GPU), `ChatSyncBackgroundWorker`, `ActiveNotificationIds` mai rilasciati quando un account viene rimosso~~
+- ~~**Ottimizzazione**: implementare `IDisposable` e chiamarlo da `AccountManager` alla rimozione dell'account~~
+- ~~**Impatto**: Alto | **Sforzo**: Medio~~
 
-## 13. `ChatJsonStorageService` e `ChatSyncBackgroundWorker` — `IDisposable` mancante
-- `SemaphoreSlim` (`_fileLock`) mai disposto — OS handle leak
-- **Ottimizzazione**: implementare `IDisposable` su entrambe le classi con dispose di `SemaphoreSlim`
-- **Impatto**: Alto | **Sforzo**: Basso
+## ~~13. `ChatJsonStorageService` e `ChatSyncBackgroundWorker` — `IDisposable` mancante~~ ✅
+- ~~`SemaphoreSlim` (`_fileLock`) mai disposto — OS handle leak~~
+- ~~**Ottimizzazione**: implementare `IDisposable` su entrambe le classi con dispose di `SemaphoreSlim`~~
+- ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
-## 14. Event handler su `CoreWebView2` mai rimossi
-- `PermissionRequested`, `NewWindowRequested`, `WebMessageReceived`, `NavigationCompleted` registrati ma mai rimossi con `RemoveHandler`
-- WebView2 trattiene riferimenti forti all'account — memory leak certo alla rimozione
-- **Ottimizzazione**: salvare riferimenti handler e chiamare `RemoveHandler` prima di rilasciare il WebView2
-- **Impatto**: Alto | **Sforzo**: Basso
+## ~~14. Event handler su `CoreWebView2` mai rimossi~~ ✅
+- ~~`PermissionRequested`, `NewWindowRequested`, `WebMessageReceived`, `NavigationCompleted` registrati ma mai rimossi con `RemoveHandler`~~
+- ~~WebView2 trattiene riferimenti forti all'account — memory leak certo alla rimozione~~
+- ~~**Ottimizzazione**: salvare riferimenti handler e chiamare `RemoveHandler` prima di rilasciare il WebView2~~
+- ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
-## 15. `CryptoHelper.EncryptFileAsync` / `DecryptFileAsync` — File interi in memoria
-- `ReadAllBytesAsync` carica l'intero file in byte array; per file multimediali (centinaia di MB) raddoppia/triplica la memoria
-- **Ottimizzazione**: usare streaming — leggere in chunk, cifrare per chunk, scrivere per chunk
-- **Impatto**: Alto | **Sforzo**: Alto
+## ~~15. `CryptoHelper.EncryptFileAsync` / `DecryptFileAsync` — File interi in memoria~~ ✅
+- ~~`ReadAllBytesAsync` carica l'intero file in byte array; per file multimediali (centinaia di MB) raddoppia/triplica la memoria~~
+- ~~**Ottimizzazione**: usare streaming — leggere in chunk, cifrare per chunk, scrivere per chunk~~
+- ~~**Impatto**: Alto | **Sforzo**: Alto~~
 
 ## 16. `SaveMessageBatchAsync` — 4-5 allocazioni intermedie per messaggio
 - Per ogni messaggio: `GetRawText()` → `JsonNode.Parse()` → `ToJsonString()` → `EncryptString()` → `List(Of String)`
@@ -92,65 +92,65 @@
 - **Ottimizzazione**: usare `Utf8JsonReader` per streaming read, cifrare i byte UTF-8 direttamente eliminando il roundtrip GetRawText+ToJsonString
 - **Impatto**: Alto | **Sforzo**: Alto
 
-## 17. `EncryptBytes` / `DecryptBytes` — Array allocati senza pooling
-- Ogni operazione alloca 4 array (nonce, tag, cipherText, result) — pressione alta sul GC
-- **Ottimizzazione**: usare `ArrayPool(Of Byte)` con `Rent`/`Return`
-- **Impatto**: Alto | **Sforzo**: Basso
+## ~~17. `EncryptBytes` / `DecryptBytes` — Array allocati senza pooling~~ ✅
+- ~~Ogni operazione alloca 4 array (nonce, tag, cipherText, result) — pressione alta sul GC~~
+- ~~**Ottimizzazione**: usare `ArrayPool(Of Byte)` con `Rent`/`Return`~~
+- ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
-## 18. `ChatSyncBackgroundWorker` — `.GetAwaiter().GetResult()` blocca thread pool
-- Dentro `Task.Run`, chiama `.GetAwaiter().GetResult()` su operazione I/O — thread pool starvation
-- **Ottimizzazione**: rendere `ProcessIncomingBatchInternal` `Async Sub`/`Async Function` con `Await` vero
-- **Impatto**: Alto | **Sforzo**: Basso
+## ~~18. `ChatSyncBackgroundWorker` — `.GetAwaiter().GetResult()` blocca thread pool~~ ✅
+- ~~Dentro `Task.Run`, chiama `.GetAwaiter().GetResult()` su operazione I/O — thread pool starvation~~
+- ~~**Ottimizzazione**: rendere `ProcessIncomingBatchInternal` `Async Sub`/`Async Function` con `Await` vero~~
+- ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
-## 19. `ActiveNotificationIds` — HashSet cresce senza limiti
-- ID notifiche aggiunti su `NOTIFICATION_RECEIVED` ma mai rimossi se `NOTIFICATION_CLOSED` non arriva
-- **Ottimizzazione**: limite massimo dimensioni + cleanup periodico per ID vecchi
-- **Impatto**: Alto | **Sforzo**: Basso
+## ~~19. `ActiveNotificationIds` — HashSet cresce senza limiti~~ ✅
+- ~~ID notifiche aggiunti su `NOTIFICATION_RECEIVED` ma mai rimossi se `NOTIFICATION_CLOSED` non arriva~~
+- ~~**Ottimizzazione**: limite massimo dimensioni + cleanup periodico per ID vecchi~~
+- ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
-## 20. `Localization` — `HttpClient` creato 3 volte (non condiviso)
-- `New HttpClient()` in ogni metodo — socket exhaustion sotto carico
-- **Ottimizzazione**: `Shared ReadOnly HttpClient` a livello di classe/modulo
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~20. `Localization` — `HttpClient` creato 3 volte (non condiviso)~~ ✅
+- ~~`New HttpClient()` in ogni metodo — socket exhaustion sotto carico~~
+- ~~**Ottimizzazione**: `Shared ReadOnly HttpClient` a livello di classe/modulo~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 21. `Directory.GetFiles` in `UpdateChecker.vb` — Enumerazione eager su network share
-- Carica TUTTI i percorsi file in array `String()` — potenzialmente migliaia di stringhe su percorso UNC
-- **Ottimizzazione**: `Directory.EnumerateFiles` (streaming lazy)
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~21. `Directory.GetFiles` in `UpdateChecker.vb` — Enumerazione eager su network share~~ ✅
+- ~~Carica TUTTI i percorsi file in array `String()` — potenzialmente migliaia di stringhe su percorso UNC~~
+- ~~**Ottimizzazione**: `Directory.EnumerateFiles` (streaming lazy)~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 22. `CancellationTokenSource` in `SettingsController.FlushAfterDebounceAsync` — Non disposto
-- Il CTS precedente viene solo cancellato (`Cancel()`) ma mai chiamato `.Dispose()` — tiene `WaitHandle` (OS resource)
-- **Ottimizzazione**: disporre il vecchio `_flushCts` prima di sostituirlo col nuovo
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~22. `CancellationTokenSource` in `SettingsController.FlushAfterDebounceAsync` — Non disposto~~ ✅
+- ~~Il CTS precedente viene solo cancellato (`Cancel()`) ma mai chiamato `.Dispose()` — tiene `WaitHandle` (OS resource)~~
+- ~~**Ottimizzazione**: disporre il vecchio `_flushCts` prima di sostituirlo col nuovo~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 23. `MainWindow.xaml.vb` — Event handler `PropertyChanged` mai rimossi
-- `_settingsController.PropertyChanged` e `_accountManager.PropertyChanged` registrati ma mai rimossi in `OnClosed`/`OnUnloaded`
-- **Ottimizzazione**: aggiungere `RemoveHandler` negli eventi di chiusura finestra
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~23. `MainWindow.xaml.vb` — Event handler `PropertyChanged` mai rimossi~~ ✅
+- ~~`_settingsController.PropertyChanged` e `_accountManager.PropertyChanged` registrati ma mai rimossi in `OnClosed`/`OnUnloaded`~~
+- ~~**Ottimizzazione**: aggiungere `RemoveHandler` negli eventi di chiusura finestra~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 24. `DispatcherTimer` in `MainWindow.xaml.vb` — Mai fermato
-- Timer tick ogni 2 minuti con lambda closure su `_accountManager`; mai fermato o disposto
-- **Ottimizzazione**: fermare (`Stop()`) il timer in `OnClosed`; trasformare lambda in metodo nominato
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~24. `DispatcherTimer` in `MainWindow.xaml.vb` — Mai fermato~~ ✅
+- ~~Timer tick ogni 2 minuti con lambda closure su `_accountManager`; mai fermato o disposto~~
+- ~~**Ottimizzazione**: fermare (`Stop()`) il timer in `OnClosed`; trasformare lambda in metodo nominato~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
 ## 25. `ExecuteScriptAsync` fire-and-forget in `MainWindow.xaml.vb:341-357`
 - Task restituiti da `ExecuteScriptAsync` non vengono awaitati né catturati — eccezioni inosservabili
 - **Ottimizzazione**: catturare i task o usare `Async Sub` con gestione errori
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 26. `JsScripts.vb:641-653` — `.Replace()` multipli su template grandi
-- `GetTranslationJS` chiama `.Replace()` 10+ volte sul template enorme — crea una nuova stringa ogni volta
-- **Ottimizzazione**: `StringBuilder` con `Replace`, o template con interpolazione
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~26. `JsScripts.vb:641-653` — `.Replace()` multipli su template grandi~~ ✅
+- ~~`GetTranslationJS` chiama `.Replace()` 10+ volte sul template enorme — crea una nuova stringa ogni volta~~
+- ~~**Ottimizzazione**: `StringBuilder` con `Replace` in-place~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 27. `AccountManager` e `SettingsController` — Nessun dirty tracking
-- `SaveAccountsAsync()` e `WriteSettingsAsync()` riscrivono tutto anche se nulla è cambiato
-- **Ottimizzazione**: flag `_dirty` + scrittura solo su modifiche effettive
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~27. `AccountManager` e `SettingsController` — Nessun dirty tracking~~ ✅
+- ~~`SaveAccountsAsync()` e `WriteSettingsAsync()` riscrivono tutto anche se nulla è cambiato~~
+- ~~**Ottimizzazione**: flag `_dirty` + scrittura solo su modifiche effettive~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 28. `WhatsAppAccount.vb:68` — `New Random()` ogni chiamata
-- System clock seed può produrre sequenze identiche se chiamate ravvicinate
-- **Ottimizzazione**: `Random.Shared` (.NET 9) o `Shared` con lock
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~28. `WhatsAppAccount.vb:68` — `New Random()` ogni chiamata~~ ✅
+- ~~System clock seed può produrre sequenze identiche se chiamate ravvicinate~~
+- ~~**Ottimizzazione**: `Random.Shared` (.NET 9) o `Shared` con lock~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 29. `AccountManager.vb:232-236` — Anonymous type a ogni salvataggio
 - Crea istanze di tipo anonimo per ogni account a ogni salvataggio — GC pressure
@@ -167,10 +167,10 @@
 - **Ottimizzazione**: `StringBuilder`
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 32. `ChatJsonStorageService.vb:74,209` — Codice duplicato LoadIndex
-- `LoadIndexAsync` e `LoadIndexInternalAsync` condividono la stessa logica
-- **Ottimizzazione**: unificare in un unico metodo privato
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~32. `ChatJsonStorageService.vb:74,209` — Codice duplicato LoadIndex~~ ✅
+- ~~`LoadIndexAsync` e `LoadIndexInternalAsync` condividono la stessa logica~~
+- ~~**Ottimizzazione**: unificare in un unico metodo privato~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 33. `MessagePopup._activePopups` — Lista statica senza WeakReference
 - Trattiene riferimenti forti a tutti i popup — leak se non chiusi normalmente

@@ -1,19 +1,11 @@
 Imports System.IO
 
 Public Module Constants
-    Public Const AppVersion As String = "1.5.0"
-
-    ' Intervallo di rotazione del file di backup della chat (in giorni) - Costante in fase di compilazione
-    Public Const BackupRotationDays As Integer = 7
-
-    ' Chiave di cifratura AES-256 (32 bytes / 64 caratteri Hex)
-    Public Const EncryptionKeyHex As String = "4A7F92B3C5E8D1A4F0E2B8C6D4A7F92B3C5E8D1A4F0E2B8C6D4A7F92B3C5E8D1"
-    Public Const DefaultBackupFolderName As String = "Backup"
-    Public Const ChatsEncryptedFolderName As String = "Chats_Encrypted"
+    Public Const AppVersion As String = "0.1.0"
 
     ' Percorsi OTA (modificabili a livello di sorgente)
-    Public Const UpdateFilesPath As String = "\\fs1\annoni-new\IT\OTARepository\Whatsapp"
-    Public Const UpdateFilesPathBeta As String = "\\fs1\annoni-new\IT\OTARepository\WhatsappBeta"
+    Public Const UpdateFilesPath As String = "\\192.168.1.4\massimo\OTARepository\Whatsapp"
+    Public Const UpdateFilesPathBeta As String = "\\192.168.1.4\massimo\OTARepository\WhatsappBeta"
 
     Public ReadOnly Property UpdateVersionFile As String
         Get

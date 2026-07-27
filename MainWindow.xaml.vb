@@ -61,19 +61,6 @@ Public Class MainWindow
         Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
         
         VersionText.Text = "v" & Constants.AppVersion
-
-        ' 11. Avvio del timer di sincronizzazione periodica background (ogni 2 minuti)
-        Dim syncTimer As New System.Windows.Threading.DispatcherTimer()
-        syncTimer.Interval = TimeSpan.FromMinutes(2)
-        AddHandler syncTimer.Tick, Sub(s, ev)
-                                       For Each acc In _accountManager.Accounts
-                                           If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                                               Dim ignoreSync = acc.SyncWorker.RequestSyncAsync(acc.WebView, acc.BridgeToken)
-                                           End If
-                                       Next
-                                   End Sub
-        syncTimer.Start()
-
     End Sub
 
     Private Sub ConfigureSystemTray()
@@ -122,6 +109,17 @@ Public Class MainWindow
 
     Private Sub ExitApplication()
         _allowExit = True
+
+        RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+        RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+
+        For Each acc In _accountManager.Accounts
+            Try
+                acc.Dispose()
+            Catch
+            End Try
+        Next
+
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
@@ -133,6 +131,8 @@ Public Class MainWindow
 
     Public Sub ForceExitForUpdate()
         _allowExit = True
+        RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+        RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
@@ -287,7 +287,6 @@ Public Class MainWindow
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
             activeAcc.WebView.CoreWebView2.Reload()
-            Dim ignoreSync = activeAcc.SyncWorker.RequestSyncAsync(activeAcc.WebView, activeAcc.BridgeToken)
         End If
     End Sub
 

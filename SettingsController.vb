@@ -226,7 +226,14 @@ Public Class SettingsController
     Public Async Function WriteSettingsAsync(settings As Dictionary(Of String, Object)) As Task
         _cachedSettings = settings
         _dirty = False
-        If _flushCts IsNot Nothing Then _flushCts.Cancel()
+        If _flushCts IsNot Nothing Then
+            Try
+                _flushCts.Cancel()
+                _flushCts.Dispose()
+            Catch
+            End Try
+            _flushCts = Nothing
+        End If
         Try
             Dim options As New JsonSerializerOptions With {
                 .WriteIndented = True
@@ -240,7 +247,13 @@ Public Class SettingsController
 
     ' Accumula modifiche in memoria e pianifica scrittura differita (debounce 500ms)
     Private Async Function FlushAfterDebounceAsync() As Task
-        If _flushCts IsNot Nothing Then _flushCts.Cancel()
+        If _flushCts IsNot Nothing Then
+            Try
+                _flushCts.Cancel()
+                _flushCts.Dispose()
+            Catch
+            End Try
+        End If
         _flushCts = New CancellationTokenSource()
         Dim token = _flushCts.Token
         Try

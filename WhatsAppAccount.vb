@@ -8,8 +8,12 @@ Imports System.Text.Json
 
 Public Class WhatsAppAccount
     Implements INotifyPropertyChanged
+    Implements IDisposable
 
     Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
+
+    Private Shared ReadOnly _randLock As New Object()
+    Private Shared ReadOnly _rand As New Random()
 
     <JsonPropertyName("id")>
     Public Property Id As String
@@ -40,19 +44,18 @@ Public Class WhatsAppAccount
     <JsonIgnore>
     Public Property WebView As WebView2
     
-    Private _syncWorker As ChatSyncBackgroundWorker
-    <JsonIgnore>
-    Public ReadOnly Property SyncWorker As ChatSyncBackgroundWorker
-        Get
-            If _syncWorker Is Nothing Then
-                _syncWorker = New ChatSyncBackgroundWorker(Id)
-            End If
-            Return _syncWorker
-        End Get
-    End Property
+
     
     <JsonIgnore>
     Public ReadOnly Property ActiveNotificationIds As New HashSet(Of String)()
+
+    Private Shared ReadOnly MaxActiveNotificationIds As Integer = 500
+
+    ' Event Handlers fortemente tipizzati per WebView2 (evita memory leak)
+    Private _permissionRequestedHandler As EventHandler(Of CoreWebView2PermissionRequestedEventArgs)
+    Private _newWindowRequestedHandler As EventHandler(Of CoreWebView2NewWindowRequestedEventArgs)
+    Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
+    Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
 
     Public Shared ReadOnly Property SharedDataDirectory As String
         Get
@@ -65,8 +68,11 @@ Public Class WhatsAppAccount
     End Function
 
     Private Shared Function GenerateBridgeToken() As String
-        Dim rand As New Random()
-        Return "bt_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & "_" & rand.Next(100000, 999999)
+        Dim val As Integer
+        SyncLock _randLock
+            val = _rand.Next(100000, 999999)
+        End SyncLock
+        Return "bt_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & "_" & val
     End Function
 
     Public Sub New()
@@ -87,7 +93,6 @@ Public Class WhatsAppAccount
         Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
         If Directory.Exists(orphanProfile) Then
             If Directory.Exists(profileDir) Then
-                ' Sia l'orfano che la destinazione esistono: la destinazione è stale, la sostituiamo
                 Try
                     Directory.Delete(profileDir, True)
                     Debug.WriteLine($"SetupWebView: eliminato profilo stale {profileDir}")
@@ -109,39 +114,28 @@ Public Class WhatsAppAccount
         End If
 
         Try
-            ' Initialize WebView2 Environment with isolation
             Dim options As New CoreWebView2EnvironmentOptions()
-            Dim env = Await CoreWebView2Environment.CreateAsync(Nothing, SharedDataDirectory, options)
-            
-            ' Set the userDataFolder inside options or pass environment. We must set profile name.
-            ' In WebView2, the profile name can be specified via CoreWebView2ControllerOptions (available in newer SDKs)
-            ' or we can just specify the full profile directory as the userDataFolder.
-            ' Dart uses: userDataFolder: userDataFolder, profileName: accountId
-            ' In Microsoft WebView2, we can create an environment pointing to the profile folder directly as the userDataFolder.
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
             
-            ' Configure settings
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
             
-            ' Grant notifications permission automatically
-            AddHandler WebView.CoreWebView2.PermissionRequested, Sub(sender, e)
+            ' Salvataggio riferimenti handler per poterli rimuovere in Dispose()
+            _permissionRequestedHandler = Sub(sender, e)
                 If e.PermissionKind = CoreWebView2PermissionKind.Notifications Then
                     e.State = CoreWebView2PermissionState.Allow
                     e.Handled = True
                 End If
             End Sub
+            AddHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
 
-            ' Inject permanent scripts via AddScriptToExecuteOnDocumentCreatedAsync (run in every new document, before page scripts)
             Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & vbCrLf &
-                NotificationJsScripts.NotificationOverrideJS & vbCrLf &
-                ChatSyncJsScripts.ChatSyncJS
+                NotificationJsScripts.NotificationOverrideJS
             Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
 
-            ' Handle navigation and links
-            AddHandler WebView.CoreWebView2.NewWindowRequested, Sub(sender, e)
+            _newWindowRequestedHandler = Sub(sender, e)
                 e.Handled = True
                 Try
                     Dim uri = New Uri(e.Uri)
@@ -156,22 +150,19 @@ Public Class WhatsAppAccount
                 Catch
                 End Try
             End Sub
+            AddHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
 
-            ' Register JS Bridge Channel
-            AddHandler WebView.CoreWebView2.WebMessageReceived, Async Sub(sender, e)
+            _webMessageReceivedHandler = Async Sub(sender, e)
                 Await HandleWebMessageAsync(e.WebMessageAsJson, settings, onNotificationChanged)
             End Sub
+            AddHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
 
-            ' Setup script injection and theme injection on page finished load
-            AddHandler WebView.CoreWebView2.NavigationCompleted, Async Sub(sender, e)
+            _navigationCompletedHandler = Async Sub(sender, e)
                 If e.IsSuccess Then
-                    
-                    ' Inject theme CSS
                     Dim brightnessDark = False
                     If settings.Theme = "Dark" Then
                         brightnessDark = True
                     ElseIf settings.Theme = "System" Then
-                        ' Check Windows App Theme
                         Try
                             Dim key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
                             If key IsNot Nothing Then
@@ -190,7 +181,6 @@ Public Class WhatsAppAccount
                         Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
                     End If
 
-                    ' Inject translation script
                     Dim langName = "English"
                     Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
                     If langItem IsNot Nothing Then
@@ -212,19 +202,14 @@ Public Class WhatsAppAccount
                         settings.FullPageTranslation
                     )
                     Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
-
-                    ' Avvia la sincronizzazione chat in background (ChatSyncJS già iniettato via AddScriptToExecuteOnDocumentCreatedAsync)
-                    Await SyncWorker.RequestSyncAsync(WebView, BridgeToken)
                 End If
             End Sub
+            AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
-            ' Load WhatsApp Web
             WebView.CoreWebView2.Navigate("https://web.whatsapp.com/")
 
         Catch ex As Exception
             Debug.WriteLine($"Error configuring WebView2 for account {Id}: {ex.Message}")
-            ' Se WebView2 non è installato, il controllo viene fatto all'avvio in MainWindow,
-            ' quindi qui l'eccezione è probabilmente un errore di rete/navigazione.
         End Try
     End Function
 
@@ -245,8 +230,6 @@ Public Class WhatsAppAccount
                     Await HandleNotificationMessageAsync(root, settings, onNotificationChanged)
                 ElseIf channel = "TranslationChannel" Then
                     Await HandleTranslationMessageAsync(root)
-                ElseIf channel = "ChatSyncChannel" Then
-                    Await SyncWorker.ProcessIncomingBatchAsync(root)
                 End If
             End Using
         Catch ex As Exception
@@ -261,6 +244,10 @@ Public Class WhatsAppAccount
         Debug.WriteLine($"[NotificationChannel] accountId={Id}, type={type}, id={notificationId}")
 
         If type = "NOTIFICATION_RECEIVED" Then
+            ' Limita le dimensioni del set per prevenire memory leak prolungato
+            If ActiveNotificationIds.Count >= MaxActiveNotificationIds Then
+                ActiveNotificationIds.Clear()
+            End If
             ActiveNotificationIds.Add(notificationId)
             HasNotification = True
             onNotificationChanged?.Invoke(Id, True)
@@ -401,4 +388,36 @@ Public Class WhatsAppAccount
             End Try
         End If
     End Function
+
+    Public Sub Dispose() Implements IDisposable.Dispose
+        Try
+            If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
+                If _permissionRequestedHandler IsNot Nothing Then
+                    RemoveHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
+                    _permissionRequestedHandler = Nothing
+                End If
+                If _newWindowRequestedHandler IsNot Nothing Then
+                    RemoveHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
+                    _newWindowRequestedHandler = Nothing
+                End If
+                If _webMessageReceivedHandler IsNot Nothing Then
+                    RemoveHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
+                    _webMessageReceivedHandler = Nothing
+                End If
+                If _navigationCompletedHandler IsNot Nothing Then
+                    RemoveHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
+                    _navigationCompletedHandler = Nothing
+                End If
+            End If
+
+            If WebView IsNot Nothing Then
+                WebView.Dispose()
+                WebView = Nothing
+            End If
+
+            ActiveNotificationIds.Clear()
+        Catch ex As Exception
+            Debug.WriteLine($"Error disposing WhatsAppAccount: {ex.Message}")
+        End Try
+    End Sub
 End Class
