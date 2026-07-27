@@ -1,7 +1,7 @@
 Imports System.IO
 
 Public Module Constants
-    Public Const AppVersion As String = "0.1.0"
+    Public Const AppVersion As String = "0.1.1"
 
     ' Configurazione GitHub Releases OTA
     Public Const GitHubOwner As String = "hidaba"
