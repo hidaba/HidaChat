@@ -1,78 +1,77 @@
-# WhatsAppVB
+# WhatsappH
 
-Client desktop WPF per WhatsApp Web con supporto multi-account, traduzione integrata e notifiche native Windows.
+Client desktop WPF in VB.NET (.NET 9) per WhatsApp Web con supporto multi-account, traduzione istantanea dei messaggi e notifiche native Windows.
 
-## Caratteristiche
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
+[![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
 
-- **Multi-account**: gestione simultanea di più account WhatsApp con tab separati
-- **Tema scuro/chiaro**: personalizzabile con rilevamento automatico del tema di sistema Windows
-- **Traduzione integrata**: hover button per tradurre singoli messaggi, traduzione completa della pagina
-- **Notifiche native Windows**: Toast notifications con click routing all'account corretto
-- **System tray**: chiusura a vassoio con icona nella barra delle notifiche
-- **Aggiornamento automatico**: aggiornamento da repository di rete locale
-- **Profili isolati**: ogni account ha una directory WebView2 separata
+---
 
-## Requisiti di sistema
+## 🌟 Caratteristiche principali
 
-- Windows 10 20H1 (build 19041) o successivo
-- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (installato automaticamente su Windows 11)
-- .NET 9.0 Runtime
+- 👥 **Multi-Account**: Gestione contemporanea di più account WhatsApp in schede separate isolati tramite profili WebView2 dedicati.
+- 🎨 **Design Moderno e Temi**: Interfaccia scura/chiara con rilevamento automatico del tema di sistema Windows.
+- 🌐 **Traduzione Integrata**:
+  - Pulsante hover per tradurre singoli messaggi direttamente nella chat.
+  - Traduzione automatica o su richiesta dell'intera pagina.
+  - Traduzione in tempo reale in italiano o inglese.
+- 🔔 **Notifiche Native Windows**: Toast notifications native con instradamento del click direttamente all'account ed al messaggio corretto.
+- 📌 **System Tray Integration**: Riduzione a vassoio di sistema con supporto alle notifiche badge ed estrazione rápida.
+- 🚀 **Aggiornamenti OTA**: Verifica ed installazione automatica degli aggiornamenti in background.
 
-## Installazione
+---
 
-Scarica l'ultima release o compila il progetto con Visual Studio 2022.
+## 💻 Requisiti di Sistema
 
-### Da codice sorgente
+- **OS**: Windows 10 (build 19041 o successiva) / Windows 11
+- **Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (incluso di serie su Windows 11)
+- **Framework**: .NET 9.0 Runtime
+
+---
+
+## 🛠️ Compilazione da sorgente
+
+Per compilare ed eseguire il progetto localmente:
 
 ```bash
-git clone <repository-url>
-cd WhatsAppVB
+# Clona il repository
+git clone https://github.com/hidaba/WhatsAppH.git
+cd WhatsAppH
+
+# Ripristina le dipendenze e compila
 dotnet restore
 dotnet build -c Release
 ```
 
-Apri `WhatsAppVB.sln` con Visual Studio 2022 e avvia la build.
+In alternativa, puoi aprire la soluzione `WhatsappH.sln` con **Visual Studio 2022** (.NET 9 SDK installato) e premere `F5`.
 
-## Aggiornamenti
+---
 
-L'applicazione controlla automaticamente la presenza di aggiornamenti all'avvio leggendo il file `version.txt` dal repository di rete configurato. Se viene rilevata una nuova versione, i file vengono copiati localmente e l'applicazione si riavvia automaticamente.
+## 📖 Guida all'uso
 
-Percorso di default: `\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\`
+1. **Aggiunta Account**: Avvia l'applicazione e rinomina o aggiungi un account dal menu delle schede o dalle **Impostazioni** (⚙️).
+2. **Accesso WhatsApp**: Inquadra il codice QR con WhatsApp sul tuo smartphone per sincronizzare la sessione.
+3. **Traduzioni**: Passa il mouse su qualsiasi messaggio per visualizzare l'icona di traduzione istantanea 🌐.
 
-## Utilizzo
+### 🕹️ Controlli della Barra del Titolo
 
-1. Avvia l'applicazione
-2. Clicca su **+ Add Account** per aggiungere un account WhatsApp
-3. Inquadra il codice QR con WhatsApp sul telefono
-4. Passa da un account all'altro cliccando sulle tab nella barra superiore
+| Icona | Azione |
+| :---: | :--- |
+| ⚙️ | Apre la finestra Impostazioni (tema, lingua, gestione account) |
+| 🔄 | Ricarica la scheda dell'account attivo |
+| ✕ / — | Minimizza o riduci nella barra delle applicazioni / tray |
 
-### Scorciatoie
+---
 
-| Pulsante | Funzione |
-|---|---|
-| ⚙️ | Impostazioni (tema, lingua, gestione account) |
-| 🔄 | Ricarica la scheda attiva |
-| 🌐 | Traduci tutti i messaggi nella pagina |
-
-## Impostazioni
-
-- **Tema**: System (automatico), Chiaro, Scuro
-- **Lingua e traduzione**: lingua interfaccia, traduzione hover, traduzione notifiche
-- **Notifiche**: abilita/disabilita notifiche native
-- **Gestione account**: rinomina o elimina account
-
-## Tecnologie
+## 🧰 Stack Tecnologico
 
 - **Linguaggio**: VB.NET
-- **Framework**: .NET 9.0
-- **UI**: WPF (Windows Presentation Foundation)
-- **Browser**: Microsoft.Web.WebView2
-- **Notifiche**: Microsoft.Toolkit.Uwp.Notifications
+- **UI**: WPF (Windows Presentation Foundation) su .NET 9.0
+- **Engine Web**: `Microsoft.Web.WebView2`
+- **Notifiche**: `Microsoft.Toolkit.Uwp.Notifications`
 
-## Progetto originale
+---
 
-Basato su [whatsappPortable](https://github.com/Faeq-F/whatsappPortable) di Faeq-F.
+## 📄 Licenza
 
-## Licenza
-
-Distribuito sotto licenza MIT. Vedi il file `LICENSE` per maggiori informazioni.
+Distribuito sotto licenza **MIT**. Consulta il file [LICENSE.txt](LICENSE.txt) per i dettagli.
