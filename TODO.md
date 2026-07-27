@@ -1,4 +1,4 @@
-# TODO — Ottimizzazioni Prestazionali
+# TODO — Ottimizzazioni Prestazionali e Memoria
 
 ## ~~1. I/O su `settings.json` — Letture multiple ridondanti~~ ✅
 - ~~`SaveSettingAsync()` fa `ReadSettingsAsync()` + `WriteSettingsAsync()` ogni volta che cambia una singola chiave~~
@@ -65,42 +65,28 @@
 
 # Memoria — Ottimizzazioni e Fix Leak
 
-## ~~12. `WhatsAppAccount` — Implementare `IDisposable`~~ ✅
-- ~~WebView2 (COM/GPU), `ChatSyncBackgroundWorker`, `ActiveNotificationIds` mai rilasciati quando un account viene rimosso~~
-- ~~**Ottimizzazione**: implementare `IDisposable` e chiamarlo da `AccountManager` alla rimozione dell'account~~
+## ~~13. `WhatsAppAccount` — Implementare `IDisposable`~~ ✅
+- ~~WebView2 (COM/GPU) e `ActiveNotificationIds` mai rilasciati quando un account viene rimosso~~
+- ~~**Ottimizzazione**: implementato `IDisposable` e chiamato da `AccountManager` alla rimozione dell'account~~
 - ~~**Impatto**: Alto | **Sforzo**: Medio~~
 
-## ~~13. `ChatJsonStorageService` e `ChatSyncBackgroundWorker` — `IDisposable` mancante~~ ✅
-- ~~`SemaphoreSlim` (`_fileLock`) mai disposto — OS handle leak~~
-- ~~**Ottimizzazione**: implementare `IDisposable` su entrambe le classi con dispose di `SemaphoreSlim`~~
-- ~~**Impatto**: Alto | **Sforzo**: Basso~~
+## ~~14. `ChatJsonStorageService` e `ChatSyncBackgroundWorker` — Rimozione sistema backup~~ ✅
+- ~~Classi eliminate nella v0.1.0 assieme all'intero sistema di sincronizzazione e salvataggio chat su disco.~~
 
-## ~~14. Event handler su `CoreWebView2` mai rimossi~~ ✅
+## ~~15. Event handler su `CoreWebView2` mai rimossi~~ ✅
 - ~~`PermissionRequested`, `NewWindowRequested`, `WebMessageReceived`, `NavigationCompleted` registrati ma mai rimossi con `RemoveHandler`~~
 - ~~WebView2 trattiene riferimenti forti all'account — memory leak certo alla rimozione~~
-- ~~**Ottimizzazione**: salvare riferimenti handler e chiamare `RemoveHandler` prima di rilasciare il WebView2~~
+- ~~**Ottimizzazione**: salvati riferimenti handler e chiamato `RemoveHandler` prima di rilasciare il WebView2~~
 - ~~**Impatto**: Alto | **Sforzo**: Basso~~
 
-## ~~15. `CryptoHelper.EncryptFileAsync` / `DecryptFileAsync` — File interi in memoria~~ ✅
-- ~~`ReadAllBytesAsync` carica l'intero file in byte array; per file multimediali (centinaia di MB) raddoppia/triplica la memoria~~
-- ~~**Ottimizzazione**: usare streaming — leggere in chunk, cifrare per chunk, scrivere per chunk~~
-- ~~**Impatto**: Alto | **Sforzo**: Alto~~
+## ~~16. `CryptoHelper` e cifratura backup — Rimozione sistema backup~~ ✅
+- ~~Classe `CryptoHelper` eliminata nella v0.1.0 con la rimozione del backup.~~
 
-## 16. `SaveMessageBatchAsync` — 4-5 allocazioni intermedie per messaggio
-- Per ogni messaggio: `GetRawText()` → `JsonNode.Parse()` → `ToJsonString()` → `EncryptString()` → `List(Of String)`
-- Per batch da 10.000 messaggi: ~40.000+ oggetti intermedi
-- **Ottimizzazione**: usare `Utf8JsonReader` per streaming read, cifrare i byte UTF-8 direttamente eliminando il roundtrip GetRawText+ToJsonString
-- **Impatto**: Alto | **Sforzo**: Alto
+## ~~17. `SaveMessageBatchAsync` — Rimozione sistema backup~~ ✅
+- ~~Metodo eliminato nella v0.1.0.~~
 
-## ~~17. `EncryptBytes` / `DecryptBytes` — Array allocati senza pooling~~ ✅
-- ~~Ogni operazione alloca 4 array (nonce, tag, cipherText, result) — pressione alta sul GC~~
-- ~~**Ottimizzazione**: usare `ArrayPool(Of Byte)` con `Rent`/`Return`~~
-- ~~**Impatto**: Alto | **Sforzo**: Basso~~
-
-## ~~18. `ChatSyncBackgroundWorker` — `.GetAwaiter().GetResult()` blocca thread pool~~ ✅
-- ~~Dentro `Task.Run`, chiama `.GetAwaiter().GetResult()` su operazione I/O — thread pool starvation~~
-- ~~**Ottimizzazione**: rendere `ProcessIncomingBatchInternal` `Async Sub`/`Async Function` con `Await` vero~~
-- ~~**Impatto**: Alto | **Sforzo**: Basso~~
+## ~~18. `EncryptBytes` / `DecryptBytes` — Rimozione sistema backup~~ ✅
+- ~~Metodi eliminati nella v0.1.0.~~
 
 ## ~~19. `ActiveNotificationIds` — HashSet cresce senza limiti~~ ✅
 - ~~ID notifiche aggiunti su `NOTIFICATION_RECEIVED` ma mai rimossi se `NOTIFICATION_CLOSED` non arriva~~
@@ -127,17 +113,15 @@
 - ~~**Ottimizzazione**: aggiungere `RemoveHandler` negli eventi di chiusura finestra~~
 - ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## ~~24. `DispatcherTimer` in `MainWindow.xaml.vb` — Mai fermato~~ ✅
-- ~~Timer tick ogni 2 minuti con lambda closure su `_accountManager`; mai fermato o disposto~~
-- ~~**Ottimizzazione**: fermare (`Stop()`) il timer in `OnClosed`; trasformare lambda in metodo nominato~~
-- ~~**Impatto**: Medio | **Sforzo**: Basso~~
+## ~~24. `DispatcherTimer` per sincronizzazione chat — Rimosso~~ ✅
+- ~~Timer rimosso nella v0.1.0 insieme al sistema di sincronizzazione backup.~~
 
-## 25. `ExecuteScriptAsync` fire-and-forget in `MainWindow.xaml.vb:341-357`
+## 25. `ExecuteScriptAsync` fire-and-forget in `MainWindow.xaml.vb`
 - Task restituiti da `ExecuteScriptAsync` non vengono awaitati né catturati — eccezioni inosservabili
 - **Ottimizzazione**: catturare i task o usare `Async Sub` con gestione errori
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## ~~26. `JsScripts.vb:641-653` — `.Replace()` multipli su template grandi~~ ✅
+## ~~26. `JsScripts.vb` — `.Replace()` multipli su template grandi~~ ✅
 - ~~`GetTranslationJS` chiama `.Replace()` 10+ volte sul template enorme — crea una nuova stringa ogni volta~~
 - ~~**Ottimizzazione**: `StringBuilder` con `Replace` in-place~~
 - ~~**Impatto**: Medio | **Sforzo**: Basso~~
@@ -147,51 +131,42 @@
 - ~~**Ottimizzazione**: flag `_dirty` + scrittura solo su modifiche effettive~~
 - ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## ~~28. `WhatsAppAccount.vb:68` — `New Random()` ogni chiamata~~ ✅
+## ~~28. `WhatsAppAccount.vb` — `New Random()` ogni chiamata~~ ✅
 - ~~System clock seed può produrre sequenze identiche se chiamate ravvicinate~~
 - ~~**Ottimizzazione**: `Random.Shared` (.NET 9) o `Shared` con lock~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 29. `AccountManager.vb:232-236` — Anonymous type a ogni salvataggio
+## 29. `AccountManager.vb` — Anonymous type a ogni salvataggio
 - Crea istanze di tipo anonimo per ogni account a ogni salvataggio — GC pressure
 - **Ottimizzazione**: serializzare `WhatsAppAccount` direttamente (ha già `JsonPropertyName`)
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 30. `Directory.GetDirectories` in `AccountManager.vb:195`
+## 30. `Directory.GetDirectories` in `AccountManager.vb`
 - Array eager invece di enumerazione lazy
 - **Ottimizzazione**: `Directory.EnumerateDirectories`
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 31. `UpdateChecker.vb:171-204` — `batchContent` con string concatenation
+## 31. `UpdateChecker.vb` — `batchContent` con string concatenation
 - Batch file build con concatenazione di ~35 righe
 - **Ottimizzazione**: `StringBuilder`
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## ~~32. `ChatJsonStorageService.vb:74,209` — Codice duplicato LoadIndex~~ ✅
-- ~~`LoadIndexAsync` e `LoadIndexInternalAsync` condividono la stessa logica~~
-- ~~**Ottimizzazione**: unificare in un unico metodo privato~~
-- ~~**Impatto**: Basso | **Sforzo**: Basso~~
-
-## 33. `MessagePopup._activePopups` — Lista statica senza WeakReference
+## 32. `MessagePopup._activePopups` — Lista statica senza WeakReference
 - Trattiene riferimenti forti a tutti i popup — leak se non chiusi normalmente
 - **Ottimizzazione**: `WeakReference(Of MessagePopup)` o `ConditionalWeakTable`
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 34. Registro `AppsUseLightTheme` — Letto 3 volte senza caching
-- Stessa chiave registry letta in `MainWindow.xaml.vb:323-333`, `WhatsAppAccount.vb:176-185`, `SettingsWindow.xaml.vb:247-256`
+## 33. Registro `AppsUseLightTheme` — Letto 3 volte senza caching
+- Stessa chiave registry letta in `MainWindow.xaml.vb`, `WhatsAppAccount.vb`, `SettingsWindow.xaml.vb`
 - **Ottimizzazione**: leggere una volta e fare cache col pattern `SystemEvents.UserPreferenceChanged`
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 35. `SolidColorBrush` — Creato a ogni cambio tema in MainWindow e SettingsWindow
+## 34. `SolidColorBrush` — Creato a ogni cambio tema in MainWindow e SettingsWindow
 - `New SolidColorBrush(...)` chiamato ogni volta che si applica il tema
 - **Ottimizzazione**: cache delle istanze per colore
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 36. `JsScripts.vb` — ~900 righe di JS in memoria permanente
-- Centinaia di KB di stringhe JavaScript caricate all'avvio e mai rilasciate; copiate in `initScript` a ogni setup account
+## 35. `JsScripts.vb` — ~300 righe di JS traduzioni in memoria permanente
+- Script JS caricate all'avvio e mai rilasciate; copiate a ogni setup account
 - **Ottimizzazione**: caricare da file esterno o risorsa embedded lazy; eventualmente comprimere
 - **Impatto**: Basso | **Sforzo**: Medio
-
----
-
-**Priorità memoria consigliate**: 12 → 13 → 14 → 19 → 18 → 17 → 16 → 15 → 20 → 21 → 23
