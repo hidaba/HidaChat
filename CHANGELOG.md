@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2026-07-27
+
+### Removed
+- Eliminata completamente l'immagine `annoni.png` dal repository per alleggerire il pacchetto compilato.
+- Configurato il rilascio OTA su GitHub Releases.
+
 ## [0.1.0] - 2026-07-27
 
 ### Changed
