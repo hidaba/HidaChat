@@ -1,4 +1,7 @@
 Imports System.IO
+Imports System.IO.Compression
+Imports System.Net.Http
+Imports System.Net.Http.Headers
 Imports System.Diagnostics
 Imports System.Threading.Tasks
 Imports System.Windows
@@ -6,18 +9,29 @@ Imports System.Text.Json
 
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
+    Private Shared ReadOnly _httpClient As New HttpClient()
 
-    Private Shared Function GetUpdateFilesPath(settings As SettingsController) As String
-        Return If(settings.UseBetaChannel, Constants.UpdateFilesPathBeta, Constants.UpdateFilesPath)
-    End Function
+    Shared Sub New()
+        _httpClient.Timeout = TimeSpan.FromSeconds(15)
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("WhatsappH-App", Constants.AppVersion))
+        _httpClient.DefaultRequestHeaders.Accept.Add(New MediaTypeWithQualityHeaderValue("application/json"))
+    End Sub
 
-    Private Shared Function GetUpdateVersionFile(settings As SettingsController) As String
-        Return If(settings.UseBetaChannel, Constants.UpdateVersionFileBeta, Constants.UpdateVersionFile)
+    Private Shared Function CleanVersionString(verStr As String) As String
+        If String.IsNullOrWhiteSpace(verStr) Then Return String.Empty
+        Dim clean = verStr.Trim()
+        If clean.StartsWith("v", StringComparison.OrdinalIgnoreCase) Then
+            clean = clean.Substring(1)
+        End If
+        Return clean
     End Function
 
     Private Shared Function IsNewerVersion(remote As String, current As String) As Boolean
-        Dim rParts = remote.Split("."c)
-        Dim cParts = current.Split("."c)
+        Dim cleanRemote = CleanVersionString(remote)
+        Dim cleanCurrent = CleanVersionString(current)
+
+        Dim rParts = cleanRemote.Split("."c)
+        Dim cParts = cleanCurrent.Split("."c)
         For i As Integer = 0 To Math.Min(rParts.Length, cParts.Length) - 1
             Dim rVal As Integer = 0
             Dim cVal As Integer = 0
@@ -29,7 +43,9 @@ Public Class UpdateChecker
         Return rParts.Length > cParts.Length
     End Function
 
-    ' Controlla se esiste una versione più recente sul repository OTA
+    ''' <summary>
+    ''' Controlla la presenza di aggiornamenti su GitHub Releases.
+    ''' </summary>
     Public Shared Async Function CheckForUpdatesAsync(
         settings As SettingsController,
         accountManager As AccountManager,
@@ -45,138 +61,178 @@ Public Class UpdateChecker
             Return
         End If
 
-        ' If running directly from the OTA repository, skip update
-        Dim updateFilesPath = GetUpdateFilesPath(settings)
-        If installDir.TrimEnd("\"c).Equals(updateFilesPath.TrimEnd("\"c), StringComparison.OrdinalIgnoreCase) Then
-            Debug.WriteLine("Running directly from OTA repository, update check skipped.")
-            If force Then
-                MessageBox.Show(
-                    "L'applicazione è in esecuzione direttamente dal repository OTA." & vbCrLf &
-                    "Copia l'applicazione in una cartella locale per utilizzare l'aggiornamento automatico.",
-                    "Aggiornamento",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information
-                )
-            End If
-            Return
-        End If
-
-        Dim latestVersion = Await ReadVersionFromFileAsync(settings)
-
-        If String.IsNullOrEmpty(latestVersion) Then
-            Debug.WriteLine("Update check failed: could not read version file.")
-            If force Then
-                Dim versionFile = GetUpdateVersionFile(settings)
-                MessageBox.Show(
-                    "Impossibile leggere il file degli aggiornamenti." & vbCrLf &
-                    "Verifica la connettività al percorso di rete: " & versionFile,
-                    "Errore connessione",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error
-                )
-            End If
-            Return
-        End If
-
-        Debug.WriteLine($"Current version: {Constants.AppVersion}, Remote version: {latestVersion}")
-
-        If IsNewerVersion(latestVersion, Constants.AppVersion) Then
-            Await PerformUpdateAsync(latestVersion, installDir, settings)
-        ElseIf latestVersion <> Constants.AppVersion Then
-            Debug.WriteLine($"Remote version ({latestVersion}) is older than current ({Constants.AppVersion}), skipping.")
-            If force Then
-                MessageBox.Show(
-                    "La versione remota (" & latestVersion & ") è precedente a quella corrente (" & Constants.AppVersion & ")." & vbCrLf &
-                    "Nessun aggiornamento disponibile.",
-                    "Aggiornamento",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information
-                )
-            End If
-        Else
-            If force Then
-                MessageBox.Show(
-                    "Hai già la versione più recente!",
-                    "Aggiornato",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information
-                )
-            End If
-        End If
-    End Function
-
-    Private Shared Async Function ReadVersionFromFileAsync(settings As SettingsController) As Task(Of String)
         Try
-            Return (Await File.ReadAllTextAsync(GetUpdateVersionFile(settings))).Trim()
+            ' 1. Tenta verifica via GitHub Releases API
+            Dim releaseInfo = Await FetchGitHubReleaseInfoAsync(settings.UseBetaChannel)
+            If releaseInfo IsNot Nothing Then
+                Dim remoteVersion = releaseInfo.Version
+                Dim downloadUrl = releaseInfo.DownloadUrl
+
+                Debug.WriteLine($"GitHub Release check: Current={Constants.AppVersion}, Remote={remoteVersion}")
+
+                If IsNewerVersion(remoteVersion, Constants.AppVersion) Then
+                    If Not String.IsNullOrEmpty(downloadUrl) Then
+                        Await PerformUpdateFromGitHubAsync(remoteVersion, downloadUrl, installDir, settings)
+                        Return
+                    Else
+                        Debug.WriteLine("GitHub release found but no ZIP asset attached.")
+                    End If
+                ElseIf remoteVersion = Constants.AppVersion Then
+                    If force Then
+                        MessageBox.Show(
+                            "Hai già la versione più recente (v" & Constants.AppVersion & ")!",
+                            "Aggiornato",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information
+                        )
+                    End If
+                    Return
+                Else
+                    If force Then
+                        MessageBox.Show(
+                            "La versione remota (v" & remoteVersion & ") è precedente o uguale a quella corrente (v" & Constants.AppVersion & ").",
+                            "Aggiornamento",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information
+                        )
+                    End If
+                    Return
+                End If
+            End If
+
         Catch ex As Exception
-            Debug.WriteLine($"Error reading version file: {ex.Message}")
-            Return Nothing
+            Debug.WriteLine($"GitHub update check error: {ex.Message}")
         End Try
+
+        ' 2. Fallback su percorsi di rete locale (se configurati e accessibili)
+        Await CheckLocalOtaFallbackAsync(settings, installDir, force)
     End Function
 
-    ' Scarica i nuovi file dall'OTA, genera un batch e riavvia l'app
-    Private Shared Async Function PerformUpdateAsync(latestVersion As String, installDir As String, settings As SettingsController) As Task
-        Dim updateFilesPath = GetUpdateFilesPath(settings)
-        Await Task.Run(Sub()
-            Try
-                ' Verify we can write to the install directory
-                Dim testFile = Path.Combine(installDir, ".update_test")
-                Try
-                    File.WriteAllText(testFile, "test")
-                    File.Delete(testFile)
-                Catch
-                    Application.Current.Dispatcher.Invoke(Sub()
-                        MessageBox.Show(
-                            "Impossibile aggiornare automaticamente." & vbCrLf &
-                            "L'applicazione non ha i permessi di scrittura nella cartella di installazione." & vbCrLf & vbCrLf &
-                            "Esegui l'applicazione da una cartella locale (es. C:\Programmi\WhatsAppVB)" & vbCrLf &
-                            "oppure copia manualmente i file da:" & vbCrLf &
-                            updateFilesPath & vbCrLf & vbCrLf &
-                            "Versione disponibile: " & latestVersion,
-                            "Aggiornamento non disponibile",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning
-                        )
-                    End Sub)
-                    Return
-                End Try
+    Private Class ReleaseInfo
+        Public Property Version As String = String.Empty
+        Public Property DownloadUrl As String = String.Empty
+        Public Property Notes As String = String.Empty
+    End Class
 
-                Dim tempDir = Path.Combine(Path.GetTempPath(), "WhatsAppVB_Update")
+    Private Shared Async Function FetchGitHubReleaseInfoAsync(useBeta As Boolean) As Task(Of ReleaseInfo)
+        Dim apiUrl = If(useBeta, Constants.GitHubReleasesApiUrl, Constants.GitHubLatestReleaseApiUrl)
+        
+        Dim response = Await _httpClient.GetAsync(apiUrl)
+        If Not response.IsSuccessStatusCode Then
+            Debug.WriteLine($"GitHub API response code: {response.StatusCode}")
+            Return Nothing
+        End If
 
-                If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
-                Directory.CreateDirectory(tempDir)
+        Dim jsonText = Await response.Content.ReadAsStringAsync()
+        Using doc As JsonDocument = JsonDocument.Parse(jsonText)
+            Dim root = doc.RootElement
 
-                ' Copia solo i file dell'app, ESCLUDE cartella data\ e file utente (settings, cache traduzioni, version)
-                For Each f In Directory.EnumerateFiles(updateFilesPath, "*.*", SearchOption.AllDirectories)
-                    Dim relPath = f.Substring(updateFilesPath.TrimEnd("\"c).Length + 1)
-                    ' Salta dati utente e metadati
-                    If relPath.StartsWith("data\", StringComparison.OrdinalIgnoreCase) Then Continue For
-                    If relPath.Equals("settings.json", StringComparison.OrdinalIgnoreCase) Then Continue For
-                    If relPath.Equals("translations_cache.json", StringComparison.OrdinalIgnoreCase) Then Continue For
-                    If relPath.Equals("version.txt", StringComparison.OrdinalIgnoreCase) Then Continue For
-                    Dim destFile = Path.Combine(tempDir, relPath)
-                    Dim destDir = Path.GetDirectoryName(destFile)
-                    If Not Directory.Exists(destDir) Then Directory.CreateDirectory(destDir)
-                    IO.File.Copy(f, destFile, True)
+            ' Se beta, l'endpoint è un array di releases
+            Dim releaseElement As JsonElement = root
+            If root.ValueKind = JsonValueKind.Array Then
+                If root.GetArrayLength() = 0 Then Return Nothing
+                releaseElement = root(0)
+            End If
+
+            Dim tagName = If(releaseElement.TryGetProperty("tag_name", Nothing), releaseElement.GetProperty("tag_name").GetString(), "")
+            Dim cleanVer = CleanVersionString(tagName)
+
+            Dim notes = If(releaseElement.TryGetProperty("body", Nothing), releaseElement.GetProperty("body").GetString(), "")
+
+            ' Trova l'asset .zip nei file allegati alla release
+            Dim zipUrl As String = String.Empty
+            If releaseElement.TryGetProperty("assets", Nothing) Then
+                For Each asset In releaseElement.GetProperty("assets").EnumerateArray()
+                    Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
+                    If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
+                        zipUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
+                        Exit For
+                    End If
                 Next
+            End If
 
-                ' Merge nuove chiavi da settings.json dell'OTA nel settings.json locale
-                MergeSettingsFromOta(installDir, updateFilesPath)
+            Return New ReleaseInfo With {
+                .Version = cleanVer,
+                .DownloadUrl = zipUrl,
+                .Notes = notes
+            }
+        End Using
+    End Function
 
-                ' Marca la versione locale prima del riavvio per evitare loop di aggiornamento
-                WriteLocalVersionMarker(installDir, latestVersion)
+    ''' <summary>
+    ''' Scarica l'archivio ZIP da GitHub Releases, estrae i file e riavvia l'applicazione tramite batch.
+    ''' </summary>
+    Private Shared Async Function PerformUpdateFromGitHubAsync(
+        latestVersion As String,
+        downloadUrl As String,
+        installDir As String,
+        settings As SettingsController
+    ) As Task
+        ' Verifica permessi di scrittura nella cartella corrente
+        Dim testFile = Path.Combine(installDir, ".update_test")
+        Try
+            File.WriteAllText(testFile, "test")
+            File.Delete(testFile)
+        Catch
+            MessageBox.Show(
+                "Impossibile aggiornare automaticamente." & vbCrLf &
+                "L'applicazione non ha i permessi di scrittura nella cartella di installazione." & vbCrLf & vbCrLf &
+                "Sposta l'applicazione in una cartella locale scrivibile (es. C:\Programmi\WhatsappH)" & vbCrLf &
+                "Versione disponibile su GitHub: v" & latestVersion,
+                "Permessi insufficienti",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            )
+            Return
+        End Try
 
-                Dim logFile = Path.Combine(installDir, ".update_log.txt")
-                Dim batchPath = Path.Combine(tempDir, "update.bat")
-                Dim batchContent = $"@echo off
-title Aggiornamento WhatsAppVB...
+        Dim result = MessageBox.Show(
+            $"È disponibile una nuova versione di WhatsappH (v{latestVersion})!" & vbCrLf & vbCrLf &
+            "Desideri scaricare ed installare l'aggiornamento ora?",
+            "Aggiornamento Disponibile",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question
+        )
+
+        If result <> MessageBoxResult.Yes Then Return
+
+        Dim tempZipPath = Path.Combine(Path.GetTempPath(), "WhatsappH_Update.zip")
+        Dim tempDir = Path.Combine(Path.GetTempPath(), "WhatsappH_Update")
+
+        Try
+            ' 1. Scarica lo ZIP da GitHub
+            Debug.WriteLine($"Downloading update zip from: {downloadUrl}")
+            Dim zipBytes = Await _httpClient.GetByteArrayAsync(downloadUrl)
+            Await File.WriteAllBytesAsync(tempZipPath, zipBytes)
+
+            ' 2. Estrai l'archivio
+            If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
+            Directory.CreateDirectory(tempDir)
+            ZipFile.ExtractToDirectory(tempZipPath, tempDir, True)
+
+            ' Gestisci eventuale sottocartella singola estratta dallo ZIP
+            Dim sourceDir = tempDir
+            Dim subDirs = Directory.GetDirectories(tempDir)
+            Dim exeInTemp = Directory.GetFiles(tempDir, "WhatsappH.exe", SearchOption.AllDirectories)
+            If exeInTemp.Length > 0 Then
+                sourceDir = Path.GetDirectoryName(exeInTemp(0))
+            End If
+
+            ' Marca la versione locale prima del riavvio
+            WriteLocalVersionMarker(installDir, latestVersion)
+
+            ' 3. Crea ed esegui lo script batch di sostituzione file
+            Dim logFile = Path.Combine(installDir, ".update_log.txt")
+            Dim batchPath = Path.Combine(tempDir, "update.bat")
+            Dim batchContent = $"@echo off
+title Aggiornamento WhatsappH...
 set LOG=""{logFile}""
 echo [%date% %time%] Starting update > %LOG%
 set RETRY=0
 :waitloop
-echo [%date% %time%] Waiting for WhatsAppVB.exe to exit... >> %LOG%
+echo [%date% %time%] Waiting for WhatsappH.exe to exit... >> %LOG%
 timeout /t 2 /nobreak > nul
-tasklist /fi ""IMAGENAME eq WhatsAppVB.exe"" 2>>%LOG% | find /i ""WhatsAppVB.exe"" >nul
+tasklist /fi ""IMAGENAME eq WhatsappH.exe"" 2>>%LOG% | find /i ""WhatsappH.exe"" >nul
 if errorlevel 1 goto continue
 set /a RETRY=RETRY+1
 if %RETRY% GEQ 5 (
@@ -186,7 +242,7 @@ if %RETRY% GEQ 5 (
 goto waitloop
 :continue
 echo [%date% %time%] Process exited, copying files... >> %LOG%
-robocopy ""{tempDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 >> %LOG%
+robocopy ""{sourceDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 >> %LOG%
 set RC=%ERRORLEVEL%
 echo [%date% %time%] Robocopy exit code: %RC% >> %LOG%
 if %RC% GEQ 8 (
@@ -195,99 +251,67 @@ if %RC% GEQ 8 (
     pause
     exit /b 1
 )
-echo {latestVersion}>""{installDir}\.app_version""
+echo v{latestVersion}>""{installDir}\.app_version""
 echo [%date% %time%] Version marker written >> %LOG%
 echo [%date% %time%] Launching app... >> %LOG%
-start """" ""{installDir}\WhatsAppVB.exe""
+start """" ""{installDir}\WhatsappH.exe""
 echo [%date% %time%] Done >> %LOG%
 del ""%~f0""
 "
-                File.WriteAllText(batchPath, batchContent)
+            File.WriteAllText(batchPath, batchContent)
 
-                Process.Start(New ProcessStartInfo With {
-                    .FileName = batchPath,
-                    .UseShellExecute = True
-                })
+            Process.Start(New ProcessStartInfo With {
+                .FileName = batchPath,
+                .UseShellExecute = True
+            })
 
-                Application.Current.Dispatcher.Invoke(Sub()
-                    Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
-                    If mainWin IsNot Nothing Then
-                        mainWin.ForceExitForUpdate()
-                    End If
-                    Application.Current.Shutdown()
-                End Sub)
-
-            Catch ex As Exception
-                Debug.WriteLine($"Update failed: {ex.Message}")
-                Application.Current.Dispatcher.Invoke(Sub()
-                    MessageBox.Show(
-                        "Aggiornamento fallito: " & ex.Message,
-                        "Errore",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error
-                    )
-                End Sub)
-            End Try
-        End Sub)
-    End Function
-    ' Legge il settings.json dell'OTA e aggiunge le chiavi mancanti al settings.json locale
-    Private Shared Sub MergeSettingsFromOta(installDir As String, updateFilesPath As String)
-        Try
-            Dim otaSettingsPath = Path.Combine(updateFilesPath, "settings.json")
-            Dim localSettingsPath As String = Nothing
-            ' Cerca settings.json: prima in base, poi in data\
-            Dim basePath = Path.Combine(installDir, "settings.json")
-            If File.Exists(basePath) Then
-                localSettingsPath = basePath
-            Else
-                Dim dataPath = Path.Combine(installDir, "data", "settings.json")
-                If File.Exists(dataPath) Then localSettingsPath = dataPath
-            End If
-
-            If Not File.Exists(otaSettingsPath) OrElse localSettingsPath Is Nothing Then Return
-
-            Dim otaJson = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(
-                File.ReadAllText(otaSettingsPath))
-            Dim localJson = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(
-                File.ReadAllText(localSettingsPath))
-
-            Dim hasNewKeys As Boolean = False
-            For Each kvp In otaJson
-                If Not localJson.ContainsKey(kvp.Key) Then
-                    localJson(kvp.Key) = kvp.Value
-                    hasNewKeys = True
+            Application.Current.Dispatcher.Invoke(Sub()
+                Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
+                If mainWin IsNot Nothing Then
+                    mainWin.ForceExitForUpdate()
                 End If
-            Next
+                Application.Current.Shutdown()
+            End Sub)
 
-            If hasNewKeys Then
-                Dim options As New JsonSerializerOptions With {.WriteIndented = True}
-                File.WriteAllText(localSettingsPath, JsonSerializer.Serialize(localJson, options))
-                Debug.WriteLine("Merge completato: nuove chiavi aggiunte da OTA settings.json")
+        Catch ex As Exception
+            Debug.WriteLine($"Update execution failed: {ex.Message}")
+            MessageBox.Show(
+                "Errore durante l'installazione dell'aggiornamento: " & ex.Message,
+                "Errore Aggiornamento",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+        Finally
+            Try
+                If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
+            Catch
+            End Try
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Fallback per controllo aggiornamenti da cartella di rete locale.
+    ''' </summary>
+    Private Shared Async Function CheckLocalOtaFallbackAsync(settings As SettingsController, installDir As String, force As Boolean) As Task
+        Try
+            Dim versionFile = If(settings.UseBetaChannel, Constants.UpdateVersionFileBeta, Constants.UpdateVersionFile)
+            If Not File.Exists(versionFile) Then Return
+
+            Dim latestVersion = (Await File.ReadAllTextAsync(versionFile)).Trim()
+            Dim cleanVer = CleanVersionString(latestVersion)
+
+            If IsNewerVersion(cleanVer, Constants.AppVersion) Then
+                Debug.WriteLine($"Local OTA update found: v{cleanVer}")
             End If
         Catch ex As Exception
-            Debug.WriteLine($"Merge settings failed (non bloccante): {ex.Message}")
+            Debug.WriteLine($"Local OTA fallback check error: {ex.Message}")
         End Try
-    End Sub
-
-    ' Legge il marker .app_version locale e verifica se corrisponde alla versione corrente
-    Private Shared Function IsLocalVersionCurrent(installDir As String) As Boolean
-        Try
-            Dim markerPath = Path.Combine(installDir, ".app_version")
-            If File.Exists(markerPath) Then
-                Dim localVersion = File.ReadAllText(markerPath).Trim()
-                Return localVersion = Constants.AppVersion
-            End If
-        Catch
-        End Try
-        Return False
     End Function
 
-    ' Scrive il marker .app_version nella directory di installazione
     Private Shared Sub WriteLocalVersionMarker(installDir As String, version As String)
         Try
             Dim markerPath = Path.Combine(installDir, ".app_version")
             File.WriteAllText(markerPath, version.Trim())
-            Debug.WriteLine($"Local version marker written: {version}")
         Catch ex As Exception
             Debug.WriteLine($"Failed to write local version marker: {ex.Message}")
         End Try

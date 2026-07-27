@@ -3,7 +3,13 @@ Imports System.IO
 Public Module Constants
     Public Const AppVersion As String = "0.1.0"
 
-    ' Percorsi OTA (modificabili a livello di sorgente)
+    ' Configurazione GitHub Releases OTA
+    Public Const GitHubOwner As String = "hidaba"
+    Public Const GitHubRepo As String = "WhatsAppH"
+    Public Const GitHubReleasesApiUrl As String = "https://api.github.com/repos/hidaba/WhatsAppH/releases"
+    Public Const GitHubLatestReleaseApiUrl As String = "https://api.github.com/repos/hidaba/WhatsAppH/releases/latest"
+
+    ' Percorsi di fallback OTA locale (opzionali)
     Public Const UpdateFilesPath As String = "\\192.168.1.4\massimo\OTARepository\WhatsappH"
     Public Const UpdateFilesPathBeta As String = "\\192.168.1.4\massimo\OTARepository\WhatsappHBeta"
 

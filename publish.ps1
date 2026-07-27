@@ -1,7 +1,7 @@
 param(
     [ValidateSet("major", "minor", "patch", "none")]
-    [string]$Bump = "patch",
-    [string]$OtaDest = "",
+    [string]$Bump = "none",
+    [switch]$SkipGitHub,
     [switch]$Beta
 )
 
@@ -9,23 +9,10 @@ $constantsPath = Join-Path $PSScriptRoot "Constants.vb"
 $changelogPath = Join-Path $PSScriptRoot "CHANGELOG.md"
 $sourceDir = "$PSScriptRoot\bin\Release\net9.0-windows10.0.19041.0"
 
-# --- Read Constants.vb for Version & OTA Path ---
+# --- Read Constants.vb for Version ---
 $content = Get-Content $constantsPath -Raw
-
-if ([string]::IsNullOrWhiteSpace($OtaDest)) {
-    $otaVarName = if ($Beta) { "UpdateFilesPathBeta" } else { "UpdateFilesPath" }
-    $otaMatch = [regex]::Match($content, "$otaVarName\s+As\s+String\s*=\s*`"([^`"]+)`"")
-    if ($otaMatch.Success) {
-        $OtaDest = $otaMatch.Groups[1].Value.TrimEnd('\')
-    } else {
-        throw "Impossibile estrarre $otaVarName da Constants.vb"
-    }
-}
-
-$otaDest = $OtaDest
-$versionFile = Join-Path $otaDest "version.txt"
 $match = [regex]::Match($content, 'AppVersion As String = "(\d+)\.(\d+)\.(\d+)"')
-if (-not $match.Success) { throw "Cannot parse version" }
+if (-not $match.Success) { throw "Cannot parse version from Constants.vb" }
 
 $major = [int]$match.Groups[1].Value
 $minor = [int]$match.Groups[2].Value
@@ -43,19 +30,19 @@ $newVersion = "$major.$minor.$patch"
 $oldVersion = "$($match.Groups[1].Value).$($match.Groups[2].Value).$($match.Groups[3].Value)"
 
 if ($Bump -ne "none") {
-    Write-Host "Version: $oldVersion -> $newVersion"
-    # Check changelog has entry for new version
+    Write-Host "Version bump: $oldVersion -> $newVersion"
+    # Check CHANGELOG.md
     $cl = Get-Content $changelogPath -Raw
     if ($cl -notmatch "## \[$newVersion\]") {
         Write-Host "ERROR: CHANGELOG.md has no entry for version $newVersion !"
         Write-Host "Add it before publishing."
         exit 1
     }
-    # Write bumped version to Constants.vb
+    # Update Constants.vb
     $newContent = $content -replace 'AppVersion As String = "[\d\.]+"', "AppVersion As String = `"$newVersion`""
     Set-Content $constantsPath $newContent -NoNewline
 } else {
-    Write-Host "Version: $newVersion (no bump)"
+    Write-Host "Publishing Version: $newVersion (no bump)"
 }
 
 # --- Build ---
@@ -63,32 +50,49 @@ Write-Host "Building Release..."
 dotnet build -c Release --nologo $PSScriptRoot 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
-# --- Copy to OTA ---
-Write-Host "Copying to OTA..."
+# --- Create Staging & Zip Package ---
+$stagingDir = Join-Path $PSScriptRoot "bin\Release\staging"
+$zipPath = Join-Path $PSScriptRoot "bin\Release\WhatsappH-v$newVersion.zip"
 
-# Ensure destination exists
-if (-not (Test-Path $otaDest)) { New-Item -ItemType Directory -Path $otaDest -Force | Out-Null }
+if (Test-Path $stagingDir) { Remove-Item -Path $stagingDir -Recurse -Force }
+if (Test-Path $zipPath) { Remove-Item -Path $zipPath -Force }
 
-# Copy root files (exclude user/data files + unnecessary build artifacts)
+New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+# Copy release binaries to staging (excluding settings.json, cache, pdbs)
 Get-ChildItem $sourceDir -File | Where-Object {
-    $_.Name -notin @("settings.json", "translations_cache.json", "version.txt") -and
+    $_.Name -notin @("settings.json", "translations_cache.json", "version.txt", ".app_version") -and
     $_.Extension -notin @(".pdb", ".xml")
-} | Copy-Item -Destination $otaDest -Force
+} | Copy-Item -Destination $stagingDir -Force
 
-# Copy subdirectories (images, runtimes)
 foreach ($folder in @("images", "runtimes")) {
     $src = Join-Path $sourceDir $folder
-    $dst = Join-Path $otaDest $folder
+    $dst = Join-Path $stagingDir $folder
     if (Test-Path $src) {
-        if (-not (Test-Path $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
-        Copy-Item -Path "$src\*" -Destination $dst -Recurse -Force
+        Copy-Item -Path $src -Destination $dst -Recurse -Force
     }
 }
 
-# Post-copy cleanup: remove any stray .pdb / .xml at root
-Get-ChildItem $otaDest -File | Where-Object { $_.Extension -in @(".pdb", ".xml") } | Remove-Item -Force
+# Zip staging directory
+Write-Host "Creating ZIP package: $zipPath ..."
+Compress-Archive -Path "$stagingDir\*" -DestinationPath $zipPath -Force
 
-# --- Update version.txt ---
-$newVersion | Set-Content $versionFile -NoNewline
+# --- Create GitHub Release ---
+if (-not $SkipGitHub) {
+    Write-Host "Publishing GitHub Release v$newVersion..."
+    $tagName = "v$newVersion"
+    $title = "WhatsappH v$newVersion"
+    $betaFlag = if ($Beta) { "--prerelease" } else { "" }
+    
+    # Check if release tag already exists
+    $existingRelease = gh release view $tagName --repo hidaba/WhatsAppH 2>$null
+    if ($existingRelease) {
+        Write-Host "Updating existing GitHub Release $tagName..."
+        gh release upload $tagName "$zipPath#WhatsappH-v$newVersion.zip" --repo hidaba/WhatsAppH --clobber
+    } else {
+        Write-Host "Creating new GitHub Release $tagName..."
+        gh release create $tagName $zipPath --repo hidaba/WhatsAppH --title $title -F $changelogPath $betaFlag
+    }
+}
 
-Write-Host "OTA publish complete: $newVersion"
+Write-Host "Publish complete for WhatsappH v$newVersion !"
