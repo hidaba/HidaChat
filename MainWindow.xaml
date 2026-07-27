@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:WhatsAppVB"
+        xmlns:local="clr-namespace:WhatsappH"
         mc:Ignorable="d"
-        Title="WhatsApp" 
+        Title="WhatsappH" 
         Height="700" 
         Width="1000"
         WindowStyle="None"
@@ -99,7 +99,7 @@
                 <!-- Icon and Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
                     <Image Source="images/icon.ico" Width="20" Height="20" Margin="0,0,10,0"/>
-                    <TextBlock x:Name="TitleText" Text="WhatsApp" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TitleText" Text="WhatsappH" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Quick actions and window controls -->

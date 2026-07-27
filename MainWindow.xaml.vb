@@ -66,7 +66,7 @@ Public Class MainWindow
     Private Sub ConfigureSystemTray()
         _trayIcon = New System.Windows.Forms.NotifyIcon()
         UpdateTrayIconImage()
-        _trayIcon.Text = "WhatsApp Portable"
+        _trayIcon.Text = "WhatsappH Portable"
         _trayIcon.Visible = True
         
         ' Double click restores window

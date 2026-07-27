@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
-    <RootNamespace>WhatsAppVB</RootNamespace>
+    <RootNamespace>WhatsappH</RootNamespace>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>images\icon.ico</ApplicationIcon>

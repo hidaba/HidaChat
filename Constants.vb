@@ -4,8 +4,8 @@ Public Module Constants
     Public Const AppVersion As String = "0.1.0"
 
     ' Percorsi OTA (modificabili a livello di sorgente)
-    Public Const UpdateFilesPath As String = "\\192.168.1.4\massimo\OTARepository\Whatsapp"
-    Public Const UpdateFilesPathBeta As String = "\\192.168.1.4\massimo\OTARepository\WhatsappBeta"
+    Public Const UpdateFilesPath As String = "\\192.168.1.4\massimo\OTARepository\WhatsappH"
+    Public Const UpdateFilesPathBeta As String = "\\192.168.1.4\massimo\OTARepository\WhatsappHBeta"
 
     Public ReadOnly Property UpdateVersionFile As String
         Get
