@@ -2,6 +2,10 @@ Imports System.Net.Http
 Imports System.Text.Json
 Imports System.Threading.Tasks
 
+''' <summary>
+
+''' Modulo helper per la gestione del supporto multilingua e l'interrogazione dell'API di traduzione Google Translate.
+''' </summary>
 Public Module AppLanguages
     Private ReadOnly SharedHttpClient As New HttpClient()
 
@@ -9,12 +13,18 @@ Public Module AppLanguages
         "ar", "fa", "he", "iw", "ur", "yi", "ps", "sd", "ug", "syc"
     }
 
+    ''' <summary>
+    ''' Restituisce true se il codice lingua specificato utilizza l'orientamento di scrittura da destra a sinistra (RTL).
+    ''' </summary>
     Public Function IsRtl(code As String) As Boolean
         If String.IsNullOrEmpty(code) Then Return False
         Dim baseCode = code.Split("-"c)(0)
         Return RtlCodes.Contains(baseCode)
     End Function
 
+    ''' <summary>
+    ''' Recupera l'elenco delle lingue supportate interrogando l'API REST di Google Translate.
+    ''' </summary>
     Public Async Function FetchSupportedLanguages() As Task(Of List(Of LanguageInfo))
         Dim langs As New List(Of LanguageInfo)()
         Try
@@ -39,6 +49,9 @@ Public Module AppLanguages
     End Function
 End Module
 
+''' <summary>
+''' Gestisce i dizionari di localizzazione dell'interfaccia utente (Inglese e Italiano) e il servizio di traduzione automatica.
+''' </summary>
 Public Class AppLocalizations
     Private Shared ReadOnly SharedHttpClient As New HttpClient()
     Private ReadOnly _translations As Dictionary(Of String, String)
@@ -47,6 +60,7 @@ Public Class AppLocalizations
         _translations = If(translations, New Dictionary(Of String, String)())
     End Sub
 
+    ''' <summary>Dizionario di localizzazione di fallback per l'interfaccia in lingua Inglese.</summary>
     Public Shared ReadOnly EnStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
         {"settings", "Settings"},
         {"theme", "Theme"},
@@ -83,6 +97,9 @@ Public Class AppLocalizations
         {"show_message_popup", "Show message popup"}
     }
 
+    ''' <summary>
+    ''' Restituisce la stringa localizzata per la chiave fornita, applicando eventuali argomenti di formattazione.
+    ''' </summary>
     Public Function [Get](key As String, Optional args As Dictionary(Of String, String) = Nothing) As String
         Dim value As String = Nothing
         If Not _translations.TryGetValue(key, value) Then
@@ -136,6 +153,9 @@ Public Class AppLocalizations
         End Try
     End Function
 
+    ''' <summary>
+    ''' Traduce una singola stringa di testo nella lingua di destinazione specificata interrogando l'API Google Translate.
+    ''' </summary>
     Public Shared Async Function TranslateSingle(text As String, targetLang As String) As Task(Of String)
         Return Await TranslateTextInternal(SharedHttpClient, text, targetLang)
     End Function
@@ -167,6 +187,8 @@ Public Class AppLocalizations
         End Try
         Return text
     End Function
+
+    ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Italiana.</summary>
     Public Shared ReadOnly ItStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
         {"settings", "Impostazioni"},
         {"theme", "Tema"},
@@ -204,7 +226,11 @@ Public Class AppLocalizations
     }
 End Class
 
+''' <summary>
+''' Rappresenta le informazioni di una lingua supportata nell'interfaccia (Nome visualizzato e Codice ISO).
+''' </summary>
 Public Class LanguageInfo
     Public Property Name As String
     Public Property Code As String
 End Class
+

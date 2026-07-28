@@ -6,6 +6,11 @@ Imports Microsoft.Web.WebView2.Wpf
 Imports Microsoft.Toolkit.Uwp.Notifications
 Imports System.Text.Json
 
+''' <summary>
+
+''' Rappresenta un singolo account WhatsApp Web, gestione dell'istanza WebView2 associata, 
+''' token di sicurezza per IPC e gestione di notifiche e traduzioni.
+''' </summary>
 Public Class WhatsAppAccount
     Implements INotifyPropertyChanged
     Implements IDisposable
@@ -15,13 +20,16 @@ Public Class WhatsAppAccount
     Private Shared ReadOnly _randLock As New Object()
     Private Shared ReadOnly _rand As New Random()
 
+    ''' <summary>Identificativo univoco dell'account (es. account_1680000000000).</summary>
     <JsonPropertyName("id")>
     Public Property Id As String
 
+    ''' <summary>Nome personalizzato visualizzato nelle schede e impostazioni.</summary>
     <JsonPropertyName("name")>
     Public Property Name As String
 
     Private _isActive As Boolean
+    ''' <summary>Indica se l'account è attualmente attivo e visibile nella finestra principale.</summary>
     <JsonPropertyName("isActive")>
     Public Property IsActive As Boolean
         Get
@@ -35,17 +43,19 @@ Public Class WhatsAppAccount
         End Set
     End Property
     
+    ''' <summary>Indica se vi sono notifiche pendenti non lette per questo account.</summary>
     <JsonIgnore>
     Public Property HasNotification As Boolean
     
+    ''' <summary>Token di sicurezza generato ad ogni sessione per validare i messaggi IPC provenienti dal JavaScript della WebView.</summary>
     <JsonIgnore>
     Public Property BridgeToken As String
     
+    ''' <summary>Controllo WPF WebView2 dinamico associato all'account.</summary>
     <JsonIgnore>
     Public Property WebView As WebView2
     
-
-    
+    ''' <summary>Insieme degli identificativi delle notifiche attualmente attive per questo account.</summary>
     <JsonIgnore>
     Public ReadOnly Property ActiveNotificationIds As New HashSet(Of String)()
 
@@ -57,16 +67,19 @@ Public Class WhatsAppAccount
     Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
 
+    ''' <summary>Percorso base per il salvataggio dei profili WebView2 isolati degli account.</summary>
     Public Shared ReadOnly Property SharedDataDirectory As String
         Get
             Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "webview")
         End Get
     End Property
 
+    ''' <summary>Genera un identificativo alfanumerico univoco basato sul timestamp corrente.</summary>
     Public Shared Function GenerateId() As String
         Return "account_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
     End Function
 
+    ''' <summary>Genera un token casuale di sicurezza per la validazione della comunicazione IPC.</summary>
     Private Shared Function GenerateBridgeToken() As String
         Dim val As Integer
         SyncLock _randLock
@@ -86,6 +99,10 @@ Public Class WhatsAppAccount
         BridgeToken = GenerateBridgeToken()
     End Sub
 
+    ''' <summary>
+    ''' Configura l'ambiente isolato della WebView2, inietta gli script JavaScript per l'intercettazione delle notifiche e traduzioni,
+    ''' e naviga verso la pagina di WhatsApp Web.
+    ''' </summary>
     Public Async Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
 
@@ -213,6 +230,10 @@ Public Class WhatsAppAccount
         End Try
     End Function
 
+    ''' <summary>
+    ''' Gestisce i messaggi IPC JSON inviati dalla WebView2 tramite `window.chrome.webview.postMessage`.
+    ''' Verifica la validità del token prima dell'elaborazione.
+    ''' </summary>
     Private Async Function HandleWebMessageAsync(messageJson As String, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         Debug.WriteLine($"[WebMessageReceived] accountId={Id}, RAW JSON: {messageJson}")
         Try
@@ -237,6 +258,9 @@ Public Class WhatsAppAccount
         End Try
     End Function
 
+    ''' <summary>
+    ''' Gestisce la ricezione o chiusura delle notifiche dai messaggi IPC e attiva le notifiche Toast o Popup della UI.
+    ''' </summary>
     Private Function HandleNotificationMessageAsync(root As JsonElement, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         Dim type = root.GetProperty("type").GetString()
         Dim notificationId = root.GetProperty("id").GetString()
@@ -285,6 +309,9 @@ Public Class WhatsAppAccount
         Return Task.CompletedTask
     End Function
 
+    ''' <summary>
+    ''' Elabora le richieste di traduzione singole o batch provenienti dal layer JavaScript della WebView.
+    ''' </summary>
     Private Async Function HandleTranslationMessageAsync(root As JsonElement) As Task
         Dim id = root.GetProperty("id").GetString()
         Dim targetLang = root.GetProperty("targetLang").GetString()
@@ -378,6 +405,9 @@ Public Class WhatsAppAccount
         End If
     End Function
 
+    ''' <summary>
+    ''' Notifica alla WebView2 l'aggiornamento della lingua di destinazione per le traduzioni messaggi.
+    ''' </summary>
     Public Async Function UpdateWebviewLanguageAsync(langCode As String, langName As String, translateTooltipLabel As String, enableHover As Boolean) As Task
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
@@ -389,6 +419,9 @@ Public Class WhatsAppAccount
         End If
     End Function
 
+    ''' <summary>
+    ''' Rimuove tutti gli event handler registrati sulla WebView2 e libera le risorse allocate.
+    ''' </summary>
     Public Sub Dispose() Implements IDisposable.Dispose
         Try
             If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
@@ -421,3 +454,4 @@ Public Class WhatsAppAccount
         End Try
     End Sub
 End Class
+

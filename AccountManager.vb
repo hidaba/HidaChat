@@ -4,6 +4,11 @@ Imports System.ComponentModel
 Imports System.Collections.ObjectModel
 Imports System.Runtime.CompilerServices
 
+''' <summary>
+
+''' Gestisce la collezione di account WhatsApp, la selezione dell'account attivo, 
+''' il caricamento/salvataggio delle preferenze su file JSON e la pulizia delle cartelle di profilo.
+''' </summary>
 Public Class AccountManager
     Implements INotifyPropertyChanged
 
@@ -17,6 +22,10 @@ Public Class AccountManager
     Private _isDirty As Boolean = False
 
     Private _accounts As New ObservableCollection(Of WhatsAppAccount)()
+
+    ''' <summary>
+    ''' Collezione osservabile di tutti gli account WhatsApp configurati.
+    ''' </summary>
     Public Property Accounts As ObservableCollection(Of WhatsAppAccount)
         Get
             Return _accounts
@@ -29,6 +38,10 @@ Public Class AccountManager
     End Property
 
     Private _currentAccount As WhatsAppAccount
+
+    ''' <summary>
+    ''' Account WhatsApp attualmente selezionato e visualizzato nell'interfaccia.
+    ''' </summary>
     Public Property CurrentAccount As WhatsAppAccount
         Get
             Return _currentAccount
@@ -43,6 +56,10 @@ Public Class AccountManager
     End Property
 
     Private _hasAnyNotification As Boolean = False
+
+    ''' <summary>
+    ''' Indica se almeno un account ha notifiche attive non lette.
+    ''' </summary>
     Public Property HasAnyNotification As Boolean
         Get
             Return _hasAnyNotification
@@ -56,6 +73,10 @@ Public Class AccountManager
     End Property
 
     Private _isDialogOpen As Boolean = False
+
+    ''' <summary>
+    ''' Indica se una finestra di dialogo modale (es. Impostazioni) è attualmente aperta.
+    ''' </summary>
     Public Property IsDialogOpen As Boolean
         Get
             Return _isDialogOpen
@@ -72,6 +93,10 @@ Public Class AccountManager
         Me._settingsController = settingsController
     End Sub
 
+    ''' <summary>
+    ''' Carica in modo asincrono la lista degli account salvata nelle impostazioni.
+    ''' Se nessun account è memorizzato, crea un account predefinito.
+    ''' </summary>
     Public Async Function LoadAccountsAsync() As Task
         Dim settings = Await _settingsController.ReadSettingsAsync()
         
@@ -130,6 +155,9 @@ Public Class AccountManager
         Await CreateDefaultAccountAsync()
     End Function
 
+    ''' <summary>
+    ''' Verifica la presenza di una cartella di profilo WebView2 orfana (creata senza ID specificato) e la riassocia al primo account.
+    ''' </summary>
     Private Sub MigrateOrphanProfile()
         Try
             Dim orphanProfile = Path.Combine(WhatsAppAccount.SharedDataDirectory, "WV2Profile_")
@@ -165,10 +193,16 @@ Public Class AccountManager
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Rimuove eventuali profili non più associati ad alcun account attivo.
+    ''' </summary>
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
         Return Task.CompletedTask
     End Function
 
+    ''' <summary>
+    ''' Crea l'account predefinito ("Account 1") quando non è presente alcuna configurazione precedente.
+    ''' </summary>
     Private Async Function CreateDefaultAccountAsync() As Task
         Debug.WriteLine("CreateDefaultAccount: nessun account caricato, creo default")
         Dim existingId As String = Nothing
@@ -221,6 +255,10 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(CurrentAccount))
     End Function
 
+    ''' <summary>
+    ''' Salva l'elenco corrente degli account nel file di configurazione tramite SettingsController.
+    ''' </summary>
+    ''' <param name="force">Se true, forzatura del salvataggio anche se non ci sono modifiche rilevate.</param>
     Public Async Function SaveAccountsAsync(Optional force As Boolean = False) As Task
         If Not _isDirty AndAlso Not force Then Return
 
@@ -236,6 +274,10 @@ Public Class AccountManager
         _isDirty = False
     End Function
 
+    ''' <summary>
+    ''' Aggiunge un nuovo account WhatsApp alla collezione e ne salva le modifiche.
+    ''' </summary>
+    ''' <param name="name">Nome personalizzato facoltativo dell'account.</param>
     Public Async Function AddAccountAsync(Optional name As String = Nothing) As Task
         Dim accountId = WhatsAppAccount.GenerateId()
         Dim accountName = If(name, $"Account {_accounts.Count + 1}")
@@ -249,6 +291,10 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(Accounts))
     End Function
 
+    ''' <summary>
+    ''' Rimuove un account specificato, rilascio delle relative risorse WebView2 ed eliminazione dei dati di profilo da disco.
+    ''' </summary>
+    ''' <param name="accountId">Identificativo dell'account da rimuovere.</param>
     Public Async Function RemoveAccountAsync(accountId As String) As Task
         If _accounts.Count <= 1 Then
             Debug.WriteLine("Cannot remove the last account.")
@@ -291,6 +337,10 @@ Public Class AccountManager
         Await SaveAccountsAsync()
     End Function
 
+    ''' <summary>
+    ''' Cambia l'account attivo portando in primo piano l'account con l'ID fornito.
+    ''' </summary>
+    ''' <param name="accountId">Identificativo dell'account da attivare.</param>
     Public Async Function SwitchAccountAsync(accountId As String) As Task
         If _currentAccount IsNot Nothing AndAlso _currentAccount.Id = accountId Then Return
 
@@ -311,6 +361,9 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(CurrentAccount))
     End Function
 
+    ''' <summary>
+    ''' Aggiorna il nome visualizzato di un account specificato.
+    ''' </summary>
     Public Async Function UpdateAccountNameAsync(accountId As String, newName As String) As Task
         Dim account = _accounts.FirstOrDefault(Function(a) a.Id = accountId)
         If account IsNot Nothing Then
@@ -321,16 +374,22 @@ Public Class AccountManager
         End If
     End Function
 
+    ''' <summary>
+    ''' Ricalcola lo stato globale delle notifiche in base allo stato dei singoli account.
+    ''' </summary>
     Public Sub HandleNotificationStateChanged(accountId As String, hasNotif As Boolean)
         Dim anyNotif = _accounts.Any(Function(a) a.HasNotification)
         HasAnyNotification = anyNotif
     End Sub
 End Class
 
-' Extension class to map elements in Linq-like style in VB
+''' <summary>
+''' Modulo di estensione LINQ helper in stile VB.NET per facilitare il mapping delle collezioni.
+''' </summary>
 Module IEnumerableExtensions
     <Runtime.CompilerServices.Extension>
     Public Function Map(Of TSource, TResult)(source As IEnumerable(Of TSource), selector As Func(Of TSource, TResult)) As IEnumerable(Of TResult)
         Return source.Select(selector)
     End Function
 End Module
+

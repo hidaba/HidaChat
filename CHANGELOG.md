@@ -1,6 +1,15 @@
 # Changelog
 
+## [0.1.2] - 2026-07-28
+
+### Added
+- Aggiunta documentazione XML doc (`<summary>`, `<param>`, `<returns>`) e commenti esplicativi in italiano in tutti i file di codice sorgente VB.NET del progetto (`AccountManager`, `WhatsAppAccount`, `MainWindow`, `SettingsController`, `SettingsWindow`, `UpdateChecker`, `Localization`, `JsScripts`, `MessagePopup`, `Application`, `Constants`).
+
+### Fixed & Refactored
+- **Punto 25 TODO**: Riconvertito `ApplyWpfTheme` in funzione asincrona (`ApplyWpfThemeAsync() As Task`) aggiungendo `Await` e gestione eccezioni `Try...Catch` su tutti i richiami `ExecuteScriptAsync` in `MainWindow.xaml.vb`.
+
 ## [0.1.1] - 2026-07-27
+
 
 ### Removed
 - Eliminata completamente l'immagine `annoni.png` dal repository per alleggerire il pacchetto compilato.

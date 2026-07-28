@@ -116,10 +116,11 @@
 ## ~~24. `DispatcherTimer` per sincronizzazione chat — Rimosso~~ ✅
 - ~~Timer rimosso nella v0.1.0 insieme al sistema di sincronizzazione backup.~~
 
-## 25. `ExecuteScriptAsync` fire-and-forget in `MainWindow.xaml.vb`
-- Task restituiti da `ExecuteScriptAsync` non vengono awaitati né catturati — eccezioni inosservabili
-- **Ottimizzazione**: catturare i task o usare `Async Sub` con gestione errori
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~25. `ExecuteScriptAsync` fire-and-forget in `MainWindow.xaml.vb`~~ ✅
+- ~~Task restituiti da `ExecuteScriptAsync` non vengono awaitati né catturati — eccezioni inosservabili~~
+- ~~**Ottimizzazione**: catturare i task o usare `Async Sub`/`Async Function` con `Await` e gestione errori (`Try...Catch`)~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
+
 
 ## ~~26. `JsScripts.vb` — `.Replace()` multipli su template grandi~~ ✅
 - ~~`GetTranslationJS` chiama `.Replace()` 10+ volte sul template enorme — crea una nuova stringa ogni volta~~

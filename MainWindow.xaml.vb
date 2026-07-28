@@ -4,6 +4,11 @@ Imports System.Windows.Interop
 Imports Microsoft.Web.WebView2.Wpf
 Imports Microsoft.Toolkit.Uwp.Notifications
 
+''' <summary>
+
+''' Finestra principale dell'applicazione WPF. Gestisce l'interfaccia a schede degli account WhatsApp,
+''' l'icona nella tray di sistema Windows, l'applicazione dei temi e le notifiche Toast.
+''' </summary>
 Public Class MainWindow
     Private ReadOnly _settingsController As New SettingsController()
     Private _accountManager As AccountManager
@@ -16,12 +21,15 @@ Public Class MainWindow
         _accountManager = New AccountManager(_settingsController)
     End Sub
 
-    ' Caricamento iniziale: impostazioni, account, tema, webview, notifiche
+    ''' <summary>
+    ''' Caricamento iniziale dell'applicazione: caricamento impostazioni utente, verifica WebView2,
+    ''' inizializzazione degli account, applicazione tema, configurazione tray icon e controllo aggiornamenti.
+    ''' </summary>
     Private Async Sub MainWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
-        ' 1. Load User Settings
+        ' 1. Carica le impostazioni utente dal file JSON
         Await _settingsController.LoadSettingsAsync()
         
-        ' 2. Verifica che WebView2 runtime sia installato
+        ' 2. Verifica che il runtime Microsoft Edge WebView2 sia installato nel sistema
         If Not CheckWebView2Installed() Then
             MessageBox.Show(
                 "Il runtime WebView2 non è installato." & vbCrLf & vbCrLf &
@@ -35,46 +43,49 @@ Public Class MainWindow
             Return
         End If
 
-        ' 3. Initialize Account Manager and Accounts
+        ' 3. Inizializza l'AccountManager ed effettua il caricamento degli account
         Await _accountManager.LoadAccountsAsync()
         
-        ' 4. Apply WPF Theme Colors (Dark/Light) based on loaded settings
-        ApplyWpfTheme()
+        ' 4. Applica il tema WPF (Scuro/Chiaro) in base alle impostazioni caricate
+        Await ApplyWpfThemeAsync()
         
-        ' 5. Configure System Tray Icon
+        ' 5. Configura l'icona nell'area di notifica (System Tray)
         ConfigureSystemTray()
         
-        ' 6. Set ItemsSource for Horizontal Tabs
+        ' 6. Collega l'elenco account alla barra delle schede orizzontale
         AccountsList.ItemsSource = _accountManager.Accounts
         
-        ' 7. Instanciate all WebView2 controls dynamically
+        ' 7. Istanzia e configura i controlli WebView2 per gli account
         PopulateWebViews()
         
-        ' 8. Listen to changes in settings or accounts
+        ' 8. Registra i listener per i cambiamenti di proprietà nelle impostazioni e negli account
         AddHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
         
-        ' 9. Configure Toast notifications click routing
+        ' 9. Configura il routing dei click sulle notifiche Toast di Windows
         ConfigureToastNotifications()
         
-        ' 10. Check updates on launch asynchronously
+        ' 10. Verifica in background la disponibilità di aggiornamenti all'avvio
         Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
         
         VersionText.Text = "v" & Constants.AppVersion
     End Sub
 
+    ''' <summary>
+    ''' Inizializza l'icona nell'area di notifica di Windows (System Tray) con menu contestuale.
+    ''' </summary>
     Private Sub ConfigureSystemTray()
         _trayIcon = New System.Windows.Forms.NotifyIcon()
         UpdateTrayIconImage()
         _trayIcon.Text = "WhatsappH Portable"
         _trayIcon.Visible = True
         
-        ' Double click restores window
+        ' Il doppio click sulla tray icon alterna la visibilità della finestra
         AddHandler _trayIcon.DoubleClick, Sub()
             ToggleWindow()
         End Sub
 
-        ' Context menu
+        ' Menu contestuale tasto destro
         Dim contextMenu As New System.Windows.Forms.ContextMenuStrip()
         contextMenu.Items.Add("Toggle Window", Nothing, Sub() ToggleWindow())
         contextMenu.Items.Add("-")
@@ -83,6 +94,9 @@ Public Class MainWindow
         _trayIcon.ContextMenuStrip = contextMenu
     End Sub
 
+    ''' <summary>
+    ''' Aggiorna l'immagine dell'icona nella tray (mostra l'icona con pallino di notifica se sono presenti notifiche non lette).
+    ''' </summary>
     Private Sub UpdateTrayIconImage()
         If _trayIcon Is Nothing Then Return
         Try
@@ -96,6 +110,9 @@ Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Alterna lo stato di visibilità della finestra principale (nascondi/mostra e porta in primo piano).
+    ''' </summary>
     Private Sub ToggleWindow()
         If Me.Visibility = Visibility.Visible Then
             Me.Hide()
@@ -107,6 +124,9 @@ Public Class MainWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Esegue la chiusura definitiva dell'applicazione liberando tutte le risorse allocati e rimuovendo i listener.
+    ''' </summary>
     Private Sub ExitApplication()
         _allowExit = True
 
@@ -124,11 +144,14 @@ Public Class MainWindow
             _trayIcon.Visible = False
             _trayIcon.Dispose()
         End If
-        ' Uninstall toast listeners
+        ' Disinstalla i listener per le notifiche toast
         ToastNotificationManagerCompat.Uninstall()
         Application.Current.Shutdown()
     End Sub
 
+    ''' <summary>
+    ''' Forza l'uscita dell'applicazione senza conferma per consentire l'avvio della procedura di aggiornamento automatico.
+    ''' </summary>
     Public Sub ForceExitForUpdate()
         _allowExit = True
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
@@ -140,6 +163,9 @@ Public Class MainWindow
         ToastNotificationManagerCompat.Uninstall()
     End Sub
 
+    ''' <summary>
+    ''' Intercetta la chiusura della finestra: invece di chiudere l'applicazione la nasconde nella system tray (riduzione a icona).
+    ''' </summary>
     Private Sub MainWindow_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
         If Not _allowExit Then
             e.Cancel = True
@@ -147,6 +173,9 @@ Public Class MainWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Gestisce il trascinamento della finestra ed il doppio click per ingrandire/ripristinare dalla barra del titolo.
+    ''' </summary>
     Private Sub TitleBar_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
         If e.ChangedButton = MouseButton.Left AndAlso e.ClickCount = 2 Then
             ToggleMaximize()
@@ -169,6 +198,9 @@ Public Class MainWindow
         ToggleMaximize()
     End Sub
 
+    ''' <summary>
+    ''' Alterna lo stato ingrandito a finestra/normale.
+    ''' </summary>
     Private Sub ToggleMaximize()
         If Me.WindowState = WindowState.Maximized Then
             Me.WindowState = WindowState.Normal
@@ -177,6 +209,9 @@ Public Class MainWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Aggiorna l'icona del pulsante ingrandisci/ripristina in base allo stato della finestra.
+    ''' </summary>
     Private Sub MainWindow_StateChanged(sender As Object, e As EventArgs) Handles Me.StateChanged
         If Me.WindowState = WindowState.Maximized Then
             MaximizeIcon.Data = Geometry.Parse("M4,1 L11,1 L11,8 L9,8 L9,2 L4,2 Z M1,4 L8,4 L8,11 L1,11 Z")
@@ -189,6 +224,9 @@ Public Class MainWindow
         Me.Hide()
     End Sub
 
+    ''' <summary>
+    ''' Popola la griglia WPF con le i controlli WebView2 per l'account attualmente attivo.
+    ''' </summary>
     Private Async Sub PopulateWebViews()
         WebViewsGrid.Children.Clear()
 
@@ -199,6 +237,9 @@ Public Class MainWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Assicura che l'istanza WebView2 per l'account sia creata ed inizializzata.
+    ''' </summary>
     Private Async Function EnsureWebViewAsync(account As WhatsAppAccount) As Task
         If account.WebView Is Nothing Then
             account.WebView = New WebView2()
@@ -217,6 +258,9 @@ Public Class MainWindow
         _accountManager.HandleNotificationStateChanged(accountId, hasNotification)
     End Sub
 
+    ''' <summary>
+    ''' Evento generato dal click su una scheda account per passare alla vista dell'account corrispondente.
+    ''' </summary>
     Private Async Sub AccountTab_Click(sender As Object, e As RoutedEventArgs)
         Try
             Dim btn = CType(sender, Button)
@@ -230,6 +274,9 @@ Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Consente la rinomina rapida dell'account dal menu contestuale della scheda.
+    ''' </summary>
     Private Async Sub AccountTabRename_Click(sender As Object, e As RoutedEventArgs)
         Dim menuItem = CType(sender, MenuItem)
         Dim contextMenu = CType(menuItem.Parent, ContextMenu)
@@ -242,7 +289,9 @@ Public Class MainWindow
         End If
     End Sub
 
-    ' Passa alla scheda account selezionata e nasconde/mostra webview corrispondente
+    ''' <summary>
+    ''' Passa alla scheda account selezionata rendendo visibile la WebView2 corrispondente e nascondendo la precedente.
+    ''' </summary>
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
         Dim prevAccount = _accountManager.CurrentAccount
 
@@ -251,18 +300,20 @@ Public Class MainWindow
         Dim newAccount = _accountManager.CurrentAccount
         If newAccount Is Nothing Then Return
 
-        ' Nascondi precedente
+        ' Nascondi il controllo del precedente account
         If prevAccount IsNot Nothing AndAlso prevAccount.WebView IsNot Nothing Then
             prevAccount.WebView.Visibility = Visibility.Collapsed
         End If
 
-        ' Crea/inizializza WebView per il nuovo account se necessario
+        ' Inizializza e mostra il controllo WebView2 per il nuovo account
         Await EnsureWebViewAsync(newAccount)
         newAccount.WebView.Visibility = Visibility.Visible
     End Function
 
-    ' Apre la finestra Impostazioni
-    Private Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
+    ''' <summary>
+    ''' Apre la finestra di dialogo modale per le Impostazioni dell'applicazione.
+    ''' </summary>
+    Private Async Sub BtnSettings_Click(sender As Object, e As RoutedEventArgs)
         Try
             _accountManager.IsDialogOpen = True
             Dim settingsWin As New SettingsWindow(_settingsController, _accountManager)
@@ -270,7 +321,7 @@ Public Class MainWindow
             settingsWin.ShowDialog()
             _accountManager.IsDialogOpen = False
 
-            ApplyWpfTheme()
+            Await ApplyWpfThemeAsync()
         Catch ex As Exception
             _accountManager.IsDialogOpen = False
             MessageBox.Show(
@@ -283,6 +334,9 @@ Public Class MainWindow
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Ricarica la pagina corrente all'interno della WebView2 dell'account attivo.
+    ''' </summary>
     Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
@@ -290,9 +344,9 @@ Public Class MainWindow
         End If
     End Sub
 
-    Private Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+    Private Async Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(SettingsController.Theme) Then
-            ApplyWpfTheme()
+            Await ApplyWpfThemeAsync()
         End If
     End Sub
 
@@ -302,9 +356,9 @@ Public Class MainWindow
         End If
     End Sub
 
-
-
-    ' Verifica che WebView2 runtime sia installato
+    ''' <summary>
+    ''' Verifica la presenza del runtime Microsoft Edge WebView2 nel sistema.
+    ''' </summary>
     Private Shared Function CheckWebView2Installed() As Boolean
         Try
             Dim ver = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString()
@@ -314,7 +368,11 @@ Public Class MainWindow
         End Try
     End Function
 
-    Private Sub ApplyWpfTheme()
+    ''' <summary>
+    ''' Applica lo stile cromatico (Scuro/Chiaro/Sistema) all'interfaccia WPF e sincronizza il tema nelle WebView2.
+    ''' </summary>
+    Private Async Function ApplyWpfThemeAsync() As Task
+
         Dim isDark = False
         If _settingsController.Theme = "Dark" Then
             isDark = True
@@ -336,10 +394,14 @@ Public Class MainWindow
             RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#2f3e46"))
             TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
             TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
-            ' Refresh active theme inside each WebView
+            ' Aggiorna il tema oscuro all'interno delle singole WebView2
             For Each acc In _accountManager.Accounts
                 If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                    acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
+                    Try
+                        Await acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
+                    Catch ex As Exception
+                        Debug.WriteLine($"Failed to execute DarkModeJS for account {acc.Id}: {ex.Message}")
+                    End Try
                 End If
             Next
         Else
@@ -347,32 +409,41 @@ Public Class MainWindow
             RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#d1d7db"))
             TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
             TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-            ' Refresh active theme inside each WebView
+            ' Aggiorna il tema chiaro all'interno delle singole WebView2
             For Each acc In _accountManager.Accounts
                 If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                    acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                    Try
+                        Await acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                    Catch ex As Exception
+                        Debug.WriteLine($"Failed to execute LightModeJS for account {acc.Id}: {ex.Message}")
+                    End Try
                 End If
             Next
         End If
-    End Sub
+    End Function
 
+    ''' <summary>
+    ''' Configura la gestione dell'evento di click sulle notifiche Toast di Windows per ripristinare la finestra ed aprire l'account di origine.
+    ''' </summary>
     Private Sub ConfigureToastNotifications()
-        ' Handle Toast clicks when app is running or launched from toast
         AddHandler ToastNotificationManagerCompat.OnActivated, Sub(toastArgs)
             Dim args = toastArgs.Argument
             If Not String.IsNullOrEmpty(args) Then
-                ' Parse parameters from toast arguments
                 Dim accountId = toastArgs.Argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith("accountId=")).Split("="c)(1)
                 Dim notificationId = toastArgs.Argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith("notificationId=")).Split("="c)(1)
                 
-                ' Switch to account and restore window on UI Thread
+                ' Esegue sul thread UI il ripristino della finestra e la selezione dell'account
                 Application.Current.Dispatcher.Invoke(Async Function() As Task
                     ToggleWindow()
                     Await SwitchToAccountAsync(accountId)
                     
                     Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
                     If acc IsNot Nothing AndAlso acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                        Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
+                        Try
+                            Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
+                        Catch ex As Exception
+                            Debug.WriteLine($"Failed to execute onNotificationClicked for account {acc.Id}: {ex.Message}")
+                        End Try
                     End If
                 End Function)
             End If
@@ -380,3 +451,5 @@ Public Class MainWindow
     End Sub
 
 End Class
+
+

@@ -7,6 +7,10 @@ Imports System.Threading.Tasks
 Imports System.Windows
 Imports System.Text.Json
 
+''' <summary>
+
+''' Gestisce il controllo, download ed installazione automatica degli aggiornamenti tramite GitHub Releases o cartella di rete locale (OTA).
+''' </summary>
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
     Private Shared ReadOnly _httpClient As New HttpClient()
@@ -17,6 +21,9 @@ Public Class UpdateChecker
         _httpClient.DefaultRequestHeaders.Accept.Add(New MediaTypeWithQualityHeaderValue("application/json"))
     End Sub
 
+    ''' <summary>
+    ''' Rimuove il prefisso 'v' e gli spazi vuoti da una stringa di versione (es. "v1.2.0" -> "1.2.0").
+    ''' </summary>
     Private Shared Function CleanVersionString(verStr As String) As String
         If String.IsNullOrWhiteSpace(verStr) Then Return String.Empty
         Dim clean = verStr.Trim()
@@ -26,6 +33,9 @@ Public Class UpdateChecker
         Return clean
     End Function
 
+    ''' <summary>
+    ''' Confronta la versione remota con la versione corrente e restituisce true se la versione remota è più recente.
+    ''' </summary>
     Private Shared Function IsNewerVersion(remote As String, current As String) As Boolean
         Dim cleanRemote = CleanVersionString(remote)
         Dim cleanCurrent = CleanVersionString(current)
@@ -39,13 +49,16 @@ Public Class UpdateChecker
             Integer.TryParse(cParts(i), cVal)
             If rVal > cVal Then Return True
             If rVal < cVal Then Return False
-        Next
+            Next
         Return rParts.Length > cParts.Length
     End Function
 
     ''' <summary>
-    ''' Controlla la presenza di aggiornamenti su GitHub Releases.
+    ''' Controlla la presenza di aggiornamenti su GitHub Releases ed eventualmente esegue il download ed installazione.
     ''' </summary>
+    ''' <param name="settings">Controller delle impostazioni utente.</param>
+    ''' <param name="accountManager">Gestore degli account.</param>
+    ''' <param name="force">Se true, forza il controllo ignorando le impostazioni automatiche all'avvio.</param>
     Public Shared Async Function CheckForUpdatesAsync(
         settings As SettingsController,
         accountManager As AccountManager,
@@ -62,7 +75,7 @@ Public Class UpdateChecker
         End If
 
         Try
-            ' 1. Tenta verifica via GitHub Releases API
+            ' 1. Tenta la verifica tramite le API di GitHub Releases
             Dim releaseInfo = Await FetchGitHubReleaseInfoAsync(settings.UseBetaChannel)
             If releaseInfo IsNot Nothing Then
                 Dim remoteVersion = releaseInfo.Version
@@ -114,6 +127,9 @@ Public Class UpdateChecker
         Public Property Notes As String = String.Empty
     End Class
 
+    ''' <summary>
+    ''' Recupera le informazioni sull'ultima release pubblicata su GitHub interpellando le API REST.
+    ''' </summary>
     Private Shared Async Function FetchGitHubReleaseInfoAsync(useBeta As Boolean) As Task(Of ReleaseInfo)
         Dim apiUrl = If(useBeta, Constants.GitHubReleasesApiUrl, Constants.GitHubLatestReleaseApiUrl)
         
@@ -127,7 +143,7 @@ Public Class UpdateChecker
         Using doc As JsonDocument = JsonDocument.Parse(jsonText)
             Dim root = doc.RootElement
 
-            ' Se beta, l'endpoint è un array di releases
+            ' Se canale beta, l'endpoint restituisce un array di release
             Dim releaseElement As JsonElement = root
             If root.ValueKind = JsonValueKind.Array Then
                 If root.GetArrayLength() = 0 Then Return Nothing
@@ -160,7 +176,7 @@ Public Class UpdateChecker
     End Function
 
     ''' <summary>
-    ''' Scarica l'archivio ZIP da GitHub Releases, estrae i file e riavvia l'applicazione tramite batch.
+    ''' Scarica l'archivio ZIP da GitHub Releases, estrae i file e riavvia l'applicazione tramite uno script batch temporaneo.
     ''' </summary>
     Private Shared Async Function PerformUpdateFromGitHubAsync(
         latestVersion As String,
@@ -168,7 +184,7 @@ Public Class UpdateChecker
         installDir As String,
         settings As SettingsController
     ) As Task
-        ' Verifica permessi di scrittura nella cartella corrente
+        ' Verifica i permessi di scrittura nella cartella corrente
         Dim testFile = Path.Combine(installDir, ".update_test")
         Try
             File.WriteAllText(testFile, "test")
@@ -205,7 +221,7 @@ Public Class UpdateChecker
             Dim zipBytes = Await _httpClient.GetByteArrayAsync(downloadUrl)
             Await File.WriteAllBytesAsync(tempZipPath, zipBytes)
 
-            ' 2. Estrai l'archivio
+            ' 2. Estrai l'archivio temporaneo
             If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
             Directory.CreateDirectory(tempDir)
             ZipFile.ExtractToDirectory(tempZipPath, tempDir, True)
@@ -290,7 +306,7 @@ del ""%~f0""
     End Function
 
     ''' <summary>
-    ''' Fallback per controllo aggiornamenti da cartella di rete locale.
+    ''' Controllo di fallback per la presenza di aggiornamenti da cartella di rete locale.
     ''' </summary>
     Private Shared Async Function CheckLocalOtaFallbackAsync(settings As SettingsController, installDir As String, force As Boolean) As Task
         Try
@@ -317,3 +333,4 @@ del ""%~f0""
         End Try
     End Sub
 End Class
+

@@ -2,6 +2,10 @@ Imports System.ComponentModel
 Imports System.Windows.Media
 Imports System.Windows.Threading
 
+''' <summary>
+
+''' Finestra di dialogo WPF per la gestione delle impostazioni utente (tema, lingua, notifiche, opzioni di traduzione e lista account).
+''' </summary>
 Public Class SettingsWindow
     Private ReadOnly _settingsController As SettingsController
     Private ReadOnly _accountManager As AccountManager
@@ -18,42 +22,46 @@ Public Class SettingsWindow
         _accountManager = accountManager
     End Sub
 
-    ' All'apertura della finestra carica lingue, tema, checkbox e account
+    ''' <summary>
+    ''' Inizializzazione della finestra all'apertura: imposta i valori dei menu a tendina, 
+    ''' stato delle checkbox, elenco degli account e localizzazione della UI.
+    ''' </summary>
     Private Sub SettingsWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
         Try
-            ' 1. Set Items for Language Dropdown
+            ' 1. Imposta gli elementi del dropdown Lingua
             ComboLanguage.ItemsSource = _settingsController.SupportedLanguages
             Dim currentLang = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = _settingsController.Language)
             If currentLang IsNot Nothing Then
                 ComboLanguage.SelectedItem = currentLang
             End If
 
-        ' 2. Select Theme Selection
-        For Each item As ComboBoxItem In ComboTheme.Items
-            If item.Content.ToString() = _settingsController.Theme Then
-                ComboTheme.SelectedItem = item
-                Exit For
-            End If
-        Next
+            ' 2. Seleziona la modalità del Tema
+            For Each item As ComboBoxItem In ComboTheme.Items
+                If item.Content.ToString() = _settingsController.Theme Then
+                    ComboTheme.SelectedItem = item
+                    Exit For
+                End If
+            Next
 
-        ' 3. Set Checkbox checks
-        ChkTranslateMessageButton.IsChecked = _settingsController.TranslateMessageButton
-        ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
-        ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
-        ChkShowMessagePopup.IsChecked = _settingsController.ShowMessagePopup
-        ' 4. Set Beta Channel Checkbox
-        ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
+            ' 3. Imposta lo stato delle Checkbox
+            ChkTranslateMessageButton.IsChecked = _settingsController.TranslateMessageButton
+            ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
+            ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
+            ChkShowMessagePopup.IsChecked = _settingsController.ShowMessagePopup
+            
+            ' 4. Imposta lo stato della Checkbox Canale Beta
+            ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
 
-        ' 5. Bind Accounts List
-        AccountsList.ItemsSource = _accountManager.Accounts
+            ' 5. Collega l'elenco degli account
+            AccountsList.ItemsSource = _accountManager.Accounts
 
-        ' 5. Apply Active Theme
-        ApplyTheme()
+            ' 6. Applica il tema cromatico corrente
+            ApplyTheme()
 
-        ' 6. Apply localized UI text
-        RefreshLocalization()
+            ' 7. Applica le stringhe tradotte all'interfaccia utente
+            RefreshLocalization()
 
-        _isInitializing = False
+            _isInitializing = False
 
         Catch ex As Exception
             MessageBox.Show(
@@ -77,6 +85,9 @@ Public Class SettingsWindow
         Me.Close()
     End Sub
 
+    ''' <summary>
+    ''' Gestisce il cambio di selezione del tema dal menu a tendina.
+    ''' </summary>
     Private Async Sub ComboTheme_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
         Dim selectedItem = CType(ComboTheme.SelectedItem, ComboBoxItem)
@@ -87,7 +98,9 @@ Public Class SettingsWindow
         End If
     End Sub
 
-    ' Cambio lingua dal menu a tendina
+    ''' <summary>
+    ''' Gestisce il cambio di lingua selezionata dal menu a tendina e notifica i controlli WebView.
+    ''' </summary>
     Private Async Sub ComboLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
         Dim selectedLang = TryCast(ComboLanguage.SelectedItem, LanguageInfo)
@@ -97,7 +110,7 @@ Public Class SettingsWindow
 
             RefreshLocalization()
 
-            ' Notify active webviews of language update
+            ' Notifica alle WebView2 attive l'aggiornamento della lingua
             Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = langCode)
             If langItem IsNot Nothing Then
                 Dim langName = langItem.Name
@@ -111,7 +124,9 @@ Public Class SettingsWindow
         End If
     End Sub
 
-    ' Abilita/disabilita opzioni dalle checkbox
+    ''' <summary>
+    ''' Gestisce l'abilitazione o disabilitazione delle opzioni dalle varie CheckBox della finestra.
+    ''' </summary>
     Private Async Sub ChkSetting_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
         
@@ -131,7 +146,7 @@ Public Class SettingsWindow
                 Await _settingsController.SaveSettingAsync("showMessagePopup", chk.IsChecked.Value)
         End Select
 
-        ' Notify webviews of hover state changes
+        ' Notifica le WebView2 sui cambiamenti del pulsante hover
         If chk.Name = "ChkTranslateMessageButton" Then
             Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = _settingsController.Language)
             If langItem IsNot Nothing Then
@@ -154,6 +169,9 @@ Public Class SettingsWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Gestisce l'evento di eliminazione di un account previa conferma dell'utente.
+    ''' </summary>
     Private Async Sub BtnDeleteAccount_Click(sender As Object, e As RoutedEventArgs)
         Dim btn = CType(sender, Button)
         Dim accountId = TryCast(btn.Tag, String)
@@ -186,12 +204,15 @@ Public Class SettingsWindow
             Await _accountManager.RemoveAccountAsync(accountId)
             _cachedAccountBorders = Nothing
             _cachedAccountTextBoxes = Nothing
-            ' Refresh List UI
+            ' Aggiorna la lista nella UI
             AccountsList.ItemsSource = Nothing
             AccountsList.ItemsSource = _accountManager.Accounts
         End If
     End Sub
 
+    ''' <summary>
+    ''' Apre la finestra degli Strumenti di Sviluppo (DevTools) di Edge per la WebView2 dell'account attivo.
+    ''' </summary>
     Private Sub BtnDevTools_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
@@ -199,6 +220,9 @@ Public Class SettingsWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Avvia la verifica manuale della presenza di aggiornamenti.
+    ''' </summary>
     Private Async Sub BtnCheckUpdates_Click(sender As Object, e As RoutedEventArgs)
         Await UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager, force:=True)
     End Sub
@@ -210,7 +234,9 @@ Public Class SettingsWindow
         Await _settingsController.SaveSettingAsync("useBetaChannel", chk.IsChecked.Value)
     End Sub
 
-    ' Applica le traduzioni italiane a tutti i label della finestra
+    ''' <summary>
+    ''' Aggiorna tutti i testi delle etichette della finestra in base alle traduzioni correnti.
+    ''' </summary>
     Private Sub RefreshLocalization()
         Dim loc = _settingsController.Localizations
         TitleText.Text = loc.Get("settings")
@@ -238,7 +264,9 @@ Public Class SettingsWindow
         Return cache
     End Function
 
-    ' Applica tema scuro/chiaro a sfondi, combo e testi
+    ''' <summary>
+    ''' Applica i colori del tema chiaro o scuro ai controlli e contenitori della finestra.
+    ''' </summary>
     Private Sub ApplyTheme()
         Dim isDark = False
         If _settingsController.Theme = "Dark" Then
@@ -275,11 +303,12 @@ Public Class SettingsWindow
             End If
         Next
 
-        ' Applica stile agli account dopo che gli item sono stati generati
         StyleAccountItems(isDark)
     End Sub
 
-    ' Applica sfondo/colori agli item della lista account (dopo che sono stati generati)
+    ''' <summary>
+    ''' Applica lo stile cromatico agli elementi della lista degli account.
+    ''' </summary>
     Private Sub StyleAccountItems(isDark As Boolean)
         Dispatcher.BeginInvoke(New Action(Sub()
             If _cachedAccountBorders Is Nothing Then
@@ -304,7 +333,6 @@ Public Class SettingsWindow
         End Sub), DispatcherPriority.Background)
     End Sub
 
-    ' Helpers for finding logical children
     Private Shared Function FindLogicalChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
         Dim list As New List(Of T)()
         If depObj IsNot Nothing Then
@@ -321,7 +349,6 @@ Public Class SettingsWindow
         Return list
     End Function
 
-    ' Helper per trovare elementi nel visual tree (funziona anche dentro DataTemplate)
     Private Shared Function FindVisualChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
         Dim list As New List(Of T)()
         If depObj IsNot Nothing Then
@@ -336,3 +363,4 @@ Public Class SettingsWindow
         Return list
     End Function
 End Class
+

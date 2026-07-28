@@ -1,3 +1,7 @@
+''' <summary>
+''' Contiene gli script CSS e JavaScript per la personalizzazione dell'interfaccia Web di WhatsApp 
+''' (angoli arrotondati, temi scuro/chiaro e rimozione banner non necessari).
+''' </summary>
 Public Class ThemeJsScripts
     Public Shared ReadOnly Property RoundedCorners As String =
         <css><![CDATA[
@@ -16,6 +20,7 @@ Public Class ThemeJsScripts
         }
         ]]></css>.Value
 
+    ''' <summary>Script per l'applicazione del tema Chiaro nella WebView2.</summary>
     Public Shared ReadOnly Property LightModeJS As String
         Get
             Return <js><![CDATA[
@@ -37,6 +42,7 @@ Public Class ThemeJsScripts
         End Get
     End Property
 
+    ''' <summary>Script per l'applicazione del tema Scuro nella WebView2.</summary>
     Public Shared ReadOnly Property DarkModeJS As String
         Get
             Return <js><![CDATA[
@@ -59,6 +65,10 @@ Public Class ThemeJsScripts
     End Property
 End Class
 
+''' <summary>
+''' Contiene lo script JavaScript per l'override delle notifiche native del browser (ServiceWorkerRegistration e Notification),
+''' reindirizzando le notifiche di WhatsApp verso la finestra host WPF via IPC (chrome.webview.postMessage).
+''' </summary>
 Public Class NotificationJsScripts
     Public Shared ReadOnly Property NotificationOverrideJS As String =
         <js><![CDATA[
@@ -68,7 +78,7 @@ Public Class NotificationJsScripts
 
   window.activeCustomNotifications = {};
 
-  // Override ServiceWorkerRegistration.showNotification since WhatsApp uses it
+  // Override ServiceWorkerRegistration.showNotification poiché WhatsApp lo utilizza per le notifiche push
   if (window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype) {
     const originalShowNotification = window.ServiceWorkerRegistration.prototype.showNotification;
     window.ServiceWorkerRegistration.prototype.showNotification = function(title, options) {
@@ -90,12 +100,12 @@ Public Class NotificationJsScripts
         console.error('Failed to postMessage:', e);
       }
       
-      // We don't call the original because we want our WPF popup to handle it, not the browser's native toast
+      // Non chiamiamo l'originale per evitare la notifica nativa del browser Edge/WebView2
       return Promise.resolve();
     };
   }
 
-  // Also override window.Notification as a fallback
+  // Override del costruttore window.Notification nativo come fallback
   function CustomNotification(title, options) {
     console.log('[NotificationOverride] CustomNotification triggered:', title, options);
     var self = this;
@@ -149,14 +159,12 @@ Public Class NotificationJsScripts
     };
   }
 
-  // Inherit static properties and requestPermission
   CustomNotification.permission = 'granted';
   CustomNotification.requestPermission = function(callback) {
     if (typeof callback === 'function') callback('granted');
     return Promise.resolve('granted');
   };
   
-  // Trick WhatsApp into thinking this is native
   CustomNotification.toString = function() {
     return "function Notification() { [native code] }";
   };
@@ -193,6 +201,9 @@ Public Class NotificationJsScripts
         ]]></js>.Value
 End Class
 
+''' <summary>
+''' Contiene gli script JavaScript necessari alla funzione di traduzione messaggi (pulsante hover, bolla di traduzione, scansione DOM).
+''' </summary>
 Public Class TranslationJsScripts
     Private Shared ReadOnly Property TranslationStyles As String =
         <css><![CDATA[
@@ -557,6 +568,9 @@ Public Class TranslationJsScripts
   };
         ]]></js>.Value
 
+    ''' <summary>
+    ''' Assembla ed inietta lo script JavaScript completo di traduzione configurato con la lingua e le opzioni attuali.
+    ''' </summary>
     Public Shared Function GetTranslationJS(
         targetLangCode As String,
         targetLangName As String,
@@ -656,3 +670,4 @@ Public Class TranslationJsScripts
         Return sb.ToString()
     End Function
 End Class
+

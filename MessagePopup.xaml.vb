@@ -1,5 +1,9 @@
 Imports System.Windows.Threading
 
+''' <summary>
+''' Finestra di popup personalizzata (notifica Toast in stile overlay) che compare in basso a destra 
+''' allo schermo al ricevimento di un nuovo messaggio WhatsApp.
+''' </summary>
 Public Class MessagePopup
     Private ReadOnly _accountId As String
     Private _closeTimer As DispatcherTimer
@@ -13,6 +17,9 @@ Public Class MessagePopup
         InitialsText.Text = GetInitials(title)
     End Sub
 
+    ''' <summary>
+    ''' Estrae le iniziali del mittente (es. "Mario Rossi" -> "MR") per l'avatar circolare della notifica.
+    ''' </summary>
     Private Shared Function GetInitials(name As String) As String
         If String.IsNullOrWhiteSpace(name) Then Return "?"
         Dim parts = name.Trim().Split(" "c, StringSplitOptions.RemoveEmptyEntries)
@@ -34,6 +41,9 @@ Public Class MessagePopup
         _closeTimer.Start()
     End Sub
 
+    ''' <summary>
+    ''' Ricalcola e riposiziona verticalmente tutti i popup attivi sulla schermata incolonnandoli in basso a destra.
+    ''' </summary>
     Private Shared Sub RepositionAll()
         _activePopups.RemoveAll(Function(p) p Is Nothing OrElse Not p.IsLoaded)
         Dim workArea = SystemParameters.WorkArea
@@ -46,6 +56,9 @@ Public Class MessagePopup
         Next
     End Sub
 
+    ''' <summary>
+    ''' Al click sul popup, ripristina e porta in primo piano la finestra principale di WhatsAppVB.
+    ''' </summary>
     Private Sub PopupGrid_MouseDown(sender As Object, e As MouseButtonEventArgs)
         _closeTimer?.Stop()
 

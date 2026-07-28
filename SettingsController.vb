@@ -4,6 +4,11 @@ Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
 Imports System.Threading
 
+''' <summary>
+
+''' Controller responsabile della gestione delle impostazioni utente, 
+''' persistenza su file JSON con meccanismo di debounce e gestione della localizzazione.
+''' </summary>
 Public Class SettingsController
     Implements INotifyPropertyChanged
 
@@ -20,6 +25,7 @@ Public Class SettingsController
 
     ' --- Impostazioni tema ---
     Private _theme As String = "System"
+    ''' <summary>Modalità tema dell'applicazione ("System", "Light", "Dark").</summary>
     Public Property Theme As String
         Get
             Return _theme
@@ -34,6 +40,7 @@ Public Class SettingsController
 
     ' --- Barra schede sempre visibile ---
     Private _alwaysShowTabBar As Boolean = True
+    ''' <summary>Indica se mantenere sempre visibile la barra delle schede degli account.</summary>
     Public Property AlwaysShowTabBar As Boolean
         Get
             Return _alwaysShowTabBar
@@ -48,6 +55,7 @@ Public Class SettingsController
 
     ' --- Controllo aggiornamenti all'avvio ---
     Private _checkForUpdates As Boolean = True
+    ''' <summary>Indica se verificare automaticamente la presenza di aggiornamenti all'avvio.</summary>
     Public Property CheckForUpdates As Boolean
         Get
             Return _checkForUpdates
@@ -62,6 +70,7 @@ Public Class SettingsController
 
     ' --- Canale aggiornamenti beta ---
     Private _useBetaChannel As Boolean = False
+    ''' <summary>Indica se utilizzare il canale di aggiornamenti Beta.</summary>
     Public Property UseBetaChannel As Boolean
         Get
             Return _useBetaChannel
@@ -76,6 +85,7 @@ Public Class SettingsController
 
     ' --- Pulsante traduci al passaggio del mouse ---
     Private _translateMessageButton As Boolean = True
+    ''' <summary>Indica se mostrare il pulsante di traduzione rapida al passaggio del mouse sui messaggi.</summary>
     Public Property TranslateMessageButton As Boolean
         Get
             Return _translateMessageButton
@@ -88,9 +98,8 @@ Public Class SettingsController
         End Set
     End Property
 
-
-
     Private _fullPageTranslation As Boolean = False
+    ''' <summary>Indica se attivare la traduzione automatica dell'intera pagina.</summary>
     Public Property FullPageTranslation As Boolean
         Get
             Return _fullPageTranslation
@@ -104,6 +113,7 @@ Public Class SettingsController
     End Property
 
     Private _showTranslateAllMessagesButton As Boolean = True
+    ''' <summary>Indica se mostrare il pulsante "Traduci tutti i messaggi" nella barra del titolo.</summary>
     Public Property ShowTranslateAllMessagesButton As Boolean
         Get
             Return _showTranslateAllMessagesButton
@@ -117,6 +127,7 @@ Public Class SettingsController
     End Property
 
     Private _showMessagePopup As Boolean = True
+    ''' <summary>Indica se mostrare il popup personalizzato in basso a destra per le nuove notifiche.</summary>
     Public Property ShowMessagePopup As Boolean
         Get
             Return _showMessagePopup
@@ -130,6 +141,7 @@ Public Class SettingsController
     End Property
 
     Private _language As String = "en"
+    ''' <summary>Codice della lingua attualmente selezionata dall'utente (es. "en", "it").</summary>
     Public Property Language As String
         Get
             Return _language
@@ -143,6 +155,7 @@ Public Class SettingsController
     End Property
 
     Private _localizations As New AppLocalizations(AppLocalizations.EnStrings)
+    ''' <summary>Istanza contenente le stringhe di testo tradotte per l'interfaccia utente.</summary>
     Public Property Localizations As AppLocalizations
         Get
             Return _localizations
@@ -157,6 +170,7 @@ Public Class SettingsController
         New LanguageInfo With {.Name = "English", .Code = "en"},
         New LanguageInfo With {.Name = "Italiano", .Code = "it"}
     }
+    ''' <summary>Lista delle lingue ufficialmente supportate dall'interfaccia.</summary>
     Public Property SupportedLanguages As List(Of LanguageInfo)
         Get
             Return _supportedLanguages
@@ -185,7 +199,6 @@ Public Class SettingsController
     ' --- File JSON delle impostazioni ---
     Private ReadOnly Property SettingsFile As String
         Get
-            ' Prima cerca settings.json nella cartella base, poi in data\ (fallback per OTA)
             Dim basePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
             If File.Exists(basePath) Then Return basePath
             Dim dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "settings.json")
@@ -201,7 +214,7 @@ Public Class SettingsController
         End Get
     End Property
 
-    ' Legge il file settings.json dal disco (usa cache se già caricato)
+    ''' <summary>Legge il file settings.json dal disco (utilizza la versione in cache se presente).</summary>
     Public Async Function ReadSettingsAsync() As Task(Of Dictionary(Of String, Object))
         If _cachedSettings IsNot Nothing Then Return _cachedSettings
         If Not File.Exists(SettingsFile) Then
@@ -222,7 +235,7 @@ Public Class SettingsController
         Return _cachedSettings
     End Function
 
-    ' Salva le impostazioni su disco come JSON (scrive subito, senza debounce)
+    ''' <summary>Scrive immediatamente il dizionario delle impostazioni su file JSON.</summary>
     Public Async Function WriteSettingsAsync(settings As Dictionary(Of String, Object)) As Task
         _cachedSettings = settings
         _dirty = False
@@ -245,7 +258,7 @@ Public Class SettingsController
         End Try
     End Function
 
-    ' Accumula modifiche in memoria e pianifica scrittura differita (debounce 500ms)
+    ''' <summary>Scrittura differita delle impostazioni (debounce di 500ms) per evitare accessi disco troppo frequenti.</summary>
     Private Async Function FlushAfterDebounceAsync() As Task
         If _flushCts IsNot Nothing Then
             Try
@@ -267,7 +280,7 @@ Public Class SettingsController
         End If
     End Function
 
-    ' Carica tutte le impostazioni dal file JSON all'avvio
+    ''' <summary>Carica tutte le opzioni dal file JSON e la cache delle traduzioni all'avvio dell'applicazione.</summary>
     Public Async Function LoadSettingsAsync() As Task
         Dim settings = Await ReadSettingsAsync()
         
@@ -291,14 +304,13 @@ Public Class SettingsController
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)
         _showMessagePopup = GetBoolSetting(settings, "showMessagePopup", True)
-        ' Lingua salvata nelle impostazioni
+        
         If settings.ContainsKey("language") Then
             _language = settings("language").ToString()
         Else
             _language = "en"
         End If
 
-        ' Carica cache traduzioni da disco
         If File.Exists(CacheFile) Then
             Try
                 Dim cacheContent = Await File.ReadAllTextAsync(CacheFile)
@@ -306,7 +318,6 @@ Public Class SettingsController
                     Using doc As JsonDocument = JsonDocument.Parse(cacheContent)
                         Dim root = doc.RootElement
 
-                        ' Load cached translations
                         _cachedTranslations.Clear()
                         Dim cachedTranslationsElement As JsonElement = Nothing
                         If root.TryGetProperty("cached_translations", cachedTranslationsElement) Then
@@ -365,11 +376,11 @@ Public Class SettingsController
             Case "it"
                 Localizations = New AppLocalizations(AppLocalizations.ItStrings)
             Case Else
-                ' Lingua non più supportata (es. selezionata prima della 1.1.0) → ricade in inglese
                 Localizations = New AppLocalizations(AppLocalizations.EnStrings)
         End Select
     End Sub
 
+    ''' <summary>Aggiorna la lingua selezionata e la memorizza su disco.</summary>
     Public Async Function UpdateLanguageAsync(newLanguage As String) As Task
         If _language = newLanguage Then Return
         _language = newLanguage
@@ -389,6 +400,7 @@ Public Class SettingsController
         End If
     End Function
 
+    ''' <summary>Aggiorna il tema selezionato ("System", "Light", "Dark") e lo memorizza su disco.</summary>
     Public Async Function SaveThemeAsync(newTheme As String) As Task
         _theme = newTheme
         NotifyPropertyChanged(NameOf(Theme))
@@ -398,6 +410,7 @@ Public Class SettingsController
         Dim ignore = FlushAfterDebounceAsync()
     End Function
 
+    ''' <summary>Salva una singola chiave/valore arbitrario di configurazione.</summary>
     Public Async Function SaveSettingAsync(key As String, value As Object) As Task
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings(key) = value
@@ -409,3 +422,4 @@ Public Class SettingsController
         NotifyPropertyChanged("")
     End Sub
 End Class
+
