@@ -1,6 +1,13 @@
 # Changelog
 
+## [0.1.5] - 2026-07-28
+
+### Fixed & Performance
+- **Punto 31 TODO**: Utilizzato `StringBuilder` in `UpdateChecker.vb` per la composizione dello script batch di aggiornamento `update.bat`.
+- **Punto 33 TODO**: Centralizzato il rilevamento del tema di sistema Windows tramite il nuovo modulo `SystemThemeHelper` con caching della chiave `AppsUseLightTheme` ed ascolto dinamico dell'evento `SystemEvents.UserPreferenceChanged`. Eliminata la triplicazione delle letture dal Registro in `MainWindow.xaml.vb`, `WhatsAppAccount.vb` e `SettingsWindow.xaml.vb`.
+
 ## [0.1.4] - 2026-07-28
+
 
 ### Changed
 - **Formattazione Messaggi di Commit Git**: Rimozione del prefisso di versione dai messaggi di commit di Git su GitHub per mantenere pulite le descrizioni dei file.

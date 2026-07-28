@@ -148,20 +148,22 @@
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 
-## 31. `UpdateChecker.vb` — `batchContent` con string concatenation
-- Batch file build con concatenazione di ~35 righe
-- **Ottimizzazione**: `StringBuilder`
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~31. `UpdateChecker.vb` — `batchContent` con string concatenation~~ ✅
+- ~~Batch file build con concatenazione di ~35 righe~~
+- ~~**Ottimizzazione**: `StringBuilder` per assemblare lo script batch in streaming~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
+
 
 ## 32. `MessagePopup._activePopups` — Lista statica senza WeakReference
 - Trattiene riferimenti forti a tutti i popup — leak se non chiusi normalmente
 - **Ottimizzazione**: `WeakReference(Of MessagePopup)` o `ConditionalWeakTable`
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 33. Registro `AppsUseLightTheme` — Letto 3 volte senza caching
-- Stessa chiave registry letta in `MainWindow.xaml.vb`, `WhatsAppAccount.vb`, `SettingsWindow.xaml.vb`
-- **Ottimizzazione**: leggere una volta e fare cache col pattern `SystemEvents.UserPreferenceChanged`
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~33. Registro `AppsUseLightTheme` — Letto 3 volte senza caching~~ ✅
+- ~~Stessa chiave registry letta in `MainWindow.xaml.vb`, `WhatsAppAccount.vb`, `SettingsWindow.xaml.vb`~~
+- ~~**Ottimizzazione**: modulo `SystemThemeHelper` centralizzato con cache del registro e ascolto dell'evento `SystemEvents.UserPreferenceChanged`~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
+
 
 ## 34. `SolidColorBrush` — Creato a ogni cambio tema in MainWindow e SettingsWindow
 - `New SolidColorBrush(...)` chiamato ogni volta che si applica il tema

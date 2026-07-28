@@ -3,6 +3,8 @@ Imports System.Text.Json
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
 Imports System.Threading
+Imports Microsoft.Win32
+
 
 ''' <summary>
 
@@ -34,9 +36,26 @@ Public Class SettingsController
             If _theme <> value Then
                 _theme = value
                 NotifyPropertyChanged()
+                NotifyPropertyChanged(NameOf(IsDarkThemeEffective))
             End If
         End Set
     End Property
+
+    ''' <summary>
+    ''' Indica se il tema scuro è attualmente attivo in base alla configurazione ("Dark", "Light" o "System").
+    ''' </summary>
+    Public ReadOnly Property IsDarkThemeEffective As Boolean
+        Get
+            If _theme = "Dark" Then
+                Return True
+            ElseIf _theme = "System" Then
+                Return SystemThemeHelper.IsSystemDarkTheme()
+            Else
+                Return False
+            End If
+        End Get
+    End Property
+
 
     ' --- Barra schede sempre visibile ---
     Private _alwaysShowTabBar As Boolean = True
@@ -422,4 +441,52 @@ Public Class SettingsController
         NotifyPropertyChanged("")
     End Sub
 End Class
+
+''' <summary>
+''' Modulo helper con caching per la lettura del valore AppsUseLightTheme nel Registro di Windows.
+''' </summary>
+Public Module SystemThemeHelper
+    Private _cachedIsDark As Boolean? = Nothing
+
+    Sub New()
+        Try
+            AddHandler SystemEvents.UserPreferenceChanged, AddressOf OnUserPreferenceChanged
+        Catch ex As Exception
+            Debug.WriteLine($"SystemThemeHelper initialization warning: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Sub OnUserPreferenceChanged(sender As Object, e As UserPreferenceChangedEventArgs)
+        If e.Category = UserPreferenceCategory.General OrElse e.Category = UserPreferenceCategory.VisualStyle Then
+            _cachedIsDark = Nothing
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Determina se il tema scuro di sistema è attivo con caching e invalidazione automatica su cambio preferenze utente.
+    ''' </summary>
+    Public Function IsSystemDarkTheme() As Boolean
+        If _cachedIsDark.HasValue Then
+            Return _cachedIsDark.Value
+        End If
+
+        Dim isDark As Boolean = False
+        Try
+            Using key = Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+                If key IsNot Nothing Then
+                    Dim val = key.GetValue("AppsUseLightTheme")
+                    If val IsNot Nothing AndAlso Convert.ToInt32(val) = 0 Then
+                        isDark = True
+                    End If
+                End If
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine($"Error reading AppsUseLightTheme registry key: {ex.Message}")
+        End Try
+
+        _cachedIsDark = isDark
+        Return isDark
+    End Function
+End Module
+
 

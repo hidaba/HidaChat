@@ -240,41 +240,44 @@ Public Class UpdateChecker
             ' 3. Crea ed esegui lo script batch di sostituzione file
             Dim logFile = Path.Combine(installDir, ".update_log.txt")
             Dim batchPath = Path.Combine(tempDir, "update.bat")
-            Dim batchContent = $"@echo off
-title Aggiornamento WhatsappH...
-set LOG=""{logFile}""
-echo [%date% %time%] Starting update > %LOG%
-set RETRY=0
-:waitloop
-echo [%date% %time%] Waiting for WhatsappH.exe to exit... >> %LOG%
-timeout /t 2 /nobreak > nul
-tasklist /fi ""IMAGENAME eq WhatsappH.exe"" 2>>%LOG% | find /i ""WhatsappH.exe"" >nul
-if errorlevel 1 goto continue
-set /a RETRY=RETRY+1
-if %RETRY% GEQ 5 (
-    echo [%date% %time%] Timeout dopo 10 secondi, forzo prosecuzione... >> %LOG%
-    goto continue
-)
-goto waitloop
-:continue
-echo [%date% %time%] Process exited, copying files... >> %LOG%
-robocopy ""{sourceDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 >> %LOG%
-set RC=%ERRORLEVEL%
-echo [%date% %time%] Robocopy exit code: %RC% >> %LOG%
-if %RC% GEQ 8 (
-    echo [%date% %time%] ERRORE: robocopy failed >> %LOG%
-    echo Copia file fallita. Verifica il log: {logFile}
-    pause
-    exit /b 1
-)
-echo v{latestVersion}>""{installDir}\.app_version""
-echo [%date% %time%] Version marker written >> %LOG%
-echo [%date% %time%] Launching app... >> %LOG%
-start """" ""{installDir}\WhatsappH.exe""
-echo [%date% %time%] Done >> %LOG%
-del ""%~f0""
-"
-            File.WriteAllText(batchPath, batchContent)
+            Dim sbBatch As New System.Text.StringBuilder()
+
+            sbBatch.AppendLine("@echo off")
+            sbBatch.AppendLine("title Aggiornamento WhatsappH...")
+            sbBatch.AppendLine($"set LOG=""{logFile}""")
+            sbBatch.AppendLine("echo [%date% %time%] Starting update > %LOG%")
+            sbBatch.AppendLine("set RETRY=0")
+            sbBatch.AppendLine(":waitloop")
+            sbBatch.AppendLine("echo [%date% %time%] Waiting for WhatsappH.exe to exit... >> %LOG%")
+            sbBatch.AppendLine("timeout /t 2 /nobreak > nul")
+            sbBatch.AppendLine("tasklist /fi ""IMAGENAME eq WhatsappH.exe"" 2>>%LOG% | find /i ""WhatsappH.exe"" >nul")
+            sbBatch.AppendLine("if errorlevel 1 goto continue")
+            sbBatch.AppendLine("set /a RETRY=RETRY+1")
+            sbBatch.AppendLine("if %RETRY% GEQ 5 (")
+            sbBatch.AppendLine("    echo [%date% %time%] Timeout dopo 10 secondi, forzo prosecuzione... >> %LOG%")
+            sbBatch.AppendLine("    goto continue")
+            sbBatch.AppendLine(")")
+            sbBatch.AppendLine("goto waitloop")
+            sbBatch.AppendLine(":continue")
+            sbBatch.AppendLine("echo [%date% %time%] Process exited, copying files... >> %LOG%")
+            sbBatch.AppendLine($"robocopy ""{sourceDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 >> %LOG%")
+            sbBatch.AppendLine("set RC=%ERRORLEVEL%")
+            sbBatch.AppendLine("echo [%date% %time%] Robocopy exit code: %RC% >> %LOG%")
+            sbBatch.AppendLine("if %RC% GEQ 8 (")
+            sbBatch.AppendLine("    echo [%date% %time%] ERRORE: robocopy failed >> %LOG%")
+            sbBatch.AppendLine($"    echo Copia file fallita. Verifica il log: {logFile}")
+            sbBatch.AppendLine("    pause")
+            sbBatch.AppendLine("    exit /b 1")
+            sbBatch.AppendLine(")")
+            sbBatch.AppendLine($"echo v{latestVersion}>""{installDir}\.app_version""")
+            sbBatch.AppendLine("echo [%date% %time%] Version marker written >> %LOG%")
+            sbBatch.AppendLine("echo [%date% %time%] Launching app... >> %LOG%")
+            sbBatch.AppendLine($"start """" ""{installDir}\WhatsappH.exe""")
+            sbBatch.AppendLine("echo [%date% %time%] Done >> %LOG%")
+            sbBatch.AppendLine("del ""%~f0""")
+
+            File.WriteAllText(batchPath, sbBatch.ToString())
+
 
             Process.Start(New ProcessStartInfo With {
                 .FileName = batchPath,

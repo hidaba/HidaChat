@@ -268,21 +268,8 @@ Public Class SettingsWindow
     ''' Applica i colori del tema chiaro o scuro ai controlli e contenitori della finestra.
     ''' </summary>
     Private Sub ApplyTheme()
-        Dim isDark = False
-        If _settingsController.Theme = "Dark" Then
-            isDark = True
-        ElseIf _settingsController.Theme = "System" Then
-            Try
-                Dim key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
-                If key IsNot Nothing Then
-                    Dim val = key.GetValue("AppsUseLightTheme")
-                    If val IsNot Nothing AndAlso Convert.ToInt32(val) = 0 Then
-                        isDark = True
-                    End If
-                End If
-            Catch
-            End Try
-        End If
+        Dim isDark = _settingsController.IsDarkThemeEffective
+
 
         Dim fgColor = If(isDark, "#aebac1", "#111b21")
         Dim fgBrush = New SolidColorBrush(ColorConverter.ConvertFromString(fgColor))

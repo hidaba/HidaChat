@@ -176,21 +176,8 @@ Public Class WhatsAppAccount
 
             _navigationCompletedHandler = Async Sub(sender, e)
                 If e.IsSuccess Then
-                    Dim brightnessDark = False
-                    If settings.Theme = "Dark" Then
-                        brightnessDark = True
-                    ElseIf settings.Theme = "System" Then
-                        Try
-                            Dim key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
-                            If key IsNot Nothing Then
-                                Dim val = key.GetValue("AppsUseLightTheme")
-                                If val IsNot Nothing AndAlso Convert.ToInt32(val) = 0 Then
-                                    brightnessDark = True
-                                End If
-                            End If
-                        Catch
-                        End Try
-                    End If
+                    Dim brightnessDark = settings.IsDarkThemeEffective
+
 
                     If brightnessDark Then
                         Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)

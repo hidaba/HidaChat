@@ -373,21 +373,8 @@ Public Class MainWindow
     ''' </summary>
     Private Async Function ApplyWpfThemeAsync() As Task
 
-        Dim isDark = False
-        If _settingsController.Theme = "Dark" Then
-            isDark = True
-        ElseIf _settingsController.Theme = "System" Then
-            Try
-                Dim key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
-                If key IsNot Nothing Then
-                    Dim val = key.GetValue("AppsUseLightTheme")
-                    If val IsNot Nothing AndAlso Convert.ToInt32(val) = 0 Then
-                        isDark = True
-                    End If
-                End If
-            Catch
-            End Try
-        End If
+        Dim isDark = _settingsController.IsDarkThemeEffective
+
 
         If isDark Then
             RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
