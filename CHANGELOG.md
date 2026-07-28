@@ -1,6 +1,12 @@
 # Changelog
 
+## [0.1.4] - 2026-07-28
+
+### Changed
+- **Formattazione Messaggi di Commit Git**: Rimozione del prefisso di versione dai messaggi di commit di Git su GitHub per mantenere pulite le descrizioni dei file.
+
 ## [0.1.3] - 2026-07-28
+
 
 ### Added
 - **Pulsante e sezione Download in README.md**: Aggiunta la sezione con i link diretti ed il badge per scaricare l'eseguibile portatile per Windows dalle GitHub Releases.
