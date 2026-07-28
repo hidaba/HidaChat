@@ -222,12 +222,13 @@ Public Class AccountManager
                 End If
 
                 If String.IsNullOrEmpty(existingId) Then
-                    Dim matchingDirs = Directory.GetDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories)
-                    If matchingDirs.Length > 0 Then
-                        Dim dirName = Path.GetFileName(matchingDirs(0))
+                    Dim firstMatchingDir = Directory.EnumerateDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories).FirstOrDefault()
+                    If Not String.IsNullOrEmpty(firstMatchingDir) Then
+                        Dim dirName = Path.GetFileName(firstMatchingDir)
                         existingId = dirName.Substring("WV2Profile_".Length)
                     End If
                 End If
+
             End If
         Catch ex As Exception
             Debug.WriteLine($"Error searching existing profile dirs: {ex.Message}")

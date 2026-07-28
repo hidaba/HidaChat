@@ -4,10 +4,21 @@ Client desktop WPF in VB.NET (.NET 9) per WhatsApp Web con supporto multi-accoun
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
+[![Download Release](https://img.shields.io/github/v/release/hidaba/WhatsAppH?color=green&label=Download%20Windows)](https://github.com/hidaba/WhatsAppH/releases/latest)
+
+---
+
+## 📦 Download Eseguibile per Windows
+
+Scarica l'ultima versione portatile pronta all'uso per Windows (file ZIP senza bisogno di installazione):
+
+- ⬇️ **[Scarica l'ultima versione compilata (GitHub Releases)](https://github.com/hidaba/WhatsAppH/releases/latest)**
+- 📂 Estrai l'archivio ZIP ed avvia `WhatsappH.exe`.
 
 ---
 
 ## 🌟 Caratteristiche principali
+
 
 - 👥 **Multi-Account**: Gestione contemporanea di più account WhatsApp in schede separate isolati tramite profili WebView2 dedicati.
 - 🎨 **Design Moderno e Temi**: Interfaccia scura/chiara con rilevamento automatico del tema di sistema Windows.

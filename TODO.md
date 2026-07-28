@@ -142,10 +142,11 @@
 - **Ottimizzazione**: serializzare `WhatsAppAccount` direttamente (ha già `JsonPropertyName`)
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 30. `Directory.GetDirectories` in `AccountManager.vb`
-- Array eager invece di enumerazione lazy
-- **Ottimizzazione**: `Directory.EnumerateDirectories`
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~30. `Directory.GetDirectories` in `AccountManager.vb`~~ ✅
+- ~~Array eager invece di enumerazione lazy~~
+- ~~**Ottimizzazione**: `Directory.EnumerateDirectories` e `FirstOrDefault()` per interrompere la scansione alla prima corrispondenza~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
+
 
 ## 31. `UpdateChecker.vb` — `batchContent` con string concatenation
 - Batch file build con concatenazione di ~35 righe
