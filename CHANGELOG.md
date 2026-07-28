@@ -1,6 +1,15 @@
 # Changelog
 
+## [0.1.3] - 2026-07-28
+
+### Added
+- **Pulsante e sezione Download in README.md**: Aggiunta la sezione con i link diretti ed il badge per scaricare l'eseguibile portatile per Windows dalle GitHub Releases.
+
+### Fixed & Performance
+- **Punto 30 TODO**: Sostituito `Directory.GetDirectories` con `Directory.EnumerateDirectories` e `.FirstOrDefault()` in `AccountManager.vb` per la ricerca in streaming lazy del profilo orfano.
+
 ## [0.1.2] - 2026-07-28
+
 
 ### Added
 - Aggiunta documentazione XML doc (`<summary>`, `<param>`, `<returns>`) e commenti esplicativi in italiano in tutti i file di codice sorgente VB.NET del progetto (`AccountManager`, `WhatsAppAccount`, `MainWindow`, `SettingsController`, `SettingsWindow`, `UpdateChecker`, `Localization`, `JsScripts`, `MessagePopup`, `Application`, `Constants`).

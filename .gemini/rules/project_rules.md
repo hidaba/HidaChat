@@ -1,6 +1,10 @@
 # Regole di Sviluppo del Progetto
 
-1. **Commenti nei Sorgenti**: Non inserire mai riferimenti al numero di versione nei commenti all'interno del codice sorgente.
-2. **Gestione Versione e Release GitHub/OTA**:
-   - Non incrementare la versione stabile (`AppVersion` / GitHub Release) ad ogni singola modifica.
-   - Il cambio di versione stabile su GitHub, la creazione del pacchetto da scaricare (ZIP/Release) e la pubblicazione del pacchetto OTA si eseguono **solo quando richiesto esplicitamente dall'utente**.
+1. **Commenti nei Sorgenti**:
+   - Non inserire mai numeri di versione nei commenti all'interno del codice sorgente (`.vb`).
+
+2. **Changelog ed Incremento Versione (`AppVersion`)**:
+   - A ogni modifica/push occorre **SEMPRE** compilare il file `CHANGELOG.md` registrando i cambiamenti ed incrementare il terzo numero di versione (patch version, es. `0.1.2` -> `0.1.3`) sia in `Constants.vb` che in `CHANGELOG.md`.
+
+3. **Pacchetto di Release su GitHub ed OTA**:
+   - La creazione e pubblicazione del pacchetto compilato (ZIP/Release) su GitHub Releases e dell'aggiornamento OTA si eseguono **solo ed esclusivamente quando richiesto esplicitamente dall'utente**.

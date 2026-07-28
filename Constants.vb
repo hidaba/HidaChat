@@ -5,7 +5,8 @@ Imports System.IO
 ''' </summary>
 Public Module Constants
     ''' <summary>Versione corrente dell'applicazione.</summary>
-    Public Const AppVersion As String = "0.1.2"
+    Public Const AppVersion As String = "0.1.3"
+
 
 
     ' Configurazione repository GitHub per il sistema di aggiornamento OTA
