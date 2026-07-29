@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.7] - 2026-07-29
+
+### Fixed
+- **Fix Blocco Aggiornamento OTA e Mutex Istanza Singola**: Risolto il problema del blocco dell'applicazione al riavvio durante l'aggiornamento OTA e l'impossibilità di riaprire l'app dopo una chiusura forzata (richiedeva il riavvio del PC). Implementata la gestione di `AbandonedMutexException` e il ripiegamento sul controllo dei processi attivi in `Application.xaml.vb`, l'inclusione di `taskkill` per il processo bloccato e la rimozione di `pause` in `update.bat`, ed il corretto rilascio del Mutex dell'istanza singola e dei controlli WebView2 in `ForceExitForUpdate()`.
+
 ## [0.1.6] - 2026-07-29
 
 ### Performance

@@ -254,7 +254,9 @@ Public Class UpdateChecker
             sbBatch.AppendLine("if errorlevel 1 goto continue")
             sbBatch.AppendLine("set /a RETRY=RETRY+1")
             sbBatch.AppendLine("if %RETRY% GEQ 5 (")
-            sbBatch.AppendLine("    echo [%date% %time%] Timeout dopo 10 secondi, forzo prosecuzione... >> %LOG%")
+            sbBatch.AppendLine("    echo [%date% %time%] Timeout dopo 10 secondi, forzo chiusura del processo... >> %LOG%")
+            sbBatch.AppendLine("    taskkill /f /im WhatsappH.exe /t >nul 2>&1")
+            sbBatch.AppendLine("    timeout /t 1 /nobreak > nul")
             sbBatch.AppendLine("    goto continue")
             sbBatch.AppendLine(")")
             sbBatch.AppendLine("goto waitloop")
@@ -266,7 +268,6 @@ Public Class UpdateChecker
             sbBatch.AppendLine("if %RC% GEQ 8 (")
             sbBatch.AppendLine("    echo [%date% %time%] ERRORE: robocopy failed >> %LOG%")
             sbBatch.AppendLine($"    echo Copia file fallita. Verifica il log: {logFile}")
-            sbBatch.AppendLine("    pause")
             sbBatch.AppendLine("    exit /b 1")
             sbBatch.AppendLine(")")
             sbBatch.AppendLine($"echo v{latestVersion}>""{installDir}\.app_version""")
@@ -278,6 +279,13 @@ Public Class UpdateChecker
 
             File.WriteAllText(batchPath, sbBatch.ToString())
 
+            ' Rilascia le risorse e chiudi i controlli WebView2 prima di lanciare lo script di aggiornamento
+            Application.Current.Dispatcher.Invoke(Sub()
+                Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
+                If mainWin IsNot Nothing Then
+                    mainWin.ForceExitForUpdate()
+                End If
+            End Sub)
 
             Process.Start(New ProcessStartInfo With {
                 .FileName = batchPath,
@@ -285,10 +293,6 @@ Public Class UpdateChecker
             })
 
             Application.Current.Dispatcher.Invoke(Sub()
-                Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
-                If mainWin IsNot Nothing Then
-                    mainWin.ForceExitForUpdate()
-                End If
                 Application.Current.Shutdown()
             End Sub)
 

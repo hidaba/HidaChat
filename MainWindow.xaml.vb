@@ -156,11 +156,22 @@ Public Class MainWindow
         _allowExit = True
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+
+        For Each acc In _accountManager.Accounts
+            Try
+                acc.Dispose()
+            Catch
+            End Try
+        Next
+
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
         End If
         ToastNotificationManagerCompat.Uninstall()
+
+        ' Rilascia il Mutex dell'istanza singola prima che lo script di aggiornamento avvii il nuovo processo
+        Application.ReleaseSingleInstanceMutex()
     End Sub
 
     ''' <summary>
