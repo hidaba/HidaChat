@@ -165,10 +165,10 @@
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 
-## 34. `SolidColorBrush` — Creato a ogni cambio tema in MainWindow e SettingsWindow
-- `New SolidColorBrush(...)` chiamato ogni volta che si applica il tema
-- **Ottimizzazione**: cache delle istanze per colore
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~34. `SolidColorBrush` — Creato a ogni cambio tema in MainWindow e SettingsWindow~~ ✅
+- ~~`New SolidColorBrush(...)` chiamato ogni volta che si applica il tema~~
+- ~~**Ottimizzazione**: cache delle istanze per colore~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 35. `JsScripts.vb` — ~300 righe di JS traduzioni in memoria permanente
 - Script JS caricate all'avvio e mai rilasciate; copiate a ogni setup account

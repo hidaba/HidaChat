@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.6] - 2026-07-29
+
+### Performance
+- **Punto 34 TODO**: Implementato il modulo `BrushCache` con `ConcurrentDictionary` e congelamento `.Freeze()` per il caching thread-safe e ad alte prestazioni delle istanze `SolidColorBrush`. Eliminata la riallocazione continua di pennelli WPF a ogni cambio tema o aggiustamento grafico in `MainWindow.xaml.vb` e `SettingsWindow.xaml.vb`.
+
 ## [0.1.5] - 2026-07-28
 
 ### Fixed & Performance

@@ -272,13 +272,13 @@ Public Class SettingsWindow
 
 
         Dim fgColor = If(isDark, "#aebac1", "#111b21")
-        Dim fgBrush = New SolidColorBrush(ColorConverter.ConvertFromString(fgColor))
+        Dim fgBrush = BrushCache.GetBrush(fgColor)
 
-        SettingsBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#1f2c34", "#ffffff")))
-        TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#202c33", "#e9edef")))
-        ComboLanguage.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#2a3942", "#ffffff")))
+        SettingsBorder.Background = BrushCache.GetBrush(If(isDark, "#1f2c34", "#ffffff"))
+        TitleBar.Background = BrushCache.GetBrush(If(isDark, "#202c33", "#e9edef"))
+        ComboLanguage.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
         ComboLanguage.Foreground = fgBrush
-        ComboTheme.Background = New SolidColorBrush(ColorConverter.ConvertFromString(If(isDark, "#2a3942", "#ffffff")))
+        ComboTheme.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
         ComboTheme.Foreground = fgBrush
 
         For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)
@@ -309,13 +309,13 @@ Public Class SettingsWindow
             Dim tbFg = If(isDark, "#ffffff", "#111b21")
 
             For Each border In _cachedAccountBorders
-                border.Background = New SolidColorBrush(ColorConverter.ConvertFromString(bgColor))
-                border.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString(borderColor))
+                border.Background = BrushCache.GetBrush(bgColor)
+                border.BorderBrush = BrushCache.GetBrush(borderColor)
             Next
             For Each txt As TextBox In _cachedAccountTextBoxes
-                txt.Background = New SolidColorBrush(ColorConverter.ConvertFromString(tbBg))
-                txt.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString(tbFg))
-                txt.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#00a884"))
+                txt.Background = BrushCache.GetBrush(tbBg)
+                txt.Foreground = BrushCache.GetBrush(tbFg)
+                txt.BorderBrush = BrushCache.GetBrush("#00a884")
             Next
         End Sub), DispatcherPriority.Background)
     End Sub

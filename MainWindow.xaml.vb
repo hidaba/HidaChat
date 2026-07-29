@@ -377,10 +377,10 @@ Public Class MainWindow
 
 
         If isDark Then
-            RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
-            RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#2f3e46"))
-            TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#202c33"))
-            TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
+            RootBorder.Background = BrushCache.GetBrush("#111b21")
+            RootBorder.BorderBrush = BrushCache.GetBrush("#2f3e46")
+            TitleBar.Background = BrushCache.GetBrush("#202c33")
+            TitleText.Foreground = BrushCache.GetBrush("#e9edef")
             ' Aggiorna il tema oscuro all'interno delle singole WebView2
             For Each acc In _accountManager.Accounts
                 If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
@@ -392,10 +392,10 @@ Public Class MainWindow
                 End If
             Next
         Else
-            RootBorder.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#f0f2f5"))
-            RootBorder.BorderBrush = New SolidColorBrush(ColorConverter.ConvertFromString("#d1d7db"))
-            TitleBar.Background = New SolidColorBrush(ColorConverter.ConvertFromString("#e9edef"))
-            TitleText.Foreground = New SolidColorBrush(ColorConverter.ConvertFromString("#111b21"))
+            RootBorder.Background = BrushCache.GetBrush("#f0f2f5")
+            RootBorder.BorderBrush = BrushCache.GetBrush("#d1d7db")
+            TitleBar.Background = BrushCache.GetBrush("#e9edef")
+            TitleText.Foreground = BrushCache.GetBrush("#111b21")
             ' Aggiorna il tema chiaro all'interno delle singole WebView2
             For Each acc In _accountManager.Accounts
                 If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
