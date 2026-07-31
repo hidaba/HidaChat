@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.8] - 2026-07-31
+
+### Performance & Portability
+- **Ottimizzazione I/O disco e avvio Chromium portabile**: Configurate le opzioni di ambiente `AdditionalBrowserArguments` per WebView2 in `WhatsAppAccount.vb` (`--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter`). Limita la proliferazione di file sciolti di cache mantenendo l'applicazione al 100% portabile nella cartella `data/webview`.
+
 ## [0.1.7] - 2026-07-29
 
 ### Fixed

@@ -314,11 +314,21 @@ Public Class UpdateChecker
 
     ''' <summary>
     ''' Controllo di fallback per la presenza di aggiornamenti da cartella di rete locale.
+    ''' Include un timeout asincrono di 1.5s per evitare blocchi dell'avvio su percorsi UNC o IP non raggiungibili.
     ''' </summary>
     Private Shared Async Function CheckLocalOtaFallbackAsync(settings As SettingsController, installDir As String, force As Boolean) As Task
         Try
             Dim versionFile = If(settings.UseBetaChannel, Constants.UpdateVersionFileBeta, Constants.UpdateVersionFile)
-            If Not File.Exists(versionFile) Then Return
+            If String.IsNullOrWhiteSpace(versionFile) Then Return
+
+            ' Esegue il controllo esistenza file in background con un timeout massimo di 1500ms
+            Dim checkExistsTask = Task.Run(Function() File.Exists(versionFile))
+            Dim completedTask = Await Task.WhenAny(checkExistsTask, Task.Delay(1500))
+
+            If completedTask IsNot checkExistsTask OrElse Not checkExistsTask.Result Then
+                Debug.WriteLine("Local OTA fallback check skipped or timed out.")
+                Return
+            End If
 
             Dim latestVersion = (Await File.ReadAllTextAsync(versionFile)).Trim()
             Dim cleanVer = CleanVersionString(latestVersion)

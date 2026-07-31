@@ -132,6 +132,7 @@ Public Class WhatsAppAccount
 
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
+            options.AdditionalBrowserArguments = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter"
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
