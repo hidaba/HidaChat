@@ -362,5 +362,8 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-# Gemini AI rules
+# Gemini AI rules & Agent instructions
 .gemini/rules/
+AGENTS.md
+.agents/
+.agents/rules/
