@@ -67,10 +67,58 @@ Public Class WhatsAppAccount
     Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
 
-    ''' <summary>Percorso base per il salvataggio dei profili WebView2 isolati degli account.</summary>
+    ''' <summary>
+    ''' Rileva se il percorso specificato è situato su una risorsa di rete (UNC o unità mappata).
+    ''' </summary>
+    Public Shared Function IsNetworkPath(pathStr As String) As Boolean
+        Try
+            If String.IsNullOrWhiteSpace(pathStr) Then Return False
+            Dim fullPath = Path.GetFullPath(pathStr)
+            If fullPath.StartsWith("\\") OrElse New Uri(fullPath).IsUnc Then
+                Return True
+            End If
+            Dim root = Path.GetPathRoot(fullPath)
+            If Not String.IsNullOrEmpty(root) Then
+                Dim drive = New DriveInfo(root)
+                If drive.DriveType = DriveType.Network Then Return True
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"IsNetworkPath warning: {ex.Message}")
+        End Try
+        Return False
+    End Function
+
+    ''' <summary>
+    ''' Copia ricorsiva di una cartella e dei relativi file da un percorso sorgente a una destinazione.
+    ''' </summary>
+    Private Shared Sub CopyDirectory(sourceDir As String, destinationDir As String)
+        Dim dir As New DirectoryInfo(sourceDir)
+        If Not dir.Exists Then Return
+        Directory.CreateDirectory(destinationDir)
+        For Each file In dir.GetFiles()
+            Dim targetPath = Path.Combine(destinationDir, file.Name)
+            file.CopyTo(targetPath, True)
+        Next
+        For Each subDir In dir.GetDirectories()
+            Dim targetPath = Path.Combine(destinationDir, subDir.Name)
+            CopyDirectory(subDir.FullName, targetPath)
+        Next
+    End Sub
+
+    ''' <summary>
+    ''' Percorso base per il salvataggio dei profili WebView2 isolati degli account.
+    ''' Se l'applicazione è in esecuzione su una cartella di rete (UNC/SMB), reindirizza automaticamente
+    ''' i profili nel disco SSD locale (%LOCALAPPDATA%\WhatsappH\data\webview) per evitare gravi rallentamenti di I/O.
+    ''' </summary>
     Public Shared ReadOnly Property SharedDataDirectory As String
         Get
-            Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "webview")
+            Dim basePath = AppDomain.CurrentDomain.BaseDirectory
+            If IsNetworkPath(basePath) Then
+                Dim localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                Return Path.Combine(localAppData, "WhatsappH", "data", "webview")
+            Else
+                Return Path.Combine(basePath, "data", "webview")
+            End If
         End Get
     End Property
 
@@ -106,6 +154,21 @@ Public Class WhatsAppAccount
     Public Async Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
 
+        ' Se l'app è su risorsa di rete e contiene già un profilo su rete ma non ancora in locale, migralo sul disco SSD locale
+        If IsNetworkPath(AppDomain.CurrentDomain.BaseDirectory) Then
+            Dim networkBaseDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "webview")
+            Dim networkProfileDir = Path.Combine(networkBaseDir, $"WV2Profile_{Id}")
+            Dim localProfileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
+            If Directory.Exists(networkProfileDir) AndAlso Not Directory.Exists(localProfileDir) Then
+                Try
+                    Debug.WriteLine($"SetupWebView: migrazione profilo da rete a locale SSD: {networkProfileDir} -> {localProfileDir}")
+                    CopyDirectory(networkProfileDir, localProfileDir)
+                Catch ex As Exception
+                    Debug.WriteLine($"SetupWebView: errore migrazione profilo da rete: {ex.Message}")
+                End Try
+            End If
+        End If
+
         Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
         Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
         If Directory.Exists(orphanProfile) Then
@@ -131,8 +194,9 @@ Public Class WhatsAppAccount
         End If
 
         Try
+            Dim tempCacheDir = Path.Combine(Path.GetTempPath(), "WhatsappH_Cache", Id)
             Dim options As New CoreWebView2EnvironmentOptions()
-            options.AdditionalBrowserArguments = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter"
+            options.AdditionalBrowserArguments = $"--disk-cache-dir=""{tempCacheDir}"" --disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter --enable-features=UseSkiaRenderer,CanvasOopRasterization"
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
