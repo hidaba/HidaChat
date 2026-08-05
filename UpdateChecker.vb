@@ -140,35 +140,55 @@ Public Class UpdateChecker
         Using doc As JsonDocument = JsonDocument.Parse(jsonText)
             Dim root = doc.RootElement
 
-            ' Se canale beta, l'endpoint restituisce un array di release
-            Dim releaseElement As JsonElement = root
+            ' Se canale beta, l'endpoint restituisce un array di release ordinale per data
             If root.ValueKind = JsonValueKind.Array Then
-                If root.GetArrayLength() = 0 Then Return Nothing
-                releaseElement = root(0)
-            End If
+                For Each rel In root.EnumerateArray()
+                    Dim tagName = If(rel.TryGetProperty("tag_name", Nothing), rel.GetProperty("tag_name").GetString(), "")
+                    Dim cleanVer = CleanVersionString(tagName)
+                    Dim notes = If(rel.TryGetProperty("body", Nothing), rel.GetProperty("body").GetString(), "")
+                    Dim zipUrl As String = String.Empty
 
-            Dim tagName = If(releaseElement.TryGetProperty("tag_name", Nothing), releaseElement.GetProperty("tag_name").GetString(), "")
-            Dim cleanVer = CleanVersionString(tagName)
+                    If rel.TryGetProperty("assets", Nothing) Then
+                        For Each asset In rel.GetProperty("assets").EnumerateArray()
+                            Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
+                            If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
+                                zipUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
+                                Exit For
+                            End If
+                        Next
+                    End If
 
-            Dim notes = If(releaseElement.TryGetProperty("body", Nothing), releaseElement.GetProperty("body").GetString(), "")
-
-            ' Trova l'asset .zip nei file allegati alla release
-            Dim zipUrl As String = String.Empty
-            If releaseElement.TryGetProperty("assets", Nothing) Then
-                For Each asset In releaseElement.GetProperty("assets").EnumerateArray()
-                    Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
-                    If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
-                        zipUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
-                        Exit For
+                    If Not String.IsNullOrEmpty(zipUrl) Then
+                        Return New ReleaseInfo With {
+                            .Version = cleanVer,
+                            .DownloadUrl = zipUrl,
+                            .Notes = notes
+                        }
                     End If
                 Next
-            End If
+                Return Nothing
+            Else
+                Dim tagName = If(root.TryGetProperty("tag_name", Nothing), root.GetProperty("tag_name").GetString(), "")
+                Dim cleanVer = CleanVersionString(tagName)
+                Dim notes = If(root.TryGetProperty("body", Nothing), root.GetProperty("body").GetString(), "")
+                Dim zipUrl As String = String.Empty
 
-            Return New ReleaseInfo With {
-                .Version = cleanVer,
-                .DownloadUrl = zipUrl,
-                .Notes = notes
-            }
+                If root.TryGetProperty("assets", Nothing) Then
+                    For Each asset In root.GetProperty("assets").EnumerateArray()
+                        Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
+                        If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
+                            zipUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
+                            Exit For
+                        End If
+                    Next
+                End If
+
+                Return New ReleaseInfo With {
+                    .Version = cleanVer,
+                    .DownloadUrl = zipUrl,
+                    .Notes = notes
+                }
+            End If
         End Using
     End Function
 
