@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 2026-08-05
+
+### Changed & Refactored
+- **Centralizzazione Aggiornamenti OTA su GitHub Releases**: Rimossa la dipendenza e la logica di fallback sul percorso di rete locale dismesso (`UpdateFilesPath`). Il sistema di aggiornamento automatico OTA opera ora esclusivamente tramite le API REST di GitHub Releases con verifica, download ed installazione in background dello ZIP.
+- **Ottimizzazione Canale Beta (Pre-releases)**: Perfezionata la scansione delle release nel canale Beta (`UseBetaChannel`) in `UpdateChecker.vb` con iterazione nell'elenco release per selezionare il primo asset ZIP disponibile.
+- **Automazione Script di Pubblicazione**: Aggiornato `publish.ps1` per supportare la compilazione, creazione pacchetto ZIP e pubblicazione automatica di release stabili e beta (con flag `-Beta` e `--prerelease` su GitHub).
+- **Esclusione File Regole AI da Repository**: Aggiunte regole in `.gitignore` per escludere `AGENTS.md` e `.agents/` dal tracciamento Git pubblico, preservando la memoria e le linee guida del progetto in locale.
+
 ## [0.1.8] - 2026-07-31
 
 ### Performance & Portability
