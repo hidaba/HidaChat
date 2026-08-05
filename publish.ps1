@@ -95,5 +95,4 @@ if (-not $SkipGitHub) {
         gh release create $tagName $zipPath --repo hidaba/WhatsAppH --title $title -F $changelogPath $betaFlag
     }
 }
-
 Write-Host "Publish complete for WhatsappH v$newVersion !"

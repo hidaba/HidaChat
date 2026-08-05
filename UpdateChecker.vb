@@ -116,9 +116,6 @@ Public Class UpdateChecker
         Catch ex As Exception
             Debug.WriteLine($"GitHub update check error: {ex.Message}")
         End Try
-
-        ' 2. Fallback su percorsi di rete locale (se configurati e accessibili)
-        Await CheckLocalOtaFallbackAsync(settings, installDir, force)
     End Function
 
     Private Class ReleaseInfo
@@ -312,34 +309,7 @@ Public Class UpdateChecker
         End Try
     End Function
 
-    ''' <summary>
-    ''' Controllo di fallback per la presenza di aggiornamenti da cartella di rete locale.
-    ''' Include un timeout asincrono di 1.5s per evitare blocchi dell'avvio su percorsi UNC o IP non raggiungibili.
-    ''' </summary>
-    Private Shared Async Function CheckLocalOtaFallbackAsync(settings As SettingsController, installDir As String, force As Boolean) As Task
-        Try
-            Dim versionFile = If(settings.UseBetaChannel, Constants.UpdateVersionFileBeta, Constants.UpdateVersionFile)
-            If String.IsNullOrWhiteSpace(versionFile) Then Return
 
-            ' Esegue il controllo esistenza file in background con un timeout massimo di 1500ms
-            Dim checkExistsTask = Task.Run(Function() File.Exists(versionFile))
-            Dim completedTask = Await Task.WhenAny(checkExistsTask, Task.Delay(1500))
-
-            If completedTask IsNot checkExistsTask OrElse Not checkExistsTask.Result Then
-                Debug.WriteLine("Local OTA fallback check skipped or timed out.")
-                Return
-            End If
-
-            Dim latestVersion = (Await File.ReadAllTextAsync(versionFile)).Trim()
-            Dim cleanVer = CleanVersionString(latestVersion)
-
-            If IsNewerVersion(cleanVer, Constants.AppVersion) Then
-                Debug.WriteLine($"Local OTA update found: v{cleanVer}")
-            End If
-        Catch ex As Exception
-            Debug.WriteLine($"Local OTA fallback check error: {ex.Message}")
-        End Try
-    End Function
 
     Private Shared Sub WriteLocalVersionMarker(installDir As String, version As String)
         Try
