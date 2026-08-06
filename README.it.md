@@ -9,8 +9,8 @@
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
 [![Download Release](https://img.shields.io/github/v/release/hidaba/WhatsAppH?color=green&label=Download%20Windows)](https://github.com/hidaba/WhatsAppH/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/hidaba/WhatsAppH/total)](https://github.com/hidaba/WhatsAppH/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/hidaba/WhatsAppH)](https://github.com/hidaba/WhatsAppH/commits/main)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/WhatsAppH/build.yml?branch=main)](https://github.com/hidaba/WhatsAppH/actions)
+[![Last Commit](https://img.shields.io/github/last-commit/hidaba/WhatsAppH)](https://github.com/hidaba/WhatsAppH/commits/master)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/WhatsAppH/build.yml?branch=master)](https://github.com/hidaba/WhatsAppH/actions)
 
 ---
 
@@ -78,7 +78,7 @@ Per compilare ed eseguire il progetto localmente:
 ```bash
 # Clona il repository
 git clone https://github.com/hidaba/WhatsAppH.git
-cd WhatsAppH/WhatsAppVB
+cd WhatsAppH
 
 # Ripristina le dipendenze e compila
 dotnet restore

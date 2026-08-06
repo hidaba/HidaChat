@@ -18,7 +18,7 @@ Feature requests are always welcome!
 - Explain why this feature would be useful to WhatsAppH users.
 
 ### Pull Requests
-1. **Fork the repository** and create your branch from `main`.
+1. **Fork the repository** and create your branch from `master`.
 2. **Make sure the project builds**:
    ```bash
    dotnet restore
@@ -28,7 +28,7 @@ Feature requests are always welcome!
    - Use clear, descriptive variable names in Visual Basic .NET.
    - Include XML documentation tags (`''' <summary>`) for new classes or methods.
    - Keep UI localizations updated in `Localization.vb`.
-4. Submit your Pull Request targeting the `main` branch with a concise explanation of your changes.
+4. Submit your Pull Request targeting the `master` branch with a concise explanation of your changes.
 
 ---
 
