@@ -89,6 +89,7 @@ Public Class MainWindow
         ' Menu contestuale tasto destro
         Dim contextMenu As New System.Windows.Forms.ContextMenuStrip()
         contextMenu.Items.Add("Toggle Window", Nothing, Sub() ToggleWindow())
+        contextMenu.Items.Add("About", Nothing, Sub() OpenAboutWindow())
         contextMenu.Items.Add("-")
         contextMenu.Items.Add("Exit", Nothing, Sub() ExitApplication())
         
@@ -343,6 +344,26 @@ Public Class MainWindow
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
             )
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Apre la finestra di dialogo Informazioni sull'applicazione (AboutWindow).
+    ''' </summary>
+    Private Sub BtnAbout_Click(sender As Object, e As RoutedEventArgs)
+        OpenAboutWindow()
+    End Sub
+
+    Private Sub OpenAboutWindow()
+        Try
+            _accountManager.IsDialogOpen = True
+            Dim aboutWin As New AboutWindow(_settingsController)
+            aboutWin.Owner = Me
+            aboutWin.ShowDialog()
+            _accountManager.IsDialogOpen = False
+        Catch ex As Exception
+            _accountManager.IsDialogOpen = False
+            Debug.WriteLine($"Error opening About window: {ex.Message}")
         End Try
     End Sub
 

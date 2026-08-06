@@ -85,6 +85,12 @@ Public Class SettingsWindow
         Me.Close()
     End Sub
 
+    Private Sub BtnAbout_Click(sender As Object, e As RoutedEventArgs)
+        Dim aboutWin As New AboutWindow(_settingsController)
+        aboutWin.Owner = Me
+        aboutWin.ShowDialog()
+    End Sub
+
     ''' <summary>
     ''' Gestisce il cambio di selezione del tema dal menu a tendina.
     ''' </summary>

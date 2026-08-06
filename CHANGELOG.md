@@ -9,6 +9,9 @@
   - Implementata la verifica ed il blocco rigido del limite massimo in `AccountManager.vb` (`MaxAccounts = 3`, `CanAddAccount`).
   - Isolamento completo delle sessioni WhatsApp Web e dei dati di profilo WebView2 su disco (`WV2Profile_<id>`).
   - Aggiunte le stringhe di localizzazione multilingua per i limiti e le azioni di gestione account.
+- **Finestra "Informazioni" (AboutWindow)**:
+  - Creata la finestra modale `AboutWindow.xaml` accessibile tramite il nuovo pulsante `ⓘ` nella barra del titolo, dalle Impostazioni e dal menu contestuale della tray icon.
+  - Mostra l'autore (`Massimo Balestrieri`), la versione (`v0.2.2`), la data di rilascio (`2026-08-06`), la licenza (`Apache-2.0`), il runtime (`.NET 9` + `WebView2`), il percorso dati portabile (`data/webview`) ed i link diretti a GitHub, Releases e segnalazione bug.
 
 ### Performance & Refactored
 - **Punto 29 TODO (`AccountManager.vb`)**: Eliminata la proiezione con tipi anonimi a ogni salvataggio delle impostazioni. Serializzazione diretta della collezione `_accounts` per ridurre la pressione sul Garbage Collector.

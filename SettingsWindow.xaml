@@ -139,9 +139,14 @@
             <!-- Draggable Titlebar -->
             <Grid Grid.Row="0" x:Name="TitleBar" Background="#202c33" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <TextBlock x:Name="TitleText" Text="Settings" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="20,0,0,0"/>
-                <Button Click="BtnClose_Click" HorizontalAlignment="Right" Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SettingsCloseBtnStyle}">
-                    <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
-                </Button>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,10,0">
+                    <Button x:Name="BtnAbout" Click="BtnAbout_Click" Width="28" Height="28" Margin="0,0,5,0" ToolTip="About" Style="{StaticResource SettingsCloseBtnStyle}">
+                        <TextBlock Text="ⓘ" Foreground="#8696a0" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+                    <Button Click="BtnClose_Click" Width="28" Height="28" Style="{StaticResource SettingsCloseBtnStyle}">
+                        <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
+                    </Button>
+                </StackPanel>
             </Grid>
 
             <!-- Scrollable Settings Page -->

@@ -96,7 +96,19 @@ Public Class AppLocalizations
         {"notifications", "Notifications"},
         {"show_message_popup", "Show message popup"},
         {"accounts_count_info", "Configured accounts: {count} of 3"},
-        {"max_accounts_reached", "Maximum limit of 3 accounts reached."}
+        {"max_accounts_reached", "Maximum limit of 3 accounts reached."},
+        {"about", "About"},
+        {"about_title", "About WhatsappH"},
+        {"app_description", "Portable, lightweight, multi-account WhatsApp Web desktop client for Windows."},
+        {"author", "Author"},
+        {"release_date", "Release Date"},
+        {"license", "License"},
+        {"runtime_environment", "Environment & Framework"},
+        {"portable_directory", "Portable Data Path"},
+        {"github_repository", "GitHub Repository"},
+        {"report_issue", "Report Issue"},
+        {"view_releases", "View Releases"},
+        {"close", "Close"}
     }
 
     ''' <summary>
@@ -226,7 +238,19 @@ Public Class AppLocalizations
         {"notifications", "Notifiche"},
         {"show_message_popup", "Mostra popup messaggio"},
         {"accounts_count_info", "Account configurati: {count} su 3"},
-        {"max_accounts_reached", "Raggiunto il limite massimo di 3 account."}
+        {"max_accounts_reached", "Raggiunto il limite massimo di 3 account."},
+        {"about", "Informazioni"},
+        {"about_title", "Informazioni su WhatsappH"},
+        {"app_description", "Client desktop WhatsApp Web portabile, leggero e multi-account per Windows."},
+        {"author", "Autore"},
+        {"release_date", "Data di rilascio"},
+        {"license", "Licenza"},
+        {"runtime_environment", "Ambiente e Framework"},
+        {"portable_directory", "Percorso Dati Portabile"},
+        {"github_repository", "Repository GitHub"},
+        {"report_issue", "Segnala un problema"},
+        {"view_releases", "Vedi Release"},
+        {"close", "Chiudi"}
     }
 End Class
 
