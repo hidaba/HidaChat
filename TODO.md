@@ -137,10 +137,10 @@
 - ~~**Ottimizzazione**: `Random.Shared` (.NET 9) o `Shared` con lock~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 29. `AccountManager.vb` — Anonymous type a ogni salvataggio
-- Crea istanze di tipo anonimo per ogni account a ogni salvataggio — GC pressure
-- **Ottimizzazione**: serializzare `WhatsAppAccount` direttamente (ha già `JsonPropertyName`)
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~29. `AccountManager.vb` — Anonymous type a ogni salvataggio~~ ✅
+- ~~Crea istanze di tipo anonimo per ogni account a ogni salvataggio — GC pressure~~
+- ~~**Ottimizzazione**: serializzare `WhatsAppAccount` direttamente (ha già `JsonPropertyName`)~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## ~~30. `Directory.GetDirectories` in `AccountManager.vb`~~ ✅
 - ~~Array eager invece di enumerazione lazy~~

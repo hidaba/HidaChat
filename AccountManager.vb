@@ -277,11 +277,7 @@ Public Class AccountManager
 
         Dim settings = Await _settingsController.ReadSettingsAsync()
         
-        settings("accounts") = _accounts.Select(Function(a) New With {
-            .id = a.Id,
-            .name = a.Name,
-            .isActive = a.IsActive
-        }).ToList()
+        settings("accounts") = _accounts
         
         Await _settingsController.WriteSettingsAsync(settings)
         _isDirty = False

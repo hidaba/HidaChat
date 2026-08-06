@@ -10,6 +10,9 @@
   - Isolamento completo delle sessioni WhatsApp Web e dei dati di profilo WebView2 su disco (`WV2Profile_<id>`).
   - Aggiunte le stringhe di localizzazione multilingua per i limiti e le azioni di gestione account.
 
+### Performance & Refactored
+- **Punto 29 TODO (`AccountManager.vb`)**: Eliminata la proiezione con tipi anonimi a ogni salvataggio delle impostazioni. Serializzazione diretta della collezione `_accounts` per ridurre la pressione sul Garbage Collector.
+
 ## [0.2.1] - 2026-08-06
 
 ### Added & Refactored
