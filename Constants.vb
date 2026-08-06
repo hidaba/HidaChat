@@ -5,7 +5,7 @@ Imports System.IO
 ''' </summary>
 Public Module Constants
     ''' <summary>Versione corrente dell'applicazione.</summary>
-    Public Const AppVersion As String = "0.2.0"
+    Public Const AppVersion As String = "0.2.1"
 
 
 
