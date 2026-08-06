@@ -12,6 +12,7 @@
 
 ### Performance & Refactored
 - **Punto 29 TODO (`AccountManager.vb`)**: Eliminata la proiezione con tipi anonimi a ogni salvataggio delle impostazioni. Serializzazione diretta della collezione `_accounts` per ridurre la pressione sul Garbage Collector.
+- **Punto 7 TODO (`TODO.md`)**: Chiuso e contrassegnato come obsoleto il punto 7 sull'aggiornamento OTA tramite percorso di rete UNC (`ReadVersionFromFileAsync()`), in quanto il percorso di rete è stato dismesso ed interamente sostituito dalle API REST di GitHub Releases fin dalla v0.2.0.
 
 ### Fixed
 - **Aggiornamento Nome Account in Tempo Reale nelle Schede (`WhatsAppAccount.vb`)**: Aggiunto il sollevamento dell'evento `PropertyChanged` per la proprietà `Name` in `WhatsAppAccount.vb`. La rinomina degli account nelle Impostazioni viene ora riflessa istantaneamente sui pulsanti delle schede nella finestra principale senza dover riavviare o riaprire l'applicazione.

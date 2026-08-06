@@ -30,10 +30,8 @@
 - ~~**Ottimizzazione**: iniettare solo su navigazione iniziale, usare `AddScriptToExecuteOnDocumentCreatedAsync` per script permanenti~~
 - ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 7. Aggiornamento OTA — `ReadVersionFromFileAsync()` su UNC path
-- Il check aggiornamenti legge un file da percorso di rete UNC, operazione bloccante se il server è lento
-- **Ottimizzazione**: timeout più breve (3s), check asincrono senza bloccare l'avvio, caching della versione
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~7. Aggiornamento OTA — `ReadVersionFromFileAsync()` su UNC path~~ ✅
+- ~~Obsoleto nella v0.2.0: la lettura da percorso di rete UNC e `ReadVersionFromFileAsync()` sono stati completamente rimossi. Il sistema OTA opera esclusivamente tramite API REST di GitHub Releases.~~
 
 ## ~~8. `AccountManager.LoadAccountsAsync()` — Crea tutti i WebView2 all'avvio~~ ✅
 - ~~Crea un WebView2 per OGNI account al caricamento (~50-100MB per istanza)~~
