@@ -12,6 +12,8 @@ Imports System.Runtime.CompilerServices
 Public Class AccountManager
     Implements INotifyPropertyChanged
 
+    Public Const MaxAccounts As Integer = 3
+
     Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
 
     Private Sub NotifyPropertyChanged(<CallerMemberName> Optional propertyName As String = Nothing)
@@ -20,6 +22,15 @@ Public Class AccountManager
 
     Private ReadOnly _settingsController As SettingsController
     Private _isDirty As Boolean = False
+
+    ''' <summary>
+    ''' Indica se è possibile aggiungere un nuovo account (limite massimo di 3 account non ancora raggiunto).
+    ''' </summary>
+    Public ReadOnly Property CanAddAccount As Boolean
+        Get
+            Return _accounts IsNot Nothing AndAlso _accounts.Count < MaxAccounts
+        End Get
+    End Property
 
     Private _accounts As New ObservableCollection(Of WhatsAppAccount)()
 
@@ -34,6 +45,7 @@ Public Class AccountManager
             _accounts = value
             _isDirty = True
             NotifyPropertyChanged()
+            NotifyPropertyChanged(NameOf(CanAddAccount))
         End Set
     End Property
 
@@ -276,12 +288,32 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Aggiunge un nuovo account WhatsApp alla collezione e ne salva le modifiche.
+    ''' Aggiunge un nuovo account WhatsApp alla collezione (fino a un massimo di 3) e ne salva le modifiche.
     ''' </summary>
     ''' <param name="name">Nome personalizzato facoltativo dell'account.</param>
-    Public Async Function AddAccountAsync(Optional name As String = Nothing) As Task
+    ''' <returns>True se l'account è stato aggiunto con successo, False se è già stato raggiunto il limite massimo.</returns>
+    Public Async Function AddAccountAsync(Optional name As String = Nothing) As Task(Of Boolean)
+        If _accounts.Count >= MaxAccounts Then
+            Debug.WriteLine($"AddAccountAsync: impossibile aggiungere l'account, limite massimo ({MaxAccounts}) raggiunto.")
+            Return False
+        End If
+
         Dim accountId = WhatsAppAccount.GenerateId()
-        Dim accountName = If(name, $"Account {_accounts.Count + 1}")
+        
+        Dim accountName = name
+        If String.IsNullOrWhiteSpace(accountName) Then
+            Dim existingNames = _accounts.Select(Function(a) a.Name).ToHashSet()
+            For i As Integer = 1 To MaxAccounts + 1
+                Dim candidate = $"Account {i}"
+                If Not existingNames.Contains(candidate) Then
+                    accountName = candidate
+                    Exit For
+                End If
+            Next
+            If String.IsNullOrWhiteSpace(accountName) Then
+                accountName = $"Account {_accounts.Count + 1}"
+            End If
+        End If
         
         Dim newAccount As New WhatsAppAccount(accountId, accountName, False)
 
@@ -290,6 +322,8 @@ Public Class AccountManager
         Await SaveAccountsAsync()
         
         NotifyPropertyChanged(NameOf(Accounts))
+        NotifyPropertyChanged(NameOf(CanAddAccount))
+        Return True
     End Function
 
     ''' <summary>
@@ -315,6 +349,7 @@ Public Class AccountManager
 
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
+        NotifyPropertyChanged(NameOf(CanAddAccount))
 
         Await Task.Delay(100)
         Try

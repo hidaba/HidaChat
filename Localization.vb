@@ -94,7 +94,9 @@ Public Class AppLocalizations
         {"reload_active_tab", "Reload active tab"},
         {"use_beta_channel", "Use beta update channel"},
         {"notifications", "Notifications"},
-        {"show_message_popup", "Show message popup"}
+        {"show_message_popup", "Show message popup"},
+        {"accounts_count_info", "Configured accounts: {count} of 3"},
+        {"max_accounts_reached", "Maximum limit of 3 accounts reached."}
     }
 
     ''' <summary>
@@ -222,7 +224,9 @@ Public Class AppLocalizations
         {"reload_active_tab", "Ricarica scheda attiva"},
         {"use_beta_channel", "Usa canale aggiornamenti beta"},
         {"notifications", "Notifiche"},
-        {"show_message_popup", "Mostra popup messaggio"}
+        {"show_message_popup", "Mostra popup messaggio"},
+        {"accounts_count_info", "Account configurati: {count} su 3"},
+        {"max_accounts_reached", "Raggiunto il limite massimo di 3 account."}
     }
 End Class
 

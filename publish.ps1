@@ -78,6 +78,18 @@ foreach ($folder in @("images", "runtimes")) {
 Write-Host "Creating ZIP package: $zipPath ..."
 Compress-Archive -Path "$stagingDir\*" -DestinationPath $zipPath -Force
 
+# --- Git Commit & Push ---
+if (-not $SkipGitHub) {
+    Write-Host "Committing and pushing source code changes to GitHub..."
+    git add -A
+    $gitStatus = git status --porcelain
+    if ($gitStatus) {
+        $commitMsg = "v$newVersion - Release $(if ($Beta) { 'Beta' } else { 'Stabile' })"
+        git commit -m $commitMsg
+        git push origin master
+    }
+}
+
 # --- Create GitHub Release ---
 if (-not $SkipGitHub) {
     Write-Host "Publishing GitHub Release v$newVersion..."

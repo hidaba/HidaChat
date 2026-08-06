@@ -207,6 +207,41 @@ Public Class SettingsWindow
             ' Aggiorna la lista nella UI
             AccountsList.ItemsSource = Nothing
             AccountsList.ItemsSource = _accountManager.Accounts
+            UpdateAccountsUIState()
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce l'aggiunta di un nuovo account dalla finestra delle impostazioni.
+    ''' </summary>
+    Private Async Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)
+        If Not _accountManager.CanAddAccount Then
+            Dim loc = _settingsController.Localizations
+            MessageBox.Show(loc.Get("max_accounts_reached"), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
+            Return
+        End If
+
+        Dim success = Await _accountManager.AddAccountAsync()
+        If success Then
+            _cachedAccountBorders = Nothing
+            _cachedAccountTextBoxes = Nothing
+            AccountsList.ItemsSource = Nothing
+            AccountsList.ItemsSource = _accountManager.Accounts
+        End If
+        UpdateAccountsUIState()
+    End Sub
+
+    ''' <summary>
+    ''' Aggiorna lo stato del conteggio account e del pulsante aggiungi nelle impostazioni.
+    ''' </summary>
+    Private Sub UpdateAccountsUIState()
+        Dim loc = _settingsController.Localizations
+        If TxtAccountsCount IsNot Nothing Then
+            TxtAccountsCount.Text = loc.Get("accounts_count_info", New Dictionary(Of String, String) From {{"count", _accountManager.Accounts.Count.ToString()}})
+        End If
+        If BtnAddAccountSettings IsNot Nothing Then
+            BtnAddAccountSettings.IsEnabled = _accountManager.CanAddAccount
+            BtnAddAccountSettings.Content = loc.Get("add_account")
         End If
     End Sub
 
@@ -255,6 +290,7 @@ Public Class SettingsWindow
         SectionDevTools.Text = loc.Get("devtools")
         BtnDebugTab.Content = loc.Get("debug_active_tab")
         BtnCheckUpdates.Content = loc.Get("check_now")
+        UpdateAccountsUIState()
     End Sub
 
     Private Function GetCachedLogicalChildren(Of T As DependencyObject)(ByRef cache As List(Of T)) As List(Of T)

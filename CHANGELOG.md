@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.2] - 2026-08-06
+
+### Added
+- **Supporto Multi-Account fino a 3 Account WhatsApp**:
+  - Aggiunto il pulsante `+` nella barra orizzontale delle schede in `MainWindow.xaml` per la creazione immediata ed il passaggio al nuovo account.
+  - Aggiunto il controllo ed il contatore di account (`Account configurati: X su 3`) nella finestra `SettingsWindow.xaml`.
+  - Implementata la verifica ed il blocco rigido del limite massimo in `AccountManager.vb` (`MaxAccounts = 3`, `CanAddAccount`).
+  - Isolamento completo delle sessioni WhatsApp Web e dei dati di profilo WebView2 su disco (`WV2Profile_<id>`).
+  - Aggiunte le stringhe di localizzazione multilingua per i limiti e le azioni di gestione account.
+
 ## [0.2.1] - 2026-08-06
 
 ### Added & Refactored

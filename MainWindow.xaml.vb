@@ -54,6 +54,7 @@ Public Class MainWindow
         
         ' 6. Collega l'elenco account alla barra delle schede orizzontale
         AccountsList.ItemsSource = _accountManager.Accounts
+        UpdateAddAccountButtonState()
         
         ' 7. Istanzia e configura i controlli WebView2 per gli account
         PopulateWebViews()
@@ -355,6 +356,42 @@ Public Class MainWindow
         End If
     End Sub
 
+    ''' <summary>
+    ''' Aggiorna lo stato del pulsante di aggiunta account nella barra delle schede.
+    ''' </summary>
+    Private Sub UpdateAddAccountButtonState()
+        If BtnAddAccount IsNot Nothing Then
+            Dim canAdd = _accountManager.CanAddAccount
+            BtnAddAccount.IsEnabled = canAdd
+            BtnAddAccount.Visibility = If(canAdd, Visibility.Visible, Visibility.Collapsed)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce l'evento di click sul pulsante "+" per aggiungere un nuovo account WhatsApp.
+    ''' </summary>
+    Private Async Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            If Not _accountManager.CanAddAccount Then
+                Dim msg = _settingsController.Localizations.Get("max_accounts_reached")
+                MessageBox.Show(msg, "Limiti Account", MessageBoxButton.OK, MessageBoxImage.Information)
+                Return
+            End If
+
+            Dim success = Await _accountManager.AddAccountAsync()
+            If success Then
+                Dim newAcc = _accountManager.Accounts.LastOrDefault()
+                If newAcc IsNot Nothing Then
+                    Await SwitchToAccountAsync(newAcc.Id)
+                End If
+            End If
+            UpdateAddAccountButtonState()
+        Catch ex As Exception
+            Debug.WriteLine($"BtnAddAccount_Click error: {ex.Message}")
+            MessageBox.Show("Errore nell'aggiunta dell'account: " & ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
+        End Try
+    End Sub
+
     Private Async Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(SettingsController.Theme) Then
             Await ApplyWpfThemeAsync()
@@ -364,6 +401,8 @@ Public Class MainWindow
     Private Sub OnAccountManagerPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(AccountManager.HasAnyNotification) Then
             UpdateTrayIconImage()
+        ElseIf e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse e.PropertyName = NameOf(AccountManager.Accounts) Then
+            UpdateAddAccountButtonState()
         End If
     End Sub
 
