@@ -28,7 +28,7 @@
 | Traduzioni UI | **Pre-compilate** (dizionari `EnStrings`/`ItStrings`) |
 | Traduzione messaggi | **Google Translate API** non ufficiale (`translate.googleapis.com`) |
 | Tema di sistema rilevato | Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` |
-| Repository OTA | `\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\` |
+| Repository OTA | GitHub Releases API (`https://api.github.com/repos/hidaba/WhatsAppH/releases`) |
 
 ---
 
@@ -145,9 +145,9 @@ JsScripts           ──  JavaScript injection in WebView2
 
 ### `Constants.vb` – Costanti globali
 - `AppVersion = "1.2.1"`
-- `UpdateFilesPath = "\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\"`
-- `UpdateVersionFile = UpdateFilesPath + "version.txt"`
-- `MutexId = "WhatsAppVB_SingleInstanceMutex"`
+- `GitHubReleasesApiUrl = "https://api.github.com/repos/hidaba/WhatsAppH/releases"`
+- `GitHubLatestReleaseApiUrl = "https://api.github.com/repos/hidaba/WhatsAppH/releases/latest"`
+- `MutexId = "Local\WhatsAppVB_SingleInstance_Mutex"`
 
 ### `SettingsController.vb` – Controller impostazioni (345 righe)
 - Implementa `INotifyPropertyChanged`
@@ -240,7 +240,7 @@ Tre classi statiche che contengono JavaScript inline:
 | `System.Text.Json` | (built-in .NET 9) | Serializzazione settings, cache, messaggi bridge |
 | `System.Net.Http` | (built-in) | Chiamate API Google Translate (traduzione messaggi) |
 | **Google Translate API** | (non ufficiale) | Solo per traduzione messaggi in webview (`translate_a/single`) |
-| **Repository OTA locale** | (rete interna) | Check versione e auto-update da `\\172.17.10.135\annoni-new\IT\OTARepository\Whatsapp\` |
+| **Repository OTA** | GitHub Releases | Check versione e auto-update via GitHub Releases API |
 | **System.Windows.Forms** | (built-in) | `NotifyIcon` per system tray |
 | `System.Windows.Interop` | (built-in) | Interop WPF/Win32 |
 

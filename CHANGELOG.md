@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1] - 2026-08-06
+
+### Added & Refactored
+- **Miglioramento Visibilità & Sicurezza Repository**: Rimossi i riferimenti all'IP e percorso di rete legacy in `ANALISI_PROGETTO.md`. Allineato il distintivo ed il testo della licenza ad Apache 2.0.
+- **Documentazione Bilingue & Asset Grafici**: Aggiunti i file `README.md` (inglese) e `README.it.md` (italiano) con selettore di lingua, tabella comparativa "Why WhatsAppH", galleria di screenshot (`images/`) e requisiti.
+- **Standard Community & CI/CD**: Introdotti `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (v2.1), `SECURITY.md`, template per segnalazione bug e feature request, e workflow GitHub Actions `.github/workflows/build.yml` per la compilazione automatica `.NET 9`.
+
 ## [0.2.0] - 2026-08-05
 
 ### Changed & Refactored

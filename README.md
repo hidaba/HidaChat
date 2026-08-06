@@ -1,88 +1,125 @@
-# WhatsappH
+# WhatsAppH
 
-Client desktop WPF in VB.NET (.NET 9) per WhatsApp Web con supporto multi-account, traduzione istantanea dei messaggi e notifiche native Windows.
+[![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
+[![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.it.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
+**Portable Windows Desktop Client for WhatsApp Web (.NET 9 / WPF)** featuring **Multi-Account** tab management, **Built-In Message Translation**, **Native Toast Notifications**, and **Zero Installation**.
+
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
 [![Download Release](https://img.shields.io/github/v/release/hidaba/WhatsAppH?color=green&label=Download%20Windows)](https://github.com/hidaba/WhatsAppH/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/hidaba/WhatsAppH/total)](https://github.com/hidaba/WhatsAppH/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/hidaba/WhatsAppH)](https://github.com/hidaba/WhatsAppH/commits/main)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/WhatsAppH/build.yml?branch=main)](https://github.com/hidaba/WhatsAppH/actions)
 
 ---
 
-## 📦 Download Eseguibile per Windows
+## 📸 Screenshots & Preview
 
-Scarica l'ultima versione portatile pronta all'uso per Windows (file ZIP senza bisogno di installazione):
-
-- ⬇️ **[Scarica l'ultima versione compilata (GitHub Releases)](https://github.com/hidaba/WhatsAppH/releases/latest)**
-- 📂 Estrai l'archivio ZIP ed avvia `WhatsappH.exe`.
-
----
-
-## 🌟 Caratteristiche principali
-
-
-- 👥 **Multi-Account**: Gestione contemporanea di più account WhatsApp in schede separate isolati tramite profili WebView2 dedicati.
-- 🎨 **Design Moderno e Temi**: Interfaccia scura/chiara con rilevamento automatico del tema di sistema Windows.
-- 🌐 **Traduzione Integrata**:
-  - Pulsante hover per tradurre singoli messaggi direttamente nella chat.
-  - Traduzione automatica o su richiesta dell'intera pagina.
-  - Traduzione in tempo reale in italiano o inglese.
-- 🔔 **Notifiche Native Windows**: Toast notifications native con instradamento del click direttamente all'account ed al messaggio corretto.
-- 📌 **System Tray Integration**: Riduzione a vassoio di sistema con supporto alle notifiche badge ed estrazione rápida.
-- 🚀 **Aggiornamenti OTA**: Verifica ed installazione automatica degli aggiornamenti in background.
+| **Multi-Account Interface (Dark Mode)** | **Instant Message Translation** |
+|:---:|:---:|
+| ![Multi-Account Interface](images/screenshot_main.png) | ![Message Translation](images/screenshot_translation.png) |
+| **Native Windows Toast Notifications** | **Dark & Light Themes** |
+| ![Windows Toast Notifications](images/screenshot_toast.png) | ![Dark and Light Themes](images/screenshot_themes.png) |
 
 ---
 
-## 💻 Requisiti di Sistema
+## 📦 Quick Download for Windows
 
-- **OS**: Windows 10 (build 19041 o successiva) / Windows 11
-- **Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (incluso di serie su Windows 11)
+Get the latest ready-to-use portable release for Windows (ZIP archive, no installation required):
+
+- ⬇️ **[Download Latest Portable Release (GitHub Releases)](https://github.com/hidaba/WhatsAppH/releases/latest)**
+- 📂 Extract the ZIP file anywhere (Local Drive or USB Flash Drive) and launch `WhatsappH.exe`.
+
+> ⚠️ **Important Portability Note**: Do not run WhatsAppH simultaneously from multiple computers accessing the same shared network folder. WhatsAppH is designed to be used by one PC at a time to prevent WebView2 profile lock conflicts.
+
+---
+
+## 🌟 Why WhatsAppH? (Comparison)
+
+| Feature | WhatsAppH | Official WhatsApp Desktop | Altus (`amanharwara/altus`) | whatRust (`karem505/whatRust`) |
+|---|:---:|:---:|:---:|:---:|
+| **Installation Required** | ❌ **No (100% Portable)** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Moveable Data / Portable** | ✅ **Yes (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
+| **Multi-Account Support** | ✅ **Yes (Isolated Tabs)** | ❌ No | ✅ Yes | ✅ Yes |
+| **Integrated Translation** | ✅ **Yes (Hover + Page)** | ❌ No | ❌ No | ❌ No |
+| **Native Windows Toast** | ✅ **Yes** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Engine Footprint** | **WebView2 (Native Win)** | Electron | Electron | WebView (Tauri/Rust) |
+| **Open Source** | ✅ **Yes (Apache-2.0)** | ❌ No | ✅ Yes | ✅ Yes |
+
+---
+
+## 🚀 Key Features
+
+- 👥 **Multi-Account Management**: Run multiple WhatsApp Web accounts concurrently in dedicated tabs with isolated WebView2 user profiles.
+- 🎨 **Modern Themes**: Seamless Dark/Light mode switcher with automatic Windows system theme sync.
+- 🌐 **Built-In Translation**:
+  - **Hover Button**: Translate individual chat messages on hover.
+  - **Full-Page Batch**: Translate entire chat conversations instantly.
+  - **Notification Translation**: Automatically translate incoming message previews.
+- 🔔 **Native Windows Toast Notifications**: Custom click routing directly opens the active account and target conversation.
+- 📌 **System Tray Integration**: Minimize to tray with unread notification badge counts.
+- 🚀 **Automated OTA Updates**: Background version check and seamless update download via GitHub Releases.
+
+---
+
+## 💻 System Requirements
+
+- **OS**: Windows 10 (version 20H1 / build 19041 or higher) or Windows 11
+- **Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (pre-installed on Windows 11)
 - **Framework**: .NET 9.0 Runtime
 
 ---
 
-## 🛠️ Compilazione da sorgente
+## 🛠️ Building from Source
 
-Per compilare ed eseguire il progetto localmente:
+To compile and run the project locally:
 
 ```bash
-# Clona il repository
+# Clone repository
 git clone https://github.com/hidaba/WhatsAppH.git
-cd WhatsAppH
+cd WhatsAppH/WhatsAppVB
 
-# Ripristina le dipendenze e compila
+# Restore dependencies and build
 dotnet restore
 dotnet build -c Release
 ```
 
-In alternativa, puoi aprire la soluzione `WhatsappH.sln` con **Visual Studio 2022** (.NET 9 SDK installato) e premere `F5`.
+Alternatively, open `WhatsappH.sln` in **Visual Studio 2022** (.NET 9 SDK installed) and press `F5`.
 
 ---
 
-## 📖 Guida all'uso
+## 📖 Quick Start Guide
 
-1. **Aggiunta Account**: Avvia l'applicazione e rinomina o aggiungi un account dal menu delle schede o dalle **Impostazioni** (⚙️).
-2. **Accesso WhatsApp**: Inquadra il codice QR con WhatsApp sul tuo smartphone per sincronizzare la sessione.
-3. **Traduzioni**: Passa il mouse su qualsiasi messaggio per visualizzare l'icona di traduzione istantanea 🌐.
+1. **Add Accounts**: Launch `WhatsappH.exe` and add or rename account tabs via the top header bar or **Settings** (⚙️).
+2. **Scan QR Code**: Scan the QR code with WhatsApp on your phone to link your account.
+3. **Translate Messages**: Hover over any chat message to reveal the instant translation button 🌐.
 
-### 🕹️ Controlli della Barra del Titolo
+### 🕹️ Title Bar Controls
 
-| Icona | Azione |
+| Icon | Function |
 | :---: | :--- |
-| ⚙️ | Apre la finestra Impostazioni (tema, lingua, gestione account) |
-| 🔄 | Ricarica la scheda dell'account attivo |
-| ✕ / — | Minimizza o riduci nella barra delle applicazioni / tray |
+| ⚙️ | Open Settings (Theme, Language, Account Management) |
+| 🔄 | Reload active account webview |
+| 🌐 | Trigger full chat page translation |
+| ✕ / — | Minimize to system tray or taskbar |
 
 ---
 
-## 🧰 Stack Tecnologico
+## 🗺️ Roadmap & Changelog
 
-- **Linguaggio**: VB.NET
-- **UI**: WPF (Windows Presentation Foundation) su .NET 9.0
-- **Engine Web**: `Microsoft.Web.WebView2`
-- **Notifiche**: `Microsoft.Toolkit.Uwp.Notifications`
+Check out [CHANGELOG.md](CHANGELOG.md) to see release history and recent updates.
 
 ---
 
-## 📄 Licenza
+## 🤝 Contributing & Security
 
-Distribuito sotto licenza **MIT**. Consulta il file [LICENSE.txt](LICENSE.txt) per i dettagli.
+- **Contributing**: Please review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
+- **Security**: For security concerns or vulnerability reporting, see [SECURITY.md](SECURITY.md).
+- **Code of Conduct**: This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
+## 📄 License
+
+Distributed under the **Apache 2.0 License**. See [LICENSE.txt](LICENSE.txt) for details.
