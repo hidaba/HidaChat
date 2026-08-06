@@ -24,9 +24,20 @@ Public Class WhatsAppAccount
     <JsonPropertyName("id")>
     Public Property Id As String
 
+    Private _name As String
     ''' <summary>Nome personalizzato visualizzato nelle schede e impostazioni.</summary>
     <JsonPropertyName("name")>
     Public Property Name As String
+        Get
+            Return _name
+        End Get
+        Set(value As String)
+            If _name <> value Then
+                _name = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(Name)))
+            End If
+        End Set
+    End Property
 
     Private _isActive As Boolean
     ''' <summary>Indica se l'account è attualmente attivo e visibile nella finestra principale.</summary>
@@ -43,9 +54,20 @@ Public Class WhatsAppAccount
         End Set
     End Property
     
+    Private _hasNotification As Boolean
     ''' <summary>Indica se vi sono notifiche pendenti non lette per questo account.</summary>
     <JsonIgnore>
     Public Property HasNotification As Boolean
+        Get
+            Return _hasNotification
+        End Get
+        Set(value As Boolean)
+            If _hasNotification <> value Then
+                _hasNotification = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasNotification)))
+            End If
+        End Set
+    End Property
     
     ''' <summary>Token di sicurezza generato ad ogni sessione per validare i messaggi IPC provenienti dal JavaScript della WebView.</summary>
     <JsonIgnore>

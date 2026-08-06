@@ -13,6 +13,9 @@
 ### Performance & Refactored
 - **Punto 29 TODO (`AccountManager.vb`)**: Eliminata la proiezione con tipi anonimi a ogni salvataggio delle impostazioni. Serializzazione diretta della collezione `_accounts` per ridurre la pressione sul Garbage Collector.
 
+### Fixed
+- **Aggiornamento Nome Account in Tempo Reale nelle Schede (`WhatsAppAccount.vb`)**: Aggiunto il sollevamento dell'evento `PropertyChanged` per la proprietà `Name` in `WhatsAppAccount.vb`. La rinomina degli account nelle Impostazioni viene ora riflessa istantaneamente sui pulsanti delle schede nella finestra principale senza dover riavviare o riaprire l'applicazione.
+
 ## [0.2.1] - 2026-08-06
 
 ### Added & Refactored
