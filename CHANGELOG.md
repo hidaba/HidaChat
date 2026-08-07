@@ -4,6 +4,7 @@
 
 ### Fixed
 - **Fix Crash Notifiche Toast (MainWindow.xaml.vb)**: Risolto NullReferenceException al click su notifiche Toast di Windows con argomenti mancanti o malformati mediante l'helper `ExtractArg`.
+- **Fix Click Notifiche Toast (MainWindow.xaml.vb, MessagePopup.xaml.vb)**: Sostituita la chiamata a `ToggleWindow()` con `ShowWindow()` nel gestore notifiche Toast per evitare che un click nasconda la finestra se già visibile in primo piano.
 
 ## [0.2.2-beta] - 2026-08-06
 

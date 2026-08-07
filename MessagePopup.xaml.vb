@@ -64,12 +64,7 @@ Public Class MessagePopup
 
         Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
         If mainWin IsNot Nothing Then
-            If mainWin.Visibility <> Visibility.Visible Then
-                mainWin.Show()
-            End If
-            mainWin.WindowState = WindowState.Normal
-            mainWin.Activate()
-            mainWin.Focus()
+            mainWin.ShowWindow()
         End If
 
         ClosePopup()

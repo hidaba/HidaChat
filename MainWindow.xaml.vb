@@ -119,11 +119,20 @@ Public Class MainWindow
         If Me.Visibility = Visibility.Visible Then
             Me.Hide()
         Else
-            Me.Show()
-            Me.WindowState = WindowState.Normal
-            Me.Activate()
-            Me.Focus()
+            ShowWindow()
         End If
+    End Sub
+
+    ''' <summary>
+    ''' Mostra e porta in primo piano la finestra principale senza nasconderla se è già visibile.
+    ''' </summary>
+    Public Sub ShowWindow()
+        If Me.Visibility <> Visibility.Visible Then
+            Me.Show()
+        End If
+        Me.WindowState = WindowState.Normal
+        Me.Activate()
+        Me.Focus()
     End Sub
 
     ''' <summary>
@@ -505,7 +514,7 @@ Public Class MainWindow
                 
                 ' Esegue sul thread UI il ripristino della finestra e la selezione dell'account
                 Application.Current.Dispatcher.Invoke(Async Function() As Task
-                    ToggleWindow()
+                    ShowWindow()
                     Await SwitchToAccountAsync(accountId)
                     
                     If Not String.IsNullOrEmpty(notificationId) Then
