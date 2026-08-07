@@ -481,27 +481,42 @@ Public Class MainWindow
     End Function
 
     ''' <summary>
+    ''' Estrae il valore di una chiave specificata dalla stringa degli argomenti (formato "key1=val1&key2=val2").
+    ''' Restituisce Nothing se la chiave non è presente o non ha un valore valido.
+    ''' </summary>
+    Private Shared Function ExtractArg(argument As String, key As String) As String
+        If String.IsNullOrEmpty(argument) Then Return Nothing
+        Dim part = argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith(key & "="))
+        If part Is Nothing Then Return Nothing
+        Dim idx = part.IndexOf("="c)
+        Return If(idx >= 0 AndAlso idx < part.Length - 1, part.Substring(idx + 1), Nothing)
+    End Function
+
+    ''' <summary>
     ''' Configura la gestione dell'evento di click sulle notifiche Toast di Windows per ripristinare la finestra ed aprire l'account di origine.
     ''' </summary>
     Private Sub ConfigureToastNotifications()
         AddHandler ToastNotificationManagerCompat.OnActivated, Sub(toastArgs)
             Dim args = toastArgs.Argument
             If Not String.IsNullOrEmpty(args) Then
-                Dim accountId = toastArgs.Argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith("accountId=")).Split("="c)(1)
-                Dim notificationId = toastArgs.Argument.Split("&"c).FirstOrDefault(Function(s) s.StartsWith("notificationId=")).Split("="c)(1)
+                Dim accountId = ExtractArg(args, "accountId")
+                If String.IsNullOrEmpty(accountId) Then Return
+                Dim notificationId = ExtractArg(args, "notificationId")
                 
                 ' Esegue sul thread UI il ripristino della finestra e la selezione dell'account
                 Application.Current.Dispatcher.Invoke(Async Function() As Task
                     ToggleWindow()
                     Await SwitchToAccountAsync(accountId)
                     
-                    Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
-                    If acc IsNot Nothing AndAlso acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                        Try
-                            Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
-                        Catch ex As Exception
-                            Debug.WriteLine($"Failed to execute onNotificationClicked for account {acc.Id}: {ex.Message}")
-                        End Try
+                    If Not String.IsNullOrEmpty(notificationId) Then
+                        Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
+                        If acc IsNot Nothing AndAlso acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
+                            Try
+                                Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
+                            Catch ex As Exception
+                                Debug.WriteLine($"Failed to execute onNotificationClicked for account {acc.Id}: {ex.Message}")
+                            End Try
+                        End If
                     End If
                 End Function)
             End If
