@@ -172,3 +172,39 @@
 - Script JS caricate all'avvio e mai rilasciate; copiate a ogni setup account
 - **Ottimizzazione**: caricare da file esterno o risorsa embedded lazy; eventualmente comprimere
 - **Impatto**: Basso | **Sforzo**: Medio
+
+---
+
+# Architettura, Portabilità e Sicurezza
+
+## 36. File `settings.json` e `translations_cache.json` nella cartella radice invece che in `data/`
+- **File**: `SettingsController.vb`, proprietà `SettingsFile` e `CacheFile`
+- I profili WebView2 vivono in `data/webview/`, ma `settings.json` (se non esiste già) viene creato nella cartella radice dell'app accanto all'eseguibile, e `translations_cache.json` è sempre e solo nella root, mai sotto `data/`. Questo sporca la cartella radice ed è incoerente con la portabilità completa.
+- **Suggerimento**: Spostare entrambi i file sotto `data/`, mantenendo la logica di fallback/migrazione per installazioni esistenti.
+- **Impatto**: Medio | **Sforzo**: Basso
+
+## 37. Cancellazione dei profili basata su `Task.Delay` fisso invece di un segnale deterministico
+- **File**: `AccountManager.vb`, `RemoveAccountAsync`
+- `Await Task.Delay(100)` -> `accountToRemove.Dispose()` -> `Await Task.Delay(500)` -> `Directory.Delete(profileDir, True)`
+- Su macchine lente o con antivirus attivo, `Directory.Delete` può fallire se i file non sono ancora rilasciati dal processo WebView2/Chromium, lasciando cartelle orfane sul disco.
+- **Suggerimento**: Sostituire l'attesa fissa con un retry con backoff sul delete (es. 3-4 tentativi con pausa crescente).
+- **Impatto**: Basso | **Sforzo**: Basso
+
+## 38. Escaping incoerente dei valori interpolati nel JavaScript eseguito via `ExecuteScriptAsync`
+- **File**: `WhatsAppAccount.vb`, `HandleTranslationMessageAsync` e `UpdateWebviewLanguageAsync`
+- Il payload dati (`partsJson`, `jsonResult`) viene serializzato con `JsonSerializer.Serialize`, mentre `id` e `langCode` vengono interpolati direttamente.
+- **Suggerimento**: Serializzare con `JsonSerializer.Serialize` anche `id` e `langCode` prima di interpolarli nelle stringhe JS per coerenza difensiva.
+- **Impatto**: Basso | **Sforzo**: Basso
+
+## 39. Bridge token esposto come variabile globale leggibile dalla pagina
+- **File**: `WhatsAppAccount.vb`, `SetupWebViewAsync`
+- `window.__bridgeToken = '{BridgeToken}';`
+- Qualunque script eseguito nel contesto della pagina può leggere il token su `window.__bridgeToken`. Nota di design da tenere presente per il futuro (non urgente).
+- **Impatto**: Basso | **Sforzo**: Medio
+
+## 40. Nessuna verifica di integrità sullo ZIP di aggiornamento automatico
+- **File**: `UpdateChecker.vb`, `PerformUpdateFromGitHubAsync`
+- Lo ZIP scaricato da GitHub Releases viene estratto e sostituito senza controlli oltre al trasporto HTTPS (nessun checksum/SHA256, nessuna firma).
+- **Suggerimento**: Pubblicare un hash SHA256 insieme alla release e verificarlo prima dell'estrazione per aumentare la resilienza.
+- **Impatto**: Basso | **Sforzo**: Basso
+
