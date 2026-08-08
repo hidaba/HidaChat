@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.4] - 2026-08-08
+
+### Fixed
+- **Pulizia Profili WebView2 Orfani (`AccountManager.vb`)**: Implementato il metodo `CleanupUnusedProfilesAsync` per scansionare la cartella `data/webview` ed eliminare automaticamente all'avvio le cartelle di profilo orfane (`WV2Profile_*`) i cui ID non sono più associati ad alcun account attivo.
+- **Correzione Badge e Link (`README.md`, `README.it.md`)**: Corretti i badge di build ed i link commit per puntare al branch `master` ed eliminate le istruzioni di build contenenti percorsi non validi.
+
 ## [0.2.3] - 2026-08-07
 
 ### Fixed

@@ -143,10 +143,10 @@ Public Class AccountManager
 
                     If needsSave Then
                         Await SaveAccountsAsync(force:=True)
-                    Else
-                        Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
-                        Await CleanupUnusedProfilesAsync(activeIds)
                     End If
+
+                    Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
+                    Await CleanupUnusedProfilesAsync(activeIds)
                     
                     _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
                     If _currentAccount Is Nothing AndAlso _accounts.Count > 0 Then
@@ -206,9 +206,36 @@ Public Class AccountManager
     End Sub
 
     ''' <summary>
-    ''' Rimuove eventuali profili non più associati ad alcun account attivo.
+    ''' Rimuove eventuali profili WebView2 non più associati ad alcun account attivo.
     ''' </summary>
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
+        Try
+            Dim sharedDir = WhatsAppAccount.SharedDataDirectory
+            If Not Directory.Exists(sharedDir) Then
+                Return Task.CompletedTask
+            End If
+
+            Dim activeSet As New HashSet(Of String)(If(activeIds, New List(Of String)()), StringComparer.OrdinalIgnoreCase)
+            Dim profileDirs = Directory.GetDirectories(sharedDir, "WV2Profile_*")
+
+            For Each profileDir In profileDirs
+                Dim dirName = Path.GetFileName(profileDir)
+                If dirName.StartsWith("WV2Profile_") Then
+                    Dim profileId = dirName.Substring("WV2Profile_".Length)
+                    If Not activeSet.Contains(profileId) Then
+                        Try
+                            Directory.Delete(profileDir, True)
+                            Debug.WriteLine($"CleanupUnusedProfilesAsync: eliminata cartella di profilo orfana '{profileDir}'")
+                        Catch ex As Exception
+                            Debug.WriteLine($"CleanupUnusedProfilesAsync: errore eliminazione '{profileDir}': {ex.Message}")
+                        End Try
+                    End If
+                End If
+            Next
+        Catch ex As Exception
+            Debug.WriteLine($"CleanupUnusedProfilesAsync error: {ex.Message}")
+        End Try
+
         Return Task.CompletedTask
     End Function
 
