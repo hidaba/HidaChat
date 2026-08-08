@@ -6,7 +6,7 @@
 - **Pulizia Profili WebView2 Orfani (`AccountManager.vb`)**: Implementato il metodo `CleanupUnusedProfilesAsync` per scansionare la cartella `data/webview` ed eliminare automaticamente all'avvio le cartelle di profilo orfane (`WV2Profile_*`) i cui ID non sono più associati ad alcun account attivo.
 - **Correzione Badge e Link (`README.md`, `README.it.md`)**: Corretti i badge di build ed i link commit per puntare al branch `master` ed eliminate le istruzioni di build contenenti percorsi non validi.
 
-## [0.2.3] - 2026-08-07
+## [0.2.3-beta] - 2026-08-07
 
 ### Fixed
 - **Fix Crash Notifiche Toast (MainWindow.xaml.vb)**: Risolto NullReferenceException al click su notifiche Toast di Windows con argomenti mancanti o malformati mediante l'helper `ExtractArg`.
@@ -32,7 +32,7 @@
 ### Fixed
 - **Aggiornamento Nome Account in Tempo Reale nelle Schede (`WhatsAppAccount.vb`)**: Aggiunto il sollevamento dell'evento `PropertyChanged` per la proprietà `Name` in `WhatsAppAccount.vb`. La rinomina degli account nelle Impostazioni viene ora riflessa istantaneamente sui pulsanti delle schede nella finestra principale senza dover riavviare o riaprire l'applicazione.
 
-## [0.2.1] - 2026-08-06
+## [0.2.1-beta] - 2026-08-06
 
 ### Added & Refactored
 - **Miglioramento Visibilità & Sicurezza Repository**: Rimossi i riferimenti all'IP e percorso di rete legacy in `ANALISI_PROGETTO.md`. Allineato il distintivo ed il testo della licenza ad Apache 2.0.
@@ -47,28 +47,28 @@
 - **Automazione Script di Pubblicazione**: Aggiornato `publish.ps1` per supportare la compilazione, creazione pacchetto ZIP e pubblicazione automatica di release stabili e beta (con flag `-Beta` e `--prerelease` su GitHub).
 - **Esclusione File Regole AI da Repository**: Aggiunte regole in `.gitignore` per escludere `AGENTS.md` e `.agents/` dal tracciamento Git pubblico, preservando la memoria e le linee guida del progetto in locale.
 
-## [0.1.8] - 2026-07-31
+## [0.1.8-beta] - 2026-07-31
 
 ### Performance & Portability
 - **Ottimizzazione I/O disco e avvio Chromium portabile**: Configurate le opzioni di ambiente `AdditionalBrowserArguments` per WebView2 in `WhatsAppAccount.vb` (`--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter`). Limita la proliferazione di file sciolti di cache mantenendo l'applicazione al 100% portabile nella cartella `data/webview`.
 
-## [0.1.7] - 2026-07-29
+## [0.1.7-beta] - 2026-07-29
 
 ### Fixed
 - **Fix Blocco Aggiornamento OTA e Mutex Istanza Singola**: Risolto il problema del blocco dell'applicazione al riavvio durante l'aggiornamento OTA e l'impossibilità di riaprire l'app dopo una chiusura forzata (richiedeva il riavvio del PC). Implementata la gestione di `AbandonedMutexException` e il ripiegamento sul controllo dei processi attivi in `Application.xaml.vb`, l'inclusione di `taskkill` per il processo bloccato e la rimozione di `pause` in `update.bat`, ed il corretto rilascio del Mutex dell'istanza singola e dei controlli WebView2 in `ForceExitForUpdate()`.
 
-## [0.1.6] - 2026-07-29
+## [0.1.6-beta] - 2026-07-29
 
 ### Performance
 - **Punto 34 TODO**: Implementato il modulo `BrushCache` con `ConcurrentDictionary` e congelamento `.Freeze()` per il caching thread-safe e ad alte prestazioni delle istanze `SolidColorBrush`. Eliminata la riallocazione continua di pennelli WPF a ogni cambio tema o aggiustamento grafico in `MainWindow.xaml.vb` e `SettingsWindow.xaml.vb`.
 
-## [0.1.5] - 2026-07-28
+## [0.1.5-beta] - 2026-07-28
 
 ### Fixed & Performance
 - **Punto 31 TODO**: Utilizzato `StringBuilder` in `UpdateChecker.vb` per la composizione dello script batch di aggiornamento `update.bat`.
 - **Punto 33 TODO**: Centralizzato il rilevamento del tema di sistema Windows tramite il nuovo modulo `SystemThemeHelper` con caching della chiave `AppsUseLightTheme` ed ascolto dinamico dell'evento `SystemEvents.UserPreferenceChanged`. Eliminata la triplicazione delle letture dal Registro in `MainWindow.xaml.vb`, `WhatsAppAccount.vb` e `SettingsWindow.xaml.vb`.
 
-## [0.1.4] - 2026-07-28
+## [0.1.4-beta] - 2026-07-28
 
 
 ### Changed
@@ -83,7 +83,7 @@
 ### Fixed & Performance
 - **Punto 30 TODO**: Sostituito `Directory.GetDirectories` con `Directory.EnumerateDirectories` e `.FirstOrDefault()` in `AccountManager.vb` per la ricerca in streaming lazy del profilo orfano.
 
-## [0.1.2] - 2026-07-28
+## [0.1.2-beta] - 2026-07-28
 
 
 ### Added
@@ -92,7 +92,7 @@
 ### Fixed & Refactored
 - **Punto 25 TODO**: Riconvertito `ApplyWpfTheme` in funzione asincrona (`ApplyWpfThemeAsync() As Task`) aggiungendo `Await` e gestione eccezioni `Try...Catch` su tutti i richiami `ExecuteScriptAsync` in `MainWindow.xaml.vb`.
 
-## [0.1.1] - 2026-07-27
+## [0.1.1-beta] - 2026-07-27
 
 
 ### Removed
