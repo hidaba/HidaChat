@@ -33,7 +33,7 @@ if ($Bump -ne "none") {
     Write-Host "Version bump: $oldVersion -> $newVersion"
     # Check CHANGELOG.md
     $cl = Get-Content $changelogPath -Raw
-    if ($cl -notmatch "## \[$newVersion\]") {
+    if ($cl -notmatch "## \[$newVersion(-beta)?\]") {
         Write-Host "ERROR: CHANGELOG.md has no entry for version $newVersion !"
         Write-Host "Add it before publishing."
         exit 1

@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.4] - 2026-08-08
+## [0.2.4-beta] - 2026-08-08
 
 ### Fixed
 - **Pulizia Profili WebView2 Orfani (`AccountManager.vb`)**: Implementato il metodo `CleanupUnusedProfilesAsync` per scansionare la cartella `data/webview` ed eliminare automaticamente all'avvio le cartelle di profilo orfane (`WV2Profile_*`) i cui ID non sono più associati ad alcun account attivo.
