@@ -175,36 +175,36 @@
 
 ---
 
-# Architettura, Portabilità e Sicurezza
+# TUNING / HARDENING — non bloccanti, migliorano robustezza e coerenza
 
 ## 36. File `settings.json` e `translations_cache.json` nella cartella radice invece che in `data/`
 - **File**: `SettingsController.vb`, proprietà `SettingsFile` e `CacheFile`
-- I profili WebView2 vivono in `data/webview/`, ma `settings.json` (se non esiste già) viene creato nella cartella radice dell'app accanto all'eseguibile, e `translations_cache.json` è sempre e solo nella root, mai sotto `data/`. Questo sporca la cartella radice ed è incoerente con la portabilità completa.
-- **Suggerimento**: Spostare entrambi i file sotto `data/`, mantenendo la logica di fallback/migrazione per installazioni esistenti.
+- I profili WebView2 vivono in `data/webview/...`, ma `settings.json` (se non esiste già) viene creato nella cartella radice dell'app accanto all'eseguibile, e `translations_cache.json` è sempre e solo nella root, mai sotto `data/`. Questo è incoerente con la promessa "tutto dentro `data/`, cartella portabile e pulita" ribadita anche in `CONTRIBUTING.md`. Non è un bug funzionale, ma sporca la cartella radice e rende meno immediato distinguere "file dell'app" da "dati dell'utente" quando si sposta l'installazione.
+- **Suggerimento**: Spostare entrambi i file sotto `data/`, con la stessa logica di fallback/migrazione già usata per `SettingsFile` in caso di installazioni esistenti.
 - **Impatto**: Medio | **Sforzo**: Basso
 
 ## 37. Cancellazione dei profili basata su `Task.Delay` fisso invece di un segnale deterministico
 - **File**: `AccountManager.vb`, `RemoveAccountAsync`
 - `Await Task.Delay(100)` -> `accountToRemove.Dispose()` -> `Await Task.Delay(500)` -> `Directory.Delete(profileDir, True)`
-- Su macchine lente o con antivirus attivo, `Directory.Delete` può fallire se i file non sono ancora rilasciati dal processo WebView2/Chromium, lasciando cartelle orfane sul disco.
-- **Suggerimento**: Sostituire l'attesa fissa con un retry con backoff sul delete (es. 3-4 tentativi con pausa crescente).
+- Su macchine lente, con antivirus attivo, o se il processo WebView2/Chromium associato al profilo non ha ancora rilasciato i file, `Directory.Delete` può fallire — l'eccezione viene solo loggata con `Debug.WriteLine`, quindi l'utente non lo saprà e la cartella restera orfana.
+- **Suggerimento**: Sostituire l'attesa fissa con un retry con backoff sul delete (es. 3-4 tentativi con piccola pausa crescente) invece di un singolo tentativo dopo un tempo arbitrario.
 - **Impatto**: Basso | **Sforzo**: Basso
 
 ## 38. Escaping incoerente dei valori interpolati nel JavaScript eseguito via `ExecuteScriptAsync`
 - **File**: `WhatsAppAccount.vb`, `HandleTranslationMessageAsync` e `UpdateWebviewLanguageAsync`
-- Il payload dati (`partsJson`, `jsonResult`) viene serializzato con `JsonSerializer.Serialize`, mentre `id` e `langCode` vengono interpolati direttamente.
-- **Suggerimento**: Serializzare con `JsonSerializer.Serialize` anche `id` e `langCode` prima di interpolarli nelle stringhe JS per coerenza difensiva.
+- Il payload di dati (`partsJson`, `jsonResult`) viene correttamente serializzato con `JsonSerializer.Serialize` prima di essere iniettato nella stringa JS eseguita. Gli identificatori (`id`, `langCode`) no — vengono interpolati direttamente. Oggi il rischio pratico è basso, perché lato JavaScript questi ID sono generati con `Math.random().toString(36).substring(2, 9)` (solo caratteri alfanumerici, verificato in `JsScripts.vb`), quindi non possono contenere apici o caratteri che rompono la stringa JS. Resta però un'incoerenza difensiva rispetto ai valori che sono già ben escapati nello stesso file.
+- **Suggerimento**: Serializzare con `JsonSerializer.Serialize` anche `id`/`langCode` prima di interpolarli, così la protezione non dipende dal formato con cui il JS genera gli ID oggi.
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 39. Bridge token esposto come variabile globale leggibile dalla pagina
+## 39. Il bridge token è esposto come variabile globale leggibile dalla pagina
 - **File**: `WhatsAppAccount.vb`, `SetupWebViewAsync`
-- `window.__bridgeToken = '{BridgeToken}';`
-- Qualunque script eseguito nel contesto della pagina può leggere il token su `window.__bridgeToken`. Nota di design da tenere presente per il futuro (non urgente).
+- `Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & ...`
+- Il token serve a validare che i messaggi IPC ricevuti in `HandleWebMessageAsync` provengano dallo script iniettato dall'app e non da script arbitrario sulla pagina. Essendo però esposto su `window.__bridgeToken`, qualunque script eseguito nel contesto della pagina (incluso uno script malevolo iniettato tramite una vulnerabilità futura di WhatsApp Web) può leggerlo e forgiare messaggi validi — il token non è quindi una vera barriera, solo una convenzione. Non è urgente data la superficie d'attacco attuale (nessuna estensione di terze parti, navigazione limitata a whatsapp.com), ma è una nota di design da tenere presente. Nessuna azione richiesta ora.
 - **Impatto**: Basso | **Sforzo**: Medio
 
 ## 40. Nessuna verifica di integrità sullo ZIP di aggiornamento automatico
 - **File**: `UpdateChecker.vb`, `PerformUpdateFromGitHubAsync`
-- Lo ZIP scaricato da GitHub Releases viene estratto e sostituito senza controlli oltre al trasporto HTTPS (nessun checksum/SHA256, nessuna firma).
-- **Suggerimento**: Pubblicare un hash SHA256 insieme alla release e verificarlo prima dell'estrazione per aumentare la resilienza.
+- Lo ZIP scaricato da GitHub Releases viene estratto e i suoi contenuti sostituiscono l'eseguibile in uso, senza alcun controllo oltre al trasporto HTTPS (nessun checksum, nessuna firma). Per un meccanismo di auto-update che esegue codice scaricato con i privilegi dell'utente, aggiungere una verifica opzionale (es. pubblicare uno SHA256 insieme alla release e confrontarlo prima dell'estrazione) aumenterebbe la resilienza in caso di compromissione dell'account GitHub o del repository. Miglioria facoltativa, non urgente per un progetto di questa dimensione.
 - **Impatto**: Basso | **Sforzo**: Basso
+
 
