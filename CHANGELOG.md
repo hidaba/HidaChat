@@ -1,9 +1,13 @@
 # Changelog
 
-## [0.2.4-beta] - 2026-08-08
+## [0.2.5-beta] - 2026-08-10
 
 ### Fixed
 - **Fix Confronto Versione OTA e Pre-release (`UpdateChecker.vb`)**: Perfezionato il confronto versioni in `IsNewerVersion` separando le componenti numeriche base dai suffissi di pre-release (es. `-beta`, `-rc1`). Permette di rilevare correttamente gli aggiornamenti beta rispetto alle versioni precedenti.
+
+## [0.2.4-beta] - 2026-08-08
+
+### Fixed
 - **Pulizia Profili WebView2 Orfani (`AccountManager.vb`)**: Implementato il metodo `CleanupUnusedProfilesAsync` per scansionare la cartella `data/webview` ed eliminare automaticamente all'avvio le cartelle di profilo orfane (`WV2Profile_*`) i cui ID non sono più associati ad alcun account attivo.
 - **Correzione Badge e Link (`README.md`, `README.it.md`)**: Corretti i badge di build ed i link commit per puntare al branch `master` ed eliminate le istruzioni di build contenenti percorsi non validi.
 
