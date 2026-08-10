@@ -35,22 +35,63 @@ Public Class UpdateChecker
 
     ''' <summary>
     ''' Confronta la versione remota con la versione corrente e restituisce true se la versione remota è più recente.
+    ''' Gestisce correttamente la separazione tra parti numeriche e suffissi di pre-release (es. "0.2.4-beta" vs "0.2.3").
     ''' </summary>
     Private Shared Function IsNewerVersion(remote As String, current As String) As Boolean
         Dim cleanRemote = CleanVersionString(remote)
         Dim cleanCurrent = CleanVersionString(current)
 
-        Dim rParts = cleanRemote.Split("."c)
-        Dim cParts = cleanCurrent.Split("."c)
-        For i As Integer = 0 To Math.Min(rParts.Length, cParts.Length) - 1
+        If String.IsNullOrEmpty(cleanRemote) OrElse String.IsNullOrEmpty(cleanCurrent) Then
+            Return False
+        End If
+
+        Dim remoteBase As String = cleanRemote
+        Dim remotePre As String = String.Empty
+        Dim remoteDashIdx = cleanRemote.IndexOf("-"c)
+        If remoteDashIdx >= 0 Then
+            remoteBase = cleanRemote.Substring(0, remoteDashIdx)
+            remotePre = cleanRemote.Substring(remoteDashIdx + 1).Trim()
+        End If
+
+        Dim currentBase As String = cleanCurrent
+        Dim currentPre As String = String.Empty
+        Dim currentDashIdx = cleanCurrent.IndexOf("-"c)
+        If currentDashIdx >= 0 Then
+            currentBase = cleanCurrent.Substring(0, currentDashIdx)
+            currentPre = cleanCurrent.Substring(currentDashIdx + 1).Trim()
+        End If
+
+        Dim rParts = remoteBase.Split("."c)
+        Dim cParts = currentBase.Split("."c)
+        Dim maxLen = Math.Max(rParts.Length, cParts.Length)
+
+        For i As Integer = 0 To maxLen - 1
             Dim rVal As Integer = 0
             Dim cVal As Integer = 0
-            Integer.TryParse(rParts(i), rVal)
-            Integer.TryParse(cParts(i), cVal)
+            If i < rParts.Length Then Integer.TryParse(rParts(i), rVal)
+            If i < cParts.Length Then Integer.TryParse(cParts(i), cVal)
+
             If rVal > cVal Then Return True
             If rVal < cVal Then Return False
-            Next
-        Return rParts.Length > cParts.Length
+        Next
+
+        ' Se la parte numerica base è identica, confronta i suffissi prerelease:
+        ' 1. Se remote non ha prerelease (release stabile) e current ha prerelease (beta), remote è più recente.
+        If String.IsNullOrEmpty(remotePre) AndAlso Not String.IsNullOrEmpty(currentPre) Then
+            Return True
+        End If
+
+        ' 2. Se remote ha prerelease (beta) e current non ha prerelease (stabile), remote è considerata antecedente alla stabile.
+        If Not String.IsNullOrEmpty(remotePre) AndAlso String.IsNullOrEmpty(currentPre) Then
+            Return False
+        End If
+
+        ' 3. Se entrambe hanno prerelease, confronta alfanumericamente i suffissi (es. "beta2" > "beta1")
+        If Not String.IsNullOrEmpty(remotePre) AndAlso Not String.IsNullOrEmpty(currentPre) Then
+            Return String.Compare(remotePre, currentPre, StringComparison.OrdinalIgnoreCase) > 0
+        End If
+
+        Return False
     End Function
 
     ''' <summary>
@@ -90,7 +131,7 @@ Public Class UpdateChecker
                     Else
                         Debug.WriteLine("GitHub release found but no ZIP asset attached.")
                     End If
-                ElseIf remoteVersion = Constants.AppVersion Then
+                ElseIf CleanVersionString(remoteVersion).Equals(CleanVersionString(Constants.AppVersion), StringComparison.OrdinalIgnoreCase) Then
                     If force Then
                         MessageBox.Show(
                             "Hai già la versione più recente (v" & Constants.AppVersion & ")!",
