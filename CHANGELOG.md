@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] - 2026-08-13
+
+### Added & Features
+- **Supporto Multi-Account fino a 3 Account**: Gestione integrata e schede veloci per il cambio e aggiunta account in tempo reale (`MainWindow.xaml`, `AccountManager.vb`).
+- **Finestra Informazioni (AboutWindow)**: Nuova interfaccia modale con dettagli versione, licenza Apache-2.0, percorso portabile e collegamenti rapidi (`AboutWindow.xaml`).
+- **Pulizia Automatica Profili Orfani**: Scansione ed eliminazione all'avvio delle directory profilate non più utilizzate (`AccountManager.vb`).
+- **Documentazione Bilingue & Standard Community**: Integrazione di `README.md` (EN) e `README.it.md` (IT), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` e workflow GitHub Actions per la build automatica.
+
+### Fixed & Improved
+- **Robustezza Aggiornamenti OTA**: Gestione corretta dei suffissi di pre-release (`-beta`, `-rc`) e verifica stabilità nel confronto versioni (`UpdateChecker.vb`).
+- **Gestione Notifiche Toast**: Risolti crash e comportamenti anomali al click sulle notifiche di Windows (`MainWindow.xaml.vb`).
+- **Performance Pennelli WPF**: Caching ad alte prestazioni tramite il modulo `BrushCache.vb`.
+- **Rinominazione Account in Tempo Reale**: Le modifiche ai nomi degli account nelle impostazioni si riflettono istantaneamente sull'interfaccia.
+
 ## [0.2.5-beta] - 2026-08-10
 
 ### Fixed
