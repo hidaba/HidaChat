@@ -43,15 +43,15 @@
 - ~~**Ottimizzazione**: chunking adattivo basato sulla lunghezza totale dei caratteri (es. max 2000 caratteri per chunk)~~
 - ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 10. `MessagePopup.RepositionAll()` — Itera tutti i popup attivi
-- Ogni volta che un popup viene mostrato/chiuso, ricalcola la posizione di TUTTI i popup attivi
-- **Ottimizzazione**: tenere traccia incrementale della posizione Y del prossimo popup
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~10. `MessagePopup.RepositionAll()` — Itera tutti i popup attivi~~ ✅
+- ~~Ogni volta che un popup viene mostrato/chiuso, ricalcola la posizione di TUTTI i popup attivi~~
+- ~~**Ottimizzazione**: tenere traccia incrementale della posizione Y del prossimo popup impilandolo verso l'alto senza riposizionare i popup già attivi~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 11. `SwitchToAccountAsync()` — Visibilità di tutti i WebView
-- Itera TUTTI i WebView per impostare `Visibility = Collapsed` e solo uno a `Visible`
-- **Ottimizzazione**: tenere traccia dell'ultimo account attivo e nascondere solo quello
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~11. `SwitchToAccountAsync()` — Visibilità di tutti i WebView~~ ✅
+- ~~Itera TUTTI i WebView per impostare `Visibility = Collapsed` e solo uno a `Visible`~~
+- ~~**Ottimizzazione**: tenere traccia dell'ultimo account attivo e nascondere solo quello con controllo preventivo di account già attivo~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## ~~12. Translation cache — Scrittura completa su ogni cambio lingua~~ ✅
 - ~~`SaveCacheFileAsync()` riscrive l'intero file cache anche per modifiche minime~~
@@ -152,10 +152,10 @@
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 
-## 32. `MessagePopup._activePopups` — Lista statica senza WeakReference
-- Trattiene riferimenti forti a tutti i popup — leak se non chiusi normalmente
-- **Ottimizzazione**: `WeakReference(Of MessagePopup)` o `ConditionalWeakTable`
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~32. `MessagePopup._activePopups` — Lista statica senza WeakReference~~ ✅
+- ~~Trattiene riferimenti forti a tutti i popup — leak se non chiusi normalmente~~
+- ~~**Ottimizzazione**: `WeakReference(Of MessagePopup)` con rimozione automatica dei riferimenti raccolti dal GC~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## ~~33. Registro `AppsUseLightTheme` — Letto 3 volte senza caching~~ ✅
 - ~~Stessa chiave registry letta in `MainWindow.xaml.vb`, `WhatsAppAccount.vb`, `SettingsWindow.xaml.vb`~~

@@ -316,6 +316,12 @@ Public Class MainWindow
     ''' </summary>
     Private Async Function SwitchToAccountAsync(accountId As String) As Task
         Dim prevAccount = _accountManager.CurrentAccount
+        If prevAccount IsNot Nothing AndAlso prevAccount.Id = accountId Then
+            If prevAccount.WebView IsNot Nothing Then
+                prevAccount.WebView.Visibility = Visibility.Visible
+            End If
+            Return
+        End If
 
         Await _accountManager.SwitchAccountAsync(accountId)
 

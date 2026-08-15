@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1-beta] - 2026-08-15
+
+### Performance & Memory
+- **Punto 10 & 32 TODO — Ottimizzazione e WeakReference nei Popup di Notifica (`MessagePopup.xaml.vb`)**:
+  - Implementato `WeakReference(Of MessagePopup)` nella lista statica dei popup attivi (`_activePopups`) con eliminazione automatica dei riferimenti raccolti dal GC, prevenendo memory leak in caso di popup non chiusi normalmente.
+  - Sostituito il ricalcolo forzato e riposizionamento di tutti i popup attivi con il calcolo incrementale della posizione Y (`PositionNewPopup()`), impilando le nuove notifiche verso l'alto senza riposizionare o muovere i popup già visibili a schermo.
+- **Punto 11 TODO — Ottimizzazione Cambio Account (`MainWindow.xaml.vb`)**:
+  - Ottimizzato `SwitchToAccountAsync()` gestendo il ritorno anticipato se l'account richiesto è già attivo e nascondendo unicamente il controllo `WebView` del precedente account senza iterare l'intera gerarchia dei controlli.
+
 ## [0.3.0] - 2026-08-13
 
 ### Added & Features
