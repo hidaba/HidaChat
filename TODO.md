@@ -168,10 +168,10 @@
 - ~~**Ottimizzazione**: cache delle istanze per colore~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 35. `JsScripts.vb` — ~300 righe di JS traduzioni in memoria permanente
-- Script JS caricate all'avvio e mai rilasciate; copiate a ogni setup account
-- **Ottimizzazione**: caricare da file esterno o risorsa embedded lazy; eventualmente comprimere
-- **Impatto**: Basso | **Sforzo**: Medio
+## ~~35. `JsScripts.vb` — ~300 righe di JS traduzioni in memoria permanente~~ ✅
+- ~~Script JS caricate all'avvio e mai rilasciate; copiate a ogni setup account~~
+- ~~**Ottimizzazione**: caricate da risorse incorporate `EmbeddedResource` in modo lazy (`Lazy(Of String)`); persistenza delle traduzioni su file (`data/translations_cache.json`) per evitare download ripetuti da internet; ottimizzazione RAM per mantenere in memoria solo i dizionari della lingua impostata.~~
+- ~~**Impatto**: Basso | **Sforzo**: Medio~~
 
 ---
 

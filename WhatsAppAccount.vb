@@ -338,17 +338,7 @@ Public Class WhatsAppAccount
                     texts.Add(item.GetString())
                 Next
                 
-                Dim combinedText = String.Join(vbLf & "###" & vbLf, texts)
-                Dim result = Await AppLocalizations.TranslateSingle(combinedText, targetLang)
-                
-                Dim translatedParts = result.Split(New String() {vbLf & "###" & vbLf, vbLf & " ###" & vbLf, vbLf & "### " & vbLf}, StringSplitOptions.None)
-                Dim cleanParts As New List(Of String)()
-                For i As Integer = 0 To texts.Count - 1
-                    Dim part = If(i < translatedParts.Length, translatedParts(i), texts(i))
-                    If String.IsNullOrEmpty(part) Then part = texts(i)
-                    cleanParts.Add(part)
-                Next
-                
+                Dim cleanParts = Await AppLocalizations.TranslateBatch(texts, targetLang)
                 partsJson = JsonSerializer.Serialize(cleanParts)
                 success = True
             Catch ex As Exception

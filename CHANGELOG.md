@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.2-beta] - 2026-08-17
+
+### Performance & Memory
+- **Punto 35 TODO — Caricamento Lazy degli Script JS/CSS (`JsScripts.vb`, `Scripts/`)**:
+  - Estratti gli script JavaScript e CSS in file dedicati incorporati nell'assembly (`EmbeddedResource`): `theme.css`, `notification.js` e `translation.js`.
+  - Riscritto `JsScripts.vb` per caricare i template in modalità `Lazy(Of String)` ed effettuare sostituzioni in-place con `StringBuilder`, eliminando tutte le costanti XML literals statiche permanenti in RAM.
+- **Persistenza Traduzioni su File (`translations_cache.json`)**:
+  - Implementato `TranslationCacheService` per archiviare in modo permanente su disco (`data/translations_cache.json` con fallback in root) sia le traduzioni dell'interfaccia utente sia i testi/messaggi tradotti delle chat.
+  - Aggiunta la consultazione preventiva della cache prima di ogni richiesta di traduzione (singola o batch): i testi già tradotti vengono restituiti istantaneamente dalla cache senza effettuare chiamate di rete a Google Translate.
+  - Nelle traduzioni batch dell'intera pagina (`translatePage`), solo le nuove frasi non ancora presenti in cache vengono inviate a Google Translate, riducendo drasticamente il consumo di banda.
+- **Ottimizzazione Memoria RAM per Traduzioni**:
+  - In memoria RAM vengono mantenuti **esclusivamente** i dizionari della lingua attualmente impostata.
+  - Al cambio lingua in `SettingsController`, i dati della lingua precedente vengono salvati su disco e rimossi dalla memoria per essere raccolti dal GC, caricando in RAM solo la nuova lingua selezionata.
+
 ## [0.3.1-beta] - 2026-08-15
 
 ### Performance & Memory

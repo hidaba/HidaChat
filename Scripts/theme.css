@@ -1,0 +1,11 @@
+#app {
+    border-radius: 15px !important;
+}
+
+section[data-testid="intro-panel"] > :first-child {
+    display: none !important;
+}
+
+div[data-tab="4"]:has(span[data-icon="wa-square-icon"]) {
+    display: none !important;
+}

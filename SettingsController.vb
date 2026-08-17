@@ -213,8 +213,6 @@ Public Class SettingsController
         End Set
     End Property
 
-    Private _cachedTranslations As New Dictionary(Of String, Dictionary(Of String, String))(StringComparer.OrdinalIgnoreCase)
-
     ' --- File JSON delle impostazioni ---
     Private ReadOnly Property SettingsFile As String
         Get
@@ -223,13 +221,6 @@ Public Class SettingsController
             Dim dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "settings.json")
             If File.Exists(dataPath) Then Return dataPath
             Return basePath
-        End Get
-    End Property
-
-    ' --- Cache traduzioni scaricate ---
-    Private ReadOnly Property CacheFile As String
-        Get
-            Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translations_cache.json")
         End Get
     End Property
 
@@ -330,32 +321,9 @@ Public Class SettingsController
             _language = "en"
         End If
 
-        If File.Exists(CacheFile) Then
-            Try
-                Dim cacheContent = Await File.ReadAllTextAsync(CacheFile)
-                If Not String.IsNullOrEmpty(cacheContent) Then
-                    Using doc As JsonDocument = JsonDocument.Parse(cacheContent)
-                        Dim root = doc.RootElement
-
-                        _cachedTranslations.Clear()
-                        Dim cachedTranslationsElement As JsonElement = Nothing
-                        If root.TryGetProperty("cached_translations", cachedTranslationsElement) Then
-                            For Each langProp In cachedTranslationsElement.EnumerateObject()
-                                Dim translationsDict As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
-                                For Each transProp In langProp.Value.EnumerateObject()
-                                    translationsDict(transProp.Name) = transProp.Value.GetString()
-                                Next
-                                _cachedTranslations(langProp.Name) = translationsDict
-                            Next
-                        End If
-                    End Using
-                End If
-            Catch ex As Exception
-                Debug.WriteLine($"Failed to load translations cache: {ex.Message}")
-            End Try
-        End If
-
-        FallbackOrLoadTranslations()
+        ' Inizializza la lingua attiva mantenendo in RAM solo le traduzioni pertinenti
+        Await TranslationCacheService.Instance.SetActiveLanguageAsync(_language)
+        Localizations = TranslationCacheService.Instance.GetActiveLocalizations()
 
         NotifyAllPropertiesChanged()
     End Function
@@ -373,33 +341,7 @@ Public Class SettingsController
         Return defaultVal
     End Function
 
-    Private Async Function SaveCacheFileAsync() As Task
-        Try
-            Dim cacheData As New Dictionary(Of String, Object)()
-            cacheData("cached_translations") = _cachedTranslations
-            
-            Dim options As New JsonSerializerOptions With {
-                .WriteIndented = True
-            }
-            Dim contents = JsonSerializer.Serialize(cacheData, options)
-            Await File.WriteAllTextAsync(CacheFile, contents)
-        Catch ex As Exception
-            Debug.WriteLine($"Failed to write cache file: {ex.Message}")
-        End Try
-    End Function
-
-    Private Sub FallbackOrLoadTranslations()
-        Select Case _language
-            Case "en"
-                Localizations = New AppLocalizations(AppLocalizations.EnStrings)
-            Case "it"
-                Localizations = New AppLocalizations(AppLocalizations.ItStrings)
-            Case Else
-                Localizations = New AppLocalizations(AppLocalizations.EnStrings)
-        End Select
-    End Sub
-
-    ''' <summary>Aggiorna la lingua selezionata e la memorizza su disco.</summary>
+    ''' <summary>Aggiorna la lingua selezionata, carica la lingua in memoria e persiste su disco.</summary>
     Public Async Function UpdateLanguageAsync(newLanguage As String) As Task
         If _language = newLanguage Then Return
         _language = newLanguage
@@ -410,13 +352,8 @@ Public Class SettingsController
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
 
-        If newLanguage = "en" Then
-            Localizations = New AppLocalizations(AppLocalizations.EnStrings)
-        ElseIf newLanguage = "it" Then
-            Localizations = New AppLocalizations(AppLocalizations.ItStrings)
-            _cachedTranslations("it") = AppLocalizations.ItStrings
-            Await SaveCacheFileAsync()
-        End If
+        Await TranslationCacheService.Instance.SetActiveLanguageAsync(newLanguage)
+        Localizations = TranslationCacheService.Instance.GetActiveLocalizations()
     End Function
 
     ''' <summary>Aggiorna il tema selezionato ("System", "Light", "Dark") e lo memorizza su disco.</summary>
