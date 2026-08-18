@@ -79,13 +79,21 @@ Public Class TranslationCacheService
     ''' <summary>Percorso del file JSON per la persistenza delle traduzioni su disco.</summary>
     Public Shared ReadOnly Property CacheFilePath As String
         Get
-            Dim dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "translations_cache.json")
+            Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
+            Dim dataPath = Path.Combine(dataDir, "translations_cache.json")
             If File.Exists(dataPath) Then Return dataPath
 
             Dim rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translations_cache.json")
-            If File.Exists(rootPath) Then Return rootPath
+            If File.Exists(rootPath) Then
+                Try
+                    If Not Directory.Exists(dataDir) Then Directory.CreateDirectory(dataDir)
+                    File.Move(rootPath, dataPath)
+                    Return dataPath
+                Catch
+                    Return rootPath
+                End Try
+            End If
 
-            Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
             If Not Directory.Exists(dataDir) Then
                 Try
                     Directory.CreateDirectory(dataDir)
@@ -345,6 +353,11 @@ Public Class TranslationCacheService
             fullData("messages") = allMessages
             ' Mantiene retrocompatibilità con cached_translations
             fullData("cached_translations") = allUi
+
+            Dim dirName = Path.GetDirectoryName(filePath)
+            If Not String.IsNullOrEmpty(dirName) AndAlso Not Directory.Exists(dirName) Then
+                Directory.CreateDirectory(dirName)
+            End If
 
             Dim options As New JsonSerializerOptions With {
                 .WriteIndented = True

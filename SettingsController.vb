@@ -216,11 +216,28 @@ Public Class SettingsController
     ' --- File JSON delle impostazioni ---
     Private ReadOnly Property SettingsFile As String
         Get
-            Dim basePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
-            If File.Exists(basePath) Then Return basePath
-            Dim dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "settings.json")
+            Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
+            Dim dataPath = Path.Combine(dataDir, "settings.json")
             If File.Exists(dataPath) Then Return dataPath
-            Return basePath
+
+            Dim rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
+            If File.Exists(rootPath) Then
+                Try
+                    If Not Directory.Exists(dataDir) Then Directory.CreateDirectory(dataDir)
+                    File.Move(rootPath, dataPath)
+                    Return dataPath
+                Catch
+                    Return rootPath
+                End Try
+            End If
+
+            If Not Directory.Exists(dataDir) Then
+                Try
+                    Directory.CreateDirectory(dataDir)
+                Catch
+                End Try
+            End If
+            Return dataPath
         End Get
     End Property
 
@@ -258,11 +275,16 @@ Public Class SettingsController
             _flushCts = Nothing
         End If
         Try
+            Dim targetFile = SettingsFile
+            Dim targetDir = Path.GetDirectoryName(targetFile)
+            If Not String.IsNullOrEmpty(targetDir) AndAlso Not Directory.Exists(targetDir) Then
+                Directory.CreateDirectory(targetDir)
+            End If
             Dim options As New JsonSerializerOptions With {
                 .WriteIndented = True
             }
             Dim contents = JsonSerializer.Serialize(settings, options)
-            Await File.WriteAllTextAsync(SettingsFile, contents)
+            Await File.WriteAllTextAsync(targetFile, contents)
         Catch ex As Exception
             Debug.WriteLine($"Failed to write settings: {ex.Message}")
         End Try

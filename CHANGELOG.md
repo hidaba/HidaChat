@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.3-beta] - 2026-08-18
+
+### Portability & Refactoring
+- **Punto 36 TODO — Spostamento `settings.json` e `translations_cache.json` in `data/` (`SettingsController.vb`, `Localization.vb`)**:
+  - I file di configurazione (`settings.json`) e della cache traduzioni (`translations_cache.json`) vengono ora gestiti e salvati direttamente all'interno della cartella portabile `data/`.
+  - Implementata la migrazione automatica e trasparente dei file esistenti nella cartella principale (`File.Move`) verso `data/` al primo avvio, garantendo la compatibilità con le installazioni precedenti e mantenendo pulita la radice dell'applicazione.
+  - Aggiunta la creazione preventiva della directory di destinazione `data/` in caso di prima installazione portabile pulita.
+
 ## [0.3.2-beta] - 2026-08-17
 
 ### Performance & Memory

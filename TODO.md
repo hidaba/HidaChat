@@ -177,11 +177,10 @@
 
 # TUNING / HARDENING — non bloccanti, migliorano robustezza e coerenza
 
-## 36. File `settings.json` e `translations_cache.json` nella cartella radice invece che in `data/`
-- **File**: `SettingsController.vb`, proprietà `SettingsFile` e `CacheFile`
-- I profili WebView2 vivono in `data/webview/...`, ma `settings.json` (se non esiste già) viene creato nella cartella radice dell'app accanto all'eseguibile, e `translations_cache.json` è sempre e solo nella root, mai sotto `data/`. Questo è incoerente con la promessa "tutto dentro `data/`, cartella portabile e pulita" ribadita anche in `CONTRIBUTING.md`. Non è un bug funzionale, ma sporca la cartella radice e rende meno immediato distinguere "file dell'app" da "dati dell'utente" quando si sposta l'installazione.
-- **Suggerimento**: Spostare entrambi i file sotto `data/`, con la stessa logica di fallback/migrazione già usata per `SettingsFile` in caso di installazioni esistenti.
-- **Impatto**: Medio | **Sforzo**: Basso
+## ~~36. File `settings.json` e `translations_cache.json` nella cartella radice invece che in `data/`~~ ✅
+- ~~**File**: `SettingsController.vb`, proprietà `SettingsFile` e `Localization.vb`, proprietà `CacheFilePath`~~
+- ~~I file `settings.json` e `translations_cache.json` vengono creati e salvati direttamente all'interno della cartella portabile `data/`. Implementata la migrazione trasparente e automatica (`File.Move`) dei file esistenti nella cartella radice verso `data/` al primo avvio, preservando le impostazioni e la cache.~~
+- ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
 ## 37. Cancellazione dei profili basata su `Task.Delay` fisso invece di un segnale deterministico
 - **File**: `AccountManager.vb`, `RemoveAccountAsync`
