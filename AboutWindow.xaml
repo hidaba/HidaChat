@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:WhatsappH"
+        xmlns:local="clr-namespace:HidaChat"
         mc:Ignorable="d"
-        Title="Informazioni su WhatsappH" 
+        Title="Informazioni su HidaChat" 
         Height="540" 
         Width="480"
         WindowStyle="None"
@@ -91,7 +91,7 @@
 
             <!-- Draggable Titlebar -->
             <Grid Grid.Row="0" x:Name="TitleBar" Background="#202c33" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <TextBlock x:Name="TxtTitle" Text="Informazioni su WhatsappH" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="20,0,0,0"/>
+                <TextBlock x:Name="TxtTitle" Text="Informazioni su HidaChat" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="20,0,0,0"/>
                 <Button Click="BtnClose_Click" HorizontalAlignment="Right" Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource AboutCloseBtnStyle}">
                     <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
                 </Button>
@@ -105,12 +105,12 @@
                     <Image Source="images/icon.ico" Width="48" Height="48" Margin="0,0,15,0" VerticalAlignment="Center"/>
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="WhatsappH" Foreground="#ffffff" FontSize="20" FontWeight="Bold"/>
+                            <TextBlock Text="HidaChat" Foreground="#ffffff" FontSize="20" FontWeight="Bold"/>
                             <Border Background="#00a884" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
                                 <TextBlock x:Name="TxtVersionTag" Text="v0.3.0" Foreground="#ffffff" FontSize="11" FontWeight="Bold"/>
                             </Border>
                         </StackPanel>
-                        <TextBlock x:Name="TxtDescription" Text="Client desktop WhatsApp Web portabile, leggero e multi-account per Windows." 
+                        <TextBlock x:Name="TxtDescription" Text="Client desktop multi-account portabile e leggero per Windows (WhatsApp, Telegram, Teams, ecc.)." 
                                    Foreground="#aebac1" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     </StackPanel>
                 </StackPanel>

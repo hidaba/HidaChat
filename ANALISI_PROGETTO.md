@@ -28,7 +28,7 @@
 | Traduzioni UI | **Pre-compilate** (dizionari `EnStrings`/`ItStrings`) |
 | Traduzione messaggi | **Google Translate API** non ufficiale (`translate.googleapis.com`) |
 | Tema di sistema rilevato | Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` |
-| Repository OTA | GitHub Releases API (`https://api.github.com/repos/hidaba/WhatsAppH/releases`) |
+| Repository OTA | GitHub Releases API (`https://api.github.com/repos/hidaba/HidaChat/releases`) |
 
 ---
 
@@ -145,9 +145,9 @@ JsScripts           ──  JavaScript injection in WebView2
 
 ### `Constants.vb` – Costanti globali
 - `AppVersion = "1.2.1"`
-- `GitHubReleasesApiUrl = "https://api.github.com/repos/hidaba/WhatsAppH/releases"`
-- `GitHubLatestReleaseApiUrl = "https://api.github.com/repos/hidaba/WhatsAppH/releases/latest"`
-- `MutexId = "Local\WhatsAppVB_SingleInstance_Mutex"`
+- `GitHubReleasesApiUrl = "https://api.github.com/repos/hidaba/HidaChat/releases"`
+- `GitHubLatestReleaseApiUrl = "https://api.github.com/repos/hidaba/HidaChat/releases/latest"`
+- `MutexId = "Local\HidaChat_SingleInstance_Mutex"`
 
 ### `SettingsController.vb` – Controller impostazioni (345 righe)
 - Implementa `INotifyPropertyChanged`

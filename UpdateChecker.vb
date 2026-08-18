@@ -17,7 +17,7 @@ Public Class UpdateChecker
 
     Shared Sub New()
         _httpClient.Timeout = TimeSpan.FromSeconds(15)
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("WhatsappH-App", Constants.AppVersion))
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("HidaChat-App", Constants.AppVersion))
         _httpClient.DefaultRequestHeaders.Accept.Add(New MediaTypeWithQualityHeaderValue("application/json"))
     End Sub
 
@@ -251,7 +251,7 @@ Public Class UpdateChecker
             MessageBox.Show(
                 "Impossibile aggiornare automaticamente." & vbCrLf &
                 "L'applicazione non ha i permessi di scrittura nella cartella di installazione." & vbCrLf & vbCrLf &
-                "Sposta l'applicazione in una cartella locale scrivibile (es. C:\Programmi\WhatsappH)" & vbCrLf &
+                "Sposta l'applicazione in una cartella locale scrivibile (es. C:\Programmi\HidaChat)" & vbCrLf &
                 "Versione disponibile su GitHub: v" & latestVersion,
                 "Permessi insufficienti",
                 MessageBoxButton.OK,
@@ -261,7 +261,7 @@ Public Class UpdateChecker
         End Try
 
         Dim result = MessageBox.Show(
-            $"È disponibile una nuova versione di WhatsappH (v{latestVersion})!" & vbCrLf & vbCrLf &
+            $"È disponibile una nuova versione di HidaChat (v{latestVersion})!" & vbCrLf & vbCrLf &
             "Desideri scaricare ed installare l'aggiornamento ora?",
             "Aggiornamento Disponibile",
             MessageBoxButton.YesNo,
@@ -270,8 +270,8 @@ Public Class UpdateChecker
 
         If result <> MessageBoxResult.Yes Then Return
 
-        Dim tempZipPath = Path.Combine(Path.GetTempPath(), "WhatsappH_Update.zip")
-        Dim tempDir = Path.Combine(Path.GetTempPath(), "WhatsappH_Update")
+        Dim tempZipPath = Path.Combine(Path.GetTempPath(), "HidaChat_Update.zip")
+        Dim tempDir = Path.Combine(Path.GetTempPath(), "HidaChat_Update")
 
         Try
             ' 1. Scarica lo ZIP da GitHub
@@ -287,7 +287,7 @@ Public Class UpdateChecker
             ' Gestisci eventuale sottocartella singola estratta dallo ZIP
             Dim sourceDir = tempDir
             Dim subDirs = Directory.GetDirectories(tempDir)
-            Dim exeInTemp = Directory.GetFiles(tempDir, "WhatsappH.exe", SearchOption.AllDirectories)
+            Dim exeInTemp = Directory.GetFiles(tempDir, "HidaChat.exe", SearchOption.AllDirectories)
             If exeInTemp.Length > 0 Then
                 sourceDir = Path.GetDirectoryName(exeInTemp(0))
             End If
@@ -301,19 +301,19 @@ Public Class UpdateChecker
             Dim sbBatch As New System.Text.StringBuilder()
 
             sbBatch.AppendLine("@echo off")
-            sbBatch.AppendLine("title Aggiornamento WhatsappH...")
+            sbBatch.AppendLine("title Aggiornamento HidaChat...")
             sbBatch.AppendLine($"set LOG=""{logFile}""")
             sbBatch.AppendLine("echo [%date% %time%] Starting update > %LOG%")
             sbBatch.AppendLine("set RETRY=0")
             sbBatch.AppendLine(":waitloop")
-            sbBatch.AppendLine("echo [%date% %time%] Waiting for WhatsappH.exe to exit... >> %LOG%")
+            sbBatch.AppendLine("echo [%date% %time%] Waiting for HidaChat.exe to exit... >> %LOG%")
             sbBatch.AppendLine("timeout /t 2 /nobreak > nul")
-            sbBatch.AppendLine("tasklist /fi ""IMAGENAME eq WhatsappH.exe"" 2>>%LOG% | find /i ""WhatsappH.exe"" >nul")
+            sbBatch.AppendLine("tasklist /fi ""IMAGENAME eq HidaChat.exe"" 2>>%LOG% | find /i ""HidaChat.exe"" >nul")
             sbBatch.AppendLine("if errorlevel 1 goto continue")
             sbBatch.AppendLine("set /a RETRY=RETRY+1")
             sbBatch.AppendLine("if %RETRY% GEQ 5 (")
             sbBatch.AppendLine("    echo [%date% %time%] Timeout dopo 10 secondi, forzo chiusura del processo... >> %LOG%")
-            sbBatch.AppendLine("    taskkill /f /im WhatsappH.exe /t >nul 2>&1")
+            sbBatch.AppendLine("    taskkill /f /im HidaChat.exe /t >nul 2>&1")
             sbBatch.AppendLine("    timeout /t 1 /nobreak > nul")
             sbBatch.AppendLine("    goto continue")
             sbBatch.AppendLine(")")
@@ -331,7 +331,7 @@ Public Class UpdateChecker
             sbBatch.AppendLine($"echo v{latestVersion}>""{installDir}\.app_version""")
             sbBatch.AppendLine("echo [%date% %time%] Version marker written >> %LOG%")
             sbBatch.AppendLine("echo [%date% %time%] Launching app... >> %LOG%")
-            sbBatch.AppendLine($"start """" ""{installDir}\WhatsappH.exe""")
+            sbBatch.AppendLine($"start """" ""{installDir}\HidaChat.exe""")
             sbBatch.AppendLine("echo [%date% %time%] Done >> %LOG%")
             sbBatch.AppendLine("del ""%~f0""")
 

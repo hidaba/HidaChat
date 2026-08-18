@@ -12,7 +12,7 @@ Class Application
     ''' </summary>
     Protected Overrides Sub OnStartup(e As StartupEventArgs)
         Dim createdNew As Boolean = False
-        _mutex = New Mutex(True, "Local\WhatsAppVB_SingleInstance_Mutex", createdNew)
+        _mutex = New Mutex(True, "Local\HidaChat_SingleInstance_Mutex", createdNew)
 
         Dim hasHandle As Boolean = False
         Try
@@ -26,13 +26,13 @@ Class Application
         End Try
 
         If Not hasHandle Then
-            ' Verifichiamo se esiste effettivamente un altro processo WhatsappH in esecuzione
+            ' Verifichiamo se esiste effettivamente un altro processo HidaChat in esecuzione
             Dim currentProc = Process.GetCurrentProcess()
             Dim otherProcesses = Process.GetProcessesByName(currentProc.ProcessName) _
                                         .Where(Function(p) p.Id <> currentProc.Id).ToList()
 
             If otherProcesses.Count > 0 Then
-                MessageBox.Show("L'applicazione è già in esecuzione.", "WhatsAppVB", MessageBoxButton.OK, MessageBoxImage.Information)
+                MessageBox.Show("L'applicazione è già in esecuzione.", "HidaChat", MessageBoxButton.OK, MessageBoxImage.Information)
                 ReleaseSingleInstanceMutex()
                 Environment.Exit(0)
                 Return

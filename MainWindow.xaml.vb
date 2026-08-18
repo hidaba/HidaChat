@@ -78,7 +78,7 @@ Public Class MainWindow
     Private Sub ConfigureSystemTray()
         _trayIcon = New System.Windows.Forms.NotifyIcon()
         UpdateTrayIconImage()
-        _trayIcon.Text = "WhatsappH Portable"
+        _trayIcon.Text = "HidaChat"
         _trayIcon.Visible = True
         
         ' Il doppio click sulla tray icon alterna la visibilità della finestra

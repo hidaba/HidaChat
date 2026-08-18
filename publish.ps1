@@ -52,7 +52,7 @@ if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 # --- Create Staging & Zip Package ---
 $stagingDir = Join-Path $PSScriptRoot "bin\Release\staging"
-$zipPath = Join-Path $PSScriptRoot "bin\Release\WhatsappH-v$newVersion.zip"
+$zipPath = Join-Path $PSScriptRoot "bin\Release\HidaChat-v$newVersion.zip"
 
 if (Test-Path $stagingDir) { Remove-Item -Path $stagingDir -Recurse -Force }
 if (Test-Path $zipPath) { Remove-Item -Path $zipPath -Force }
@@ -63,7 +63,8 @@ New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
 Get-ChildItem $sourceDir -File | Where-Object {
     $_.Name -notin @("settings.json", "translations_cache.json", "version.txt", ".app_version") -and
     $_.Extension -notin @(".pdb", ".xml") -and
-    $_.Name -notlike "WhatsAppVB*"
+    $_.Name -notlike "WhatsAppVB*" -and
+    $_.Name -notlike "WhatsappH*"
 } | Copy-Item -Destination $stagingDir -Force
 
 foreach ($folder in @("images", "runtimes")) {
@@ -94,17 +95,17 @@ if (-not $SkipGitHub) {
 if (-not $SkipGitHub) {
     Write-Host "Publishing GitHub Release v$newVersion..."
     $tagName = "v$newVersion"
-    $title = "WhatsappH v$newVersion"
+    $title = "HidaChat v$newVersion"
     $betaFlag = if ($Beta) { "--prerelease" } else { "" }
     
     # Check if release tag already exists
-    $existingRelease = gh release view $tagName --repo hidaba/WhatsAppH 2>$null
+    $existingRelease = gh release view $tagName --repo hidaba/HidaChat 2>$null
     if ($existingRelease) {
         Write-Host "Updating existing GitHub Release $tagName..."
-        gh release upload $tagName "$zipPath#WhatsappH-v$newVersion.zip" --repo hidaba/WhatsAppH --clobber
+        gh release upload $tagName "$zipPath#HidaChat-v$newVersion.zip" --repo hidaba/HidaChat --clobber
     } else {
         Write-Host "Creating new GitHub Release $tagName..."
-        gh release create $tagName $zipPath --repo hidaba/WhatsAppH --title $title -F $changelogPath $betaFlag
+        gh release create $tagName $zipPath --repo hidaba/HidaChat --title $title -F $changelogPath $betaFlag
     }
 }
-Write-Host "Publish complete for WhatsappH v$newVersion !"
+Write-Host "Publish complete for HidaChat v$newVersion !"

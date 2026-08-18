@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for WhatsAppH
+about: Suggest an idea for HidaChat
 title: '[FEATURE] '
 labels: 'enhancement'
 assignees: ''

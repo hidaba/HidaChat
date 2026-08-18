@@ -1,6 +1,6 @@
-# Contributing to WhatsAppH
+# Contributing to HidaChat
 
-First off, thank you for considering contributing to **WhatsAppH**! It's open-source projects like this that make the developer community such an amazing place to learn, inspire, and create.
+First off, thank you for considering contributing to **HidaChat**! It's open-source projects like this that make the developer community such an amazing place to learn, inspire, and create.
 
 ---
 
@@ -15,7 +15,7 @@ Before creating a bug report, please check the existing issues to see if the pro
 ### Suggesting Enhancements
 Feature requests are always welcome!
 - Use the **Feature Request Template** (`.github/ISSUE_TEMPLATE/feature_request.md`).
-- Explain why this feature would be useful to WhatsAppH users.
+- Explain why this feature would be useful to HidaChat users.
 
 ### Pull Requests
 1. **Fork the repository** and create your branch from `master`.
@@ -34,8 +34,8 @@ Feature requests are always welcome!
 
 ## 🎨 Design & Architectural Guidelines
 
-- **Portability First**: WhatsAppH stores user profiles and settings inside `data/webview` within the application folder. Ensure new features do not depend on system-wide registry modifications or installation paths.
+- **Portability First**: HidaChat stores user profiles and settings inside `data/webview` within the application folder. Ensure new features do not depend on system-wide registry modifications or installation paths.
 - **WPF & WebView2 Interop**: Keep JavaScript bridge calls in `JsScripts.vb` robust and asynchronous.
 - **Security**: Never commit internal endpoints, API tokens, or hardcoded IP addresses.
 
-Thank you for helping make WhatsAppH better!
+Thank you for helping make HidaChat better!

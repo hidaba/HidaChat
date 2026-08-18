@@ -17,13 +17,13 @@ Public Module Constants
     Public Const AppLicense As String = "Apache-2.0 License"
 
     ''' <summary>URL del repository GitHub ufficiale.</summary>
-    Public Const AppGitHubUrl As String = "https://github.com/hidaba/WhatsAppH"
+    Public Const AppGitHubUrl As String = "https://github.com/hidaba/HidaChat"
 
     ' Configurazione repository GitHub per il sistema di aggiornamento OTA
     Public Const GitHubOwner As String = "hidaba"
-    Public Const GitHubRepo As String = "WhatsAppH"
-    Public Const GitHubReleasesApiUrl As String = "https://api.github.com/repos/hidaba/WhatsAppH/releases"
-    Public Const GitHubLatestReleaseApiUrl As String = "https://api.github.com/repos/hidaba/WhatsAppH/releases/latest"
+    Public Const GitHubRepo As String = "HidaChat"
+    Public Const GitHubReleasesApiUrl As String = "https://api.github.com/repos/hidaba/HidaChat/releases"
+    Public Const GitHubLatestReleaseApiUrl As String = "https://api.github.com/repos/hidaba/HidaChat/releases/latest"
 End Module
 
 

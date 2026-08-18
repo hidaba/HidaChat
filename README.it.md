@@ -1,16 +1,16 @@
-# WhatsAppH
+# HidaChat
 
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
 
-**Client Desktop Portabile per Windows (.NET 9 / WPF) per WhatsApp Web** con supporto **Multi-Account**, **Traduzione Integrata dei Messaggi**, **Notifiche Native Windows** e **Zero Installazione**.
+**Client Desktop Portabile per Windows (.NET 9 / WPF)** con supporto **Multi-Account** (WhatsApp, Telegram, Teams, ecc.), **Traduzione Integrata dei Messaggi**, **Notifiche Native Windows** e **Zero Installazione**.
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
-[![Download Release](https://img.shields.io/github/v/release/hidaba/WhatsAppH?color=green&label=Download%20Windows)](https://github.com/hidaba/WhatsAppH/releases/latest)
-[![Total Downloads](https://img.shields.io/github/downloads/hidaba/WhatsAppH/total)](https://github.com/hidaba/WhatsAppH/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/hidaba/WhatsAppH)](https://github.com/hidaba/WhatsAppH/commits/master)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/WhatsAppH/build.yml?branch=master)](https://github.com/hidaba/WhatsAppH/actions)
+[![Download Release](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=Download%20Windows)](https://github.com/hidaba/HidaChat/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/hidaba/HidaChat/total)](https://github.com/hidaba/HidaChat/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/hidaba/HidaChat)](https://github.com/hidaba/HidaChat/commits/master)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/HidaChat/build.yml?branch=master)](https://github.com/hidaba/HidaChat/actions)
 
 ---
 
@@ -28,16 +28,16 @@
 
 Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP, nessun bisogno di installazione):
 
-- ⬇️ **[Scarica l'ultima versione compilata (GitHub Releases)](https://github.com/hidaba/WhatsAppH/releases/latest)**
-- 📂 Estrai l'archivio ZIP in qualsiasi cartella (locale o chiavetta USB) ed avvia `WhatsappH.exe`.
+- ⬇️ **[Scarica l'ultima versione compilata (GitHub Releases)](https://github.com/hidaba/HidaChat/releases/latest)**
+- 📂 Estrai l'archivio ZIP in qualsiasi cartella (locale o chiavetta USB) ed avvia `HidaChat.exe`.
 
-> ⚠️ **Nota Importante sulla Portabilità**: Non eseguire WhatsAppH contemporaneamente da più computer che accedono alla stessa cartella di rete condivisa: potrebbe corrompere le sessioni WebView2 e le impostazioni. WhatsAppH è progettato per essere utilizzato da un solo PC alla volta.
+> ⚠️ **Nota Importante sulla Portabilità**: Non eseguire HidaChat contemporaneamente da più computer che accedono alla stessa cartella di rete condivisa: potrebbe corrompere le sessioni WebView2 e le impostazioni. HidaChat è progettato per essere utilizzato da un solo PC alla volta.
 
 ---
 
-## 🌟 Perché WhatsAppH? (Confronto)
+## 🌟 Perché HidaChat? (Confronto)
 
-| Caratteristica | WhatsAppH | WhatsApp Desktop Ufficiale | Altus (`amanharwara/altus`) | whatRust (`karem505/whatRust`) |
+| Caratteristica | HidaChat | WhatsApp Desktop Ufficiale | Altus (`amanharwara/altus`) | whatRust (`karem505/whatRust`) |
 |---|:---:|:---:|:---:|:---:|
 | **Installazione Richiesta** | ❌ **Nessuna (Portabile)** | ✅ Richiesta | ✅ Richiesta | ✅ Richiesta |
 | **Dati Spostabili (USB/Rete)** | ✅ **Sì (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
@@ -51,7 +51,7 @@ Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP, ne
 
 ## 🚀 Caratteristiche Principali
 
-- 👥 **Gestione Multi-Account**: Utilizza più account WhatsApp Web contemporaneamente in schede dedicate con profili WebView2 isolati.
+- 👥 **Gestione Multi-Account**: Utilizza più account contemporaneamente in schede dedicate con profili WebView2 isolati.
 - 🎨 **Design Moderno e Temi**: Interfaccia scura/chiara con rilevamento automatico del tema di sistema Windows.
 - 🌐 **Traduzione Integrata**:
   - **Pulsante Hover**: Traduci singoli messaggi passando il mouse sulla chat.
@@ -77,21 +77,21 @@ Per compilare ed eseguire il progetto localmente:
 
 ```bash
 # Clona il repository
-git clone https://github.com/hidaba/WhatsAppH.git
-cd WhatsAppH
+git clone https://github.com/hidaba/HidaChat.git
+cd HidaChat
 
 # Ripristina le dipendenze e compila
 dotnet restore
 dotnet build -c Release
 ```
 
-In alternativa, puoi aprire la soluzione `WhatsappH.sln` con **Visual Studio 2022** (.NET 9 SDK installato) e premere `F5`.
+In alternativa, puoi aprire la soluzione `HidaChat.sln` con **Visual Studio 2022** (.NET 9 SDK installato) e premere `F5`.
 
 ---
 
 ## 📖 Guida Rapida all'Uso
 
-1. **Aggiunta Account**: Avvia `WhatsappH.exe` e rinomina o aggiungi account dal menu delle schede o dalle **Impostazioni** (⚙️).
+1. **Aggiunta Account**: Avvia `HidaChat.exe` e rinomina o aggiungi account dal menu delle schede o dalle **Impostazioni** (⚙️).
 2. **Accesso WhatsApp**: Inquadra il codice QR con l'app WhatsApp dello smartphone per sincronizzare la sessione.
 3. **Traduzione**: Passa il mouse su qualsiasi messaggio per visualizzare l'icona di traduzione istantanea 🌐.
 

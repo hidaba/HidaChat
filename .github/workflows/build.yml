@@ -1,4 +1,4 @@
-name: Build & Verify WhatsAppH
+name: Build & Verify HidaChat
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         dotnet-version: '9.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore WhatsappH.sln
+      run: dotnet restore HidaChat.sln
 
     - name: Build Release configuration
-      run: dotnet build WhatsappH.sln -c Release --no-restore
+      run: dotnet build HidaChat.sln -c Release --no-restore
