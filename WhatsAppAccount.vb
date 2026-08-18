@@ -1,14 +1,14 @@
 Imports System.IO
 Imports System.ComponentModel
 Imports System.Text.Json.Serialization
+Imports System.Windows.Media
 Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.Wpf
 Imports Microsoft.Toolkit.Uwp.Notifications
 Imports System.Text.Json
 
 ''' <summary>
-
-''' Rappresenta un singolo account WhatsApp Web, gestione dell'istanza WebView2 associata, 
+''' Rappresenta un singolo account di chat (WhatsApp Web o Telegram Web), gestione dell'istanza WebView2 associata, 
 ''' token di sicurezza per IPC e gestione di notifiche e traduzioni.
 ''' </summary>
 Public Class WhatsAppAccount
@@ -23,6 +23,78 @@ Public Class WhatsAppAccount
     ''' <summary>Identificativo univoco dell'account (es. account_1680000000000).</summary>
     <JsonPropertyName("id")>
     Public Property Id As String
+
+    Private _platform As String = "WhatsApp"
+    ''' <summary>Tipo di piattaforma di messaggistica ("WhatsApp" o "Telegram").</summary>
+    <JsonPropertyName("platform")>
+    Public Property Platform As String
+        Get
+            If String.IsNullOrWhiteSpace(_platform) Then Return "WhatsApp"
+            Return _platform
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(String.IsNullOrWhiteSpace(value), "WhatsApp", value)
+            If _platform <> cleanVal Then
+                _platform = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(Platform)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsWhatsApp)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsTelegram)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformIconData)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformColorBrush)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+            End If
+        End Set
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property IsTelegram As Boolean
+        Get
+            Return Platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property IsWhatsApp As Boolean
+        Get
+            Return Not IsTelegram
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property WebUrl As String
+        Get
+            If IsTelegram Then
+                Return "https://web.telegram.org/k/"
+            Else
+                Return "https://web.whatsapp.com/"
+            End If
+        End Get
+    End Property
+
+    Private Shared ReadOnly WhatsAppBrush As Brush = BrushCache.GetBrush("#25d366")
+    Private Shared ReadOnly TelegramBrush As Brush = BrushCache.GetBrush("#24A1DE")
+
+    <JsonIgnore>
+    Public ReadOnly Property PlatformIconData As String
+        Get
+            If IsTelegram Then
+                Return "M9.78 18.65L10.06 14.42L17.74 7.5C18.08 7.19 17.67 7.04 17.22 7.31L7.74 13.3L3.64 12C2.76 11.75 2.75 11.14 3.84 10.7L19.81 4.54C20.54 4.21 21.24 4.72 20.97 5.84L18.25 18.67C18.05 19.6 17.5 19.82 16.73 19.38L12.58 16.32L10.58 18.25C10.36 18.47 10.17 18.65 9.78 18.65Z"
+            Else
+                Return "M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M8.53 7.33C8.37 7.33 8.1 7.39 7.87 7.64C7.65 7.89 7.02 8.48 7.02 9.68C7.02 10.88 7.9 12.03 8.02 12.19C8.14 12.35 9.73 14.81 12.18 15.86C12.76 16.11 13.22 16.26 13.57 16.37C14.16 16.56 14.69 16.53 15.11 16.47C15.59 16.4 16.58 15.87 16.78 15.3C16.98 14.73 16.98 14.24 16.92 14.14C16.86 14.04 16.7 13.98 16.45 13.85C16.2 13.73 14.97 13.12 14.74 13.04C14.52 12.96 14.35 12.92 14.19 13.17C14.03 13.41 13.56 13.98 13.42 14.14C13.28 14.31 13.13 14.33 12.89 14.21C12.64 14.08 11.84 13.82 10.89 12.97C10.15 12.31 9.65 11.5 9.51 11.25C9.36 11.01 9.5 10.87 9.62 10.75C9.73 10.64 9.87 10.45 10 10.31C10.13 10.16 10.17 10.06 10.25 9.9C10.33 9.73 10.29 9.59 10.23 9.47C10.17 9.35 9.7 8.19 9.5 7.72C9.31 7.26 9.12 7.32 8.97 7.31C8.84 7.31 8.68 7.33 8.53 7.33Z"
+            End If
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property PlatformColorBrush As Brush
+        Get
+            If IsTelegram Then
+                Return TelegramBrush
+            Else
+                Return WhatsAppBrush
+            End If
+        End Get
+    End Property
 
     Private _name As String
     ''' <summary>Nome personalizzato visualizzato nelle schede e impostazioni.</summary>
@@ -114,16 +186,17 @@ Public Class WhatsAppAccount
         BridgeToken = GenerateBridgeToken()
     End Sub
 
-    Public Sub New(id As String, name As String, Optional isActive As Boolean = False)
+    Public Sub New(id As String, name As String, Optional isActive As Boolean = False, Optional platform As String = "WhatsApp")
         Me.Id = id
         Me.Name = name
         Me.IsActive = isActive
+        Me.Platform = platform
         BridgeToken = GenerateBridgeToken()
     End Sub
 
     ''' <summary>
     ''' Configura l'ambiente isolato della WebView2, inietta gli script JavaScript per l'intercettazione delle notifiche e traduzioni,
-    ''' e naviga verso la pagina di WhatsApp Web.
+    ''' e naviga verso la pagina della piattaforma di messaggistica (WhatsApp Web o Telegram Web).
     ''' </summary>
     Public Async Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
@@ -180,7 +253,9 @@ Public Class WhatsAppAccount
                 Try
                     Dim uri = New Uri(e.Uri)
                     Dim host = uri.Host.ToLower()
-                    If host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com") Then
+                    If IsWhatsApp AndAlso (host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com")) Then
+                        WebView.CoreWebView2.Navigate(e.Uri)
+                    ElseIf IsTelegram AndAlso (host = "web.telegram.org" OrElse host = "telegram.org" OrElse host.EndsWith(".telegram.org")) Then
                         WebView.CoreWebView2.Navigate(e.Uri)
                     Else
                         System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(e.Uri) With {
@@ -201,11 +276,12 @@ Public Class WhatsAppAccount
                 If e.IsSuccess Then
                     Dim brightnessDark = settings.IsDarkThemeEffective
 
-
-                    If brightnessDark Then
-                        Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
-                    Else
-                        Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                    If IsWhatsApp Then
+                        If brightnessDark Then
+                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
+                        Else
+                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                        End If
                     End If
 
                     Dim langName = "English"
@@ -233,12 +309,24 @@ Public Class WhatsAppAccount
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
-            WebView.CoreWebView2.Navigate("https://web.whatsapp.com/")
+            WebView.CoreWebView2.Navigate(WebUrl)
 
         Catch ex As Exception
             Debug.WriteLine($"Error configuring WebView2 for account {Id}: {ex.Message}")
         End Try
     End Function
+
+    ''' <summary>
+    ''' Imposta una nuova piattaforma per l'account e ricarica la WebView2 con l'URL corrispondente.
+    ''' </summary>
+    Public Sub SetPlatform(newPlatform As String)
+        If Not String.Equals(_platform, newPlatform, StringComparison.OrdinalIgnoreCase) Then
+            Platform = newPlatform
+            If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
+                WebView.CoreWebView2.Navigate(WebUrl)
+            End If
+        End If
+    End Sub
 
     ''' <summary>
     ''' Gestisce i messaggi IPC JSON inviati dalla WebView2 tramite `window.chrome.webview.postMessage`.

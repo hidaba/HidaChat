@@ -203,18 +203,38 @@
                                 <Border BorderThickness="0,0,0,1" Padding="0,8">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="110"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         
+                                        <!-- Platform Icon Preview -->
+                                        <Path Grid.Column="0" Data="{Binding PlatformIconData}" 
+                                              Fill="{Binding PlatformColorBrush}" 
+                                              Width="16" Height="16" Stretch="Uniform" 
+                                              VerticalAlignment="Center" Margin="0,0,10,0"/>
+
                                         <!-- Editable Account Name TextBox -->
-                                        <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                        <TextBox Grid.Column="1" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                                                  LostFocus="TxtAccountName_LostFocus"
                                                  Foreground="#ffffff" Background="#2a3942" BorderBrush="#00a884" 
                                                  Padding="8,6" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
 
+                                        <!-- Platform Selector ComboBox -->
+                                        <ComboBox Grid.Column="2" 
+                                                  SelectedValuePath="Tag"
+                                                  SelectedValue="{Binding Platform, Mode=TwoWay}"
+                                                  SelectionChanged="ComboAccountPlatform_SelectionChanged"
+                                                  Tag="{Binding Id}"
+                                                  Style="{StaticResource CustomComboBoxStyle}"
+                                                  VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <ComboBoxItem Content="WhatsApp" Tag="WhatsApp"/>
+                                            <ComboBoxItem Content="Telegram" Tag="Telegram"/>
+                                        </ComboBox>
+
                                         <!-- Delete Account Button -->
-                                        <Button Grid.Column="1" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>
+                                        <Button Grid.Column="3" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

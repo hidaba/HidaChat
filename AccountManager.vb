@@ -311,34 +311,34 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Aggiunge un nuovo account WhatsApp alla collezione (fino a un massimo di 3) e ne salva le modifiche.
+    ''' Aggiunge un nuovo account specificando facoltativamente il nome e la piattaforma (WhatsApp o Telegram).
     ''' </summary>
-    ''' <param name="name">Nome personalizzato facoltativo dell'account.</param>
-    ''' <returns>True se l'account è stato aggiunto con successo, False se è già stato raggiunto il limite massimo.</returns>
-    Public Async Function AddAccountAsync(Optional name As String = Nothing) As Task(Of Boolean)
+    Public Async Function AddAccountAsync(Optional name As String = Nothing, Optional platform As String = "WhatsApp") As Task(Of Boolean)
         If _accounts.Count >= MaxAccounts Then
             Debug.WriteLine($"AddAccountAsync: impossibile aggiungere l'account, limite massimo ({MaxAccounts}) raggiunto.")
             Return False
         End If
 
         Dim accountId = WhatsAppAccount.GenerateId()
+        Dim cleanPlatform = If(String.IsNullOrWhiteSpace(platform), "WhatsApp", platform)
         
         Dim accountName = name
         If String.IsNullOrWhiteSpace(accountName) Then
+            Dim platformLabel = If(String.Equals(cleanPlatform, "Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp")
             Dim existingNames = _accounts.Select(Function(a) a.Name).ToHashSet()
             For i As Integer = 1 To MaxAccounts + 1
-                Dim candidate = $"Account {i}"
+                Dim candidate = $"{platformLabel} {i}"
                 If Not existingNames.Contains(candidate) Then
                     accountName = candidate
                     Exit For
                 End If
             Next
             If String.IsNullOrWhiteSpace(accountName) Then
-                accountName = $"Account {_accounts.Count + 1}"
+                accountName = $"{platformLabel} {_accounts.Count + 1}"
             End If
         End If
         
-        Dim newAccount As New WhatsAppAccount(accountId, accountName, False)
+        Dim newAccount As New WhatsAppAccount(accountId, accountName, False, cleanPlatform)
 
         _accounts.Add(newAccount)
         _isDirty = True

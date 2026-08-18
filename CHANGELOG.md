@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2-beta] - 2026-08-18
+
+### Multi-Platform (WhatsApp & Telegram)
+- **Supporto Account WhatsApp & Telegram**:
+  - Aggiunta la selezione del tipo di piattaforma (`WhatsApp` o `Telegram`) durante la creazione e la modifica degli account nelle Impostazioni.
+  - Visualizzazione delle icone vettoriali dedicate (verde per WhatsApp, azzurro per Telegram) nelle schede account della barra principale e nella lista di gestione account.
+  - Menu rapido contestuale sul pulsante `+` e su *"Aggiungi account"* per selezionare istantaneamente la piattaforma desiderata.
+  - Routing automatico dell'URL specifico (`https://web.whatsapp.com/` e `https://web.telegram.org/k/`) con profili isolati, gestione notifiche e supporto traduzioni.
+
 ## [0.4.1-beta] - 2026-08-18
 
 ### Visual & Assets

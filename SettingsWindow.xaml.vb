@@ -218,16 +218,64 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Gestisce l'aggiunta di un nuovo account dalla finestra delle impostazioni.
+    ''' Gestisce il cambio di piattaforma (WhatsApp / Telegram) di un account dall'elenco nelle impostazioni.
     ''' </summary>
-    Private Async Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)
+    Private Async Sub ComboAccountPlatform_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim cmb = TryCast(sender, ComboBox)
+        If cmb Is Nothing Then Return
+
+        Dim accountId = TryCast(cmb.Tag, String)
+        If String.IsNullOrEmpty(accountId) Then Return
+
+        Dim selectedItem = TryCast(cmb.SelectedItem, ComboBoxItem)
+        If selectedItem Is Nothing Then Return
+
+        Dim newPlatform = TryCast(selectedItem.Tag, String)
+        If String.IsNullOrWhiteSpace(newPlatform) Then Return
+
+        Dim targetAcc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
+        If targetAcc IsNot Nothing AndAlso Not String.Equals(targetAcc.Platform, newPlatform, StringComparison.OrdinalIgnoreCase) Then
+            targetAcc.SetPlatform(newPlatform)
+            Await _accountManager.SaveAccountsAsync()
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce l'aggiunta di un nuovo account dalla finestra delle impostazioni con scelta della piattaforma.
+    ''' </summary>
+    Private Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)
         If Not _accountManager.CanAddAccount Then
             Dim loc = _settingsController.Localizations
             MessageBox.Show(loc.Get("max_accounts_reached"), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
             Return
         End If
 
-        Dim success = Await _accountManager.AddAccountAsync()
+        Dim locStrings = _settingsController.Localizations
+        Dim menu As New ContextMenu()
+
+        Dim itemWhatsApp As New MenuItem With {
+            .Header = locStrings.Get("add_whatsapp_account")
+        }
+        AddHandler itemWhatsApp.Click, Async Sub()
+            Await AddAccountSettingsWithPlatformAsync("WhatsApp")
+        End Sub
+
+        Dim itemTelegram As New MenuItem With {
+            .Header = locStrings.Get("add_telegram_account")
+        }
+        AddHandler itemTelegram.Click, Async Sub()
+            Await AddAccountSettingsWithPlatformAsync("Telegram")
+        End Sub
+
+        menu.Items.Add(itemWhatsApp)
+        menu.Items.Add(itemTelegram)
+        menu.PlacementTarget = BtnAddAccountSettings
+        menu.IsOpen = True
+    End Sub
+
+    Private Async Function AddAccountSettingsWithPlatformAsync(platform As String) As Task
+        Dim success = Await _accountManager.AddAccountAsync(platform:=platform)
         If success Then
             _cachedAccountBorders = Nothing
             _cachedAccountTextBoxes = Nothing
@@ -235,7 +283,7 @@ Public Class SettingsWindow
             AccountsList.ItemsSource = _accountManager.Accounts
         End If
         UpdateAccountsUIState()
-    End Sub
+    End Function
 
     ''' <summary>
     ''' Aggiorna lo stato del conteggio account e del pulsante aggiungi nelle impostazioni.

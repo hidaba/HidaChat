@@ -404,9 +404,9 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Gestisce l'evento di click sul pulsante "+" per aggiungere un nuovo account WhatsApp.
+    ''' Gestisce l'evento di click sul pulsante "+" per aggiungere un nuovo account (WhatsApp o Telegram).
     ''' </summary>
-    Private Async Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
+    Private Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
         Try
             If Not _accountManager.CanAddAccount Then
                 Dim msg = _settingsController.Localizations.Get("max_accounts_reached")
@@ -414,7 +414,37 @@ Public Class MainWindow
                 Return
             End If
 
-            Dim success = Await _accountManager.AddAccountAsync()
+            Dim loc = _settingsController.Localizations
+            Dim menu As New ContextMenu()
+            
+            Dim itemWhatsApp As New MenuItem With {
+                .Header = loc.Get("add_whatsapp_account")
+            }
+            AddHandler itemWhatsApp.Click, Async Sub()
+                Await AddAccountWithPlatformAsync("WhatsApp")
+            End Sub
+
+            Dim itemTelegram As New MenuItem With {
+                .Header = loc.Get("add_telegram_account")
+            }
+            AddHandler itemTelegram.Click, Async Sub()
+                Await AddAccountWithPlatformAsync("Telegram")
+            End Sub
+
+            menu.Items.Add(itemWhatsApp)
+            menu.Items.Add(itemTelegram)
+            menu.PlacementTarget = BtnAddAccount
+            menu.IsOpen = True
+
+        Catch ex As Exception
+            Debug.WriteLine($"BtnAddAccount_Click error: {ex.Message}")
+            MessageBox.Show("Errore nell'aggiunta dell'account: " & ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
+        End Try
+    End Sub
+
+    Private Async Function AddAccountWithPlatformAsync(platform As String) As Task
+        Try
+            Dim success = Await _accountManager.AddAccountAsync(platform:=platform)
             If success Then
                 Dim newAcc = _accountManager.Accounts.LastOrDefault()
                 If newAcc IsNot Nothing Then
@@ -423,10 +453,10 @@ Public Class MainWindow
             End If
             UpdateAddAccountButtonState()
         Catch ex As Exception
-            Debug.WriteLine($"BtnAddAccount_Click error: {ex.Message}")
+            Debug.WriteLine($"AddAccountWithPlatformAsync error: {ex.Message}")
             MessageBox.Show("Errore nell'aggiunta dell'account: " & ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
         End Try
-    End Sub
+    End Function
 
     Private Async Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(SettingsController.Theme) Then
