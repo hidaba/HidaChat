@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0-beta] - 2026-08-18
+
+### Rebranding & Multi-Platform Evolution
+- **Rebranding Completo da WhatsAppH a HidaChat**:
+  - Ridenominazione dell'intero progetto, soluzione .NET (`HidaChat.sln`), file di progetto (`HidaChat.vbproj`) ed eseguibile (`HidaChat.exe`) in vista dell'evoluzione a client multi-piattaforma (WhatsApp, Telegram, Teams, ecc.).
+  - Aggiornati i namespace XML e code-behind in `HidaChat`.
+  - Aggiornato il Mutex di istanza singola a `Local\HidaChat_SingleInstance_Mutex`.
+  - Aggiornati tutti gli endpoint di aggiornamento automatico OTA e i link al nuovo repository ufficiale GitHub `https://github.com/hidaba/HidaChat`.
+  - Aggiornati i workflow di GitHub Actions, lo script di pubblicazione `publish.ps1`, i template di issue e la documentazione completa.
+
 ## [0.3.3-beta] - 2026-08-18
 
 ### Portability & Refactoring
