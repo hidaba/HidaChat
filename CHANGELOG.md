@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1-beta] - 2026-08-18
+
+### Visual & Assets
+- **Nuova Icona Cyberpunk & Notifiche System Tray**:
+  - Introdotto il nuovo set di icone in stile cyberpunk con fumetto di chat olografico al neon (ciano/magenta) e tracciati digitali su sfondo dark.
+  - Generati file `.ico` multi-risoluzione completi (da 16x16 a 256x256) per l'applicazione (`icon.ico`) e per le notifiche della System Tray con badge luminoso (`icon_notification.ico`).
+  - Integrazione dell'eseguibile ponte e routine di pulizia automatica per la transizione fluida degli aggiornamenti dalle versioni precedenti.
+
 ## [0.4.0-beta] - 2026-08-18
 
 ### Rebranding & Multi-Platform Evolution
