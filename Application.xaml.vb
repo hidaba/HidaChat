@@ -39,7 +39,29 @@ Class Application
             End If
         End If
 
+        CleanupLegacyFiles()
+
         MyBase.OnStartup(e)
+    End Sub
+
+    ''' <summary>
+    ''' Rimuove eventuali file binari residui della vecchia denominazione WhatsappH.
+    ''' </summary>
+    Private Shared Sub CleanupLegacyFiles()
+        Try
+            Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+            Dim legacyFiles = {"WhatsappH.dll", "WhatsappH.pdb", "WhatsappH.deps.json", "WhatsappH.runtimeconfig.json"}
+            For Each f In legacyFiles
+                Dim fullPath = System.IO.Path.Combine(baseDir, f)
+                If System.IO.File.Exists(fullPath) Then
+                    Try
+                        System.IO.File.Delete(fullPath)
+                    Catch
+                    End Try
+                End If
+            Next
+        Catch
+        End Try
     End Sub
 
     ''' <summary>

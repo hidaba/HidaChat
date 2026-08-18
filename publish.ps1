@@ -75,6 +75,47 @@ foreach ($folder in @("images", "runtimes")) {
     }
 }
 
+# Compile legacy forwarder WhatsappH.exe to provide seamless transition from 0.3.3 and older versions
+$forwarderSource = @"
+using System;
+using System.Diagnostics;
+using System.IO;
+
+namespace WhatsappHForwarder
+{
+    static class Program
+    {
+        [STAThread]
+        static void Main(string[] args)
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string target = Path.Combine(baseDir, "HidaChat.exe");
+                if (File.Exists(target))
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo(target);
+                    psi.WorkingDirectory = baseDir;
+                    psi.UseShellExecute = true;
+                    Process.Start(psi);
+                }
+            }
+            catch { }
+        }
+    }
+}
+"@
+$forwarderCsPath = Join-Path $stagingDir "WhatsappH_forwarder.cs"
+Set-Content $forwarderCsPath $forwarderSource -Encoding UTF8
+$cscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+$iconPath = Join-Path $PSScriptRoot "images\icon.ico"
+$forwarderExePath = Join-Path $stagingDir "WhatsappH.exe"
+if (Test-Path $cscPath) {
+    Write-Host "Compiling legacy WhatsappH.exe forwarder..."
+    & $cscPath /target:winexe "/out:$forwarderExePath" "/win32icon:$iconPath" /optimize /nologo $forwarderCsPath
+}
+if (Test-Path $forwarderCsPath) { Remove-Item $forwarderCsPath -Force }
+
 # Zip staging directory
 Write-Host "Creating ZIP package: $zipPath ..."
 Compress-Archive -Path "$stagingDir\*" -DestinationPath $zipPath -Force
