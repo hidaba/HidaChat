@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0] - 2026-08-18
+
+### Multi-Platform & Rebranding Major Release
+- **Rebranding Ufficiale in HidaChat**:
+  - Evoluzione dell'applicazione da client esclusivo per WhatsApp a client multi-piattaforma unificato (**HidaChat**).
+  - Ridenominazione completa di soluzione, progetti, namespace ed eseguibili.
+- **Supporto Multi-Account per WhatsApp e Telegram**:
+  - Possibilità di gestire contemporaneamente account WhatsApp e Telegram in schede separate con profili isolati.
+  - Selezione della piattaforma in fase di creazione e configurazione dell'account nelle Impostazioni.
+  - Icone vettoriali dedicate (verde per WhatsApp, azzurro per Telegram) nelle schede in alto e nella gestione account.
+- **Nuovo Design Visivo Cyberpunk**:
+  - Nuova icona applicativa in stile cyberpunk neon con fumetto di chat olografico e circuiti digitali.
+  - Nuova icona dedicata per la System Tray con badge luminoso per le notifiche attive.
+- **Architettura & Portabilità**:
+  - Isolamento completo di tutti i file dati, impostazioni e profili WebView2 all'interno della cartella portabile `data/`.
+  - Transizione fluida e forwarder per l'aggiornamento automatico dalle versioni legacy.
+
 ## [0.4.2-beta] - 2026-08-18
 
 ### Multi-Platform (WhatsApp & Telegram)
