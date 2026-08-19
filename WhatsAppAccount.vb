@@ -407,7 +407,7 @@ Public Class WhatsAppAccount
             If settings.ShowMessagePopup Then
                 Try
                     Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
-                        Dim popup As New MessagePopup(Id, title, body)
+                        Dim popup As New MessagePopup(Id, title, body, Platform)
                         popup.Show()
                     End Sub)
                 Catch ex As Exception
