@@ -245,5 +245,37 @@
   - Scorciatoia rapida "Copia link chat" o "Cancella cache account".
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
+## 46. Modalità Privacy / Anti-Sbircio (Blur Mode / Screen Share Shield)
+- **Descrizione**: Aggiungere una modalità privacy ad attivazione rapida (pulsante nella barra del titolo o scorciatoia `Alt+P`) che applica una sfocatura CSS (`filter: blur(5px)`) su messaggi, anteprime recenti nella sidebar, immagini/video e nomi dei contatti.
+- **Interazione**: Il contenuto sfocato viene svelato temporaneamente e in modo fluido solo al passaggio del puntatore del mouse (`:hover`).
+- **Utilità**: Protegge la riservatezza delle conversazioni in ufficio, in luoghi pubblici o durante la condivisione dello schermo (Teams, Zoom, Google Meet).
+- **Impatto**: Alto | **Sforzo**: Basso
+
+## 47. Modalità "Non Disturbare" / Focus Mode Temporizzata
+- **Descrizione**: Aggiungere un pulsante rapido per silenziare tutte le notifiche (suoni, popup overlay e Windows Toast) per tutti gli account con un solo click.
+- **Funzionalità**: Supporto a timer predefiniti (30 minuti, 1 ora, 8 ore, fino a disattivazione manuale) con ripristino automatico alla scadenza e indicatore visivo di stato nella barra del titolo.
+- **Impatto**: Alto | **Sforzo**: Basso
+
+## 48. Blocco dell'Applicazione con PIN / Master Password (App Lock)
+- **Descrizione**: Possibilità di proteggere HidaChat con un PIN o password all'avvio o dopo un periodo configurabile di inattività (es. 5, 15, 30 minuti), oltre alla possibilità di bloccare istantaneamente la schermata con `Ctrl+L`.
+- **Implementazione**: Overlay modale WPF che oscura la finestra e disabilita le WebView2 fino all'inserimento del PIN corretto (memorizzato con hash sicuro in `settings.json`).
+- **Impatto**: Medio-Alto | **Sforzo**: Medio
+
+## 49. Quick Switcher & Command Palette (`Ctrl+K`)
+- **Descrizione**: Finestra modale di ricerca e navigazione rapida a scomparsa (`Ctrl+K` o `Ctrl+P`) in stile VS Code / Ferdium per:
+  - Passare al volo tra gli account attivi digitando il nome.
+  - Aprire le impostazioni o cambiare lingua/tema da tastiera.
+  - Attivare al volo modalità privacy, traduzioni o ricaricare la scheda.
+- **Impatto**: Medio | **Sforzo**: Medio
+
+## 50. Ibernazione Intelligente delle Schede Inattive (Tab Hibernation)
+- **Descrizione**: Ridurre l'impronta di memoria RAM sospendendo lo stato di rendering delle schede in background non utilizzate da più di 30-60 minuti, risvegliandole istantaneamente al click dell'utente.
+- **Impatto**: Medio | **Sforzo**: Medio
+
+## 51. Estensione a Nuove Piattaforme Web (Microsoft Teams, Slack, Discord)
+- **Descrizione**: Estendere l'architettura `AppAccounts` per consentire all'utente di aggiungere schede per **Microsoft Teams** (`https://teams.microsoft.com/v2/`), **Slack** (`https://app.slack.com/client`) o **Discord** (`https://discord.com/app`) con icone vettoriali e temi dedicati.
+- **Impatto**: Alto | **Sforzo**: Medio
+
+
 
 
