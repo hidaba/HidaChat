@@ -219,4 +219,31 @@
   - [ ] **Scorciatoie da Tastiera per Cambio Account**: Aggiungere scorciatoie globali per la finestra (es. `Ctrl+1`, `Ctrl+2`, `Ctrl+3` o `Ctrl+Tab`) per passare istantaneamente tra gli account WhatsApp e Telegram configurati.
 - **Impatto**: Alto | **Sforzo**: Medio
 
+---
+
+# NUOVE FUNZIONALITÀ & IDEE (Ispirate da Altus e Client Desktop Moderni)
+
+## 42. Indicatore Stato "Online" dei Contatti (Online Indicator)
+- **Descrizione**: Intercettare tramite uno script JavaScript iniettato (`MutationObserver` su intestazione chat) quando il contatto o la chat attualmente aperta è "online" (es. rilevando la dicitura `online` / `in linea` o elementi di stato nel DOM della conversazione attiva sia su WhatsApp Web che su Telegram Web).
+- **Integrazione UI**: Mostrare un indicatore visivo (es. pallino verde animato o dicitura di stato) nella barra superiore dell'applicazione o accanto al nome della scheda.
+- **Impatto**: Medio | **Sforzo**: Basso
+
+## 43. Supporto a Temi CSS Personalizzati Utente (Custom CSS Injector)
+- **Descrizione**: Aggiungere una sezione nelle **Impostazioni** che permetta all'utente di scrivere o incollare regole CSS personalizzate per personalizzare liberamente l'aspetto di WhatsApp Web o Telegram Web (font, colori delle bolle dei messaggi, larghezza sidebar, sfondo chat, trasparenze).
+- **Implementazione**: Salvare il CSS utente in `settings.json` o file `data/custom_styles.css` e iniettarlo automaticamente al caricamento del documento tramite `AddScriptToExecuteOnDocumentCreatedAsync`.
+- **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+## 44. Correttore Ortografico Nativo Multilingua (Spellchecker WebView2)
+- **Descrizione**: Abilitare il motore di correzione ortografica nativo di Edge WebView2 e permettere all'utente di configurare o alternare la lingua del dizionario (italiano, inglese, spagnolo, ecc.) per evidenziare e correggere errori nei campi di digitazione di WhatsApp e Telegram.
+- **Implementazione**: Configurazione dei parametri Chromium via `AdditionalBrowserArguments` o impostazioni WebView2 (`CoreWebView2Settings`).
+- **Impatto**: Medio | **Sforzo**: Basso
+
+## 45. Utility Bar & Gestione Rapida Audio / Dispositivi
+- **Descrizione**: Aggiungere opzioni di utilità rapida nella barra del titolo o nel menu contestuale delle schede:
+  - **Mute/Unmute rapido** dell'audio dell'account corrente (`CoreWebView2.IsMuted = True/False`).
+  - **Indicatore multimediale** (icona altoparlante sulla scheda quando un account sta riproducendo note vocali, notifiche sonore o video).
+  - Scorciatoia rapida "Copia link chat" o "Cancella cache account".
+- **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+
 
