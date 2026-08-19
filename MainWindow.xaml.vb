@@ -424,7 +424,7 @@ Public Class MainWindow
     ''' <summary>
     ''' Assicura che l'istanza WebView2 per l'account sia creata, aggiunta alla griglia ed inizializzata.
     ''' </summary>
-    Private Async Function EnsureWebViewAsync(account As WhatsAppAccount) As Task
+    Private Async Function EnsureWebViewAsync(account As AppAccounts) As Task
         If account.WebView Is Nothing Then
             account.WebView = New WebView2()
             account.WebView.HorizontalAlignment = HorizontalAlignment.Stretch
@@ -465,7 +465,7 @@ Public Class MainWindow
         Dim menuItem = CType(sender, MenuItem)
         Dim contextMenu = CType(menuItem.Parent, ContextMenu)
         Dim btn = CType(contextMenu.PlacementTarget, Button)
-        Dim acc = CType(btn.DataContext, WhatsAppAccount)
+        Dim acc = CType(btn.DataContext, AppAccounts)
 
         Dim newName = Microsoft.VisualBasic.Interaction.InputBox("Enter new name:", "Rename Account", acc.Name)
         If Not String.IsNullOrWhiteSpace(newName) Then

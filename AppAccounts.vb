@@ -11,7 +11,7 @@ Imports System.Text.Json
 ''' Rappresenta un singolo account di chat (WhatsApp Web o Telegram Web), gestione dell'istanza WebView2 associata, 
 ''' token di sicurezza per IPC e gestione di notifiche e traduzioni.
 ''' </summary>
-Public Class WhatsAppAccount
+Public Class AppAccounts
     Implements INotifyPropertyChanged
     Implements IDisposable
 
@@ -582,7 +582,7 @@ Public Class WhatsAppAccount
             _initTask = Nothing
             ActiveNotificationIds.Clear()
         Catch ex As Exception
-            Debug.WriteLine($"Error disposing WhatsAppAccount: {ex.Message}")
+            Debug.WriteLine($"Error disposing AppAccounts: {ex.Message}")
         End Try
     End Sub
 End Class

@@ -32,16 +32,16 @@ Public Class AccountManager
         End Get
     End Property
 
-    Private _accounts As New ObservableCollection(Of WhatsAppAccount)()
+    Private _accounts As New ObservableCollection(Of AppAccounts)()
 
     ''' <summary>
     ''' Collezione osservabile di tutti gli account WhatsApp configurati.
     ''' </summary>
-    Public Property Accounts As ObservableCollection(Of WhatsAppAccount)
+    Public Property Accounts As ObservableCollection(Of AppAccounts)
         Get
             Return _accounts
         End Get
-        Set(value As ObservableCollection(Of WhatsAppAccount))
+        Set(value As ObservableCollection(Of AppAccounts))
             _accounts = value
             _isDirty = True
             NotifyPropertyChanged()
@@ -49,16 +49,16 @@ Public Class AccountManager
         End Set
     End Property
 
-    Private _currentAccount As WhatsAppAccount
+    Private _currentAccount As AppAccounts
 
     ''' <summary>
     ''' Account WhatsApp attualmente selezionato e visualizzato nell'interfaccia.
     ''' </summary>
-    Public Property CurrentAccount As WhatsAppAccount
+    Public Property CurrentAccount As AppAccounts
         Get
             Return _currentAccount
         End Get
-        Set(value As WhatsAppAccount)
+        Set(value As AppAccounts)
             If _currentAccount IsNot value Then
                 _currentAccount = value
                 _isDirty = True
@@ -117,13 +117,13 @@ Public Class AccountManager
             Try
                 Dim accountsJson = accountsListObj.ToString()
                 Dim jsonOptions As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True}
-                Dim accountsData = JsonSerializer.Deserialize(Of List(Of WhatsAppAccount))(accountsJson, jsonOptions)
+                Dim accountsData = JsonSerializer.Deserialize(Of List(Of AppAccounts))(accountsJson, jsonOptions)
                 
                 If accountsData IsNot Nothing AndAlso accountsData.Count > 0 Then
                     Dim needsSave = False
                     For i As Integer = 0 To accountsData.Count - 1
                         If String.IsNullOrEmpty(accountsData(i).Id) Then
-                            accountsData(i).Id = WhatsAppAccount.GenerateId()
+                            accountsData(i).Id = AppAccounts.GenerateId()
                             needsSave = True
                         End If
                         If String.IsNullOrEmpty(accountsData(i).Name) Then
@@ -132,7 +132,7 @@ Public Class AccountManager
                         End If
                     Next
 
-                    _accounts = New ObservableCollection(Of WhatsAppAccount)(accountsData)
+                    _accounts = New ObservableCollection(Of AppAccounts)(accountsData)
 
                     Debug.WriteLine($"LoadAccounts: caricati {accountsData.Count} account, needsSave={needsSave}")
                     For i As Integer = 0 To accountsData.Count - 1
@@ -172,7 +172,7 @@ Public Class AccountManager
     ''' </summary>
     Private Sub MigrateOrphanProfile()
         Try
-            Dim orphanProfile = Path.Combine(WhatsAppAccount.SharedDataDirectory, "WV2Profile_")
+            Dim orphanProfile = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
             If Not Directory.Exists(orphanProfile) Then
                 Debug.WriteLine("MigrateOrphanProfile: nessun profilo orfano trovato")
                 Return
@@ -180,7 +180,7 @@ Public Class AccountManager
             Debug.WriteLine($"MigrateOrphanProfile: trovato profilo orfano {orphanProfile}")
 
             For Each acc In _accounts
-                Dim profileDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{acc.Id}")
+                Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{acc.Id}")
                 Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
                 If Directory.Exists(profileDir) Then
                     Try
@@ -210,7 +210,7 @@ Public Class AccountManager
     ''' </summary>
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
         Try
-            Dim sharedDir = WhatsAppAccount.SharedDataDirectory
+            Dim sharedDir = AppAccounts.SharedDataDirectory
             If Not Directory.Exists(sharedDir) Then
                 Return Task.CompletedTask
             End If
@@ -247,12 +247,12 @@ Public Class AccountManager
         Dim existingId As String = Nothing
 
         Try
-            Dim sharedDir = WhatsAppAccount.SharedDataDirectory
+            Dim sharedDir = AppAccounts.SharedDataDirectory
             Debug.WriteLine($"CreateDefaultAccount: sharedDir={sharedDir}, exists={Directory.Exists(sharedDir)}")
             If Directory.Exists(sharedDir) Then
                 Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
                 If Directory.Exists(orphanProfile) Then
-                    existingId = WhatsAppAccount.GenerateId()
+                    existingId = AppAccounts.GenerateId()
                     Dim newDir = Path.Combine(sharedDir, $"WV2Profile_{existingId}")
                     Try
                         Directory.Move(orphanProfile, newDir)
@@ -273,11 +273,11 @@ Public Class AccountManager
             Debug.WriteLine($"Error searching existing profile dirs: {ex.Message}")
         End Try
 
-        Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, WhatsAppAccount.GenerateId())
-        Dim defaultAccount As New WhatsAppAccount(accountId, "Account 1", True)
+        Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, AppAccounts.GenerateId())
+        Dim defaultAccount As New AppAccounts(accountId, "Account 1", True)
 
-        Dim dir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{accountId}")
-        Dim orphanDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, "WV2Profile_")
+        Dim dir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
+        Dim orphanDir = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
         If Not Directory.Exists(dir) AndAlso Directory.Exists(orphanDir) Then
             Try
                 Directory.Move(orphanDir, dir)
@@ -285,7 +285,7 @@ Public Class AccountManager
             End Try
         End If
         
-        _accounts = New ObservableCollection(Of WhatsAppAccount) From {defaultAccount}
+        _accounts = New ObservableCollection(Of AppAccounts) From {defaultAccount}
         _currentAccount = defaultAccount
         _isDirty = True
         
@@ -319,7 +319,7 @@ Public Class AccountManager
             Return False
         End If
 
-        Dim accountId = WhatsAppAccount.GenerateId()
+        Dim accountId = AppAccounts.GenerateId()
         Dim cleanPlatform = If(String.IsNullOrWhiteSpace(platform), "WhatsApp", platform)
         
         Dim accountName = name
@@ -338,7 +338,7 @@ Public Class AccountManager
             End If
         End If
         
-        Dim newAccount As New WhatsAppAccount(accountId, accountName, False, cleanPlatform)
+        Dim newAccount As New AppAccounts(accountId, accountName, False, cleanPlatform)
 
         _accounts.Add(newAccount)
         _isDirty = True
@@ -384,7 +384,7 @@ Public Class AccountManager
 
         Await Task.Delay(500)
         Try
-            Dim profileDir = Path.Combine(WhatsAppAccount.SharedDataDirectory, $"WV2Profile_{accountId}")
+            Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
             If Directory.Exists(profileDir) Then
                 Directory.Delete(profileDir, True)
                 Debug.WriteLine($"Deleted profile folder for: {accountId}")

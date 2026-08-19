@@ -169,7 +169,7 @@ Public Class SettingsWindow
 
     Private Async Sub TxtAccountName_LostFocus(sender As Object, e As RoutedEventArgs)
         Dim txt = CType(sender, TextBox)
-        Dim acc = CType(txt.DataContext, WhatsAppAccount)
+        Dim acc = CType(txt.DataContext, AppAccounts)
         If acc IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(txt.Text) Then
             Await _accountManager.UpdateAccountNameAsync(acc.Id, txt.Text.Trim())
         End If
