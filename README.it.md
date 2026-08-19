@@ -24,10 +24,15 @@
 
 ---
 
-## 📦 Download Eseguibile per Windows
+## 📦 Download & Installazione Rapida per Windows
 
-Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP, nessun bisogno di installazione):
+### Opzione 1: Installazione tramite Windows Package Manager (`winget`)
+```powershell
+winget install hidaba.HidaChat
+```
 
+### Opzione 2: Archivio Portatile ZIP (Nessuna installazione)
+Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP):
 - ⬇️ **[Scarica l'ultima versione compilata (GitHub Releases)](https://github.com/hidaba/HidaChat/releases/latest)**
 - 📂 Estrai l'archivio ZIP in qualsiasi cartella (locale o chiavetta USB) ed avvia `HidaChat.exe`.
 
