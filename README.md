@@ -14,7 +14,11 @@
 
 ---
 
-## 📸 Screenshots & Preview
+## 📸 Live Demo & Preview
+
+<p align="center">
+  <img src="images/demo.gif" alt="HidaChat Live Demo" width="90%">
+</p>
 
 | **Multi-Account Interface (Dark Mode)** | **Instant Message Translation** |
 |:---:|:---:|

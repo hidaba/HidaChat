@@ -14,7 +14,11 @@
 
 ---
 
-## 📸 Anteprima & Screenshot
+## 📸 Demo Animata & Anteprima
+
+<p align="center">
+  <img src="images/demo.gif" alt="HidaChat Demo Animata" width="90%">
+</p>
 
 | **Interfaccia Multi-Account (Tema Scuro)** | **Traduzione Istantanea Messaggio** |
 |:---:|:---:|
