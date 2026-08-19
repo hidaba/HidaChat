@@ -194,11 +194,21 @@ Public Class WhatsAppAccount
         BridgeToken = GenerateBridgeToken()
     End Sub
 
+    Private _initTask As Task = Nothing
+
     ''' <summary>
     ''' Configura l'ambiente isolato della WebView2, inietta gli script JavaScript per l'intercettazione delle notifiche e traduzioni,
     ''' e naviga verso la pagina della piattaforma di messaggistica (WhatsApp Web o Telegram Web).
     ''' </summary>
-    Public Async Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
+    Public Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
+        If _initTask IsNot Nothing Then
+            Return _initTask
+        End If
+        _initTask = SetupWebViewInternalAsync(settings, onNotificationChanged)
+        Return _initTask
+    End Function
+
+    Private Async Function SetupWebViewInternalAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
 
         Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
@@ -569,6 +579,7 @@ Public Class WhatsAppAccount
                 WebView = Nothing
             End If
 
+            _initTask = Nothing
             ActiveNotificationIds.Clear()
         Catch ex As Exception
             Debug.WriteLine($"Error disposing WhatsAppAccount: {ex.Message}")

@@ -3,7 +3,7 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
 
-**Client Desktop Portabile per Windows (.NET 9 / WPF)** con supporto **Multi-Account** (WhatsApp, Telegram, Teams, ecc.), **Traduzione Integrata dei Messaggi**, **Notifiche Native Windows** e **Zero Installazione**.
+**Client Desktop Portabile per Windows (.NET 9 / WPF)** con gestione **Multi-Account e Multi-Piattaforma** (**WhatsApp Web** e **Telegram Web**), **Pre-caricamento Istantaneo in Background**, **Traduzione Integrata dei Messaggi**, **Notifiche Native Windows Toast & Popup** e **Zero Installazione**.
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
@@ -37,29 +37,42 @@ Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP, ne
 
 ## 🌟 Perché HidaChat? (Confronto)
 
-| Caratteristica | HidaChat | WhatsApp Desktop Ufficiale | Altus (`amanharwara/altus`) | whatRust (`karem505/whatRust`) |
+| Caratteristica | HidaChat | WhatsApp Desktop Ufficiale | Telegram Desktop Ufficiale | Altus (`amanharwara/altus`) |
 |---|:---:|:---:|:---:|:---:|
 | **Installazione Richiesta** | ❌ **Nessuna (Portabile)** | ✅ Richiesta | ✅ Richiesta | ✅ Richiesta |
 | **Dati Spostabili (USB/Rete)** | ✅ **Sì (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
-| **Supporto Multi-Account** | ✅ **Sì (Tab Separati)** | ❌ No | ✅ Sì | ✅ Sì |
-| **Traduttore Messaggi Integrato** | ✅ **Sì (Hover + Pagina)** | ❌ No | ❌ No | ❌ No |
-| **Notifiche Native Windows** | ✅ **Sì** | ✅ Sì | ✅ Sì | ✅ Sì |
-| **Motore Render** | **WebView2 (Nativo Win)** | Electron | Electron | WebView (Tauri/Rust) |
-| **Open Source** | ✅ **Sì (Apache-2.0)** | ❌ No | ✅ Sì | ✅ Sì |
+| **Multi-Piattaforma in 1 App** | ✅ **Sì (WhatsApp e Telegram)** | ❌ Solo WhatsApp | ❌ Solo Telegram | ❌ Solo WhatsApp |
+| **Schede Multi-Account** | ✅ **Sì (Profili Isolati)** | ❌ No | ⚠️ Solo selettore | ✅ Sì |
+| **Pre-caricamento Istantaneo** | ✅ **Sì (Zero Ricaricamento)** | ❌ No | ❌ No | ❌ No |
+| **Traduttore Messaggi Integrato** | ✅ **Sì (Hover + Pagina)** | ❌ No | ⚠️ Base | ❌ No |
+| **Notifiche Native & Popup** | ✅ **Sì** | ✅ Sì | ✅ Sì | ✅ Sì |
+| **Motore Render** | **WebView2 (Nativo Win)** | Electron | Nativo C++ / Qt | Electron |
+| **Open Source** | ✅ **Sì (Apache-2.0)** | ❌ No | ⚠️ GPL | ✅ Sì |
 
 ---
 
 ## 🚀 Caratteristiche Principali
 
-- 👥 **Gestione Multi-Account**: Utilizza più account contemporaneamente in schede dedicate con profili WebView2 isolati.
-- 🎨 **Design Moderno e Temi**: Interfaccia scura/chiara con rilevamento automatico del tema di sistema Windows.
-- 🌐 **Traduzione Integrata**:
-  - **Pulsante Hover**: Traduci singoli messaggi passando il mouse sulla chat.
-  - **Traduzione Batch**: Traduci l'intera pagina di conversazione istantaneamente.
-  - **Notifiche Tradotte**: Traduzione automatica dei messaggi in arrivo nelle notifiche.
-- 🔔 **Notifiche Native Windows Toast**: Instadamento intelligente del click per aprire la scheda e la chat corretta.
-- 📌 **System Tray Integration**: Riduzione nell'area di notifica di Windows con contatore messaggi non letti.
-- 🚀 **Aggiornamenti OTA**: Check automatico e download degli aggiornamenti via GitHub Releases.
+### 👥 Multi-Account & Multi-Piattaforma (WhatsApp & Telegram)
+- **Account Concorrenti**: Gestisci fino a 3 account simultanei (**WhatsApp Web** e **Telegram Web**) in comode schede orizzontali.
+- **Profili WebView2 Isolati**: Ciascun account opera in una sandbox completamente isolata (cookie, sessioni, cache e storage separati in `data/webview/`).
+- **Pre-caricamento Istantaneo**: All'avvio dell'app viene data priorità all'account attivo e avviato in background il caricamento degli altri account, consentendo un passaggio immediato da una scheda all'altra senza attendere alcun ricaricamento.
+- **Selettore Piattaforma Rapido**: Con il pulsante `+` o dalle Impostazioni puoi creare istantaneamente un nuovo account WhatsApp o Telegram con icona e colore distintivo dedicato.
+- **Notifiche Sempre Attive in Background**: Anche se stai chattando su Telegram, WhatsApp continua a ricevere messaggi in tempo reale e genera notifiche Toast e Popup su schermo, e viceversa.
+
+### 🌐 Motore di Traduzione Integrato
+- **Pulsante al Passaggio del Mouse**: Passa il puntatore su qualsiasi messaggio in entrata o uscita per mostrare il pulsante di traduzione rapida.
+- **Traduzione Intera Pagina**: Traduci con un solo click tutte le conversazioni visibili.
+- **Compatibilità Totale**: Supporta la struttura DOM dei messaggi sia di WhatsApp Web che di Telegram Web K.
+
+### 🎨 Temi e Gestione Finestra
+- **Modalità Scura/Chiara Automatica**: Sincronizzazione automatica con il tema di Windows o selezione manuale, con iniezione CSS e JavaScript personalizzati per WhatsApp e Telegram.
+- **Ingrandimento Schermo Intero Ottimizzato**: Finestra senza bordi che rispetta l'Area di Lavoro e la barra delle applicazioni di Windows (Taskbar) su tutti i monitor, con supporto al ripristino per trascinamento e ridimensionamento fluido.
+
+### 🔔 Notifiche e System Tray
+- **Toast Windows & Popup Overlay**: Notifiche interattive che aprono direttamente la scheda dell'account e la conversazione di origine al click.
+- **Integrazione System Tray**: Riduzione nell'area di notifica con indicatore visivo per i messaggi non letti.
+- **Aggiornamenti OTA Automatici**: Controllo in background e download diretto delle nuove versioni da GitHub Releases.
 
 ---
 
@@ -91,17 +104,20 @@ In alternativa, puoi aprire la soluzione `HidaChat.sln` con **Visual Studio 2022
 
 ## 📖 Guida Rapida all'Uso
 
-1. **Aggiunta Account**: Avvia `HidaChat.exe` e rinomina o aggiungi account dal menu delle schede o dalle **Impostazioni** (⚙️).
-2. **Accesso WhatsApp**: Inquadra il codice QR con l'app WhatsApp dello smartphone per sincronizzare la sessione.
-3. **Traduzione**: Passa il mouse su qualsiasi messaggio per visualizzare l'icona di traduzione istantanea 🌐.
+1. **Aggiunta Account**: Avvia `HidaChat.exe`. Clicca sul pulsante `+` nella barra delle schede in alto e seleziona **WhatsApp** o **Telegram**.
+2. **Accesso**:
+   - **WhatsApp**: Inquadra il codice QR con l'app WhatsApp dello smartphone (*Dispositivi collegati*).
+   - **Telegram**: Inquadra il codice QR con l'app Telegram o accedi con numero di telefono e codice SMS.
+3. **Rinomina Schede**: Fai clic con il tasto destro sulla scheda desiderata e seleziona **Rename** per personalizzarne il nome.
+4. **Traduzione**: Passa il mouse su qualsiasi messaggio per visualizzare l'icona di traduzione istantanea 🌐.
 
 ### 🕹️ Controlli della Barra del Titolo
 
 | Icona | Azione |
 | :---: | :--- |
-| ⚙️ | Apre la finestra Impostazioni (tema, lingua, gestione account) |
+| ⚙️ | Apre la finestra Impostazioni (tema, lingua, gestione account, canale beta) |
 | 🔄 | Ricarica la scheda dell'account attivo |
-| 🌐 | Traduce l'intera pagina di chat |
+| ⓘ | Informazioni su HidaChat (versione, licenza, percorso portabile) |
 | ✕ / — | Minimizza o riduci nella barra delle applicazioni / tray |
 
 ---

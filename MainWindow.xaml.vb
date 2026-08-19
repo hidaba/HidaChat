@@ -385,16 +385,38 @@ Public Class MainWindow
 
     ''' <summary>
     ''' Popola la griglia WPF istanziando e pre-caricando i controlli WebView2 per tutti gli account configurati.
-    ''' In questo modo tutti gli account restano attivi in background per ricevere notifiche in tempo reale e 
-    ''' il passaggio tra account è istantaneo senza dover ricaricare la pagina.
+    ''' Inizializza e mostra immediatamente l'account attualmente selezionato all'avvio, 
+    ''' e avvia successivamente il pre-caricamento in background degli altri account in modo che al passaggio siano già pronti.
     ''' </summary>
     Private Async Sub PopulateWebViews()
         WebViewsGrid.Children.Clear()
 
-        For Each acc In _accountManager.Accounts
+        ' 1. Individua l'account attivo/selezionato all'avvio
+        Dim activeAccount = _accountManager.CurrentAccount
+        If activeAccount Is Nothing AndAlso _accountManager.Accounts.Count > 0 Then
+            activeAccount = _accountManager.Accounts.FirstOrDefault(Function(a) a.IsActive)
+            If activeAccount Is Nothing Then
+                activeAccount = _accountManager.Accounts.First()
+                activeAccount.IsActive = True
+            End If
+            _accountManager.CurrentAccount = activeAccount
+        End If
+
+        ' 2. Carica e mostra con massima priorità l'account selezionato
+        If activeAccount IsNot Nothing Then
+            Await EnsureWebViewAsync(activeAccount)
+            If activeAccount.WebView IsNot Nothing Then
+                activeAccount.WebView.Visibility = Visibility.Visible
+                activeAccount.WebView.Focus()
+            End If
+        End If
+
+        ' 3. Pre-carica in background tutti gli altri account configurati
+        Dim otherAccounts = _accountManager.Accounts.Where(Function(a) activeAccount Is Nothing OrElse a.Id <> activeAccount.Id).ToList()
+        For Each acc In otherAccounts
             Await EnsureWebViewAsync(acc)
             If acc.WebView IsNot Nothing Then
-                acc.WebView.Visibility = If(acc.IsActive, Visibility.Visible, Visibility.Hidden)
+                acc.WebView.Visibility = Visibility.Hidden
             End If
         Next
     End Sub
