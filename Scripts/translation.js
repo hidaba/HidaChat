@@ -8,14 +8,24 @@
   window.__translationOverrideInstalled = true;
 
   function getMessageText(bubble) {
-    const nodes = bubble.querySelectorAll('.selectable-text');
-    for (let node of nodes) {
+    // WhatsApp Web message text
+    const waNodes = bubble.querySelectorAll('.selectable-text');
+    for (let node of waNodes) {
       if (node.closest('[data-testid="quoted-message"]') || node.closest('.quoted-message')) {
         continue;
       }
       return node.innerText;
     }
-    if (nodes.length > 0) return nodes[nodes.length - 1].innerText;
+    // Telegram Web message text (.text-content, .message, etc.)
+    const tgNodes = bubble.querySelectorAll('.text-content, .message');
+    for (let node of tgNodes) {
+      if (node.closest('.reply') || node.closest('.reply-content') || node.closest('.reply-text') || node.closest('.custom-translation-bubble')) {
+        continue;
+      }
+      return node.innerText;
+    }
+    if (waNodes.length > 0) return waNodes[waNodes.length - 1].innerText;
+    if (tgNodes.length > 0) return tgNodes[tgNodes.length - 1].innerText;
     return bubble.innerText;
   }
 
@@ -72,10 +82,12 @@
     body.disable-hover-translation .custom-translate-hover-btn {
       display: none !important;
     }
-    [data-testid^="conv-msg"] {
+    [data-testid^="conv-msg"], .bubble, .message {
       position: relative !important;
     }
-    [data-testid^="conv-msg"]:hover .custom-translate-hover-btn {
+    [data-testid^="conv-msg"]:hover .custom-translate-hover-btn,
+    .bubble:hover .custom-translate-hover-btn,
+    .message:hover .custom-translate-hover-btn {
       display: flex !important;
     }
     @keyframes translatePulse {
@@ -91,20 +103,37 @@
 
   document.addEventListener('mouseover', function(e) {
     if (window.__enableHoverTranslation === false) return;
-    const bubble = e.target.closest('[data-testid="msg-container"]');
+    const bubble = e.target.closest('[data-testid="msg-container"], .bubble, .message');
     if (bubble && !bubble.querySelector('.custom-translate-hover-btn') && !bubble.closest('.custom-translation-bubble')) {
       const btn = document.createElement('div');
       btn.className = 'custom-translate-hover-btn';
       btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.34-.14 2 0 .66.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.91-4.33-3.56zm2.95-8H5.08c.96-1.65 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.34-.16-2 0-.66.07-1.34.16-2h4.68c.09.66.16 1.34.16 2 0 .66-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.34.14-2 0-.66-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg>`;
       btn.title = window.__translationTooltipLabel || (window.__translationTargetLangName || 'App Language');
       
-      const isOutgoing = bubble.firstElementChild && bubble.firstElementChild.getAttribute('data-testid') === 'tail-out';
-      if (isOutgoing) {
-        btn.style.left = '-65px';
-        btn.style.right = 'auto';
+      const isTelegram = location.hostname.includes('telegram');
+      const isOutgoing = (bubble.firstElementChild && bubble.firstElementChild.getAttribute('data-testid') === 'tail-out') ||
+                         bubble.classList.contains('is-out') ||
+                         bubble.classList.contains('out') ||
+                         Boolean(bubble.closest('.is-out'));
+
+      if (isTelegram) {
+        btn.style.top = '4px';
+        if (isOutgoing) {
+          btn.style.left = '-32px';
+          btn.style.right = 'auto';
+        } else {
+          btn.style.right = '-32px';
+          btn.style.left = 'auto';
+        }
       } else {
-        btn.style.right = '-65px';
-        btn.style.left = 'auto';
+        btn.style.top = '6px';
+        if (isOutgoing) {
+          btn.style.left = '-65px';
+          btn.style.right = 'auto';
+        } else {
+          btn.style.right = '-65px';
+          btn.style.left = 'auto';
+        }
       }
       
       btn.addEventListener('click', function(evt) {
@@ -128,10 +157,12 @@
     const existing = container.querySelector('.custom-translation-bubble');
     if (existing) existing.remove();
 
-    const quotedNode = container.querySelector('[data-testid="quoted-message"] .selectable-text, .quoted-message .selectable-text');
+    const quotedNode = container.querySelector('[data-testid="quoted-message"] .selectable-text, .quoted-message .selectable-text, .reply .reply-content, .reply-content, .reply .reply-text');
     const quotedText = quotedNode ? quotedNode.innerText.trim() : null;
 
     const transId = 'trans_' + Math.random().toString(36).substring(2, 9);
+    const isTelegram = location.hostname.includes('telegram');
+    const brandColor = isTelegram ? '#24A1DE' : '#00a884';
 
     const transBubble = document.createElement('div');
     transBubble.className = 'custom-translation-bubble';
@@ -141,17 +172,22 @@
     transBubble.style.borderRadius = '6px';
     transBubble.style.fontSize = '12.5px';
     transBubble.style.lineHeight = '1.4';
-    transBubble.style.borderLeft = '3px solid #00a884';
+    transBubble.style.borderLeft = '3px solid ' + brandColor;
     transBubble.style.position = 'relative';
 
-    const isDark = document.body.classList.contains('dark');
+    const isDark = document.body.classList.contains('dark') ||
+                   document.body.classList.contains('night') ||
+                   document.documentElement.classList.contains('night') ||
+                   document.documentElement.classList.contains('theme-dark') ||
+                   document.documentElement.classList.contains('dark');
+
     transBubble.style.backgroundColor = isDark ? '#1f2c34' : '#f0f2f5';
     transBubble.style.color = isDark ? '#e9edef' : '#111b21';
 
     const header = document.createElement('div');
     header.style.fontWeight = 'bold';
     header.style.fontSize = '11px';
-    header.style.color = '#00a884';
+    header.style.color = brandColor;
     header.style.marginBottom = '2px';
     header.style.display = 'flex';
     header.style.justifyContent = 'space-between';
@@ -198,7 +234,7 @@
   }
 
   window.translateAllMessages = function() {
-    const bubbles = document.querySelectorAll('[data-testid="msg-container"]');
+    const bubbles = document.querySelectorAll('[data-testid="msg-container"], .bubble, .message');
     bubbles.forEach(bubble => {
       if (bubble.closest('.custom-translation-bubble')) return;
       

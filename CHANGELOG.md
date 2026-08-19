@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1-beta] - 2026-08-19
+
+### Fixed & Improved
+- **Ripristino Visibilità Barra di Windows all'Ingrandimento (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Implementato l'aggancio Win32 (`HwndSourceHook`) per il messaggio `WM_GETMINMAXINFO` limitando l'ingrandimento della finestra all'Area di Lavoro (`rcWork`) dello schermo.
+  - La barra delle applicazioni di Windows (Taskbar) resta sempre visibile e accessibile anche a finestra ingrandita a schermo intero.
+  - Adattamento dinamico di bordi (`BorderThickness`), angoli arrotondati (`CornerRadius`) e ombreggiatura esterna (`DropShadowEffect`) al cambio di stato (ingrandita/normale).
+  - Aggiunto il ridimensionamento interattivo dal grip in basso a destra e il trascinamento fluido per ripristinare la finestra dallo stato ingrandito.
+- **Passaggio Istantaneo tra Account & Pre-caricamento Multi-Account (`MainWindow.xaml.vb`)**:
+  - All'avvio dell'applicazione vengono ora istanziati e pre-caricati i controlli WebView2 per tutti gli account configurati in parallelo.
+  - Al cambio scheda, le viste inattive rimangono attive e in memoria (`Visibility.Hidden`), eliminando completamente i tempi di attesa e i ricaricamenti da zero ad ogni passaggio tra account WhatsApp e Telegram.
+- **Notifiche & Ricezione Messaggi in Background (`WhatsAppAccount.vb`, `Scripts/notification.js`)**:
+  - Rimossi i parametri di disattivazione del networking in background (`--disable-background-networking`) e abilitati i flag di continuità operativa di Chromium (`--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`).
+  - Gli account in secondo piano mantengono costantemente attiva la connessione WebSocket e l'esecuzione dei timer JavaScript, garantendo la ricezione istantanea dei messaggi anche mentre si utilizza un altro account o la finestra è ridotta a icona.
+  - Rafforzato lo script `notification.js` con l'override dei permessi via `navigator.permissions.query`, getter forzato su `Notification.permission` e monitoraggio dinamico delle modifiche al titolo della pagina (`MutationObserver`).
+
 ## [0.5.0] - 2026-08-18
 
 ### Multi-Platform & Rebranding Major Release
@@ -10,6 +26,18 @@
   - Possibilità di gestire contemporaneamente account WhatsApp e Telegram in schede separate con profili isolati.
   - Selezione della piattaforma in fase di creazione e configurazione dell'account nelle Impostazioni.
   - Icone vettoriali dedicate (verde per WhatsApp, azzurro per Telegram) nelle schede in alto e nella gestione account.
+- **Sincronizzazione Tema Scuro/Chiaro Multi-Piattaforma (`JsScripts.vb`, `WhatsAppAccount.vb`, `MainWindow.xaml.vb`)**:
+  - Introdotti gli script dedicati `TelegramDarkModeJS` e `TelegramLightModeJS` in `ThemeJsScripts` per la sincronizzazione dinamica del tema di sistema/WPF con l'interfaccia di Telegram Web (`web.telegram.org/k/`).
+  - Gestione della classe `.night` su `document.documentElement` e `body`, aggiornamento delle chiavi `tt-theme` e `theme` in `localStorage` ed integrazione con `themeController.setTheme`.
+  - Applicazione mirata e differenziata degli stili in base al tipo di piattaforma (`IsTelegram` / `IsWhatsApp`) sia all'avvio/navigazione (`NavigationCompleted`) sia al cambio tema in tempo reale nelle Impostazioni (`ApplyWpfThemeAsync`).
+- **Motore di Traduzione Messaggi Multi-Piattaforma (`translation.js`)**:
+  - Esteso `getMessageText` e i listener per riconoscere sia i contenitori WhatsApp (`[data-testid="msg-container"]`, `.selectable-text`, `.quoted-message`) sia gli elementi nativi di Telegram Web K (`.bubble`, `.message`, `.text-content`, `.reply`, `.reply-content`).
+  - Ottimizzato il posizionamento del pulsante hover di traduzione per le bolle in uscita/entrata (`.is-out`, `.is-in`) e adattato il colore di accento (`#24A1DE` su Telegram, `#00a884` su WhatsApp).
+  - Pieno supporto al rilevamento del tema scuro per entrambe le piattaforme per la bolla di traduzione e supporto integrato alla traduzione dell'intera pagina (`scanAndTranslateDOM`).
+- **Miglioramento Routing Notifiche Popup (`MessagePopup.xaml.vb`)**:
+  - Al click sul popup visivo di notifica, l'applicazione ora seleziona automaticamente la scheda dell'account che ha ricevuto il messaggio (`SwitchToAccountAsync`), garantendo coerenza con il comportamento delle notifiche Toast di Windows.
+- **Rifinitura Localizzazione (`Localization.vb`)**:
+  - Aggiornate le etichette per riflettere in modo coerente e uniforme la natura multi-piattaforma dell'applicazione.
 - **Nuovo Design Visivo Cyberpunk**:
   - Nuova icona applicativa in stile cyberpunk neon con fumetto di chat olografico e circuiti digitali.
   - Nuova icona dedicata per la System Tray con badge luminoso per le notifiche attive.

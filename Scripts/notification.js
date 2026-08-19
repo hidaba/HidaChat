@@ -95,7 +95,62 @@
     return "function Notification() { [native code] }";
   };
 
+  try {
+    Object.defineProperty(CustomNotification, 'permission', {
+      get: function() { return 'granted'; },
+      set: function() {}
+    });
+  } catch(e) {}
+
   window.Notification = CustomNotification;
+
+  if (navigator.permissions && navigator.permissions.query) {
+    const origQuery = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = function(parameters) {
+      if (parameters && parameters.name === 'notifications') {
+        return Promise.resolve({
+          state: 'granted',
+          name: 'notifications',
+          onchange: null,
+          addEventListener: function() {},
+          removeEventListener: function() {},
+          dispatchEvent: function() { return false; }
+        });
+      }
+      return origQuery(parameters);
+    };
+  }
+
+  // Monitoraggio titolo pagina per rilevamento badge/conteggio non letti
+  let lastUnreadCount = 0;
+  function initTitleObserver() {
+    const titleEl = document.querySelector('title');
+    if (!titleEl) return;
+    const titleObserver = new MutationObserver(function() {
+      const title = document.title || '';
+      const match = title.match(/^\((\d+)\)/);
+      const count = match ? parseInt(match[1], 10) : 0;
+      if (count !== lastUnreadCount) {
+        lastUnreadCount = count;
+        try {
+          window.chrome.webview.postMessage({
+            channel: 'NotificationChannel',
+            type: 'UNREAD_COUNT_CHANGED',
+            unreadCount: count,
+            title: title,
+            bridgeToken: window.__bridgeToken || ''
+          });
+        } catch(e) {}
+      }
+    });
+    titleObserver.observe(titleEl, { subtree: true, characterData: true, childList: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTitleObserver);
+  } else {
+    initTitleObserver();
+  }
 
   window.onNotificationClicked = function(id) {
     const notification = window.activeCustomNotifications[id];

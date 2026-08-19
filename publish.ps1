@@ -146,7 +146,11 @@ if (-not $SkipGitHub) {
         gh release upload $tagName "$zipPath#HidaChat-v$newVersion.zip" --repo hidaba/HidaChat --clobber
     } else {
         Write-Host "Creating new GitHub Release $tagName..."
-        gh release create $tagName $zipPath --repo hidaba/HidaChat --title $title -F $changelogPath $betaFlag
+        if ($Beta) {
+            gh release create $tagName $zipPath --repo hidaba/HidaChat --title $title -F $changelogPath --prerelease
+        } else {
+            gh release create $tagName $zipPath --repo hidaba/HidaChat --title $title -F $changelogPath
+        }
     }
 }
 Write-Host "Publish complete for HidaChat v$newVersion !"

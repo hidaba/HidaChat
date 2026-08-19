@@ -97,14 +97,17 @@ Public Class MessagePopup
     End Sub
 
     ''' <summary>
-    ''' Al click sul popup, ripristina e porta in primo piano la finestra principale di WhatsAppVB.
+    ''' Al click sul popup, ripristina la finestra principale e seleziona l'account associato alla notifica.
     ''' </summary>
-    Private Sub PopupGrid_MouseDown(sender As Object, e As MouseButtonEventArgs)
+    Private Async Sub PopupGrid_MouseDown(sender As Object, e As MouseButtonEventArgs)
         _closeTimer?.Stop()
 
         Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
         If mainWin IsNot Nothing Then
             mainWin.ShowWindow()
+            If Not String.IsNullOrEmpty(_accountId) Then
+                Await mainWin.SwitchToAccountAsync(_accountId)
+            End If
         End If
 
         ClosePopup()

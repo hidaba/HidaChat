@@ -1,11 +1,12 @@
 Imports System.IO
 Imports System.ComponentModel
+Imports System.Runtime.InteropServices
 Imports System.Windows.Interop
+Imports System.Windows.Media.Effects
 Imports Microsoft.Web.WebView2.Wpf
 Imports Microsoft.Toolkit.Uwp.Notifications
 
 ''' <summary>
-
 ''' Finestra principale dell'applicazione WPF. Gestisce l'interfaccia a schede degli account WhatsApp,
 ''' l'icona nella tray di sistema Windows, l'applicazione dei temi e le notifiche Toast.
 ''' </summary>
@@ -14,12 +15,105 @@ Public Class MainWindow
     Private _accountManager As AccountManager
     Private _trayIcon As System.Windows.Forms.NotifyIcon
     Private _allowExit As Boolean = False
+    Private _defaultShadowEffect As Effect
 
     Public Sub New()
         InitializeComponent()
+        _defaultShadowEffect = Me.Effect
         VersionText.Text = "v" & Constants.AppVersion
         _accountManager = New AccountManager(_settingsController)
     End Sub
+
+#Region "Win32 Interop - Taskbar & Window Sizing"
+
+    <StructLayout(LayoutKind.Sequential)>
+    Private Structure POINT
+        Public x As Integer
+        Public y As Integer
+    End Structure
+
+    <StructLayout(LayoutKind.Sequential)>
+    Private Structure MINMAXINFO
+        Public ptReserved As POINT
+        Public ptMaxSize As POINT
+        Public ptMaxPosition As POINT
+        Public ptMinTrackSize As POINT
+        Public ptMaxTrackSize As POINT
+    End Structure
+
+    <StructLayout(LayoutKind.Sequential, CharSet:=CharSet.Auto)>
+    Private Structure MONITORINFO
+        Public cbSize As Integer
+        Public rcMonitor As RECT
+        Public rcWork As RECT
+        Public dwFlags As Integer
+    End Structure
+
+    <StructLayout(LayoutKind.Sequential)>
+    Private Structure RECT
+        Public Left As Integer
+        Public Top As Integer
+        Public Right As Integer
+        Public Bottom As Integer
+    End Structure
+
+    Private Const WM_GETMINMAXINFO As Integer = &H24
+    Private Const WM_SYSCOMMAND As Integer = &H112
+    Private Const SC_SIZE As Integer = &HF000
+    Private Const MONITOR_DEFAULTTONEAREST As Integer = 2
+
+    <DllImport("user32.dll")>
+    Private Shared Function MonitorFromWindow(handle As IntPtr, flags As Integer) As IntPtr
+    End Function
+
+    <DllImport("user32.dll", CharSet:=CharSet.Auto)>
+    Private Shared Function GetMonitorInfo(hMonitor As IntPtr, ByRef lpmi As MONITORINFO) As Boolean
+    End Function
+
+    <DllImport("user32.dll")>
+    Private Shared Function SendMessage(hWnd As IntPtr, msg As Integer, wParam As IntPtr, lParam As IntPtr) As IntPtr
+    End Function
+
+    Protected Overrides Sub OnSourceInitialized(e As EventArgs)
+        MyBase.OnSourceInitialized(e)
+        Dim handle = New WindowInteropHelper(Me).Handle
+        Dim source = HwndSource.FromHwnd(handle)
+        source?.AddHook(AddressOf WindowProc)
+    End Sub
+
+    Private Function WindowProc(hwnd As IntPtr, msg As Integer, wParam As IntPtr, lParam As IntPtr, ByRef handled As Boolean) As IntPtr
+        If msg = WM_GETMINMAXINFO Then
+            WmGetMinMaxInfo(hwnd, lParam)
+            handled = True
+        End If
+        Return IntPtr.Zero
+    End Function
+
+    ''' <summary>
+    ''' Limita l'ingrandimento della finestra alla Working Area dello schermo corrente per evitare di coprire la barra delle applicazioni di Windows.
+    ''' </summary>
+    Private Shared Sub WmGetMinMaxInfo(hwnd As IntPtr, lParam As IntPtr)
+        Dim mmi As MINMAXINFO = Marshal.PtrToStructure(Of MINMAXINFO)(lParam)
+        Dim monitor As IntPtr = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+        If monitor <> IntPtr.Zero Then
+            Dim monitorInfo As New MONITORINFO()
+            monitorInfo.cbSize = Marshal.SizeOf(GetType(MONITORINFO))
+            GetMonitorInfo(monitor, monitorInfo)
+
+            Dim rcWorkArea As RECT = monitorInfo.rcWork
+            Dim rcMonitorArea As RECT = monitorInfo.rcMonitor
+
+            mmi.ptMaxPosition.x = Math.Abs(rcWorkArea.Left - rcMonitorArea.Left)
+            mmi.ptMaxPosition.y = Math.Abs(rcWorkArea.Top - rcMonitorArea.Top)
+            mmi.ptMaxSize.x = Math.Abs(rcWorkArea.Right - rcWorkArea.Left)
+            mmi.ptMaxSize.y = Math.Abs(rcWorkArea.Bottom - rcWorkArea.Top)
+            mmi.ptMaxTrackSize.x = mmi.ptMaxSize.x
+            mmi.ptMaxTrackSize.y = mmi.ptMaxSize.y
+        End If
+        Marshal.StructureToPtr(mmi, lParam, False)
+    End Sub
+
+#End Region
 
     ''' <summary>
     ''' Caricamento iniziale dell'applicazione: caricamento impostazioni utente, verifica WebView2,
@@ -130,7 +224,9 @@ Public Class MainWindow
         If Me.Visibility <> Visibility.Visible Then
             Me.Show()
         End If
-        Me.WindowState = WindowState.Normal
+        If Me.WindowState = WindowState.Minimized Then
+            Me.WindowState = WindowState.Normal
+        End If
         Me.Activate()
         Me.Focus()
     End Sub
@@ -202,13 +298,29 @@ Public Class MainWindow
         If e.ChangedButton = MouseButton.Left AndAlso e.ClickCount = 2 Then
             ToggleMaximize()
         ElseIf e.ChangedButton = MouseButton.Left Then
-            If Me.WindowState = WindowState.Maximized Then
-                Dim pt = Mouse.GetPosition(Me)
-                Me.WindowState = WindowState.Normal
-                Me.DragMove()
-            Else
+            If Me.WindowState = WindowState.Normal Then
                 Me.DragMove()
             End If
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Consente di ripristinare e trascinare fluidamente la finestra partendo dallo stato ingrandito.
+    ''' </summary>
+    Private Sub TitleBar_MouseMove(sender As Object, e As MouseEventArgs)
+        If e.LeftButton = MouseButtonState.Pressed AndAlso Me.WindowState = WindowState.Maximized Then
+            Dim mousePos = PointToScreen(e.GetPosition(Me))
+            Dim percentX = e.GetPosition(Me).X / Me.ActualWidth
+
+            Me.WindowState = WindowState.Normal
+
+            Me.Left = mousePos.X - (Me.ActualWidth * percentX)
+            Me.Top = mousePos.Y - (TitleBar.ActualHeight / 2)
+
+            Try
+                Me.DragMove()
+            Catch
+            End Try
         End If
     End Sub
 
@@ -232,13 +344,38 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Aggiorna l'icona del pulsante ingrandisci/ripristina in base allo stato della finestra.
+    ''' Aggiorna l'icona del pulsante ingrandisci/ripristina e lo stile dei bordi in base allo stato della finestra.
     ''' </summary>
     Private Sub MainWindow_StateChanged(sender As Object, e As EventArgs) Handles Me.StateChanged
         If Me.WindowState = WindowState.Maximized Then
             MaximizeIcon.Data = Geometry.Parse("M4,1 L11,1 L11,8 L9,8 L9,2 L4,2 Z M1,4 L8,4 L8,11 L1,11 Z")
+            BtnMaximize.ToolTip = "Ripristina"
+            RootBorder.CornerRadius = New CornerRadius(0)
+            RootBorder.BorderThickness = New Thickness(0)
+            Me.Effect = Nothing
+            If ResizeGrip IsNot Nothing Then
+                ResizeGrip.Visibility = Visibility.Collapsed
+            End If
         Else
             MaximizeIcon.Data = Geometry.Parse("M1,1 L11,1 L11,11 L1,11 Z M2,2 L2,10 L10,10 L10,2 Z")
+            BtnMaximize.ToolTip = "Ingrandisci"
+            RootBorder.CornerRadius = New CornerRadius(12)
+            RootBorder.BorderThickness = New Thickness(1)
+            Me.Effect = _defaultShadowEffect
+            If ResizeGrip IsNot Nothing Then
+                ResizeGrip.Visibility = Visibility.Visible
+            End If
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce il ridimensionamento della finestra tramite il grip in basso a destra.
+    ''' </summary>
+    Private Sub ResizeGrip_PreviewMouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
+        If e.ChangedButton = MouseButton.Left Then
+            Dim handle = New WindowInteropHelper(Me).Handle
+            SendMessage(handle, WM_SYSCOMMAND, New IntPtr(SC_SIZE + 8), IntPtr.Zero)
+            e.Handled = True
         End If
     End Sub
 
@@ -247,27 +384,30 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Popola la griglia WPF con le i controlli WebView2 per l'account attualmente attivo.
+    ''' Popola la griglia WPF istanziando e pre-caricando i controlli WebView2 per tutti gli account configurati.
+    ''' In questo modo tutti gli account restano attivi in background per ricevere notifiche in tempo reale e 
+    ''' il passaggio tra account è istantaneo senza dover ricaricare la pagina.
     ''' </summary>
     Private Async Sub PopulateWebViews()
         WebViewsGrid.Children.Clear()
 
-        Dim activeAccount = _accountManager.CurrentAccount
-        If activeAccount IsNot Nothing Then
-            Await EnsureWebViewAsync(activeAccount)
-            activeAccount.WebView.Visibility = Visibility.Visible
-        End If
+        For Each acc In _accountManager.Accounts
+            Await EnsureWebViewAsync(acc)
+            If acc.WebView IsNot Nothing Then
+                acc.WebView.Visibility = If(acc.IsActive, Visibility.Visible, Visibility.Hidden)
+            End If
+        Next
     End Sub
 
     ''' <summary>
-    ''' Assicura che l'istanza WebView2 per l'account sia creata ed inizializzata.
+    ''' Assicura che l'istanza WebView2 per l'account sia creata, aggiunta alla griglia ed inizializzata.
     ''' </summary>
     Private Async Function EnsureWebViewAsync(account As WhatsAppAccount) As Task
         If account.WebView Is Nothing Then
             account.WebView = New WebView2()
             account.WebView.HorizontalAlignment = HorizontalAlignment.Stretch
             account.WebView.VerticalAlignment = VerticalAlignment.Stretch
-            account.WebView.Visibility = Visibility.Collapsed
+            account.WebView.Visibility = If(account.IsActive, Visibility.Visible, Visibility.Hidden)
             WebViewsGrid.Children.Add(account.WebView)
         End If
 
@@ -312,13 +452,14 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Passa alla scheda account selezionata rendendo visibile la WebView2 corrispondente e nascondendo la precedente.
+    ''' Passa alla scheda account selezionata rendendo visibile la WebView2 corrispondente e nascondendo la precedente senza scaricarla.
     ''' </summary>
-    Private Async Function SwitchToAccountAsync(accountId As String) As Task
+    Public Async Function SwitchToAccountAsync(accountId As String) As Task
         Dim prevAccount = _accountManager.CurrentAccount
         If prevAccount IsNot Nothing AndAlso prevAccount.Id = accountId Then
             If prevAccount.WebView IsNot Nothing Then
                 prevAccount.WebView.Visibility = Visibility.Visible
+                prevAccount.WebView.Focus()
             End If
             Return
         End If
@@ -328,14 +469,17 @@ Public Class MainWindow
         Dim newAccount = _accountManager.CurrentAccount
         If newAccount Is Nothing Then Return
 
-        ' Nascondi il controllo del precedente account
+        ' Nascondi il controllo del precedente account (lasciandolo vivo in background)
         If prevAccount IsNot Nothing AndAlso prevAccount.WebView IsNot Nothing Then
-            prevAccount.WebView.Visibility = Visibility.Collapsed
+            prevAccount.WebView.Visibility = Visibility.Hidden
         End If
 
-        ' Inizializza e mostra il controllo WebView2 per il nuovo account
+        ' Inizializza se necessario e mostra il controllo WebView2 per il nuovo account
         Await EnsureWebViewAsync(newAccount)
-        newAccount.WebView.Visibility = Visibility.Visible
+        If newAccount.WebView IsNot Nothing Then
+            newAccount.WebView.Visibility = Visibility.Visible
+            newAccount.WebView.Focus()
+        End If
     End Function
 
     ''' <summary>
@@ -497,32 +641,17 @@ Public Class MainWindow
             RootBorder.BorderBrush = BrushCache.GetBrush("#2f3e46")
             TitleBar.Background = BrushCache.GetBrush("#202c33")
             TitleText.Foreground = BrushCache.GetBrush("#e9edef")
-            ' Aggiorna il tema oscuro all'interno delle singole WebView2
-            For Each acc In _accountManager.Accounts
-                If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                    Try
-                        Await acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
-                    Catch ex As Exception
-                        Debug.WriteLine($"Failed to execute DarkModeJS for account {acc.Id}: {ex.Message}")
-                    End Try
-                End If
-            Next
         Else
             RootBorder.Background = BrushCache.GetBrush("#f0f2f5")
             RootBorder.BorderBrush = BrushCache.GetBrush("#d1d7db")
             TitleBar.Background = BrushCache.GetBrush("#e9edef")
             TitleText.Foreground = BrushCache.GetBrush("#111b21")
-            ' Aggiorna il tema chiaro all'interno delle singole WebView2
-            For Each acc In _accountManager.Accounts
-                If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
-                    Try
-                        Await acc.WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
-                    Catch ex As Exception
-                        Debug.WriteLine($"Failed to execute LightModeJS for account {acc.Id}: {ex.Message}")
-                    End Try
-                End If
-            Next
         End If
+
+        ' Aggiorna il tema all'interno delle singole WebView2 (WhatsApp / Telegram)
+        For Each acc In _accountManager.Accounts
+            Await acc.ApplyThemeAsync(isDark)
+        Next
     End Function
 
     ''' <summary>

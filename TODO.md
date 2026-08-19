@@ -212,10 +212,10 @@
 
 ## 41. Integrazione Telegram — Funzionalità Avanzate e Affinamenti UI/UX
 - **Stato Base**: ✅ Completato nella v0.5.0 (Routing su `web.telegram.org/k/`, isolamento profili in `data/webview/`, icone vettoriali dedicate azzurre e selettore piattaforma nelle Impostazioni).
+- **Rifiniture Multi-Piattaforma**: ✅ Completato nella v0.5.0 (Sincronizzazione tema Scuro/Chiaro con classi `.night` e `themeController`, traduzione selettiva hover e batch con selettori DOM Telegram, routing click popup su account notificante).
 - **Prossimi Passi di Evoluzione**:
   - [ ] **Badge Notifiche e Contatore Non Letti Telegram**: Intercettare ed estrarre il conteggio dei messaggi non letti dalla pagina Telegram Web (tramite `MutationObserver` o parsing dei selettori badge `.badge` / `.unread` nel DOM) per mostrare il contatore numerico o badge persistente sulla scheda dell'account e aggiornare l'icona della System Tray.
   - [ ] **Gestione Deep Link Telegram (`tg://` e `t.me/`)**: Intercettare nei gestori di navigazione (`NewWindowRequested` e `NavigationStarting`) i collegamenti del tipo `tg://resolve?domain=...` o `https://t.me/...` per aprirli internamente nella sessione Telegram attiva dell'account invece di avviare il browser esterno o fallire la risoluzione URI custom.
-  - [ ] **Sincronizzazione Tema Scuro / Chiaro per Telegram**: Sincronizzare automaticamente il tema grafico dell'app (Scuro / Chiaro / Sistema) con l'interfaccia di Telegram Web all'avvio e al cambio impostazioni, commutando il toggle del tema interno di Telegram Web via JavaScript injection o applicando stili CSS dedicati.
   - [ ] **Scorciatoie da Tastiera per Cambio Account**: Aggiungere scorciatoie globali per la finestra (es. `Ctrl+1`, `Ctrl+2`, `Ctrl+3` o `Ctrl+Tab`) per passare istantaneamente tra gli account WhatsApp e Telegram configurati.
 - **Impatto**: Alto | **Sforzo**: Medio
 

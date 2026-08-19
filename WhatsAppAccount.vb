@@ -227,7 +227,7 @@ Public Class WhatsAppAccount
 
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
-            options.AdditionalBrowserArguments = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter"
+            options.AdditionalBrowserArguments = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=Translate,OptimizationHints,MediaRouter"
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
@@ -276,7 +276,13 @@ Public Class WhatsAppAccount
                 If e.IsSuccess Then
                     Dim brightnessDark = settings.IsDarkThemeEffective
 
-                    If IsWhatsApp Then
+                    If IsTelegram Then
+                        If brightnessDark Then
+                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramDarkModeJS)
+                        Else
+                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramLightModeJS)
+                        End If
+                    Else
                         If brightnessDark Then
                             Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
                         Else
@@ -403,6 +409,14 @@ Public Class WhatsAppAccount
             ActiveNotificationIds.Remove(notificationId)
             HasNotification = (ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
+        ElseIf type = "UNREAD_COUNT_CHANGED" Then
+            Dim unreadCount As Integer = 0
+            Dim unreadNode As JsonElement = Nothing
+            If root.TryGetProperty("unreadCount", unreadNode) AndAlso unreadNode.ValueKind = JsonValueKind.Number Then
+                unreadCount = unreadNode.GetInt32()
+            End If
+            HasNotification = (unreadCount > 0 OrElse ActiveNotificationIds.Count > 0)
+            onNotificationChanged?.Invoke(Id, HasNotification)
         End If
         Return Task.CompletedTask
     End Function
@@ -508,6 +522,23 @@ Public Class WhatsAppAccount
     End Function
 
     ''' <summary>
+    ''' Applica lo script per la sincronizzazione del tema (Scuro o Chiaro) all'interno della WebView2.
+    ''' </summary>
+    Public Async Function ApplyThemeAsync(isDark As Boolean) As Task
+        If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
+            Try
+                If IsTelegram Then
+                    Await WebView.CoreWebView2.ExecuteScriptAsync(If(isDark, ThemeJsScripts.TelegramDarkModeJS, ThemeJsScripts.TelegramLightModeJS))
+                Else
+                    Await WebView.CoreWebView2.ExecuteScriptAsync(If(isDark, ThemeJsScripts.DarkModeJS, ThemeJsScripts.LightModeJS))
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"Failed to apply theme for account {Id}: {ex.Message}")
+            End Try
+        End If
+    End Function
+
+    ''' <summary>
     ''' Rimuove tutti gli event handler registrati sulla WebView2 e libera le risorse allocate.
     ''' </summary>
     Public Sub Dispose() Implements IDisposable.Dispose
@@ -532,6 +563,8 @@ Public Class WhatsAppAccount
             End If
 
             If WebView IsNot Nothing Then
+                Dim parentGrid = TryCast(WebView.Parent, System.Windows.Controls.Grid)
+                parentGrid?.Children.Remove(WebView)
                 WebView.Dispose()
                 WebView = Nothing
             End If
