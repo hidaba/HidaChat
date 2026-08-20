@@ -1,58 +1,7 @@
 /* ==========================================================================
-   Telegram Web (K and A) - Full Width & Fullscreen Responsive Adapter
+   Telegram Web Custom Styles
    ========================================================================== */
 
-/* Overrides root CSS variables for dynamic full-width sizing */
-:root {
-    --columns-width: 100% !important;
-    --chat-width: 100% !important;
-    --messages-container-width: 100% !important;
-    --composer-width: 100% !important;
-    --max-width: none !important;
-}
+/* Nessun override forzato di larghezza o colonne per preservare il layout nativo
+   e responsive di Telegram Web (#column-left, #column-center e barra di input chat). */
 
-/* Telegram Web K (web.telegram.org/k/) Container & Layout adjustments */
-#column-center,
-.column-center,
-.chat,
-.chat-container,
-.chat-layout,
-.page-chats,
-.middle-column,
-.chat-input,
-.chat-input-main,
-.input-message-container,
-.pinned-container,
-.top,
-.top.chat-info {
-    max-width: 100% !important;
-    width: 100% !important;
-}
-
-/* Telegram Web A (web.telegram.org/a/) Container & Layout adjustments */
-#MiddleColumn,
-.MiddleColumn,
-.Middle,
-.messages-layout,
-.MessageList,
-.Composer,
-.MiddleHeader,
-.chat-background {
-    max-width: 100% !important;
-    width: 100% !important;
-}
-
-/* Chat bubble stream / message container full expansion */
-.bubbles,
-.bubbles-inner,
-.messages-container {
-    max-width: 100% !important;
-    width: 100% !important;
-}
-
-/* Message bubbles styling - comfortable width */
-.bubble,
-.bubble-content,
-.message-content {
-    max-width: 85% !important;
-}

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2-beta] - 2026-08-20
+
+### Fixed & Improved
+- **Fix Layout e Barra di Digitazione Telegram Web (`Scripts/telegram.css`)**:
+  - Risolto il problema di spaginazione su Telegram Web (K e A) in cui la barra di digitazione della chat e il campo di testo finivano posizionati sotto la sidebar dei contatti/utenti (`#column-left`).
+  - Rimossi i selettori forzati di larghezza (`width: 100% !important;`, `--columns-width: 100% !important;`, `--composer-width: 100% !important;`) per preservare il layout nativo e responsive delle colonne e l'ancoraggio corretto del campo messaggio all'interno della conversazione attiva.
+
 ## [0.6.1-beta] - 2026-08-20
 
 ### Fixed & Improved
