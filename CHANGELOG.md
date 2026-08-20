@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0] - 2026-08-20
+
+### Stable Release - Full Multi-Platform & Performance Hardening
+- **Adattamento Fullscreen / Responsive per Telegram Web (`Scripts/telegram.css`, `JsScripts.vb`, `AppAccounts.vb`)**:
+  - Risolto il problema per cui Telegram Web non sfruttava l'intera larghezza dello schermo: introdotto il foglio di stile dedicato `telegram.css` che rimuove i vincoli di larghezza (`--columns-width`, `--chat-width`, `max-width: none`) sui contenitori principali (`#column-center`, `.chat`, `.chat-container`, `.chat-layout`, `#MiddleColumn`, `.messages-layout`, `.bubbles-inner`).
+  - Iniezione automatica e persistente al caricamento della pagina (`TelegramInitJS`) e sincronizzazione con i temi chiaro/scuro.
+- **Passaggio Istantaneo tra Account & Pre-caricamento Multi-Account (`MainWindow.xaml.vb`)**:
+  - Pre-caricamento in memoria di tutte le istanze WebView2 configurate: passaggio immediato tra schede WhatsApp e Telegram a zero latenza.
+- **Ottimizzazione Cancellazione Profili WebView2 (TODO #37) (`AccountManager.vb`)**:
+  - Implementato `DeleteDirectoryWithRetryAsync` con backoff progressivo per garantire l'eliminazione affidabile delle cartelle di profilo orfane o rimosse anche in presenza di lock transitori.
+- **Hardening Escaping JavaScript via `ExecuteScriptAsync` (TODO #38) (`AppAccounts.vb`, `MainWindow.xaml.vb`)**:
+  - Tutti i parametri e identificatori interpolati negli script JavaScript vengono ora serializzati in modo deterministico e sicuro tramite `JsonSerializer.Serialize`.
+- **Integrazione Taskbar & Gestione Finestra Win32 (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Risolto l'ingrandimento della finestra tramite hook Win32 `WM_GETMINMAXINFO` preservando la barra delle applicazioni di Windows.
+- **Notifiche & Ricezione in Background Continua (`AppAccounts.vb`, `notification.js`)**:
+  - Disattivato il throttling dei timer e il backgrounding occluso per assicurare ricezione istantanea dei messaggi e notifiche toast/popup su tutti gli account.
+
 ## [0.5.2-beta] - 2026-08-20
 
 ### Fixed & Improved
