@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.2-beta] - 2026-08-20
+
+### Fixed & Improved
+- **Fix Adattamento Fullscreen / Responsive per Telegram Web (`Scripts/telegram.css`, `JsScripts.vb`, `AppAccounts.vb`)**:
+  - Risolto il problema di mancato adattamento a schermo intero di Telegram Web: creato il foglio di stile dedicato `telegram.css` che rimuove i vincoli di larghezza fissa (`--columns-width`, `--chat-width`, `max-width`) sui contenitori principali (`#column-center`, `.chat`, `.chat-container`, `.chat-layout`, `#MiddleColumn`, `.messages-layout`, `.bubbles-inner`).
+  - Iniezione automatica e persistente al caricamento del documento (`TelegramInitJS`) e sincronizzazione con i temi chiaro/scuro.
+- **Ottimizzazione Cancellazione Profili WebView2 (TODO #37) (`AccountManager.vb`)**:
+  - Implementato `DeleteDirectoryWithRetryAsync` con backoff progressivo per garantire l'eliminazione affidabile delle cartelle di profilo orfane o rimosse anche in presenza di lock transitori da parte di processi Chromium o antivirus.
+- **Hardening Escaping JavaScript via `ExecuteScriptAsync` (TODO #38) (`AppAccounts.vb`, `MainWindow.xaml.vb`)**:
+  - Tutti i parametri e identificatori interpolati negli script JavaScript vengono ora serializzati in modo deterministico e sicuro tramite `JsonSerializer.Serialize`, prevenendo injection di caratteri speciali o apici.
+
 ## [0.5.1-beta] - 2026-08-19
 
 ### Fixed & Improved

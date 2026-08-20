@@ -139,7 +139,7 @@ Public Class AccountManager
                         Debug.WriteLine($"  Account[{i}]: Id='{accountsData(i).Id}', Name='{accountsData(i).Name}', IsActive={accountsData(i).IsActive}")
                     Next
 
-                    MigrateOrphanProfile()
+                    Await MigrateOrphanProfileAsync()
 
                     If needsSave Then
                         Await SaveAccountsAsync(force:=True)
@@ -168,9 +168,37 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
+    ''' Elimina ricorsivamente una cartella di profilo eseguendo tentativi multipli con backoff progressivo 
+    ''' per attendere il rilascio di eventuali lock su file da parte del processo WebView2/Chromium o antivirus.
+    ''' </summary>
+    Public Shared Async Function DeleteDirectoryWithRetryAsync(dirPath As String, Optional maxAttempts As Integer = 5) As Task(Of Boolean)
+        If String.IsNullOrWhiteSpace(dirPath) OrElse Not Directory.Exists(dirPath) Then
+            Return True
+        End If
+
+        For attempt As Integer = 1 To maxAttempts
+            Try
+                If attempt > 1 Then
+                    Await Task.Delay(attempt * 200)
+                End If
+
+                If Directory.Exists(dirPath) Then
+                    Directory.Delete(dirPath, True)
+                End If
+                Debug.WriteLine($"DeleteDirectoryWithRetryAsync: eliminata con successo '{dirPath}' (tentativo {attempt}/{maxAttempts})")
+                Return True
+            Catch ex As Exception
+                Debug.WriteLine($"DeleteDirectoryWithRetryAsync: tentativo {attempt}/{maxAttempts} fallito per '{dirPath}': {ex.Message}")
+            End Try
+        Next
+
+        Return Not Directory.Exists(dirPath)
+    End Function
+
+    ''' <summary>
     ''' Verifica la presenza di una cartella di profilo WebView2 orfana (creata senza ID specificato) e la riassocia al primo account.
     ''' </summary>
-    Private Sub MigrateOrphanProfile()
+    Private Async Function MigrateOrphanProfileAsync() As Task
         Try
             Dim orphanProfile = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
             If Not Directory.Exists(orphanProfile) Then
@@ -183,13 +211,11 @@ Public Class AccountManager
                 Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{acc.Id}")
                 Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
                 If Directory.Exists(profileDir) Then
-                    Try
-                        Directory.Delete(profileDir, True)
-                        Debug.WriteLine($"MigrateOrphanProfile: eliminato profilo stale {profileDir}")
-                    Catch ex As Exception
-                        Debug.WriteLine($"MigrateOrphanProfile: errore cancellazione stale: {ex.Message}")
+                    Dim deleted = Await DeleteDirectoryWithRetryAsync(profileDir)
+                    If Not deleted Then
+                        Debug.WriteLine($"MigrateOrphanProfile: errore cancellazione stale: {profileDir}")
                         Continue For
-                    End Try
+                    End If
                 End If
 
                 Try
@@ -203,16 +229,16 @@ Public Class AccountManager
         Catch ex As Exception
             Debug.WriteLine($"MigrateOrphanProfile error: {ex.Message}")
         End Try
-    End Sub
+    End Function
 
     ''' <summary>
     ''' Rimuove eventuali profili WebView2 non più associati ad alcun account attivo.
     ''' </summary>
-    Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
+    Private Async Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
         Try
             Dim sharedDir = AppAccounts.SharedDataDirectory
             If Not Directory.Exists(sharedDir) Then
-                Return Task.CompletedTask
+                Return
             End If
 
             Dim activeSet As New HashSet(Of String)(If(activeIds, New List(Of String)()), StringComparer.OrdinalIgnoreCase)
@@ -223,20 +249,13 @@ Public Class AccountManager
                 If dirName.StartsWith("WV2Profile_") Then
                     Dim profileId = dirName.Substring("WV2Profile_".Length)
                     If Not activeSet.Contains(profileId) Then
-                        Try
-                            Directory.Delete(profileDir, True)
-                            Debug.WriteLine($"CleanupUnusedProfilesAsync: eliminata cartella di profilo orfana '{profileDir}'")
-                        Catch ex As Exception
-                            Debug.WriteLine($"CleanupUnusedProfilesAsync: errore eliminazione '{profileDir}': {ex.Message}")
-                        End Try
+                        Await DeleteDirectoryWithRetryAsync(profileDir)
                     End If
                 End If
             Next
         Catch ex As Exception
             Debug.WriteLine($"CleanupUnusedProfilesAsync error: {ex.Message}")
         End Try
-
-        Return Task.CompletedTask
     End Function
 
     ''' <summary>
@@ -374,7 +393,6 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(CurrentAccount))
         NotifyPropertyChanged(NameOf(CanAddAccount))
 
-        Await Task.Delay(100)
         Try
             ' Invocazione esplicita IDisposable sul WebView e listener
             accountToRemove.Dispose()
@@ -382,16 +400,13 @@ Public Class AccountManager
             Debug.WriteLine($"Error disposing accountToRemove: {ex.Message}")
         End Try
 
-        Await Task.Delay(500)
-        Try
-            Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
-            If Directory.Exists(profileDir) Then
-                Directory.Delete(profileDir, True)
-                Debug.WriteLine($"Deleted profile folder for: {accountId}")
-            End If
-        Catch ex As Exception
-            Debug.WriteLine($"Error deleting profile directory: {ex.Message}")
-        End Try
+        Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
+        Dim deleted = Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=5)
+        If deleted Then
+            Debug.WriteLine($"Deleted profile folder for: {accountId}")
+        Else
+            Debug.WriteLine($"Warning: Failed to delete profile directory '{profileDir}' after retries")
+        End If
 
         Await SaveAccountsAsync()
     End Function

@@ -256,6 +256,9 @@ Public Class AppAccounts
 
             Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & vbCrLf &
                 NotificationJsScripts.NotificationOverrideJS
+            If IsTelegram Then
+                initScript &= vbCrLf & ThemeJsScripts.TelegramInitJS
+            End If
             Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
 
             _newWindowRequestedHandler = Sub(sender, e)
@@ -436,13 +439,14 @@ Public Class AppAccounts
     ''' </summary>
     Private Async Function HandleTranslationMessageAsync(root As JsonElement) As Task
         Dim id = root.GetProperty("id").GetString()
+        Dim jsonId = JsonSerializer.Serialize(id)
         Dim targetLang = root.GetProperty("targetLang").GetString()
         
         Dim isBatch = root.TryGetProperty("type", Nothing) AndAlso root.GetProperty("type").GetString() = "BATCH_TRANSLATE"
 
         If isBatch Then
             Dim success As Boolean = False
-            Dim partsJson As String = ""
+            Dim partsJson As String = "[]"
             Try
                 Dim textsElement = root.GetProperty("texts")
                 Dim texts As New List(Of String)()
@@ -460,19 +464,19 @@ Public Class AppAccounts
             If success Then
                 Await WebView.Dispatcher.InvokeAsync(Async Function()
                     Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived('{id}', {partsJson}, true); }}"
+                        $"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, {partsJson}, true); }}"
                     )
                 End Function)
             Else
                 Await WebView.Dispatcher.InvokeAsync(Async Function()
                     Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived('{id}', [], false); }}"
+                        $"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, [], false); }}"
                     )
                 End Function)
             End If
         Else
             Dim success As Boolean = False
-            Dim jsonResult As String = ""
+            Dim jsonResult As String = "null"
             Try
                 Dim text = root.GetProperty("text").GetString()
                 Dim quotedText As String = Nothing
@@ -504,13 +508,13 @@ Public Class AppAccounts
             If success Then
                 Await WebView.Dispatcher.InvokeAsync(Async Function()
                     Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived('{id}', {jsonResult}, true); }}"
+                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {jsonResult}, true); }}"
                     )
                 End Function)
             Else
                 Await WebView.Dispatcher.InvokeAsync(Async Function()
                     Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived('{id}', '', false); }}"
+                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, '', false); }}"
                     )
                 End Function)
             End If
@@ -523,8 +527,13 @@ Public Class AppAccounts
     Public Async Function UpdateWebviewLanguageAsync(langCode As String, langName As String, translateTooltipLabel As String, enableHover As Boolean) As Task
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
+                Dim jsonLangCode = JsonSerializer.Serialize(langCode)
+                Dim jsonLangName = JsonSerializer.Serialize(langName)
+                Dim jsonTooltip = JsonSerializer.Serialize(translateTooltipLabel)
+                Dim hoverBool = If(enableHover, "true", "false")
+
                 Await WebView.CoreWebView2.ExecuteScriptAsync(
-                    $"if (window.setTargetLanguage) {{ window.setTargetLanguage('{langCode}', '{langName.Replace("'", "\'")}', '{translateTooltipLabel.Replace("'", "\'")}', {enableHover.ToString().ToLower()}); }}"
+                    $"if (window.setTargetLanguage) {{ window.setTargetLanguage({jsonLangCode}, {jsonLangName}, {jsonTooltip}, {hoverBool}); }}"
                 )
             Catch
             End Try

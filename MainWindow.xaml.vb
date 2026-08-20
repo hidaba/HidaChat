@@ -708,7 +708,8 @@ Public Class MainWindow
                         Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
                         If acc IsNot Nothing AndAlso acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
                             Try
-                                Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked('{notificationId}'); }}")
+                                Dim jsonNotifId = System.Text.Json.JsonSerializer.Serialize(notificationId)
+                                Await acc.WebView.CoreWebView2.ExecuteScriptAsync($"if (window.onNotificationClicked) {{ window.onNotificationClicked({jsonNotifId}); }}")
                             Catch ex As Exception
                                 Debug.WriteLine($"Failed to execute onNotificationClicked for account {acc.Id}: {ex.Message}")
                             End Try

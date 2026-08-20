@@ -58,9 +58,38 @@ Public Class ThemeJsScripts
                "document.getElementsByTagName(""body"")[0].classList = [""dark""];"
     End Function)
 
+    Private Shared ReadOnly _telegramInitJs As New Lazy(Of String)(Function()
+        Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
+        Return "(function() {" & vbCrLf &
+               "  var injectCss = function() {" & vbCrLf &
+               "    try {" & vbCrLf &
+               "      var styleId = 'hidachat-telegram-css';" & vbCrLf &
+               "      if (!document.getElementById(styleId)) {" & vbCrLf &
+               "        var style = document.createElement('style');" & vbCrLf &
+               "        style.id = styleId;" & vbCrLf &
+               "        style.textContent = `" & telegramCss & "`;" & vbCrLf &
+               "        (document.head || document.documentElement).appendChild(style);" & vbCrLf &
+               "      }" & vbCrLf &
+               "    } catch(e) {}" & vbCrLf &
+               "  };" & vbCrLf &
+               "  injectCss();" & vbCrLf &
+               "  if (document.readyState === 'loading') {" & vbCrLf &
+               "    document.addEventListener('DOMContentLoaded', injectCss);" & vbCrLf &
+               "  }" & vbCrLf &
+               "})();"
+    End Function)
+
     Private Shared ReadOnly _telegramLightModeJs As New Lazy(Of String)(Function()
+        Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
         Return "(function() {" & vbCrLf &
                "  try {" & vbCrLf &
+               "    var styleId = 'hidachat-telegram-css';" & vbCrLf &
+               "    if (!document.getElementById(styleId)) {" & vbCrLf &
+               "      var style = document.createElement('style');" & vbCrLf &
+               "      style.id = styleId;" & vbCrLf &
+               "      style.textContent = `" & telegramCss & "`;" & vbCrLf &
+               "      (document.head || document.documentElement).appendChild(style);" & vbCrLf &
+               "    }" & vbCrLf &
                "    document.documentElement.classList.remove('night', 'theme-dark', 'dark');" & vbCrLf &
                "    if (document.body) { document.body.classList.remove('night', 'theme-dark', 'dark'); }" & vbCrLf &
                "    localStorage.setItem('tt-theme', 'day');" & vbCrLf &
@@ -76,8 +105,17 @@ Public Class ThemeJsScripts
     End Function)
 
     Private Shared ReadOnly _telegramDarkModeJs As New Lazy(Of String)(Function()
+        Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
         Return "(function() {" & vbCrLf &
                "  try {" & vbCrLf &
+               "    var styleId = 'hidachat-telegram-css';" & vbCrLf &
+               "    var existingStyle = document.getElementById(styleId);" & vbCrLf &
+               "    if (!existingStyle) {" & vbCrLf &
+               "      var style = document.createElement('style');" & vbCrLf &
+               "      style.id = styleId;" & vbCrLf &
+               "      style.textContent = `" & telegramCss & "`;" & vbCrLf &
+               "      (document.head || document.documentElement).appendChild(style);" & vbCrLf &
+               "    }" & vbCrLf &
                "    document.documentElement.classList.add('night');" & vbCrLf &
                "    if (document.body) { document.body.classList.add('night'); }" & vbCrLf &
                "    localStorage.setItem('tt-theme', 'night');" & vbCrLf &
@@ -103,6 +141,13 @@ Public Class ThemeJsScripts
     Public Shared ReadOnly Property DarkModeJS As String
         Get
             Return _darkModeJs.Value
+        End Get
+    End Property
+
+    ''' <summary>Script per l'iniezione iniziale dei fogli di stile responsivi in Telegram Web.</summary>
+    Public Shared ReadOnly Property TelegramInitJS As String
+        Get
+            Return _telegramInitJs.Value
         End Get
     End Property
 

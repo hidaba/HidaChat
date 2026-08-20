@@ -182,18 +182,15 @@
 - ~~I file `settings.json` e `translations_cache.json` vengono creati e salvati direttamente all'interno della cartella portabile `data/`. Implementata la migrazione trasparente e automatica (`File.Move`) dei file esistenti nella cartella radice verso `data/` al primo avvio, preservando le impostazioni e la cache.~~
 - ~~**Impatto**: Medio | **Sforzo**: Basso~~
 
-## 37. Cancellazione dei profili basata su `Task.Delay` fisso invece di un segnale deterministico
-- **File**: `AccountManager.vb`, `RemoveAccountAsync`
-- `Await Task.Delay(100)` -> `accountToRemove.Dispose()` -> `Await Task.Delay(500)` -> `Directory.Delete(profileDir, True)`
-- Su macchine lente, con antivirus attivo, o se il processo WebView2/Chromium associato al profilo non ha ancora rilasciato i file, `Directory.Delete` può fallire — l'eccezione viene solo loggata con `Debug.WriteLine`, quindi l'utente non lo saprà e la cartella restera orfana.
-- **Suggerimento**: Sostituire l'attesa fissa con un retry con backoff sul delete (es. 3-4 tentativi con piccola pausa crescente) invece di un singolo tentativo dopo un tempo arbitrario.
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~37. Cancellazione dei profili basata su `Task.Delay` fisso invece di un segnale deterministico~~ ✅
+- ~~**File**: `AccountManager.vb`, `RemoveAccountAsync`, `MigrateOrphanProfileAsync`, `CleanupUnusedProfilesAsync`~~
+- ~~Implementato metodo helper asincrono `DeleteDirectoryWithRetryAsync` con backoff progressivo (fino a 5 tentativi con attesa crescente) per garantire la corretta eliminazione dei profili WebView2 anche su macchine lente o in presenza di lock momentanei da parte dell'antivirus/Chromium.~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 38. Escaping incoerente dei valori interpolati nel JavaScript eseguito via `ExecuteScriptAsync`
-- **File**: `WhatsAppAccount.vb`, `HandleTranslationMessageAsync` e `UpdateWebviewLanguageAsync`
-- Il payload di dati (`partsJson`, `jsonResult`) viene correttamente serializzato con `JsonSerializer.Serialize` prima di essere iniettato nella stringa JS eseguita. Gli identificatori (`id`, `langCode`) no — vengono interpolati direttamente. Oggi il rischio pratico è basso, perché lato JavaScript questi ID sono generati con `Math.random().toString(36).substring(2, 9)` (solo caratteri alfanumerici, verificato in `JsScripts.vb`), quindi non possono contenere apici o caratteri che rompono la stringa JS. Resta però un'incoerenza difensiva rispetto ai valori che sono già ben escapati nello stesso file.
-- **Suggerimento**: Serializzare con `JsonSerializer.Serialize` anche `id`/`langCode` prima di interpolarli, così la protezione non dipende dal formato con cui il JS genera gli ID oggi.
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~38. Escaping incoerente dei valori interpolati nel JavaScript eseguito via `ExecuteScriptAsync`~~ ✅
+- ~~**File**: `AppAccounts.vb` (`HandleTranslationMessageAsync`, `UpdateWebviewLanguageAsync`) e `MainWindow.xaml.vb` (`onNotificationClicked`)~~
+- ~~Tutti i valori e identificatori interpolati (`id`, `langCode`, `langName`, `tooltipLabel`, `notificationId`) vengono ora serializzati in modo coerente e sicuro tramite `JsonSerializer.Serialize`, prevenendo injection di caratteri speciali o apici e garantendo conformità rigorosa al formato JSON.~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 39. Il bridge token è esposto come variabile globale leggibile dalla pagina
 - **File**: `WhatsAppAccount.vb`, `SetupWebViewAsync`
