@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1-beta] - 2026-08-20
+
+### Fixed & Improved
+- **Fix Pre-caricamento Multi-Account & Eliminazione Schermo Nero (`MainWindow.xaml.vb`)**:
+  - Risolto il problema del blocco su schermo nero al passaggio tra account (es. da Telegram a WhatsApp): le istanze WebView2 non attive rimangono ora visibili nel visual tree ma posizionate fluidamente fuori dallo schermo (`Margin = -20000` con `ZIndex = 0`), consentendo a Chromium di completare l'inizializzazione dell'HWND, negoziare i WebSocket e renderizzare la pagina in background in parallelo.
+  - Impostato `DefaultBackgroundColor` sincronizzato con il tema dell'applicazione per eliminare qualsiasi sfarfallio nero/bianco all'avvio e al cambio scheda.
+  - Passaggio tra schede WhatsApp e Telegram ora istantaneo a zero latenza (0 ms).
+
 ## [0.6.0] - 2026-08-20
 
 ### Stable Release - Full Multi-Platform & Performance Hardening
