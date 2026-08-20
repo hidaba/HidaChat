@@ -386,7 +386,7 @@ Public Class MainWindow
     ''' <summary>
     ''' Popola la griglia WPF istanziando e pre-caricando i controlli WebView2 per tutti gli account configurati.
     ''' Inizializza e mostra immediatamente l'account attualmente selezionato all'avvio, 
-    ''' e avvia successivamente il pre-caricamento in background degli altri account in modo che al passaggio siano già pronti.
+    ''' e pre-carica in background tutti gli altri account mantenendoli attivi e connessi.
     ''' </summary>
     Private Async Sub PopulateWebViews()
         WebViewsGrid.Children.Clear()
@@ -406,17 +406,19 @@ Public Class MainWindow
         If activeAccount IsNot Nothing Then
             Await EnsureWebViewAsync(activeAccount)
             If activeAccount.WebView IsNot Nothing Then
-                activeAccount.WebView.Visibility = Visibility.Visible
+                activeAccount.WebView.Margin = New Thickness(0)
+                Panel.SetZIndex(activeAccount.WebView, 10)
                 activeAccount.WebView.Focus()
             End If
         End If
 
-        ' 3. Pre-carica in background tutti gli altri account configurati
+        ' 3. Pre-carica in background tutti gli altri account configurati mantenendoli attivi fuori dallo schermo
         Dim otherAccounts = _accountManager.Accounts.Where(Function(a) activeAccount Is Nothing OrElse a.Id <> activeAccount.Id).ToList()
         For Each acc In otherAccounts
             Await EnsureWebViewAsync(acc)
             If acc.WebView IsNot Nothing Then
-                acc.WebView.Visibility = Visibility.Hidden
+                acc.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
+                Panel.SetZIndex(acc.WebView, 0)
             End If
         Next
     End Sub
@@ -429,7 +431,18 @@ Public Class MainWindow
             account.WebView = New WebView2()
             account.WebView.HorizontalAlignment = HorizontalAlignment.Stretch
             account.WebView.VerticalAlignment = VerticalAlignment.Stretch
-            account.WebView.Visibility = If(account.IsActive, Visibility.Visible, Visibility.Hidden)
+            
+            Dim isDark = _settingsController.IsDarkThemeEffective
+            account.WebView.DefaultBackgroundColor = If(isDark, System.Drawing.Color.FromArgb(17, 27, 33), System.Drawing.Color.FromArgb(240, 242, 245))
+            
+            account.WebView.Visibility = Visibility.Visible
+            If account.IsActive Then
+                account.WebView.Margin = New Thickness(0)
+                Panel.SetZIndex(account.WebView, 10)
+            Else
+                account.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
+                Panel.SetZIndex(account.WebView, 0)
+            End If
             WebViewsGrid.Children.Add(account.WebView)
         End If
 
@@ -474,13 +487,14 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Passa alla scheda account selezionata rendendo visibile la WebView2 corrispondente e nascondendo la precedente senza scaricarla.
+    ''' Passa alla scheda account selezionata portando in primo piano la WebView2 corrispondente e spostando la precedente fuori schermo senza scaricarla.
     ''' </summary>
     Public Async Function SwitchToAccountAsync(accountId As String) As Task
         Dim prevAccount = _accountManager.CurrentAccount
         If prevAccount IsNot Nothing AndAlso prevAccount.Id = accountId Then
             If prevAccount.WebView IsNot Nothing Then
-                prevAccount.WebView.Visibility = Visibility.Visible
+                prevAccount.WebView.Margin = New Thickness(0)
+                Panel.SetZIndex(prevAccount.WebView, 10)
                 prevAccount.WebView.Focus()
             End If
             Return
@@ -491,15 +505,18 @@ Public Class MainWindow
         Dim newAccount = _accountManager.CurrentAccount
         If newAccount Is Nothing Then Return
 
-        ' Nascondi il controllo del precedente account (lasciandolo vivo in background)
+        ' Sposta il controllo del precedente account fuori schermo lasciandolo attivo
         If prevAccount IsNot Nothing AndAlso prevAccount.WebView IsNot Nothing Then
-            prevAccount.WebView.Visibility = Visibility.Hidden
+            prevAccount.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
+            Panel.SetZIndex(prevAccount.WebView, 0)
         End If
 
-        ' Inizializza se necessario e mostra il controllo WebView2 per il nuovo account
+        ' Inizializza se necessario e porta in primo piano il controllo WebView2 per il nuovo account
         Await EnsureWebViewAsync(newAccount)
         If newAccount.WebView IsNot Nothing Then
-            newAccount.WebView.Visibility = Visibility.Visible
+            newAccount.WebView.Margin = New Thickness(0)
+            Panel.SetZIndex(newAccount.WebView, 10)
+            newAccount.WebView.UpdateLayout()
             newAccount.WebView.Focus()
         End If
     End Function
@@ -670,8 +687,13 @@ Public Class MainWindow
             TitleText.Foreground = BrushCache.GetBrush("#111b21")
         End If
 
+        Dim bgColor = If(isDark, System.Drawing.Color.FromArgb(17, 27, 33), System.Drawing.Color.FromArgb(240, 242, 245))
+
         ' Aggiorna il tema all'interno delle singole WebView2 (WhatsApp / Telegram)
         For Each acc In _accountManager.Accounts
+            If acc.WebView IsNot Nothing Then
+                acc.WebView.DefaultBackgroundColor = bgColor
+            End If
             Await acc.ApplyThemeAsync(isDark)
         Next
     End Function
