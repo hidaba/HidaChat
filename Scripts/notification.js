@@ -1,8 +1,9 @@
 (function() {
+  const __bridgeToken = $$BRIDGE_TOKEN$$;
   if (window.__notificationOverrideInstalled) return;
   window.__notificationOverrideInstalled = true;
 
-  window.activeCustomNotifications = {};
+  const activeCustomNotifications = {};
 
   // Override ServiceWorkerRegistration.showNotification poiché WhatsApp lo utilizza per le notifiche push
   if (window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype) {
@@ -20,7 +21,7 @@
           title: title,
           body: options ? (options.body || '') : '',
           icon: options ? (options.icon || '') : '',
-          bridgeToken: window.__bridgeToken || ''
+          bridgeToken: __bridgeToken
         });
       } catch(e) {
         console.error('Failed to postMessage:', e);
@@ -38,7 +39,7 @@
     this.title = title;
     this.options = options || {};
     this.id = Math.random().toString(36).substring(2, 9);
-    window.activeCustomNotifications[this.id] = this;
+    activeCustomNotifications[this.id] = this;
 
     this._listeners = {};
 
@@ -50,19 +51,19 @@
         title: this.title,
         body: this.options.body || '',
         icon: this.options.icon || '',
-        bridgeToken: window.__bridgeToken || ''
+        bridgeToken: __bridgeToken
       });
     } catch(e) {}
 
     this.close = function() {
-      if (window.activeCustomNotifications[self.id]) {
-        delete window.activeCustomNotifications[self.id];
+      if (activeCustomNotifications[self.id]) {
+        delete activeCustomNotifications[self.id];
         try {
           window.chrome.webview.postMessage({
             channel: 'NotificationChannel',
             type: 'NOTIFICATION_CLOSED',
             id: self.id,
-            bridgeToken: window.__bridgeToken || ''
+            bridgeToken: __bridgeToken
           });
         } catch(e) {}
       }
@@ -138,7 +139,7 @@
             type: 'UNREAD_COUNT_CHANGED',
             unreadCount: count,
             title: title,
-            bridgeToken: window.__bridgeToken || ''
+            bridgeToken: __bridgeToken
           });
         } catch(e) {}
       }
@@ -153,7 +154,7 @@
   }
 
   window.onNotificationClicked = function(id) {
-    const notification = window.activeCustomNotifications[id];
+    const notification = activeCustomNotifications[id];
     if (notification) {
       if (typeof notification.onclick === 'function') {
         notification.onclick();
@@ -166,7 +167,7 @@
   };
 
   window.onNotificationClosedFromServer = function(id) {
-    const notification = window.activeCustomNotifications[id];
+    const notification = activeCustomNotifications[id];
     if (notification) {
       if (typeof notification.onclose === 'function') {
         notification.onclose();
@@ -175,7 +176,7 @@
       listeners.forEach(cb => {
         try { cb(); } catch(e) {}
       });
-      delete window.activeCustomNotifications[id];
+      delete activeCustomNotifications[id];
     }
   };
 })();

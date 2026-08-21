@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.3-beta] - 2026-08-21
+
+### Security & Hardening
+- **Incapsulamento Privato Bridge Token IPC (TODO #39) (`AppAccounts.vb`, `JsScripts.vb`, `Scripts/notification.js`, `Scripts/translation.js`)**:
+  - Eliminata l'esposizione del `bridgeToken` dall'oggetto globale `window.__bridgeToken`.
+  - Il token di sicurezza viene ora iniettato e confinato rigorosamente all'interno delle closure (IIFE) private di `notification.js` e `translation.js`, proteggendolo da qualsiasi script, estensione o codice in esecuzione nel DOM.
+  - Incapsulata la mappa interna `activeCustomNotifications` nella closure privata di `notification.js`.
+
 ## [0.6.2-beta] - 2026-08-20
 
 ### Fixed & Improved

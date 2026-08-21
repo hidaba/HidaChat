@@ -254,8 +254,7 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
 
-            Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & vbCrLf &
-                NotificationJsScripts.NotificationOverrideJS
+            Dim initScript = NotificationJsScripts.GetNotificationOverrideJS(BridgeToken)
             If IsTelegram Then
                 initScript &= vbCrLf & ThemeJsScripts.TelegramInitJS
             End If
@@ -317,6 +316,7 @@ Public Class AppAccounts
                     Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
                     
                     Dim translationScript = TranslationJsScripts.GetTranslationJS(
+                        BridgeToken,
                         settings.Language,
                         translatedLangName,
                         tooltipLabel,

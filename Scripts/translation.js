@@ -1,4 +1,5 @@
 (function() {
+  const __bridgeToken = $$BRIDGE_TOKEN$$;
   if (window.__translationOverrideInstalled) {
     if (window.setTargetLanguage) {
       window.setTargetLanguage('$$LANG_CODE$$', '$$LANG_NAME$$', '$$TOOLTIP$$', $$ENABLE_HOVER$$);
@@ -226,7 +227,7 @@
         text: text,
         quotedText: quotedText,
         targetLang: targetLang,
-        bridgeToken: window.__bridgeToken || ''
+        bridgeToken: __bridgeToken
       });
     } catch(e) {
       bodyText.innerText = 'Translation channel error';
@@ -317,7 +318,7 @@
             id: transId,
             texts: texts,
             targetLang: window.__translationTargetLangCode,
-            bridgeToken: window.__bridgeToken || ''
+            bridgeToken: __bridgeToken
           });
         } catch (e) {
           nodes.forEach(n => translatedNodes.delete(n));

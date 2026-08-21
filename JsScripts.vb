@@ -1,6 +1,7 @@
 Imports System.IO
 Imports System.Reflection
 Imports System.Text
+Imports System.Text.Json
 
 ''' <summary>
 ''' Helper interno per il caricamento lazy delle risorse incorporate (JavaScript e CSS) da assembly.
@@ -168,23 +169,24 @@ End Class
 
 ''' <summary>
 ''' Contiene lo script JavaScript per l'override delle notifiche native del browser (ServiceWorkerRegistration e Notification),
-''' reindirizzando le notifiche di WhatsApp verso la finestra host WPF via IPC (chrome.webview.postMessage).
+''' reindirizzando le notifiche di WhatsApp verso la finestra host WPF via IPC (chrome.webview.postMessage) con bridgeToken incapsulato privatamente.
 ''' </summary>
 Public Class NotificationJsScripts
-    Private Shared ReadOnly _notificationJs As New Lazy(Of String)(Function()
+    Private Shared ReadOnly _notificationTemplate As New Lazy(Of String)(Function()
         Return EmbeddedScriptLoader.GetEmbeddedString("notification.js")
     End Function)
 
-    ''' <summary>Script per l'override delle notifiche.</summary>
-    Public Shared ReadOnly Property NotificationOverrideJS As String
-        Get
-            Return _notificationJs.Value
-        End Get
-    End Property
+    ''' <summary>Script per l'override delle notifiche con token IPC privato incapsulato nella closure.</summary>
+    Public Shared Function GetNotificationOverrideJS(bridgeToken As String) As String
+        Dim jsonToken = JsonSerializer.Serialize(bridgeToken)
+        Dim sb As New StringBuilder(_notificationTemplate.Value)
+        sb.Replace("$$BRIDGE_TOKEN$$", jsonToken)
+        Return sb.ToString()
+    End Function
 End Class
 
 ''' <summary>
-''' Contiene gli script JavaScript necessari alla funzione di traduzione messaggi (pulsante hover, bolla di traduzione, scansione DOM).
+''' Contiene gli script JavaScript necessari alla funzione di traduzione messaggi (pulsante hover, bolla di traduzione, scansione DOM) con bridgeToken incapsulato privatamente.
 ''' </summary>
 Public Class TranslationJsScripts
     Private Shared ReadOnly _translationTemplate As New Lazy(Of String)(Function()
@@ -192,15 +194,17 @@ Public Class TranslationJsScripts
     End Function)
 
     ''' <summary>
-    ''' Assembla ed inietta lo script JavaScript completo di traduzione configurato con la lingua e le opzioni attuali.
+    ''' Assembla ed inietta lo script JavaScript completo di traduzione configurato con la lingua, le opzioni attuali e il token IPC privato.
     ''' </summary>
     Public Shared Function GetTranslationJS(
+        bridgeToken As String,
         targetLangCode As String,
         targetLangName As String,
         tooltipLabel As String,
         enableHover As Boolean,
         enableFullPage As Boolean
     ) As String
+        Dim jsonToken = JsonSerializer.Serialize(bridgeToken)
         Dim escapedTooltip = tooltipLabel.Replace("'", "\'")
         Dim escapedName = targetLangName.Replace("'", "\'")
 
@@ -213,6 +217,7 @@ Public Class TranslationJsScripts
             "")
 
         Dim sb As New StringBuilder(_translationTemplate.Value)
+        sb.Replace("$$BRIDGE_TOKEN$$", jsonToken)
         sb.Replace("$$LANG_CODE$$", targetLangCode)
         sb.Replace("$$LANG_NAME$$", escapedName)
         sb.Replace("$$TOOLTIP$$", escapedTooltip)

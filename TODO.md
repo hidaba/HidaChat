@@ -192,11 +192,10 @@
 - ~~Tutti i valori e identificatori interpolati (`id`, `langCode`, `langName`, `tooltipLabel`, `notificationId`) vengono ora serializzati in modo coerente e sicuro tramite `JsonSerializer.Serialize`, prevenendo injection di caratteri speciali o apici e garantendo conformità rigorosa al formato JSON.~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 39. Il bridge token è esposto come variabile globale leggibile dalla pagina
-- **File**: `WhatsAppAccount.vb`, `SetupWebViewAsync`
-- `Dim initScript = $"window.__bridgeToken = '{BridgeToken}';" & ...`
-- Il token serve a validare che i messaggi IPC ricevuti in `HandleWebMessageAsync` provengano dallo script iniettato dall'app e non da script arbitrario sulla pagina. Essendo però esposto su `window.__bridgeToken`, qualunque script eseguito nel contesto della pagina (incluso uno script malevolo iniettato tramite una vulnerabilità futura di WhatsApp Web) può leggerlo e forgiare messaggi validi — il token non è quindi una vera barriera, solo una convenzione. Non è urgente data la superficie d'attacco attuale (nessuna estensione di terze parti, navigazione limitata a whatsapp.com), ma è una nota di design da tenere presente. Nessuna azione richiesta ora.
-- **Impatto**: Basso | **Sforzo**: Medio
+## ~~39. Il bridge token è esposto come variabile globale leggibile dalla pagina~~ ✅
+- ~~**File**: `AppAccounts.vb`, `JsScripts.vb`, `Scripts/notification.js`, `Scripts/translation.js`~~
+- ~~Il `bridgeToken` non viene più esposto nell'oggetto globale `window.__bridgeToken`. Viene ora interpolato tramite serializzazione sicura `JsonSerializer.Serialize` ed incapsulato privatamente all'interno dello scope e closure (IIFE) di `notification.js` e `translation.js`. Nessuno script o estensione in esecuzione nel DOM/pagina web può leggere, ispezionare o manomettere il token di sicurezza IPC.~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ## 40. Nessuna verifica di integrità sullo ZIP di aggiornamento automatico
 - **File**: `UpdateChecker.vb`, `PerformUpdateFromGitHubAsync`
