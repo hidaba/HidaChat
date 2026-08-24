@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.4-beta] - 2026-08-24
+
+### Security & Integrity
+- **Verifica Integrità SHA-256 Aggiornamenti Automatici (TODO #40) (`UpdateChecker.vb`)**:
+  - Implementato il controllo crittografico di integrità dell'archivio ZIP prima dell'estrazione e della sostituzione dei file applicativi durante gli aggiornamenti OTA da GitHub Releases.
+  - Aggiunto il parsing e download automatico degli asset di checksum allegati alle release (`.sha256`, `.sha256sum`, `SHA256SUMS`, `SHA256SUMS.txt`, `checksums.txt`) e il riconoscimento intelligente delle impronte SHA-256 specificate nel testo delle note di rilascio (`release body`).
+  - Blocco preventivo dell'aggiornamento con avviso di sicurezza in caso di mancata corrispondenza dell'impronta calcolata con `SHA256.HashData`, prevenendo l'installazione di pacchetti incompleti o manomessi.
+
 ## [0.6.3-beta] - 2026-08-21
 
 ### Security & Hardening

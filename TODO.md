@@ -197,10 +197,10 @@
 - ~~Il `bridgeToken` non viene più esposto nell'oggetto globale `window.__bridgeToken`. Viene ora interpolato tramite serializzazione sicura `JsonSerializer.Serialize` ed incapsulato privatamente all'interno dello scope e closure (IIFE) di `notification.js` e `translation.js`. Nessuno script o estensione in esecuzione nel DOM/pagina web può leggere, ispezionare o manomettere il token di sicurezza IPC.~~
 - ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
-## 40. Nessuna verifica di integrità sullo ZIP di aggiornamento automatico
-- **File**: `UpdateChecker.vb`, `PerformUpdateFromGitHubAsync`
-- Lo ZIP scaricato da GitHub Releases viene estratto e i suoi contenuti sostituiscono l'eseguibile in uso, senza alcun controllo oltre al trasporto HTTPS (nessun checksum, nessuna firma). Per un meccanismo di auto-update che esegue codice scaricato con i privilegi dell'utente, aggiungere una verifica opzionale (es. pubblicare uno SHA256 insieme alla release e confrontarlo prima dell'estrazione) aumenterebbe la resilienza in caso di compromissione dell'account GitHub o del repository. Miglioria facoltativa, non urgente per un progetto di questa dimensione.
-- **Impatto**: Basso | **Sforzo**: Basso
+## ~~40. Nessuna verifica di integrità sullo ZIP di aggiornamento automatico~~ ✅
+- ~~**File**: `UpdateChecker.vb`, `PerformUpdateFromGitHubAsync`, `FetchGitHubReleaseInfoAsync`~~
+- ~~Implementata la verifica crittografica di integrità SHA-256 prima dell'estrazione dell'archivio ZIP di aggiornamento. Il sistema intercetta automaticamente asset di checksum dedicati (`.sha256`, `.sha256sum`, `SHA256SUMS`, `SHA256SUMS.txt`, `checksums.txt`) o impronte SHA-256 dichiarate nelle note di rilascio GitHub, calcola l'hash del file scaricato (`SHA256.HashData`) e blocca tempestivamente l'installazione in caso di discrepanza, garantendo la massima resilienza e protezione contro manomissioni o download parziali.~~
+- ~~**Impatto**: Basso | **Sforzo**: Basso~~
 
 ---
 

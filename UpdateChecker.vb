@@ -6,6 +6,8 @@ Imports System.Diagnostics
 Imports System.Threading.Tasks
 Imports System.Windows
 Imports System.Text.Json
+Imports System.Security.Cryptography
+Imports System.Text.RegularExpressions
 
 ''' <summary>
 
@@ -126,7 +128,7 @@ Public Class UpdateChecker
 
                 If IsNewerVersion(remoteVersion, Constants.AppVersion) Then
                     If Not String.IsNullOrEmpty(downloadUrl) Then
-                        Await PerformUpdateFromGitHubAsync(remoteVersion, downloadUrl, installDir, settings)
+                        Await PerformUpdateFromGitHubAsync(releaseInfo, installDir, settings)
                         Return
                     Else
                         Debug.WriteLine("GitHub release found but no ZIP asset attached.")
@@ -162,8 +164,50 @@ Public Class UpdateChecker
     Private Class ReleaseInfo
         Public Property Version As String = String.Empty
         Public Property DownloadUrl As String = String.Empty
+        Public Property ZipFileName As String = String.Empty
+        Public Property Sha256Url As String = String.Empty
+        Public Property ExpectedSha256 As String = String.Empty
         Public Property Notes As String = String.Empty
     End Class
+
+    ''' <summary>
+    ''' Estrae un hash SHA-256 valido (64 caratteri esadecimali) da un testo o da un file di checksum.
+    ''' </summary>
+    Private Shared Function ExtractSha256FromText(text As String, Optional filename As String = Nothing) As String
+        If String.IsNullOrWhiteSpace(text) Then Return String.Empty
+
+        ' 1. Se c'è un nome file da cercare (es. formato standard sha256sum: "<hash>  <filename>" o "<hash> *<filename>")
+        If Not String.IsNullOrWhiteSpace(filename) Then
+            Dim escapedName = Regex.Escape(Path.GetFileName(filename))
+            Dim matchFile = Regex.Match(text, "([a-fA-F0-9]{64})\s+[\*]?" & escapedName, RegexOptions.IgnoreCase)
+            If matchFile.Success Then
+                Return matchFile.Groups(1).Value.ToLowerInvariant()
+            End If
+        End If
+
+        ' 2. Cerca pattern espliciti tipo "SHA256: <hash>", "SHA-256: <hash>" o "hash: <hash>"
+        Dim matchLabeled = Regex.Match(text, "(?:SHA-?256|checksum|hash)\s*[:=]?\s*([a-fA-F0-9]{64})", RegexOptions.IgnoreCase)
+        If matchLabeled.Success Then
+            Return matchLabeled.Groups(1).Value.ToLowerInvariant()
+        End If
+
+        ' 3. Cerca qualsiasi stringa esadecimale da 64 caratteri (SHA-256 isolato)
+        Dim matchAny = Regex.Match(text, "\b([a-fA-F0-9]{64})\b")
+        If matchAny.Success Then
+            Return matchAny.Groups(1).Value.ToLowerInvariant()
+        End If
+
+        Return String.Empty
+    End Function
+
+    ''' <summary>
+    ''' Calcola l'hash crittografico SHA-256 in formato esadecimale minuscolo per un array di byte.
+    ''' </summary>
+    Private Shared Function ComputeSha256(data As Byte()) As String
+        If data Is Nothing OrElse data.Length = 0 Then Return String.Empty
+        Dim hashBytes = SHA256.HashData(data)
+        Return Convert.ToHexString(hashBytes).ToLowerInvariant()
+    End Function
 
     ''' <summary>
     ''' Recupera le informazioni sull'ultima release pubblicata su GitHub interpellando le API REST.
@@ -188,21 +232,35 @@ Public Class UpdateChecker
                     Dim cleanVer = CleanVersionString(tagName)
                     Dim notes = If(rel.TryGetProperty("body", Nothing), rel.GetProperty("body").GetString(), "")
                     Dim zipUrl As String = String.Empty
+                    Dim zipName As String = String.Empty
+                    Dim sha256Url As String = String.Empty
 
                     If rel.TryGetProperty("assets", Nothing) Then
                         For Each asset In rel.GetProperty("assets").EnumerateArray()
                             Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
+                            Dim assetUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
+
                             If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
-                                zipUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
-                                Exit For
+                                zipUrl = assetUrl
+                                zipName = name
+                            ElseIf name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase) OrElse
+                                   name.EndsWith(".sha256sum", StringComparison.OrdinalIgnoreCase) OrElse
+                                   name.Equals("SHA256SUMS", StringComparison.OrdinalIgnoreCase) OrElse
+                                   name.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) OrElse
+                                   name.Equals("checksums.txt", StringComparison.OrdinalIgnoreCase) Then
+                                sha256Url = assetUrl
                             End If
                         Next
                     End If
 
                     If Not String.IsNullOrEmpty(zipUrl) Then
+                        Dim expectedHash = ExtractSha256FromText(notes, zipName)
                         Return New ReleaseInfo With {
                             .Version = cleanVer,
                             .DownloadUrl = zipUrl,
+                            .ZipFileName = zipName,
+                            .Sha256Url = sha256Url,
+                            .ExpectedSha256 = expectedHash,
                             .Notes = notes
                         }
                     End If
@@ -213,20 +271,34 @@ Public Class UpdateChecker
                 Dim cleanVer = CleanVersionString(tagName)
                 Dim notes = If(root.TryGetProperty("body", Nothing), root.GetProperty("body").GetString(), "")
                 Dim zipUrl As String = String.Empty
+                Dim zipName As String = String.Empty
+                Dim sha256Url As String = String.Empty
 
                 If root.TryGetProperty("assets", Nothing) Then
                     For Each asset In root.GetProperty("assets").EnumerateArray()
                         Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
+                        Dim assetUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
+
                         If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
-                            zipUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
-                            Exit For
+                            zipUrl = assetUrl
+                            zipName = name
+                        ElseIf name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase) OrElse
+                               name.EndsWith(".sha256sum", StringComparison.OrdinalIgnoreCase) OrElse
+                               name.Equals("SHA256SUMS", StringComparison.OrdinalIgnoreCase) OrElse
+                               name.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) OrElse
+                               name.Equals("checksums.txt", StringComparison.OrdinalIgnoreCase) Then
+                            sha256Url = assetUrl
                         End If
                     Next
                 End If
 
+                Dim expectedHash = ExtractSha256FromText(notes, zipName)
                 Return New ReleaseInfo With {
                     .Version = cleanVer,
                     .DownloadUrl = zipUrl,
+                    .ZipFileName = zipName,
+                    .Sha256Url = sha256Url,
+                    .ExpectedSha256 = expectedHash,
                     .Notes = notes
                 }
             End If
@@ -234,14 +306,16 @@ Public Class UpdateChecker
     End Function
 
     ''' <summary>
-    ''' Scarica l'archivio ZIP da GitHub Releases, estrae i file e riavvia l'applicazione tramite uno script batch temporaneo.
+    ''' Scarica l'archivio ZIP da GitHub Releases, verifica l'integrità crittografica SHA-256, estrae i file e riavvia l'applicazione tramite uno script batch temporaneo.
     ''' </summary>
     Private Shared Async Function PerformUpdateFromGitHubAsync(
-        latestVersion As String,
-        downloadUrl As String,
+        releaseInfo As ReleaseInfo,
         installDir As String,
         settings As SettingsController
     ) As Task
+        Dim latestVersion = releaseInfo.Version
+        Dim downloadUrl = releaseInfo.DownloadUrl
+
         ' Verifica i permessi di scrittura nella cartella corrente
         Dim testFile = Path.Combine(installDir, ".update_test")
         Try
@@ -277,9 +351,49 @@ Public Class UpdateChecker
             ' 1. Scarica lo ZIP da GitHub
             Debug.WriteLine($"Downloading update zip from: {downloadUrl}")
             Dim zipBytes = Await _httpClient.GetByteArrayAsync(downloadUrl)
+
+            ' 2. Verifica di integrità crittografica (SHA-256)
+            Dim computedSha256 = ComputeSha256(zipBytes)
+            Debug.WriteLine($"Downloaded update SHA-256: {computedSha256}")
+
+            Dim expectedHash = releaseInfo.ExpectedSha256
+
+            ' Se non presente nelle note di rilascio, prova a scaricare il file di checksum allegato agli asset
+            If String.IsNullOrEmpty(expectedHash) AndAlso Not String.IsNullOrEmpty(releaseInfo.Sha256Url) Then
+                Try
+                    Debug.WriteLine($"Downloading SHA-256 checksum file from: {releaseInfo.Sha256Url}")
+                    Dim checksumContent = Await _httpClient.GetStringAsync(releaseInfo.Sha256Url)
+                    expectedHash = ExtractSha256FromText(checksumContent, releaseInfo.ZipFileName)
+                Catch ex As Exception
+                    Debug.WriteLine($"Could not download or parse checksum asset: {ex.Message}")
+                End Try
+            End If
+
+            ' Se è disponibile un hash atteso, esegui il confronto di integrità
+            If Not String.IsNullOrEmpty(expectedHash) Then
+                If Not String.Equals(computedSha256, expectedHash, StringComparison.OrdinalIgnoreCase) Then
+                    Debug.WriteLine($"SHA-256 mismatch! Computed: {computedSha256}, Expected: {expectedHash}")
+                    MessageBox.Show(
+                        "Verifica di integrità fallita!" & vbCrLf & vbCrLf &
+                        "L'impronta crittografica SHA-256 del file di aggiornamento scaricato non corrisponde a quella attesa:" & vbCrLf & vbCrLf &
+                        $"Hash calcolato: {computedSha256}" & vbCrLf &
+                        $"Hash atteso:    {expectedHash}" & vbCrLf & vbCrLf &
+                        "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.",
+                        "Errore Integrità Aggiornamento",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error
+                    )
+                    Return
+                Else
+                    Debug.WriteLine($"Update integrity verified successfully with SHA-256: {computedSha256}")
+                End If
+            Else
+                Debug.WriteLine($"No SHA-256 checksum found for this release. Computed hash: {computedSha256}. Verified via HTTPS transport.")
+            End If
+
             Await File.WriteAllBytesAsync(tempZipPath, zipBytes)
 
-            ' 2. Estrai l'archivio temporaneo
+            ' 3. Estrai l'archivio temporaneo
             If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
             Directory.CreateDirectory(tempDir)
             ZipFile.ExtractToDirectory(tempZipPath, tempDir, True)
@@ -295,7 +409,7 @@ Public Class UpdateChecker
             ' Marca la versione locale prima del riavvio
             WriteLocalVersionMarker(installDir, latestVersion)
 
-            ' 3. Crea ed esegui lo script batch di sostituzione file
+            ' 4. Crea ed esegui lo script batch di sostituzione file
             Dim logFile = Path.Combine(installDir, ".update_log.txt")
             Dim batchPath = Path.Combine(tempDir, "update.bat")
             Dim sbBatch As New System.Text.StringBuilder()
