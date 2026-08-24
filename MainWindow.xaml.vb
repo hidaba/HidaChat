@@ -566,6 +566,51 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
+    ''' Apre la finestra di invio massivo personalizzato da file Excel/CSV.
+    ''' </summary>
+    Private Sub BtnBulkSender_Click(sender As Object, e As RoutedEventArgs)
+        Dim activeAcc = _accountManager.CurrentAccount
+        If activeAcc Is Nothing OrElse activeAcc.WebView Is Nothing OrElse activeAcc.WebView.CoreWebView2 Is Nothing Then
+            MessageBox.Show(
+                "Nessuna sessione di WhatsApp Web attiva o pronta." & vbCrLf &
+                "Assicurati che la scheda WhatsApp sia caricata e connessa.",
+                "WhatsApp Non Pronto",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            )
+            Return
+        End If
+
+        If activeAcc.IsTelegram Then
+            MessageBox.Show(
+                "L'invio massivo tramite link diretto è ottimizzato per account WhatsApp." & vbCrLf &
+                "Seleziona una scheda WhatsApp per procedere.",
+                "Piattaforma non supportata",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            )
+            Return
+        End If
+
+        Try
+            _accountManager.IsDialogOpen = True
+            Dim bulkWin As New BulkSenderWindow(activeAcc.WebView, _settingsController)
+            bulkWin.Owner = Me
+            bulkWin.ShowDialog()
+            _accountManager.IsDialogOpen = False
+        Catch ex As Exception
+            _accountManager.IsDialogOpen = False
+            Debug.WriteLine($"Error opening BulkSender window: {ex.Message}")
+            MessageBox.Show(
+                "Errore nell'apertura della finestra di invio massivo: " & ex.Message,
+                "Errore",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+        End Try
+    End Sub
+
+    ''' <summary>
     ''' Ricarica la pagina corrente all'interno della WebView2 dell'account attivo.
     ''' </summary>
     Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)

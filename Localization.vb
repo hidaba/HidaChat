@@ -528,6 +528,7 @@ Public Class AppLocalizations
         {"github_repository", "GitHub Repository"},
         {"report_issue", "Report Issue"},
         {"view_releases", "View Releases"},
+        {"bulk_sender", "Excel / CSV Bulk Sender"},
         {"close", "Close"}
     }
 
@@ -582,6 +583,7 @@ Public Class AppLocalizations
         {"github_repository", "Repository GitHub"},
         {"report_issue", "Segnala un problema"},
         {"view_releases", "Vedi Release"},
+        {"bulk_sender", "Invio Massivo da Excel / CSV"},
         {"close", "Chiudi"}
     }
 

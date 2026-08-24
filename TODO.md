@@ -272,6 +272,18 @@
 - **Descrizione**: Estendere l'architettura `AppAccounts` per consentire all'utente di aggiungere schede per **Microsoft Teams** (`https://teams.microsoft.com/v2/`), **Slack** (`https://app.slack.com/client`) o **Discord** (`https://discord.com/app`) con icone vettoriali e temi dedicati.
 - **Impatto**: Alto | **Sforzo**: Medio
 
+## ~~52. Invio Massivo Personalizzato da File Excel / CSV (.xlsx, .xls, .csv)~~ ✅
+- **Descrizione**: Modulo integrato per importare elenchi contatti da fogli di calcolo Excel (`.xlsx`, `.xls`) o file CSV (`.csv`) e inviare messaggi personalizzati uno alla volta tramite l'account WhatsApp Web attivo su WebView2.
+- **Funzionalità Implementate**:
+  - Rilevamento e mappatura automatica delle intestazioni di colonna (*Telefono*, *Nome*, *Cognome*, *Azienda*, *Testo personalizzato*).
+  - Normalizzazione, pulizia caratteri non numerici e formattazione con prefisso internazionale.
+  - Editor per template dinamici con segnaposto (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Testo}`) e pulsanti di inserimento rapido.
+  - Finestra dedicata `BulkSenderWindow` con DataGrid interattivo, selezione puntuale o multipla e badge colorati di avanzamento per riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`).
+  - Motore di automazione sequenziale `BulkSenderEngine` con rilevamento modali errore numeri non registrati (`INVALID_NUMBER`), injection script per l'invio chat e intervallo di attesa Anti-Spam regolabile (Jitter Delay) con countdown in tempo reale.
+  - Pulsante dedicato con icona Excel integrato nella barra del titolo (`MainWindow.xaml`) e supporto multilingua completo in `Localization.vb`.
+- **Impatto**: Alto | **Sforzo**: Medio
+
+
 
 
 

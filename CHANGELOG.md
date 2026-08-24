@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.5-beta] - 2026-08-24
+
+### New Features & Bulk Automation
+- **Invio Massivo Personalizzato da File Excel / CSV (TODO #52) (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`, `ExcelContactService.vb`, `BulkSenderEngine.vb`, `BulkContactItem.vb`)**:
+  - Implementato il modulo completo per l'importazione di elenchi contatti da file **Excel (`.xlsx`, `.xls`)** e **CSV (`.csv`)**, con rilevamento automatico e mappatura intelligente delle colonne (*Telefono*, *Nome*, *Cognome*, *Azienda*, *Testo personalizzato*).
+  - Normalizzazione e pulizia automatica dei numeri telefonici con rimozione di caratteri speciali e formattazione con prefisso internazionale.
+  - Editor del messaggio con supporto a **Template Dinamici** e sostituzione automatica dei tag segnaposto (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Testo}`) con pulsanti di inserimento rapido a click singolo e anteprima in tempo reale nella tabella contatti.
+  - **Motore di Invio Sequenziale Asincrono via WebView2**:
+    - Navigazione diretta alla chat su WhatsApp Web (`web.whatsapp.com/send`) con injection JavaScript per l'invio automatico e il monitoraggio dello stato di caricamento.
+    - Rilevamento automatico e chiusura dei popup di errore per numeri non registrati su WhatsApp (`INVALID_NUMBER`).
+    - **Protezione Anti-Spam (Jitter Delay)**: intervallo di attesa configurabile (Min/Max secondi) con ritardo casuale naturale tra i singoli invii e visualizzazione del conto alla rovescia in tempo reale.
+    - Controlli completi di esecuzione con supporto a **Pausa / Riprendi**, **Interruzione immediata** e tracciamento dello stato di ogni riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`).
+  - Aggiunto il pulsante dedicato con icona Excel nella barra del titolo (`MainWindow.xaml`) per l'accesso immediato dallo schermo principale.
+  - Aggiornate le definizioni di localizzazione in Italiano e Inglese in `Localization.vb`.
+
 ## [0.6.4-beta] - 2026-08-24
 
 ### Security & Integrity

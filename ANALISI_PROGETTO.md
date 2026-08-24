@@ -1,16 +1,17 @@
-# Analisi del Progetto WhatsAppVB
+# Analisi del Progetto HidaChat
 
 ## 1. SCOPO DELL'APPLICAZIONE
 
-**WhatsAppVB** (versione 1.2.1, alias "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per WhatsApp Web. Non è un'app ufficiale, bensì un **wrapper** che carica `web.whatsapp.com` all'interno di un controllo **WebView2** (Chromium Edge), aggiungendo funzionalità non disponibili nel browser standard:
+**HidaChat** (versione 0.6.5-beta, precedentemente nota come WhatsAppVB / "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per **WhatsApp Web** e **Telegram Web**. È un **wrapper avanzato** che carica le piattaforme all'interno di controlli **WebView2** (Chromium Edge) indipendenti, aggiungendo funzionalità esclusive non disponibili nei browser standard:
 
-- **Multi-account**: gestione simultanea di più account WhatsApp con tab separati
-- **Tema scuro/chiaro personalizzato** con rilevamento automatico del tema di sistema Windows
-- **Traduzione integrata dei messaggi**: hover button per tradurre singoli messaggi, traduzione batch dell'intera pagina, traduzione delle notifiche
-- **Notifiche native Windows** (Toast) per i messaggi in arrivo, con click routing
-- **System tray** (icona nella barra delle notifiche) con chiusura a vassoio
-- **Aggiornamento automatico** con check su GitHub alla versione più recente
-- **Isolamento profili**: ogni account ha una propria directory di profilo WebView2 separata
+- **Multi-piattaforma & Multi-account**: gestione simultanea di account WhatsApp e Telegram in tab separati con precaricamento istantaneo
+- **Invio Massivo Personalizzato da Excel / CSV**: importazione rubriche con segnaposto dinamici (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Testo}`) e delay anti-spam
+- **Tema scuro/chiaro personalizzato** con rilevamento automatico del tema di sistema Windows e sincronizzazione completa (inclusa interfaccia Telegram Web)
+- **Traduzione integrata dei messaggi**: hover button per tradurre singoli messaggi, traduzione batch dell'intera pagina e traduzione notifiche
+- **Notifiche native Windows** (Toast & Popup overlay) per i messaggi in arrivo con routing selettivo della scheda
+- **System tray** (icona nell'area di notifica) con chiusura/minimizzazione a vassoio e badge non letti
+- **Aggiornamento automatico sicuro (OTA)** con controllo crittografico dell'integrità SHA-256 via GitHub Releases
+- **Isolamento e Portabilità Assoluta (100% Portable)**: ogni account ha una directory di profilo WebView2 isolata all'interno del percorso applicativo locale (`data/webview/`)
 
 ---
 
@@ -53,22 +54,24 @@ Application.xaml
 
 ```
 SettingsController  ←→  settings.json       (persistenza impostazioni)
-AccountManager      ←→  AccountManager       (gestione lista account)
-WhatsAppAccount     ──  WebView2 (per-account)
-UpdateChecker       ──  GitHub raw version
+AccountManager      ←→  AccountManager      (gestione lista account)
+AppAccounts         ──  WebView2 (per-account WhatsApp/Telegram)
+UpdateChecker       ──  GitHub Releases API (check OTA con verifica SHA-256)
 AppLocalizations    ──  Google Translate API (localizzazione UI + traduzione messaggi)
 JsScripts           ──  JavaScript injection in WebView2
+BulkSenderEngine    ──  Automazione invio sequenziale WhatsApp Web
+ExcelContactService ──  Parsing e normalizzazione rubriche Excel (.xlsx, .xls) e CSV
 ```
 
 ---
 
 ## 4. DESCRIZIONE DI OGNI FILE/CLASSE PRINCIPALE
 
-### `WhatsAppVB.vbproj` – File di progetto
+### `HidaChat.vbproj` – File di progetto
 - SDK: `Microsoft.NET.Sdk`
 - Output: `WinExe` (eseguibile Windows)
 - Target: `net9.0-windows10.0.19041.0`
-- Packages: `Microsoft.Web.WebView2` (1.0.4078.44), `Microsoft.Toolkit.Uwp.Notifications` (7.1.3)
+- Packages: `Microsoft.Web.WebView2` (1.0.4078.44), `Microsoft.Toolkit.Uwp.Notifications` (7.1.3), `ExcelDataReader` (3.9.0), `ExcelDataReader.DataSet` (3.9.0)
 - Importa tutti i namespace WPF standard
 
 ### `Application.xaml` / `Application.xaml.vb` – Entry point
