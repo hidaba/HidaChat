@@ -6,6 +6,7 @@ Imports ExcelDataReader
 
 ''' <summary>
 ''' Servizio per il caricamento, parsing e normalizzazione di elenchi contatti da file Excel (.xlsx, .xls) e CSV.
+''' Supporta il riconoscimento di numeri di telefono, @username (Telegram), nome, cognome, azienda e testo personalizzato.
 ''' </summary>
 Public Class ExcelContactService
     Shared Sub New()
@@ -53,6 +54,7 @@ Public Class ExcelContactService
                 If table.Rows.Count = 0 Then Return items
 
                 Dim phoneCol As Integer = -1
+                Dim usernameCol As Integer = -1
                 Dim firstNameCol As Integer = -1
                 Dim lastNameCol As Integer = -1
                 Dim companyCol As Integer = -1
@@ -68,6 +70,8 @@ Public Class ExcelContactService
 
                     If phoneCol = -1 AndAlso IsPhoneHeader(val) Then
                         phoneCol = c
+                    ElseIf usernameCol = -1 AndAlso IsUsernameHeader(val) Then
+                        usernameCol = c
                     ElseIf firstNameCol = -1 AndAlso IsFirstNameHeader(val) Then
                         firstNameCol = c
                     ElseIf lastNameCol = -1 AndAlso IsLastNameHeader(val) Then
@@ -79,11 +83,12 @@ Public Class ExcelContactService
                     End If
                 Next
 
-                If phoneCol <> -1 OrElse firstNameCol <> -1 OrElse lastNameCol <> -1 OrElse companyCol <> -1 OrElse customTextCol <> -1 Then
+                If phoneCol <> -1 OrElse usernameCol <> -1 OrElse firstNameCol <> -1 OrElse lastNameCol <> -1 OrElse companyCol <> -1 OrElse customTextCol <> -1 Then
                     startRowIndex = 1
                 End If
 
-                If phoneCol = -1 Then phoneCol = 0
+                ' Mappatura fallback se non sono state trovate intestazioni esplicite
+                If phoneCol = -1 AndAlso usernameCol = -1 Then phoneCol = 0
                 If firstNameCol = -1 AndAlso colCount > 1 Then firstNameCol = 1
                 If lastNameCol = -1 AndAlso colCount > 2 Then lastNameCol = 2
                 If companyCol = -1 AndAlso colCount > 3 Then companyCol = 3
@@ -92,15 +97,25 @@ Public Class ExcelContactService
                 For r As Integer = startRowIndex To table.Rows.Count - 1
                     Dim row = table.Rows(r)
                     Dim rawPhone = If(phoneCol >= 0 AndAlso phoneCol < colCount, FormatCellValue(row(phoneCol)), "")
+                    Dim rawUser = If(usernameCol >= 0 AndAlso usernameCol < colCount, FormatCellValue(row(usernameCol)), "")
                     Dim rawFirst = If(firstNameCol >= 0 AndAlso firstNameCol < colCount, FormatCellValue(row(firstNameCol)), "")
                     Dim rawLast = If(lastNameCol >= 0 AndAlso lastNameCol < colCount, FormatCellValue(row(lastNameCol)), "")
                     Dim rawComp = If(companyCol >= 0 AndAlso companyCol < colCount, FormatCellValue(row(companyCol)), "")
                     Dim rawText = If(customTextCol >= 0 AndAlso customTextCol < colCount, FormatCellValue(row(customTextCol)), "")
 
+                    ' Se il numero di telefono contiene un @ e username è vuoto, potrebbe essere stato scambiato
+                    If String.IsNullOrWhiteSpace(rawUser) AndAlso rawPhone.StartsWith("@") Then
+                        rawUser = rawPhone
+                        rawPhone = String.Empty
+                    End If
+
                     Dim cleanPhone = CleanPhoneNumber(rawPhone)
-                    If Not String.IsNullOrWhiteSpace(cleanPhone) OrElse Not String.IsNullOrWhiteSpace(rawFirst) Then
+                    Dim cleanUser = rawUser.Trim()
+
+                    If Not String.IsNullOrWhiteSpace(cleanPhone) OrElse Not String.IsNullOrWhiteSpace(cleanUser) OrElse Not String.IsNullOrWhiteSpace(rawFirst) Then
                         items.Add(New BulkContactItem With {
                             .Phone = cleanPhone,
+                            .Username = cleanUser,
                             .FirstName = rawFirst,
                             .LastName = rawLast,
                             .Company = rawComp,
@@ -134,6 +149,7 @@ Public Class ExcelContactService
         If parsedRows.Count = 0 Then Return items
 
         Dim phoneCol As Integer = -1
+        Dim usernameCol As Integer = -1
         Dim firstNameCol As Integer = -1
         Dim lastNameCol As Integer = -1
         Dim companyCol As Integer = -1
@@ -149,6 +165,8 @@ Public Class ExcelContactService
 
             If phoneCol = -1 AndAlso IsPhoneHeader(val) Then
                 phoneCol = c
+            ElseIf usernameCol = -1 AndAlso IsUsernameHeader(val) Then
+                usernameCol = c
             ElseIf firstNameCol = -1 AndAlso IsFirstNameHeader(val) Then
                 firstNameCol = c
             ElseIf lastNameCol = -1 AndAlso IsLastNameHeader(val) Then
@@ -160,11 +178,11 @@ Public Class ExcelContactService
             End If
         Next
 
-        If phoneCol <> -1 OrElse firstNameCol <> -1 OrElse lastNameCol <> -1 OrElse companyCol <> -1 OrElse customTextCol <> -1 Then
+        If phoneCol <> -1 OrElse usernameCol <> -1 OrElse firstNameCol <> -1 OrElse lastNameCol <> -1 OrElse companyCol <> -1 OrElse customTextCol <> -1 Then
             startRowIndex = 1
         End If
 
-        If phoneCol = -1 Then phoneCol = 0
+        If phoneCol = -1 AndAlso usernameCol = -1 Then phoneCol = 0
         If firstNameCol = -1 AndAlso colCount > 1 Then firstNameCol = 1
         If lastNameCol = -1 AndAlso colCount > 2 Then lastNameCol = 2
         If companyCol = -1 AndAlso colCount > 3 Then companyCol = 3
@@ -173,15 +191,24 @@ Public Class ExcelContactService
         For r As Integer = startRowIndex To parsedRows.Count - 1
             Dim row = parsedRows(r)
             Dim rawPhone = If(phoneCol >= 0 AndAlso phoneCol < row.Count, row(phoneCol), "")
+            Dim rawUser = If(usernameCol >= 0 AndAlso usernameCol < row.Count, row(usernameCol), "")
             Dim rawFirst = If(firstNameCol >= 0 AndAlso firstNameCol < row.Count, row(firstNameCol), "")
             Dim rawLast = If(lastNameCol >= 0 AndAlso lastNameCol < row.Count, row(lastNameCol), "")
             Dim rawComp = If(companyCol >= 0 AndAlso companyCol < row.Count, row(companyCol), "")
             Dim rawText = If(customTextCol >= 0 AndAlso customTextCol < row.Count, row(customTextCol), "")
 
+            If String.IsNullOrWhiteSpace(rawUser) AndAlso rawPhone.StartsWith("@") Then
+                rawUser = rawPhone
+                rawPhone = String.Empty
+            End If
+
             Dim cleanPhone = CleanPhoneNumber(rawPhone)
-            If Not String.IsNullOrWhiteSpace(cleanPhone) OrElse Not String.IsNullOrWhiteSpace(rawFirst) Then
+            Dim cleanUser = rawUser.Trim()
+
+            If Not String.IsNullOrWhiteSpace(cleanPhone) OrElse Not String.IsNullOrWhiteSpace(cleanUser) OrElse Not String.IsNullOrWhiteSpace(rawFirst) Then
                 items.Add(New BulkContactItem With {
                     .Phone = cleanPhone,
+                    .Username = cleanUser,
                     .FirstName = rawFirst,
                     .LastName = rawLast,
                     .Company = rawComp,
@@ -195,7 +222,7 @@ Public Class ExcelContactService
     End Function
 
     Private Shared Function DetectCsvDelimiter(lines As String()) As Char
-        Dim sample = lines.Take(5).ToList()
+        Dim sample = lines.Take(5).ToArray()
         Dim commaCount = 0
         Dim semiCount = 0
         Dim tabCount = 0
@@ -267,6 +294,12 @@ Public Class ExcelContactService
     Private Shared Function IsPhoneHeader(h As String) As Boolean
         Return h.Contains("telef") OrElse h.Contains("phone") OrElse h.Contains("cell") OrElse
                h.Contains("mobil") OrElse h.Contains("num") OrElse h.Contains("contatt") OrElse h = "tel"
+    End Function
+
+    Private Shared Function IsUsernameHeader(h As String) As Boolean
+        Return h.Contains("username") OrElse h.Contains("utente") OrElse h.Contains("user") OrElse
+               h.Contains("nick") OrElse h.Contains("handle") OrElse h.Contains("telegram") OrElse
+               h.Contains("tg") OrElse h.StartsWith("@")
     End Function
 
     Private Shared Function IsFirstNameHeader(h As String) As Boolean

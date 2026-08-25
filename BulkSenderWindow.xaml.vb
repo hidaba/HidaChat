@@ -10,22 +10,27 @@ Imports Microsoft.Web.WebView2.Wpf
 
 ''' <summary>
 ''' Code-behind per la finestra di invio massivo personalizzato da file Excel / CSV.
-''' Supporta ridimensionamento, schermo intero/massimizzazione e ispezione dettagliata dei messaggi.
+''' Supporta sia WhatsApp Web che Telegram Web, ridimensionamento, schermo intero e ispezione dettagliata dei messaggi.
 ''' </summary>
 Public Class BulkSenderWindow
+    Private ReadOnly _account As AppAccounts
     Private ReadOnly _webView As WebView2
     Private ReadOnly _settingsController As SettingsController
     Private ReadOnly _engine As New BulkSenderEngine()
     Private ReadOnly _contacts As New ObservableCollection(Of BulkContactItem)()
+    Private ReadOnly _platform As String
     Private _defaultShadowEffect As Effect
 
-    Public Sub New(webView As WebView2, settingsController As SettingsController)
+    Public Sub New(account As AppAccounts, settingsController As SettingsController)
         InitializeComponent()
         _defaultShadowEffect = Me.Effect
-        _webView = webView
+        _account = account
+        _webView = account?.WebView
         _settingsController = settingsController
+        _platform = If(account IsNot Nothing, account.Platform, "WhatsApp")
         GridContacts.ItemsSource = _contacts
 
+        ApplyPlatformVisuals()
         ApplyTheme()
     End Sub
 
@@ -113,6 +118,18 @@ Public Class BulkSenderWindow
     End Sub
 
 #End Region
+
+    Private Sub ApplyPlatformVisuals()
+        If _account IsNot Nothing AndAlso _account.IsTelegram Then
+            HeaderTitleText.Text = $"Invio Massivo Personalizzato (Telegram - {_account.Name})"
+            HeaderPlatformIcon.Data = Geometry.Parse(_account.PlatformIconData)
+            HeaderPlatformIcon.Fill = BrushCache.GetBrush("#24A1DE")
+        Else
+            Dim accName = If(_account IsNot Nothing, $" (WhatsApp - {_account.Name})", " (WhatsApp)")
+            HeaderTitleText.Text = $"Invio Massivo Personalizzato{accName}"
+            HeaderPlatformIcon.Fill = BrushCache.GetBrush("#00a884")
+        End If
+    End Sub
 
     Private Sub ApplyTheme()
         Dim isDark = If(_settingsController IsNot Nothing, _settingsController.IsDarkThemeEffective, True)
@@ -231,7 +248,7 @@ Public Class BulkSenderWindow
                 If loaded.Count = 0 Then
                     MessageBox.Show(
                         "Nessun contatto valido trovato nel file selezionato." & vbCrLf &
-                        "Verifica che il file contenga una colonna con i numeri di telefono.",
+                        "Verifica che il file contenga colonne con numeri di telefono o username.",
                         "File Vuoto o Non Valido",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning
@@ -276,7 +293,7 @@ Public Class BulkSenderWindow
     End Sub
 
     ''' <summary>
-    ''' Inserisce un tag dinamico ({Nome}, {Cognome}, ecc.) all'interno del TextBox del template.
+    ''' Inserisce un tag dinamico ({Nome}, {Cognome}, {Username}, ecc.) all'interno del TextBox del template.
     ''' </summary>
     Private Sub BtnInsertTag_Click(sender As Object, e As RoutedEventArgs)
         Dim btn = TryCast(sender, Button)
@@ -311,7 +328,8 @@ Public Class BulkSenderWindow
     Private Sub GridContacts_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         Dim selectedItem = TryCast(GridContacts.SelectedItem, BulkContactItem)
         If selectedItem IsNot Nothing Then
-            TxtSelectedContactLabel.Text = $"{selectedItem.FullName} ({selectedItem.Phone}) - {selectedItem.Company}"
+            Dim recipientInfo = If(Not String.IsNullOrEmpty(selectedItem.FormattedUsername), $"{selectedItem.FullName} ({selectedItem.FormattedUsername})", $"{selectedItem.FullName} ({selectedItem.Phone})")
+            TxtSelectedContactLabel.Text = $"{recipientInfo} - {selectedItem.Company}"
             TxtSelectedMessagePreview.Text = selectedItem.PreviewMessage
         Else
             TxtSelectedContactLabel.Text = "Nessun contatto selezionato nella tabella"
@@ -355,7 +373,7 @@ Public Class BulkSenderWindow
     End Sub
 
     ''' <summary>
-    ''' Avvia il ciclo di invio massivo per tutti i contatti selezionati.
+    ''' Avvia il ciclo di invio massivo per tutti i contatti selezionati sulla piattaforma attiva.
     ''' </summary>
     Private Async Sub BtnStart_Click(sender As Object, e As RoutedEventArgs)
         If _contacts.Count = 0 Then
@@ -370,14 +388,29 @@ Public Class BulkSenderWindow
         End If
 
         If _webView Is Nothing OrElse _webView.CoreWebView2 Is Nothing Then
-            MessageBox.Show("La sessione di WhatsApp Web non è attiva o inizializzata. Assicurati che WhatsApp sia connesso nella finestra principale.", "WhatsApp Non Pronto", MessageBoxButton.OK, MessageBoxImage.Warning)
+            Dim appName = If(_platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp")
+            MessageBox.Show($"La sessione di {appName} Web non è attiva o inizializzata. Assicurati che {appName} sia connesso nella finestra principale.", $"{appName} Non Pronto", MessageBoxButton.OK, MessageBoxImage.Warning)
             Return
         End If
 
-        Dim minDelay As Integer = 10
-        Dim maxDelay As Integer = 20
-        If Not Integer.TryParse(TxtMinDelay.Text, minDelay) OrElse minDelay < 3 Then minDelay = 10
-        If Not Integer.TryParse(TxtMaxDelay.Text, maxDelay) OrElse maxDelay < minDelay Then maxDelay = minDelay + 10
+        Dim isTelegram = _platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase)
+        If isTelegram Then
+            Dim validTg = selected.Where(Function(c) Not String.IsNullOrEmpty(c.CleanUsername) OrElse Not String.IsNullOrEmpty(c.CleanPhone)).ToList()
+            If validTg.Count = 0 Then
+                MessageBox.Show("Nessuno dei contatti selezionati possiede uno Username Telegram (@utente) o un Numero di Telefono valido.", "Destinatari Non Validi", MessageBoxButton.OK, MessageBoxImage.Warning)
+                Return
+            End If
+        Else
+            Dim validWa = selected.Where(Function(c) Not String.IsNullOrEmpty(c.CleanPhone)).ToList()
+            If validWa.Count = 0 Then
+                MessageBox.Show("Nessuno dei contatti selezionati possiede un Numero di Telefono valido per WhatsApp.", "Numeri Telefonici Mancanti", MessageBoxButton.OK, MessageBoxImage.Warning)
+                Return
+            End If
+        End If
+
+        ValidateDelayInputs()
+        Dim minDelay = Integer.Parse(TxtMinDelay.Text)
+        Dim maxDelay = Integer.Parse(TxtMaxDelay.Text)
 
         For Each c In selected
             c.Status = "In attesa"
@@ -393,6 +426,7 @@ Public Class BulkSenderWindow
             template,
             minDelay,
             maxDelay,
+            _platform,
             _webView,
             Sub(prog)
                 Dispatcher.Invoke(Sub()
@@ -401,9 +435,9 @@ Public Class BulkSenderWindow
                         TxtStatus.Text = $"Completato! Inviati: {prog.SentCount}, Errori: {prog.ErrorCount}"
                         ProgressBarSending.Value = 100
                         MessageBox.Show(
-                            $"Invio completato!" & vbCrLf & vbCrLf &
+                            $"Invio completato su {_platform}!" & vbCrLf & vbCrLf &
                             $"• Inviati con successo: {prog.SentCount}" & vbCrLf &
-                            $"• Errori / Non validi: {prog.ErrorCount}",
+                            $"• Errori / Non trovati: {prog.ErrorCount}",
                             "Riepilogo Invio Massivo",
                             MessageBoxButton.OK,
                             MessageBoxImage.Information
@@ -443,6 +477,32 @@ Public Class BulkSenderWindow
             _engine.Cancel()
             TxtStatus.Text = "Invio interrotto dall'utente."
             SetUiRunningState(False)
+        End If
+    End Sub
+
+    Private Sub TxtDelay_LostFocus(sender As Object, e As RoutedEventArgs)
+        ValidateDelayInputs()
+    End Sub
+
+    ''' <summary>
+    ''' Valida i campi del delay imponendo un minimo assoluto di 30 secondi sia per il delay minimo che per il massimo.
+    ''' </summary>
+    Private Sub ValidateDelayInputs()
+        Dim minVal As Integer
+        If Not Integer.TryParse(TxtMinDelay.Text, minVal) OrElse minVal < 30 Then
+            minVal = 30
+            TxtMinDelay.Text = "30"
+        End If
+
+        Dim maxVal As Integer
+        If Not Integer.TryParse(TxtMaxDelay.Text, maxVal) OrElse maxVal < 30 Then
+            maxVal = Math.Max(minVal, 30)
+            TxtMaxDelay.Text = maxVal.ToString()
+        End If
+
+        If maxVal < minVal Then
+            maxVal = minVal + 10
+            TxtMaxDelay.Text = maxVal.ToString()
         End If
     End Sub
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.7-beta] - 2026-08-25
+
+### New Features & Multi-Platform Bulk Sender
+- **Supporto Invio Massivo per Telegram Web (`BulkSenderEngine.vb`, `BulkContactItem.vb`, `ExcelContactService.vb`, `BulkSenderWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Esteso il modulo di invio massivo da Excel/CSV per funzionare senza soluzione di continuità sia con **WhatsApp Web** che con **Telegram Web**.
+  - **Gestione @Username**: introdotta la proprietà `Username` / `CleanUsername` e il relativo segnaposto `{Username}` / `{Utente}` per Telegram, con supporto alla risoluzione automatica delle chat via link di dominio (`tg://resolve?domain=...`) o via numero telefonico (`tg://resolve?phone=...`).
+  - **Riconoscimento Automatico Colonne**: il parser di file Excel e CSV rileva automaticamente colonne denominate *Username*, *@username*, *Utente*, *User*, *Nick*, *Handle*, *Telegram*.
+  - **Iniezione JavaScript per Telegram Web K**: gestione dell'apertura del composer di messaggio, digitazione del testo formattato, simulazione eventi DOM e click automatico del pulsante di invio.
+  - **Interfaccia Grafica Multi-Piattaforma Contestuale**: la finestra si adatta dinamicamente con icone e colori specifici per piattaforma (Verde `#00a884` per WhatsApp, Azzurro `#24A1DE` per Telegram).
+- **Protezione Anti-Spam (Vincolo Minimo 30 Secondi) (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb`)**:
+  - Introdotto il controllo e la validazione rigorosa per imporre un intervallo minimo di **30 secondi** tra i singoli invii (sia per il delay minimo che per il massimo), proteggendo gli account WhatsApp e Telegram dal rischio di blocchi per spam.
+
 ## [0.6.6-beta] - 2026-08-25
 
 ### Improved & UI Refinements

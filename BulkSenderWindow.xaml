@@ -7,9 +7,9 @@
         mc:Ignorable="d"
         Title="Invio Massivo da Excel / CSV - HidaChat" 
         Height="750" 
-        Width="980"
+        Width="1020"
         MinHeight="600"
-        MinWidth="850"
+        MinWidth="880"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -202,9 +202,10 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
-                    <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.4,11H10.2L12,14.4L13.8,11H15.6L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z" 
+                    <Path x:Name="HeaderPlatformIcon"
+                          Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.4,11H10.2L12,14.4L13.8,11H15.6L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z" 
                           Fill="#00a884" Width="18" Height="18" Stretch="Fill" Margin="0,0,10,0"/>
-                    <TextBlock Text="Invio Massivo Personalizzato da Excel / CSV" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HeaderTitleText" Text="Invio Massivo Personalizzato da Excel / CSV" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Window Control Buttons (Minimize, Maximize/Restore, Close) -->
@@ -286,15 +287,16 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="2. Modello Messaggio (usa {Testo} per inviare il testo esatto da file, o componi un template)" Foreground="#00a884" FontWeight="Bold" FontSize="12" Margin="0,0,0,6"/>
+                            <TextBlock Grid.Row="0" Text="2. Modello Messaggio (usa {Testo} per inviare il testo da file, o componi con i tag)" Foreground="#00a884" FontWeight="Bold" FontSize="12" Margin="0,0,0,6"/>
 
                             <!-- Tag insertion buttons -->
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
-                                <Button Content="+ {Testo}" Tag="{}{Testo}" Click="BtnInsertTag_Click" ToolTip="Testo personalizzato presente nel file Excel" Style="{StaticResource TagButtonStyle}"/>
+                                <Button Content="+ {Testo}" Tag="{}{Testo}" Click="BtnInsertTag_Click" ToolTip="Testo personalizzato presente nel file Excel/CSV" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Nome}" Tag="{}{Nome}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Cognome}" Tag="{}{Cognome}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Azienda}" Tag="{}{Azienda}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Telefono}" Tag="{}{Telefono}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
+                                <Button Content="+ {Username}" Tag="{}{Username}" Click="BtnInsertTag_Click" ToolTip="Username Telegram (@utente)" Style="{StaticResource TagButtonStyle}"/>
                             </StackPanel>
 
                             <TextBox Grid.Row="2" x:Name="TxtTemplate" Height="65" VerticalScrollBarVisibility="Auto" 
@@ -318,13 +320,13 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="⏱ Intervallo tra invii (Min sec):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="1" x:Name="TxtMinDelay" Text="10" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="0" Text="⏱ Intervallo tra invii (Min sec, min 30s):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox Grid.Column="1" x:Name="TxtMinDelay" Text="30" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center" LostFocus="TxtDelay_LostFocus"/>
 
-                        <TextBlock Grid.Column="3" Text="Intervallo (Max sec):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="4" x:Name="TxtMaxDelay" Text="20" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="Intervallo (Max sec, min 30s):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox Grid.Column="4" x:Name="TxtMaxDelay" Text="45" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center" LostFocus="TxtDelay_LostFocus"/>
 
-                        <TextBlock Grid.Column="5" Text="🛡️ Protezione Anti-Spam: ritardo casuale naturale per simulare l'invio umano." Foreground="#8696a0" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="5" Text="🛡️ Protezione Anti-Spam: intervallo casuale (minimo 30s) per proteggere l'account dai blocchi." Foreground="#8696a0" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                     </Grid>
                 </Border>
 
@@ -375,19 +377,22 @@
                             </DataGridTemplateColumn>
 
                             <!-- Phone -->
-                            <DataGridTextColumn Header="Telefono" Binding="{Binding Phone}" Width="125" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Telefono" Binding="{Binding Phone}" Width="120" IsReadOnly="True"/>
+
+                            <!-- Username (Telegram) -->
+                            <DataGridTextColumn Header="Username" Binding="{Binding FormattedUsername}" Width="110" IsReadOnly="True"/>
 
                             <!-- Name -->
-                            <DataGridTextColumn Header="Nome" Binding="{Binding FirstName}" Width="95" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Nome" Binding="{Binding FirstName}" Width="90" IsReadOnly="True"/>
 
                             <!-- Last Name -->
-                            <DataGridTextColumn Header="Cognome" Binding="{Binding LastName}" Width="105" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Cognome" Binding="{Binding LastName}" Width="100" IsReadOnly="True"/>
 
                             <!-- Company -->
-                            <DataGridTextColumn Header="Azienda" Binding="{Binding Company}" Width="120" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Azienda" Binding="{Binding Company}" Width="115" IsReadOnly="True"/>
 
                             <!-- Custom Text from File -->
-                            <DataGridTemplateColumn Header="Testo da File" Width="180">
+                            <DataGridTemplateColumn Header="Testo da File" Width="160">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding CustomText}" TextTrimming="CharacterEllipsis" 

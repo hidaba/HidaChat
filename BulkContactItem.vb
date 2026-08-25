@@ -4,7 +4,7 @@ Imports System.Windows.Media
 
 ''' <summary>
 ''' Rappresenta un singolo contatto importato da file Excel/CSV con i relativi dati anagrafici, 
-''' testo personalizzato, anteprima del messaggio e stato dell'invio.
+''' numero di telefono, username (Telegram), testo personalizzato, anteprima del messaggio e stato dell'invio.
 ''' </summary>
 Public Class BulkContactItem
     Implements INotifyPropertyChanged
@@ -34,6 +34,23 @@ Public Class BulkContactItem
                 _phone = value
                 OnPropertyChanged(NameOf(Phone))
                 OnPropertyChanged(NameOf(CleanPhone))
+                OnPropertyChanged(NameOf(RecipientDisplay))
+            End If
+        End Set
+    End Property
+
+    Private _username As String = String.Empty
+    Public Property Username As String
+        Get
+            Return _username
+        End Get
+        Set(value As String)
+            If _username <> value Then
+                _username = value
+                OnPropertyChanged(NameOf(Username))
+                OnPropertyChanged(NameOf(CleanUsername))
+                OnPropertyChanged(NameOf(FormattedUsername))
+                OnPropertyChanged(NameOf(RecipientDisplay))
             End If
         End Set
     End Property
@@ -149,6 +166,42 @@ Public Class BulkContactItem
         End Get
     End Property
 
+    ''' <summary>
+    ''' Restituisce lo username senza il prefisso '@' per l'utilizzo nei link di risoluzione.
+    ''' </summary>
+    Public ReadOnly Property CleanUsername As String
+        Get
+            If String.IsNullOrWhiteSpace(Username) Then Return String.Empty
+            Return Username.Trim().TrimStart("@"c).Trim()
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Restituisce lo username con il prefisso '@' per la visualizzazione.
+    ''' </summary>
+    Public ReadOnly Property FormattedUsername As String
+        Get
+            Dim clean = CleanUsername
+            If String.IsNullOrEmpty(clean) Then Return String.Empty
+            Return "@" & clean
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Restituisce l'identificatore principale del destinatario (priorità a @username se presente, altrimenti Telefono).
+    ''' </summary>
+    Public ReadOnly Property RecipientDisplay As String
+        Get
+            If Not String.IsNullOrWhiteSpace(Username) Then
+                Return FormattedUsername
+            ElseIf Not String.IsNullOrWhiteSpace(Phone) Then
+                Return CleanPhone
+            Else
+                Return "-"
+            End If
+        End Get
+    End Property
+
     Public ReadOnly Property StatusBrush As Brush
         Get
             Select Case Status.ToLowerInvariant()
@@ -156,7 +209,7 @@ Public Class BulkContactItem
                     Return New SolidColorBrush(Color.FromRgb(0, 168, 132))
                 Case "inviando...", "sending...", "in corso"
                     Return New SolidColorBrush(Color.FromRgb(245, 158, 11))
-                Case "errore ✖", "errore", "error", "error ✖", "non valido", "numero non valido"
+                Case "errore ✖", "errore", "error", "error ✖", "non valido", "numero non valido", "utente non trovato"
                     Return New SolidColorBrush(Color.FromRgb(234, 67, 53))
                 Case "saltato", "skipped"
                     Return New SolidColorBrush(Color.FromRgb(134, 150, 160))
@@ -167,7 +220,7 @@ Public Class BulkContactItem
     End Property
 
     ''' <summary>
-    ''' Genera il messaggio finale sostituendo i tag segnaposto ({Nome}, {Cognome}, {Azienda}, {Telefono}, {Testo}).
+    ''' Genera il messaggio finale sostituendo i tag segnaposto ({Nome}, {Cognome}, {Azienda}, {Telefono}, {Username}, {Testo}).
     ''' Se il template è vuoto o impostato su "{Testo}", restituisce direttamente il testo personalizzato del contatto.
     ''' </summary>
     Public Function GenerateMessage(template As String) As String
@@ -185,6 +238,9 @@ Public Class BulkContactItem
         msg = msg.Replace("{Company}", Company, StringComparison.OrdinalIgnoreCase)
         msg = msg.Replace("{Telefono}", Phone, StringComparison.OrdinalIgnoreCase)
         msg = msg.Replace("{Phone}", Phone, StringComparison.OrdinalIgnoreCase)
+        msg = msg.Replace("{Username}", FormattedUsername, StringComparison.OrdinalIgnoreCase)
+        msg = msg.Replace("{Utente}", FormattedUsername, StringComparison.OrdinalIgnoreCase)
+        msg = msg.Replace("{User}", FormattedUsername, StringComparison.OrdinalIgnoreCase)
         msg = msg.Replace("{Testo}", CustomText, StringComparison.OrdinalIgnoreCase)
         msg = msg.Replace("{Text}", CustomText, StringComparison.OrdinalIgnoreCase)
         msg = msg.Replace("{Messaggio}", CustomText, StringComparison.OrdinalIgnoreCase)

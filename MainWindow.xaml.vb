@@ -566,35 +566,25 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Apre la finestra di invio massivo personalizzato da file Excel/CSV.
+    ''' Apre la finestra di invio massivo personalizzato da file Excel/CSV per l'account attivo (WhatsApp o Telegram).
     ''' </summary>
     Private Sub BtnBulkSender_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc Is Nothing OrElse activeAcc.WebView Is Nothing OrElse activeAcc.WebView.CoreWebView2 Is Nothing Then
+            Dim platformName = If(activeAcc IsNot Nothing AndAlso activeAcc.IsTelegram, "Telegram", "WhatsApp")
             MessageBox.Show(
-                "Nessuna sessione di WhatsApp Web attiva o pronta." & vbCrLf &
-                "Assicurati che la scheda WhatsApp sia caricata e connessa.",
-                "WhatsApp Non Pronto",
+                $"Nessuna sessione di {platformName} Web attiva o pronta." & vbCrLf &
+                $"Assicurati che la scheda {platformName} sia caricata e connessa.",
+                $"{platformName} Non Pronto",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning
             )
             Return
         End If
 
-        If activeAcc.IsTelegram Then
-            MessageBox.Show(
-                "L'invio massivo tramite link diretto è ottimizzato per account WhatsApp." & vbCrLf &
-                "Seleziona una scheda WhatsApp per procedere.",
-                "Piattaforma non supportata",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information
-            )
-            Return
-        End If
-
         Try
             _accountManager.IsDialogOpen = True
-            Dim bulkWin As New BulkSenderWindow(activeAcc.WebView, _settingsController)
+            Dim bulkWin As New BulkSenderWindow(activeAcc, _settingsController)
             bulkWin.Owner = Me
             bulkWin.ShowDialog()
             _accountManager.IsDialogOpen = False
