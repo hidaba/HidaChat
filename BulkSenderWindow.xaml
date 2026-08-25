@@ -6,10 +6,10 @@
         xmlns:local="clr-namespace:HidaChat"
         mc:Ignorable="d"
         Title="Invio Massivo da Excel / CSV - HidaChat" 
-        Height="680" 
-        Width="960"
-        MinHeight="550"
-        MinWidth="800"
+        Height="750" 
+        Width="980"
+        MinHeight="600"
+        MinWidth="850"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -194,7 +194,7 @@
             </Grid.RowDefinitions>
 
             <!-- Custom Header -->
-            <Grid Grid.Row="0" Background="#202c33" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+            <Grid Grid.Row="0" x:Name="HeaderBar" Background="#202c33" MouseLeftButtonDown="Header_MouseLeftButtonDown" MouseMove="Header_MouseMove">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -202,13 +202,26 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
-                    <Path Data="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M16.05,16.5L13.5,13.95L10.95,16.5L9.54,15.09L12.09,12.54L9.54,10L10.95,8.59L13.5,11.14L16.05,8.59L17.46,10L14.91,12.54L17.46,15.09L16.05,16.5Z" 
+                    <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.4,11H10.2L12,14.4L13.8,11H15.6L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z" 
                           Fill="#00a884" Width="18" Height="18" Stretch="Fill" Margin="0,0,10,0"/>
                     <TextBlock Text="Invio Massivo Personalizzato da Excel / CSV" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 
+                <!-- Window Control Buttons (Minimize, Maximize/Restore, Close) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <Button Click="BtnClose_Click" Width="28" Height="28" Style="{StaticResource WindowHeaderBtnStyle}">
+                    <!-- Minimize Button -->
+                    <Button Click="BtnMinimize_Click" Width="28" Height="28" Margin="0,0,4,0" ToolTip="Riduci a icona" Style="{StaticResource WindowHeaderBtnStyle}">
+                        <TextBlock Text="—" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
+                    </Button>
+
+                    <!-- Maximize / Restore Button -->
+                    <Button x:Name="BtnMaximize" Click="BtnMaximize_Click" Width="28" Height="28" Margin="0,0,4,0" ToolTip="Schermo intero / Ripristina" Style="{StaticResource WindowHeaderBtnStyle}">
+                        <Path x:Name="MaximizeIcon" Data="M1,1 L11,1 L11,11 L1,11 Z M2,2 L2,10 L10,10 L10,2 Z" 
+                              Fill="#8696a0" Width="12" Height="12" Stretch="Fill"/>
+                    </Button>
+
+                    <!-- Close Button -->
+                    <Button Click="BtnClose_Click" Width="28" Height="28" ToolTip="Chiudi" Style="{StaticResource WindowHeaderBtnStyle}">
                         <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
                     </Button>
                 </StackPanel>
@@ -223,6 +236,8 @@
                     <RowDefinition Height="Auto"/>
                     <!-- Row 2: Contacts DataGrid -->
                     <RowDefinition Height="*"/>
+                    <!-- Row 3: Selected contact detailed preview inspector -->
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- Row 0: File & Message Template -->
@@ -271,22 +286,22 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="2. Modello Messaggio (personalizzabile con i tag segnaposto)" Foreground="#00a884" FontWeight="Bold" FontSize="12" Margin="0,0,0,6"/>
+                            <TextBlock Grid.Row="0" Text="2. Modello Messaggio (usa {Testo} per inviare il testo esatto da file, o componi un template)" Foreground="#00a884" FontWeight="Bold" FontSize="12" Margin="0,0,0,6"/>
 
                             <!-- Tag insertion buttons -->
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Content="+ {Testo}" Tag="{}{Testo}" Click="BtnInsertTag_Click" ToolTip="Testo personalizzato presente nel file Excel" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Nome}" Tag="{}{Nome}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Cognome}" Tag="{}{Cognome}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Azienda}" Tag="{}{Azienda}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                                 <Button Content="+ {Telefono}" Tag="{}{Telefono}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
-                                <Button Content="+ {Testo}" Tag="{}{Testo}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
                             </StackPanel>
 
                             <TextBox Grid.Row="2" x:Name="TxtTemplate" Height="65" VerticalScrollBarVisibility="Auto" 
                                      TextWrapping="Wrap" AcceptsReturn="True" 
                                      Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" Padding="6" FontSize="12"
                                      TextChanged="TxtTemplate_TextChanged"
-                                     Text="Gentile {Nome} {Cognome}, le inviamo questa comunicazione da {Azienda}: {Testo}"/>
+                                     Text="{}{Testo}"/>
                         </Grid>
                     </Border>
                 </Grid>
@@ -309,16 +324,17 @@
                         <TextBlock Grid.Column="3" Text="Intervallo (Max sec):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox Grid.Column="4" x:Name="TxtMaxDelay" Text="20" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
 
-                        <TextBlock Grid.Column="5" Text="🛡️ Protezione Anti-Spam: un delay casuale riduce il rischio di blocchi da parte di WhatsApp." Foreground="#8696a0" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="5" Text="🛡️ Protezione Anti-Spam: ritardo casuale naturale per simulare l'invio umano." Foreground="#8696a0" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                     </Grid>
                 </Border>
 
                 <!-- Row 2: Contacts DataGrid -->
-                <Border Grid.Row="2" Background="#202c33" CornerRadius="8" Padding="1" BorderThickness="1" BorderBrush="#2a3942">
+                <Border Grid.Row="2" Background="#202c33" CornerRadius="8" Padding="1" BorderThickness="1" BorderBrush="#2a3942" Margin="0,0,0,8">
                     <DataGrid x:Name="GridContacts" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                               Background="#111b21" Foreground="#e9edef" RowBackground="#111b21" AlternatingRowBackground="#182229"
                               BorderThickness="0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#222e35"
                               HeadersVisibility="Column" SelectionMode="Single"
+                              SelectionChanged="GridContacts_SelectionChanged"
                               ScrollViewer.CanContentScroll="True">
                         <DataGrid.Resources>
                             <Style TargetType="DataGridColumnHeader">
@@ -359,25 +375,39 @@
                             </DataGridTemplateColumn>
 
                             <!-- Phone -->
-                            <DataGridTextColumn Header="Telefono" Binding="{Binding Phone}" Width="130" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Telefono" Binding="{Binding Phone}" Width="125" IsReadOnly="True"/>
 
                             <!-- Name -->
-                            <DataGridTextColumn Header="Nome" Binding="{Binding FirstName}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Nome" Binding="{Binding FirstName}" Width="95" IsReadOnly="True"/>
 
                             <!-- Last Name -->
-                            <DataGridTextColumn Header="Cognome" Binding="{Binding LastName}" Width="110" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Cognome" Binding="{Binding LastName}" Width="105" IsReadOnly="True"/>
 
                             <!-- Company -->
                             <DataGridTextColumn Header="Azienda" Binding="{Binding Company}" Width="120" IsReadOnly="True"/>
 
-                            <!-- Custom Text -->
-                            <DataGridTextColumn Header="Testo da File" Binding="{Binding CustomText}" Width="140" IsReadOnly="True"/>
+                            <!-- Custom Text from File -->
+                            <DataGridTemplateColumn Header="Testo da File" Width="180">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding CustomText}" TextTrimming="CharacterEllipsis" 
+                                                   ToolTip="{Binding CustomText}" Foreground="#8696a0" FontSize="11"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                            <!-- Formatted Preview -->
-                            <DataGridTextColumn Header="Anteprima Messaggio" Binding="{Binding PreviewMessage}" Width="*" IsReadOnly="True"/>
+                            <!-- Formatted Preview to Send -->
+                            <DataGridTemplateColumn Header="Anteprima Messaggio da Inviare" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding PreviewMessage}" TextTrimming="CharacterEllipsis" 
+                                                   ToolTip="{Binding PreviewMessage}" Foreground="#e9edef" FontWeight="SemiBold" FontSize="11"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
                             <!-- Status -->
-                            <DataGridTemplateColumn Header="Stato" Width="110">
+                            <DataGridTemplateColumn Header="Stato" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Border CornerRadius="10" Padding="6,2" HorizontalAlignment="Center"
@@ -389,6 +419,25 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                </Border>
+
+                <!-- Row 3: Full Message Inspector for Selected Contact -->
+                <Border Grid.Row="3" Background="#202c33" CornerRadius="8" Padding="10,8" BorderThickness="1" BorderBrush="#2a3942">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="🔍 Anteprima Completa Contatto Selezionato:" Foreground="#00a884" FontWeight="Bold" FontSize="11" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="TxtSelectedContactLabel" Text="Nessun contatto selezionato nella tabella" Foreground="#8696a0" FontSize="11" FontStyle="Italic"/>
+                        </StackPanel>
+
+                        <TextBox Grid.Row="1" x:Name="TxtSelectedMessagePreview" Height="65" VerticalScrollBarVisibility="Auto" 
+                                 TextWrapping="Wrap" IsReadOnly="True"
+                                 Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" Padding="6" FontSize="11"/>
+                    </Grid>
                 </Border>
             </Grid>
 

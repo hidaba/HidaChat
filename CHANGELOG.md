@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.6-beta] - 2026-08-25
+
+### Improved & UI Refinements
+- **Coerenza 1:1 Testo e Anteprima Invio Massivo (`BulkSenderWindow.xaml.vb`, `BulkContactItem.vb`)**:
+  - Implementato il rilevamento automatico del testo personalizzato all'apertura del file Excel/CSV: se le righe contengono già una colonna *Testo* valorizzata, il modello viene impostato automaticamente su `{Testo}`, assicurando che l'anteprima e il messaggio finale coincidano esattamente carattere per carattere con il testo del file sorgente senza prefissi indesiderati.
+- **Ispettore di Anteprima Dettagliata (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`)**:
+  - Aggiunto un riquadro dedicato sotto la tabella dei contatti per l'ispezione immediata del messaggio completo associato alla riga selezionata, con supporto a formattazione multilinea, ritorni a capo, link ed emoji (`📍`, `📌`, `🕒`, `🥂`, `🎼`, `🍽`, `🏨`, `🚌`).
+- **Supporto a Schermo Intero e Ridimensionamento (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`)**:
+  - Inseriti i pulsanti di riduzione a icona (`—`) e massimizzazione/ripristino nella barra del titolo.
+  - Aggiunto il supporto al doppio click sulla barra del titolo per alternare la modalità normale/schermo intero e al trascinamento fluido per il ripristino.
+  - Integrato il message hook Win32 `WM_GETMINMAXINFO` per limitare l'ingrandimento alla Working Area del monitor evitando la sovrapposizione alla barra delle applicazioni di Windows.
+
 ## [0.6.5-beta] - 2026-08-24
 
 ### New Features & Bulk Automation

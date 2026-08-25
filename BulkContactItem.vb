@@ -166,8 +166,12 @@ Public Class BulkContactItem
         End Get
     End Property
 
+    ''' <summary>
+    ''' Genera il messaggio finale sostituendo i tag segnaposto ({Nome}, {Cognome}, {Azienda}, {Telefono}, {Testo}).
+    ''' Se il template è vuoto o impostato su "{Testo}", restituisce direttamente il testo personalizzato del contatto.
+    ''' </summary>
     Public Function GenerateMessage(template As String) As String
-        If String.IsNullOrEmpty(template) Then
+        If String.IsNullOrWhiteSpace(template) OrElse template.Trim().Equals("{Testo}", StringComparison.OrdinalIgnoreCase) Then
             Return If(Not String.IsNullOrEmpty(CustomText), CustomText, String.Empty)
         End If
 
