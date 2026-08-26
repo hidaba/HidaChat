@@ -5,13 +5,13 @@ Imports System.IO
 ''' </summary>
 Public Module Constants
     ''' <summary>Versione corrente dell'applicazione.</summary>
-    Public Const AppVersion As String = "0.6.7-beta"
+    Public Const AppVersion As String = "0.7.0"
 
     ''' <summary>Autore principale dell'applicazione.</summary>
     Public Const AppAuthor As String = "Massimo Balestrieri (hidaba)"
 
     ''' <summary>Data di rilascio della versione corrente.</summary>
-    Public Const AppReleaseDate As String = "2026-08-25"
+    Public Const AppReleaseDate As String = "2026-08-26"
 
     ''' <summary>Licenza software dell'applicazione.</summary>
     Public Const AppLicense As String = "Apache-2.0 License"

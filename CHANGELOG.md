@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0] - 2026-08-26
+
+### Stable Release - Multi-Platform Bulk Sender, Security & Performance Hardening
+- **Invio Massivo Personalizzato Multi-Piattaforma per WhatsApp e Telegram (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`, `ExcelContactService.vb`, `BulkSenderEngine.vb`, `BulkContactItem.vb`)**:
+  - **Importazione da File Excel e CSV**: Modulo completo per l'importazione di elenchi contatti da fogli di calcolo **Excel (`.xlsx`, `.xls`)** e file **CSV (`.csv`)** con mappatura automatica e intelligente delle colonne (*Telefono*, *Nome*, *Cognome*, *Azienda*, *Testo personalizzato*, *Username*).
+  - **Supporto Multi-Piattaforma WhatsApp Web & Telegram Web**: Invio sequenziale asincrono tramite WebView2 sia per WhatsApp (`web.whatsapp.com/send`) che per Telegram (`tg://resolve?domain=...` / `tg://resolve?phone=...`), con iniezione JavaScript per la composizione, formattazione ed invio del messaggio.
+  - **Template Dinamici & Segnaposto**: Editor dinamico con pulsanti rapidi per l'inserimento dei tag segnaposto (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Username}`, `{Testo}`) e anteprima in tempo reale.
+  - **Ispettore di Anteprima Dettagliata & Coerenza 1:1**: Riquadro dedicato per visualizzare il messaggio completo con supporto multilinea, emoji (`📍`, `📌`, `🕒`, `🥂`, `🎼`, `🍽`, `🏨`, `🚌`) e rilevamento automatico del testo personalizzato da foglio sorgente.
+  - **Protezione Anti-Spam (Jitter Delay con Vincolo Minimo 30s)**: Intervallo di sicurezza regolabile tra gli invii con vincolo minimo di 30 secondi e conto alla rovescia in tempo reale per proteggere gli account da blocchi per spam.
+  - **Controlli di Esecuzione & UI Avanzata**: Pausa, Riprendi, Interrompi, tracciamento dello stato di ogni riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`), supporto a finestra ridimensionabile, schermo intero e tema grafico contestuale alla piattaforma attiva.
+- **Verifica Crittografica Integrità SHA-256 Aggiornamenti OTA (`UpdateChecker.vb`)**:
+  - Validazione crittografica automatica dell'archivio ZIP scaricato da GitHub Releases tramite hash SHA-256 prima dell'installazione per prevenire pacchetti corrotti o manomessi.
+- **Hardening di Sicurezza IPC Bridge Token (`AppAccounts.vb`, `JsScripts.vb`, `Scripts/notification.js`, `Scripts/translation.js`)**:
+  - Rimossa l'esposizione globale di `window.__bridgeToken` e confinato il token di sicurezza all'interno delle closure private (IIFE) degli script JavaScript iniettati.
+  - Serializzazione sicura e deterministica di parametri e comandi JavaScript con `JsonSerializer.Serialize`.
+- **Prestazioni & Pre-caricamento Multi-Account (`MainWindow.xaml.vb`, `Scripts/telegram.css`)**:
+  - Eliminazione completa di sfarfallii e schermo nero al passaggio tra account grazie al precaricamento parallelo delle WebView2 fuori schermo.
+  - Stili dedicati per Telegram Web K e A con layout responsive ottimizzato e sincronizzazione temi chiaro/scuro.
+
 ## [0.6.7-beta] - 2026-08-25
 
 ### New Features & Multi-Platform Bulk Sender

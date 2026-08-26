@@ -2,7 +2,7 @@
 
 ## 1. SCOPO DELL'APPLICAZIONE
 
-**HidaChat** (versione 0.6.5-beta, precedentemente nota come WhatsAppVB / "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per **WhatsApp Web** e **Telegram Web**. È un **wrapper avanzato** che carica le piattaforme all'interno di controlli **WebView2** (Chromium Edge) indipendenti, aggiungendo funzionalità esclusive non disponibili nei browser standard:
+**HidaChat** (versione 0.7.0, precedentemente nota come WhatsAppVB / "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per **WhatsApp Web** e **Telegram Web**. È un **wrapper avanzato** che carica le piattaforme all'interno di controlli **WebView2** (Chromium Edge) indipendenti, aggiungendo funzionalità esclusive non disponibili nei browser standard:
 
 - **Multi-piattaforma & Multi-account**: gestione simultanea di account WhatsApp e Telegram in tab separati con precaricamento istantaneo
 - **Invio Massivo Personalizzato da Excel / CSV**: importazione rubriche con segnaposto dinamici (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Testo}`) e delay anti-spam
