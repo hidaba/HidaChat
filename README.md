@@ -52,6 +52,7 @@ Get the latest ready-to-use portable release for Windows (ZIP archive):
 | **Moveable Data / Portable** | ✅ **Yes (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
 | **Multi-Platform in One App** | ✅ **Yes (WhatsApp & Telegram)** | ❌ WhatsApp only | ❌ Telegram only | ❌ WhatsApp only |
 | **Multi-Account Tabs** | ✅ **Yes (Isolated Profiles)** | ❌ No | ⚠️ Switcher only | ✅ Yes |
+| **Bulk Sender (Excel & CSV)** | ✅ **Yes (WhatsApp & Telegram)** | ❌ No | ❌ No | ❌ No |
 | **Instant Tab Preloading** | ✅ **Yes (Zero Reload Lag)** | ❌ No | ❌ No | ❌ No |
 | **Integrated Translation** | ✅ **Yes (Hover + Page)** | ❌ No | ⚠️ Basic | ❌ No |
 | **Native Windows Toast & Popup** | ✅ **Yes** | ✅ Yes | ✅ Yes | ✅ Yes |
@@ -62,10 +63,18 @@ Get the latest ready-to-use portable release for Windows (ZIP archive):
 
 ## 🚀 Key Features
 
+### 📊 Multi-Platform Bulk Sender (Excel & CSV Automation)
+- **Import from Excel & CSV**: Directly load contact lists from `.xlsx`, `.xls`, or `.csv` files with intelligent automatic column mapping (*Phone*, *Name*, *Surname*, *Company*, *Custom Text*, *Username*).
+- **WhatsApp & Telegram Support**: Automate customized sequential message sending on both **WhatsApp Web** and **Telegram Web** (`@username` or phone number resolution).
+- **Dynamic Placeholders & Templates**: Compose messages using dynamic tags (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Username}`, `{Testo}`) with single-click insertion and real-time live preview.
+- **Detailed Message Inspector**: Inspect multiline formatted texts, emojis, and links before sending with 1:1 fidelity.
+- **Anti-Spam Delay Protection**: Configurable natural jitter delay with a strict **30-second minimum security threshold** and live countdown timer to safeguard accounts from spam flags.
+- **Full Execution Controls**: Pause, Resume, Stop immediately, and monitor per-contact statuses (`Pending`, `Sending...`, `Sent ✔`, `Error ✖`, `Invalid`).
+
 ### 👥 Multi-Account & Multi-Platform (WhatsApp & Telegram)
 - **Simultaneous Accounts**: Manage up to 3 separate accounts (**WhatsApp Web** and **Telegram Web**) in distinct horizontal tabs.
 - **Isolated WebView2 Profiles**: Each tab maintains its own independent cache, cookies, local storage, and login session under `data/webview/`.
-- **Instant Preloading**: Accounts are preloaded in the background on startup (prioritizing the active account), allowing zero-delay, instant switching between tabs without page reloads.
+- **Instant Preloading**: Accounts are preloaded in the background on startup (prioritizing the active account), allowing zero-delay, instant switching between tabs without page reloads or black screen glitches.
 - **Quick Platform Selector**: Click the `+` button in the tab bar or in Settings to instantly add a WhatsApp or Telegram tab with dedicated brand icons (WhatsApp green, Telegram cyan).
 - **Background Notifications**: Even while chatting on Telegram, WhatsApp keeps receiving real-time WebSocket messages and triggers native Windows toasts and overlay popups, and vice versa.
 
@@ -81,7 +90,7 @@ Get the latest ready-to-use portable release for Windows (ZIP archive):
 ### 🔔 Notifications & System Tray
 - **Windows Toast & Overlay Popups**: Interactive toast and corner popups routing clicks straight to the originating account tab.
 - **System Tray**: Minimize to notification tray with unread message badge count.
-- **Automated OTA Updates**: Background check and direct updates via GitHub Releases.
+- **Secure OTA Updates**: Background check and direct updates via GitHub Releases with cryptographic **SHA-256 integrity verification**.
 
 ---
 
@@ -124,6 +133,7 @@ Alternatively, open `HidaChat.sln` in **Visual Studio 2022** (.NET 9 SDK install
 
 | Icon | Function |
 | :---: | :--- |
+| 📊 | Open Excel / CSV Bulk Sender (Automated personalized messaging) |
 | ⚙️ | Open Settings (Theme, Language, Account Management, Beta channel) |
 | 🔄 | Reload active account webview |
 | ⓘ | About HidaChat (Version, license, portable path) |

@@ -52,6 +52,7 @@ Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP):
 | **Dati Spostabili (USB/Rete)** | ✅ **Sì (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
 | **Multi-Piattaforma in 1 App** | ✅ **Sì (WhatsApp e Telegram)** | ❌ Solo WhatsApp | ❌ Solo Telegram | ❌ Solo WhatsApp |
 | **Schede Multi-Account** | ✅ **Sì (Profili Isolati)** | ❌ No | ⚠️ Solo selettore | ✅ Sì |
+| **Invio Massivo (Excel & CSV)** | ✅ **Sì (WhatsApp & Telegram)** | ❌ No | ❌ No | ❌ No |
 | **Pre-caricamento Istantaneo** | ✅ **Sì (Zero Ricaricamento)** | ❌ No | ❌ No | ❌ No |
 | **Traduttore Messaggi Integrato** | ✅ **Sì (Hover + Pagina)** | ❌ No | ⚠️ Base | ❌ No |
 | **Notifiche Native & Popup** | ✅ **Sì** | ✅ Sì | ✅ Sì | ✅ Sì |
@@ -62,10 +63,18 @@ Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP):
 
 ## 🚀 Caratteristiche Principali
 
+### 📊 Invio Massivo Multi-Piattaforma (Automazione Excel & CSV)
+- **Importazione da Excel & CSV**: Carica direttamente rubriche ed elenchi contatti da file `.xlsx`, `.xls` o `.csv` con mappatura automatica intelligente delle colonne (*Telefono*, *Nome*, *Cognome*, *Azienda*, *Testo personalizzato*, *Username*).
+- **Supporto WhatsApp & Telegram**: Invio sequenziale automatizzato sia per **WhatsApp Web** che per **Telegram Web** (tramite `@username` o numero di telefono).
+- **Template Dinamici & Segnaposto**: Componi messaggi personalizzati utilizzando i tag segnaposto (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Username}`, `{Testo}`) con pulsanti di inserimento rapido e anteprima in tempo reale.
+- **Ispettore Messaggi Dettagliato**: Visualizza in anteprima il messaggio formattato multilinea completo di emoji e link prima dell'invio con fedeltà 1:1.
+- **Protezione Anti-Spam (Jitter Delay)**: Intervallo casuale di sicurezza naturale configurabile con vincolo minimo di **30 secondi** e conto alla rovescia in tempo reale per proteggere gli account dal blocco spam.
+- **Controlli Completi di Esecuzione**: Pausa, Riprendi, Interrompi subito e monitoraggio dello stato puntuale di ogni riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`).
+
 ### 👥 Multi-Account & Multi-Piattaforma (WhatsApp & Telegram)
 - **Account Concorrenti**: Gestisci fino a 3 account simultanei (**WhatsApp Web** e **Telegram Web**) in comode schede orizzontali.
 - **Profili WebView2 Isolati**: Ciascun account opera in una sandbox completamente isolata (cookie, sessioni, cache e storage separati in `data/webview/`).
-- **Pre-caricamento Istantaneo**: All'avvio dell'app viene data priorità all'account attivo e avviato in background il caricamento degli altri account, consentendo un passaggio immediato da una scheda all'altra senza attendere alcun ricaricamento.
+- **Pre-caricamento Istantaneo**: All'avvio dell'app viene data priorità all'account attivo e avviato in background il caricamento degli altri account, consentendo un passaggio immediato da una scheda all'altra senza tempi di attesa né schermate nere.
 - **Selettore Piattaforma Rapido**: Con il pulsante `+` o dalle Impostazioni puoi creare istantaneamente un nuovo account WhatsApp o Telegram con icona e colore distintivo dedicato.
 - **Notifiche Sempre Attive in Background**: Anche se stai chattando su Telegram, WhatsApp continua a ricevere messaggi in tempo reale e genera notifiche Toast e Popup su schermo, e viceversa.
 
@@ -81,7 +90,7 @@ Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP):
 ### 🔔 Notifiche e System Tray
 - **Toast Windows & Popup Overlay**: Notifiche interattive che aprono direttamente la scheda dell'account e la conversazione di origine al click.
 - **Integrazione System Tray**: Riduzione nell'area di notifica con indicatore visivo per i messaggi non letti.
-- **Aggiornamenti OTA Automatici**: Controllo in background e download diretto delle nuove versioni da GitHub Releases.
+- **Aggiornamenti OTA Sicuri**: Controllo in background e download diretto delle nuove versioni da GitHub Releases con **verifica crittografica dell'integrità SHA-256**.
 
 ---
 
@@ -124,6 +133,7 @@ In alternativa, puoi aprire la soluzione `HidaChat.sln` con **Visual Studio 2022
 
 | Icona | Azione |
 | :---: | :--- |
+| 📊 | Apre l'Invio Massivo da Excel / CSV (messaggistica personalizzata automatizzata) |
 | ⚙️ | Apre la finestra Impostazioni (tema, lingua, gestione account, canale beta) |
 | 🔄 | Ricarica la scheda dell'account attivo |
 | ⓘ | Informazioni su HidaChat (versione, licenza, percorso portabile) |
