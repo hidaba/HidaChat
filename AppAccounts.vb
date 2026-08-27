@@ -137,8 +137,52 @@ Public Class AppAccounts
             If _hasNotification <> value Then
                 _hasNotification = value
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasNotification)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
             End If
         End Set
+    End Property
+
+    Private _unreadCount As Integer = 0
+    ''' <summary>Numero di messaggi o chat non lette rilevate nella piattaforma.</summary>
+    <JsonIgnore>
+    Public Property UnreadCount As Integer
+        Get
+            Return _unreadCount
+        End Get
+        Set(value As Integer)
+            Dim cleanVal = Math.Max(0, value)
+            If _unreadCount <> cleanVal Then
+                _unreadCount = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadCount)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
+            End If
+        End Set
+    End Property
+
+    ''' <summary>Indica se visualizzare il badge numerico o il pallino di notifica sulla scheda.</summary>
+    <JsonIgnore>
+    Public ReadOnly Property HasUnreadBadge As Boolean
+        Get
+            Return _unreadCount > 0 OrElse _hasNotification
+        End Get
+    End Property
+
+    ''' <summary>Testo formattato del badge (es. "1", "5", "99+" o "•").</summary>
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeText As String
+        Get
+            If _unreadCount > 99 Then
+                Return "99+"
+            ElseIf _unreadCount > 0 Then
+                Return _unreadCount.ToString()
+            ElseIf _hasNotification Then
+                Return "•"
+            Else
+                Return String.Empty
+            End If
+        End Get
     End Property
     
     ''' <summary>Token di sicurezza generato ad ogni sessione per validare i messaggi IPC provenienti dal JavaScript della WebView.</summary>
@@ -158,6 +202,7 @@ Public Class AppAccounts
     ' Event Handlers fortemente tipizzati per WebView2 (evita memory leak)
     Private _permissionRequestedHandler As EventHandler(Of CoreWebView2PermissionRequestedEventArgs)
     Private _newWindowRequestedHandler As EventHandler(Of CoreWebView2NewWindowRequestedEventArgs)
+    Private _navigationStartingHandler As EventHandler(Of CoreWebView2NavigationStartingEventArgs)
     Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
 
@@ -260,17 +305,43 @@ Public Class AppAccounts
             End If
             Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
 
+            _navigationStartingHandler = Sub(sender, e)
+                If String.IsNullOrEmpty(e.Uri) Then Return
+                If e.Uri.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
+                    e.Cancel = True
+                    Dim target = ResolveTelegramUrl(e.Uri)
+                    WebView.CoreWebView2.Navigate(target)
+                ElseIf IsTelegram AndAlso (e.Uri.StartsWith("https://t.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("http://t.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("https://telegram.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("http://telegram.me/", StringComparison.OrdinalIgnoreCase)) Then
+                    e.Cancel = True
+                    Dim target = ResolveTelegramUrl(e.Uri)
+                    WebView.CoreWebView2.Navigate(target)
+                End If
+            End Sub
+            AddHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
+
             _newWindowRequestedHandler = Sub(sender, e)
                 e.Handled = True
                 Try
-                    Dim uri = New Uri(e.Uri)
+                    Dim uriStr = e.Uri
+                    If uriStr.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
+                        If IsTelegram Then
+                            Dim target = ResolveTelegramUrl(uriStr)
+                            WebView.CoreWebView2.Navigate(target)
+                            Return
+                        End If
+                    End If
+
+                    Dim uri = New Uri(uriStr)
                     Dim host = uri.Host.ToLower()
                     If IsWhatsApp AndAlso (host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com")) Then
-                        WebView.CoreWebView2.Navigate(e.Uri)
+                        WebView.CoreWebView2.Navigate(uriStr)
                     ElseIf IsTelegram AndAlso (host = "web.telegram.org" OrElse host = "telegram.org" OrElse host.EndsWith(".telegram.org")) Then
-                        WebView.CoreWebView2.Navigate(e.Uri)
+                        WebView.CoreWebView2.Navigate(uriStr)
+                    ElseIf IsTelegram AndAlso (host = "t.me" OrElse host.EndsWith(".t.me") OrElse host = "telegram.me" OrElse host.EndsWith(".telegram.me")) Then
+                        Dim target = ResolveTelegramUrl(uriStr)
+                        WebView.CoreWebView2.Navigate(target)
                     Else
-                        System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(e.Uri) With {
+                        System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(uriStr) With {
                             .UseShellExecute = True
                         })
                     End If
@@ -420,18 +491,73 @@ Public Class AppAccounts
 
         ElseIf type = "NOTIFICATION_CLOSED" Then
             ActiveNotificationIds.Remove(notificationId)
-            HasNotification = (ActiveNotificationIds.Count > 0)
+            HasNotification = (UnreadCount > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
         ElseIf type = "UNREAD_COUNT_CHANGED" Then
-            Dim unreadCount As Integer = 0
+            Dim count As Integer = 0
             Dim unreadNode As JsonElement = Nothing
             If root.TryGetProperty("unreadCount", unreadNode) AndAlso unreadNode.ValueKind = JsonValueKind.Number Then
-                unreadCount = unreadNode.GetInt32()
+                count = unreadNode.GetInt32()
             End If
-            HasNotification = (unreadCount > 0 OrElse ActiveNotificationIds.Count > 0)
+            Me.UnreadCount = count
+            HasNotification = (count > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
         End If
         Return Task.CompletedTask
+    End Function
+
+    ''' <summary>
+    ''' Risolve un deep link Telegram (tg:// o https://t.me/) trasformandolo nel percorso appropriato per Telegram Web K.
+    ''' </summary>
+    Public Shared Function ResolveTelegramUrl(rawUri As String) As String
+        If String.IsNullOrWhiteSpace(rawUri) Then Return "https://web.telegram.org/k/"
+        Dim trimmed = rawUri.Trim()
+
+        ' 1. Gestione protocollo tg://
+        If trimmed.StartsWith("tg://", StringComparison.OrdinalIgnoreCase) Then
+            Dim lower = trimmed.ToLowerInvariant()
+            If lower.StartsWith("tg://resolve?") Then
+                Dim query = trimmed.Substring("tg://resolve?".Length)
+                Dim domainMatch = System.Text.RegularExpressions.Regex.Match(query, "(?:^|&)domain=([^&]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                Dim postMatch = System.Text.RegularExpressions.Regex.Match(query, "(?:^|&)post=([^&]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                If domainMatch.Success Then
+                    Dim domain = domainMatch.Groups(1).Value
+                    If postMatch.Success Then
+                        Return $"https://web.telegram.org/k/#@{domain}/{postMatch.Groups(1).Value}"
+                    Else
+                        Return $"https://web.telegram.org/k/#@{domain}"
+                    End If
+                End If
+                Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString(trimmed)
+            ElseIf lower.StartsWith("tg://join?") OrElse lower.StartsWith("tg://msg_url?") Then
+                Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString(trimmed)
+            Else
+                Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString(trimmed)
+            End If
+        End If
+
+        ' 2. Gestione link web https://t.me/ o https://telegram.me/
+        Try
+            Dim uriObj As New Uri(trimmed)
+            Dim host = uriObj.Host.ToLowerInvariant()
+            If host = "t.me" OrElse host.EndsWith(".t.me") OrElse host = "telegram.me" OrElse host.EndsWith(".telegram.me") Then
+                Dim path = uriObj.AbsolutePath.TrimStart("/"c)
+                If String.IsNullOrEmpty(path) Then Return "https://web.telegram.org/k/"
+                
+                If path.StartsWith("+") OrElse path.StartsWith("joinchat/", StringComparison.OrdinalIgnoreCase) Then
+                    Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString($"tg://join?invite={path.Replace("joinchat/", "").TrimStart("+"c)}")
+                ElseIf path.StartsWith("c/", StringComparison.OrdinalIgnoreCase) Then
+                    Return $"https://web.telegram.org/k/#{path}"
+                ElseIf path.StartsWith("s/", StringComparison.OrdinalIgnoreCase) Then
+                    Return $"https://web.telegram.org/k/#@{path.Substring(2)}"
+                Else
+                    Return $"https://web.telegram.org/k/#@{path}"
+                End If
+            End If
+        Catch
+        End Try
+
+        Return trimmed
     End Function
 
     ''' <summary>
@@ -570,6 +696,10 @@ Public Class AppAccounts
                 If _newWindowRequestedHandler IsNot Nothing Then
                     RemoveHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
                     _newWindowRequestedHandler = Nothing
+                End If
+                If _navigationStartingHandler IsNot Nothing Then
+                    RemoveHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
+                    _navigationStartingHandler = Nothing
                 End If
                 If _webMessageReceivedHandler IsNot Nothing Then
                     RemoveHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler

@@ -12,7 +12,8 @@
         AllowsTransparency="True"
         Background="Transparent"
         ResizeMode="CanResize"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
 
     <Window.Resources>
         <ResourceDictionary>
@@ -201,6 +202,23 @@
                                               Width="14" Height="14" Stretch="Uniform" 
                                               VerticalAlignment="Center" Margin="0,0,6,0"/>
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                        <Border x:Name="UnreadBadge"
+                                                Background="#e53935"
+                                                CornerRadius="7"
+                                                MinWidth="16"
+                                                Height="16"
+                                                Padding="4,0"
+                                                Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Center"
+                                                Visibility="Collapsed">
+                                            <TextBlock Text="{Binding UnreadBadgeText}"
+                                                       Foreground="#ffffff"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
                                     </StackPanel>
                                     <Button.ContextMenu>
                                         <ContextMenu>
@@ -208,6 +226,11 @@
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding HasUnreadBadge}" Value="True">
+                                        <Setter TargetName="UnreadBadge" Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

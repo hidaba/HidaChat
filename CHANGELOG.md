@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.1-beta] - 2026-08-27
+
+### Pre-release / Beta — Telegram Advanced Evolution & Desktop Shortcuts
+- **Badge Notifiche & Contatore Messaggi Non Letti Telegram e WhatsApp (TODO #41) (`Scripts/notification.js`, `AppAccounts.vb`, `MainWindow.xaml`)**:
+  - **Monitoraggio Ibrido in Tempo Reale**: Combinazione di `MutationObserver` sul titolo (`<title>`) e scansione periodica mirata del DOM per intercettare i badge non letti nativi di **Telegram Web K** (`.badge.unread`, `.unread-count`, `.chatlist-chat .badge`, `.dialog-subtitle .badge`) e **WhatsApp Web** (`[data-testid="unread-count"]`).
+  - **Badge Grafico sulle Schede Account**: Visualizzazione di una pillola badge rossa con contatore numerico (`"1"`, `"5"`, `"99+"`) o pallino di notifica (`"•"`) direttamente sopra l'etichetta dell'account.
+  - **Sincronizzazione Tray Icon**: Aggiornamento automatico e immediato dell'icona nella System Tray Windows con stato di notifica attiva (`icon_notification.ico`).
+- **Gestione Deep Link Telegram (`tg://` e `https://t.me/`) (TODO #41) (`AppAccounts.vb`)**:
+  - Intercettazione in `NavigationStarting` e `NewWindowRequested` di collegamenti con protocollo `tg://` (`tg://resolve?domain=...`, `tg://resolve?phone=...`, `tg://join?invite=...`, `tg://msg_url?...`) e link web `https://t.me/...` o `https://telegram.me/...`.
+  - Risoluzione e routing interno automatico verso l'interfaccia **Telegram Web K** (`https://web.telegram.org/k/#@...` / `https://web.telegram.org/k/#?tgaddr=...`), permettendo di aprire canali, gruppi e chat direttamente dentro HidaChat senza richiedere l'installazione di client esterni né generare errori di navigazione.
+- **Scorciatoie da Tastiera Globali per la Finestra (TODO #41) (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - `Ctrl + 1`, `Ctrl + 2`, `Ctrl + 3` (e tastierino numerico): switch istantaneo all'Account 1, 2 o 3.
+  - `Ctrl + Tab`: passaggio circolare alla scheda successiva.
+  - `Ctrl + Shift + Tab`: passaggio circolare alla scheda precedente.
+  - `Ctrl + T` / `Ctrl + N`: aggiunta rapida di un nuovo account (se limite consentito).
+  - `Ctrl + R` / `F5`: ricarica della scheda/piattaforma attiva.
+  - `Ctrl + ,` (Virgola): apertura rapida delle Impostazioni.
+  - `Ctrl + B` / `Ctrl + E`: apertura immediata della finestra di Invio Massivo (Bulk Sender).
+  - `F1` / `Ctrl + Shift + A`: apertura della finestra Informazioni (About).
+
 ## [0.7.0] - 2026-08-26
 
 ### Stable Release - Multi-Platform Bulk Sender, Security & Performance Hardening

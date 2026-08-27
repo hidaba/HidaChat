@@ -122,35 +122,91 @@
     };
   }
 
-  // Monitoraggio titolo pagina per rilevamento badge/conteggio non letti
-  let lastUnreadCount = 0;
-  function initTitleObserver() {
-    const titleEl = document.querySelector('title');
-    if (!titleEl) return;
-    const titleObserver = new MutationObserver(function() {
-      const title = document.title || '';
-      const match = title.match(/^\((\d+)\)/);
-      const count = match ? parseInt(match[1], 10) : 0;
-      if (count !== lastUnreadCount) {
-        lastUnreadCount = count;
-        try {
-          window.chrome.webview.postMessage({
-            channel: 'NotificationChannel',
-            type: 'UNREAD_COUNT_CHANGED',
-            unreadCount: count,
-            title: title,
-            bridgeToken: __bridgeToken
-          });
-        } catch(e) {}
+  // Monitoraggio unread count combinato (Title Observer + DOM Badge Scanner)
+  let lastReportedUnreadCount = -1;
+  let updateDebounceTimer = null;
+
+  function scanDomUnreadCount() {
+    let count = 0;
+    try {
+      // 1. Selettori Telegram Web K / Z / A
+      const tgBadges = document.querySelectorAll('.badge.unread, .unread-count, .chatlist-chat .badge, .dialog-subtitle .badge, .chat-badge, .sidebar-header .badge');
+      if (tgBadges && tgBadges.length > 0) {
+        tgBadges.forEach(el => {
+          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
+          if (txt) {
+            const num = parseInt(txt, 10);
+            if (!isNaN(num) && num > 0) count += num;
+          } else {
+            count += 1; // Pallino di notifica senza numero esplicito
+          }
+        });
       }
-    });
-    titleObserver.observe(titleEl, { subtree: true, characterData: true, childList: true });
+
+      // 2. Selettori WhatsApp Web
+      const waBadges = document.querySelectorAll('[data-testid="unread-count"], span[aria-label*="unread"], span[aria-label*="non letto"], span[aria-label*="non letti"]');
+      if (waBadges && waBadges.length > 0) {
+        waBadges.forEach(el => {
+          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
+          if (txt) {
+            const num = parseInt(txt, 10);
+            if (!isNaN(num) && num > 0) count += num;
+          }
+        });
+      }
+    } catch(e) {}
+    return count;
+  }
+
+  function checkAndNotifyUnreadCount() {
+    const title = document.title || '';
+    const titleMatch = title.match(/^\((\d+)\)/);
+    const titleCount = titleMatch ? parseInt(titleMatch[1], 10) : 0;
+    const domCount = scanDomUnreadCount();
+
+    // Preferisci il massimo tra il titolo e i badge DOM
+    const effectiveCount = Math.max(titleCount, domCount);
+
+    if (effectiveCount !== lastReportedUnreadCount) {
+      lastReportedUnreadCount = effectiveCount;
+      try {
+        window.chrome.webview.postMessage({
+          channel: 'NotificationChannel',
+          type: 'UNREAD_COUNT_CHANGED',
+          unreadCount: effectiveCount,
+          title: title,
+          bridgeToken: __bridgeToken
+        });
+      } catch(e) {}
+    }
+  }
+
+  function scheduleUnreadCheck() {
+    if (updateDebounceTimer) clearTimeout(updateDebounceTimer);
+    updateDebounceTimer = setTimeout(checkAndNotifyUnreadCount, 400);
+  }
+
+  function initUnreadMonitoring() {
+    const titleEl = document.querySelector('title');
+    if (titleEl) {
+      const titleObserver = new MutationObserver(scheduleUnreadCheck);
+      titleObserver.observe(titleEl, { subtree: true, characterData: true, childList: true });
+    }
+
+    if (document.body) {
+      const bodyObserver = new MutationObserver(scheduleUnreadCheck);
+      bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: false });
+    }
+
+    // Polling di controllo periodico a basso consumo (ogni 3 secondi)
+    setInterval(checkAndNotifyUnreadCount, 3000);
+    checkAndNotifyUnreadCount();
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initTitleObserver);
+    document.addEventListener('DOMContentLoaded', initUnreadMonitoring);
   } else {
-    initTitleObserver();
+    initUnreadMonitoring();
   }
 
   window.onNotificationClicked = function(id) {

@@ -777,6 +777,89 @@ Public Class MainWindow
         End Sub
     End Sub
 
+    ''' <summary>
+    ''' Gestisce le scorciatoie da tastiera globali per la finestra (switch account, ricarica, impostazioni, invio massivo).
+    ''' </summary>
+    Private Async Sub MainWindow_PreviewKeyDown(sender As Object, e As KeyEventArgs)
+        Dim isCtrl = (Keyboard.Modifiers And ModifierKeys.Control) = ModifierKeys.Control
+        Dim isShift = (Keyboard.Modifiers And ModifierKeys.Shift) = ModifierKeys.Shift
+        Dim isAlt = (Keyboard.Modifiers And ModifierKeys.Alt) = ModifierKeys.Alt
+
+        ' 1. Switch rapido account numerico (Ctrl+1, Ctrl+2, Ctrl+3 e NumPad1..3)
+        If isCtrl AndAlso Not isShift AndAlso Not isAlt Then
+            Dim targetIndex As Integer = -1
+            If e.Key = Key.D1 OrElse e.Key = Key.NumPad1 Then
+                targetIndex = 0
+            ElseIf e.Key = Key.D2 OrElse e.Key = Key.NumPad2 Then
+                targetIndex = 1
+            ElseIf e.Key = Key.D3 OrElse e.Key = Key.NumPad3 Then
+                targetIndex = 2
+            End If
+
+            If targetIndex >= 0 AndAlso _accountManager.Accounts IsNot Nothing AndAlso targetIndex < _accountManager.Accounts.Count Then
+                e.Handled = True
+                Dim targetAcc = _accountManager.Accounts(targetIndex)
+                Await SwitchToAccountAsync(targetAcc.Id)
+                Return
+            End If
+        End If
+
+        ' 2. Switch circolare schede (Ctrl+Tab per avanti, Ctrl+Shift+Tab per indietro)
+        If isCtrl AndAlso e.Key = Key.Tab Then
+            If _accountManager.Accounts IsNot Nothing AndAlso _accountManager.Accounts.Count > 1 Then
+                e.Handled = True
+                Dim currentIndex = _accountManager.Accounts.IndexOf(_accountManager.CurrentAccount)
+                If currentIndex < 0 Then currentIndex = 0
+                Dim nextIndex As Integer
+                If isShift Then
+                    nextIndex = (currentIndex - 1 + _accountManager.Accounts.Count) Mod _accountManager.Accounts.Count
+                Else
+                    nextIndex = (currentIndex + 1) Mod _accountManager.Accounts.Count
+                End If
+                Dim targetAcc = _accountManager.Accounts(nextIndex)
+                Await SwitchToAccountAsync(targetAcc.Id)
+                Return
+            End If
+        End If
+
+        ' 3. Scorciatoia aggiunta nuovo account (Ctrl+T o Ctrl+N)
+        If isCtrl AndAlso Not isShift AndAlso Not isAlt AndAlso (e.Key = Key.T OrElse e.Key = Key.N) Then
+            If _accountManager.CanAddAccount Then
+                e.Handled = True
+                BtnAddAccount_Click(BtnAddAccount, New RoutedEventArgs())
+                Return
+            End If
+        End If
+
+        ' 4. Ricarica scheda attiva (Ctrl+R o F5)
+        If (isCtrl AndAlso e.Key = Key.R) OrElse (e.Key = Key.F5) Then
+            e.Handled = True
+            BtnReloadActiveTab_Click(BtnReloadActiveTab, New RoutedEventArgs())
+            Return
+        End If
+
+        ' 5. Apertura Impostazioni (Ctrl + , virgola)
+        If isCtrl AndAlso Not isShift AndAlso Not isAlt AndAlso (e.Key = Key.OemComma OrElse e.Key = Key.OemPeriod) Then
+            e.Handled = True
+            BtnSettings_Click(BtnSettings, New RoutedEventArgs())
+            Return
+        End If
+
+        ' 6. Apertura Invio Massivo (Ctrl + B o Ctrl + E)
+        If isCtrl AndAlso Not isShift AndAlso Not isAlt AndAlso (e.Key = Key.B OrElse e.Key = Key.E) Then
+            e.Handled = True
+            BtnBulkSender_Click(BtnBulkSender, New RoutedEventArgs())
+            Return
+        End If
+
+        ' 7. Apertura About (F1 o Ctrl+Shift+A)
+        If e.Key = Key.F1 OrElse (isCtrl AndAlso isShift AndAlso e.Key = Key.A) Then
+            e.Handled = True
+            OpenAboutWindow()
+            Return
+        End If
+    End Sub
+
 End Class
 
 
