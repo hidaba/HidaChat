@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.2-beta] - 2026-08-28
+
+### Pre-release / Beta — Online Contact Indicator & Custom CSS Injector
+- **Indicatore di Stato "Online" e "Sta scrivendo..." dei Contatti (TODO #42) (`Scripts/notification.js`, `AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - **Rilevamento Continuo in Tempo Reale**: Intercettazione automatica dello stato del contatto aperto nella chat attiva tramite `MutationObserver` e scansione periodica del DOM sia per **WhatsApp Web** (`#main header`, `[data-testid="conversation-header"]`, `span[title]`) che per **Telegram Web K** (`.chat-info .person-status`, `.chat-info .status`, `.topbar .status`, `.chat-subtitle`).
+  - **Badge Dinamico nella TitleBar**: Indicatore visivo elegante nella barra del titolo (`OnlineIndicatorBorder`) con pallino colorato (`#25d366` per WhatsApp, `#24A1DE` per Telegram) e dicitura di stato (es. *"in linea"*, *"online"*, *"sta scrivendo..."*, *"typing..."*).
+  - **Indicatore Grafico sulle Schede Account**: Pallino verde (`TabOnlineDot`) visualizzato sulla scheda dell'account quando il contatto corrente è attivo.
+  - **Sincronizzazione Multi-Account**: Aggiornamento automatico e immediato al passaggio tra schede e al cambio di chat.
+- **Supporto Completo a Temi CSS Personalizzati Utente (TODO #43) (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `SettingsController.vb`, `JsScripts.vb`, `AppAccounts.vb`)**:
+  - **Editor CSS Monospace nelle Impostazioni**: Nuova sezione dedicata nelle *Impostazioni* con editor multiriga (`TxtCustomCss`) a spaziatura fissa (Consolas / Cascadia Mono), evidenziazione bordi e scrollbar per inserire regole CSS personalizzate per WhatsApp e Telegram Web.
+  - **Pulsanti Preset Rapidi Integrati**: Inserimento con un click di configurazioni stilistiche popolari:
+    - *OLED Nero Puro*: Sfondo nero assoluto (`#000000`) per display AMOLED/OLED a risparmio energetico.
+    - *Layout Compatto*: Riduzione larghezza sidebar e padding elementi chat.
+    - *Font Moderno*: Tipografia moderna pulita (`Segoe UI Variable Display` / system fonts).
+    - *Svuota*: Reset immediato del campo di testo.
+  - **Iniezione Dinamica in Tempo Reale**: Applicazione istantanea delle modifiche CSS a tutti i controlli WebView2 attivi senza dover riavviare l'applicazione o ricaricare la pagina (`hidachat-custom-user-css`).
+  - **Persistenza & Supporto Multilingua**: Salvataggio automatico in `settings.json` con localizzazione completa in Italiano ed Inglese in `Localization.vb`.
+
 ## [0.7.1-beta] - 2026-08-27
 
 ### Pre-release / Beta — Telegram Advanced Evolution & Desktop Shortcuts

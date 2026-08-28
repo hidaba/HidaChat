@@ -52,6 +52,10 @@ Public Class SettingsWindow
             ' 4. Imposta lo stato della Checkbox Canale Beta
             ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
 
+            ' 4b. Imposta lo stato e il testo del CSS personalizzato (TODO #43)
+            ChkEnableCustomCss.IsChecked = _settingsController.EnableCustomCss
+            TxtCustomCss.Text = If(_settingsController.CustomCss, String.Empty)
+
             ' 5. Collega l'elenco degli account
             AccountsList.ItemsSource = _accountManager.Accounts
 
@@ -323,6 +327,63 @@ Public Class SettingsWindow
         Await _settingsController.SaveSettingAsync("useBetaChannel", chk.IsChecked.Value)
     End Sub
 
+    ' --- Gestori eventi Custom CSS (TODO #43) ---
+    Private Async Sub ChkEnableCustomCss_Changed(sender As Object, e As RoutedEventArgs)
+        If _isInitializing Then Return
+        Dim enabled = ChkEnableCustomCss.IsChecked.GetValueOrDefault(False)
+        Await _settingsController.SaveCustomCssAsync(enabled, TxtCustomCss.Text)
+        For Each acc In _accountManager.Accounts
+            Await acc.ApplyCustomCssAsync(_settingsController.CustomCss, enabled)
+        Next
+    End Sub
+
+    Private Async Sub BtnApplyCustomCss_Click(sender As Object, e As RoutedEventArgs)
+        Dim enabled = ChkEnableCustomCss.IsChecked.GetValueOrDefault(False)
+        Dim css = TxtCustomCss.Text
+        Await _settingsController.SaveCustomCssAsync(enabled, css)
+        For Each acc In _accountManager.Accounts
+            Await acc.ApplyCustomCssAsync(css, enabled)
+        Next
+        Dim loc = _settingsController.Localizations
+        BtnApplyCustomCss.Content = "✔ " & loc.Get("css_applied")
+        Await Task.Delay(1500)
+        BtnApplyCustomCss.Content = loc.Get("apply_css")
+    End Sub
+
+    Private Sub BtnPresetOled_Click(sender As Object, e As RoutedEventArgs)
+        TxtCustomCss.Text = "/* OLED Pure Dark Theme */" & vbCrLf &
+                            "body, #app, ._aigv, .two, #main, #side {" & vbCrLf &
+                            "  background-color: #000000 !important;" & vbCrLf &
+                            "}" & vbCrLf &
+                            "._ajyl, ._amj9, .message-in, .message-out {" & vbCrLf &
+                            "  background-color: #0d0d0d !important;" & vbCrLf &
+                            "}"
+        ChkEnableCustomCss.IsChecked = True
+    End Sub
+
+    Private Sub BtnPresetCompact_Click(sender As Object, e As RoutedEventArgs)
+        TxtCustomCss.Text = "/* Compact UI Layout */" & vbCrLf &
+                            "#side, .chatlist-chat, .sidebar-header {" & vbCrLf &
+                            "  max-width: 320px !important;" & vbCrLf &
+                            "}" & vbCrLf &
+                            "._amjv, .chat-item {" & vbCrLf &
+                            "  padding: 4px !important;" & vbCrLf &
+                            "}"
+        ChkEnableCustomCss.IsChecked = True
+    End Sub
+
+    Private Sub BtnPresetFont_Click(sender As Object, e As RoutedEventArgs)
+        TxtCustomCss.Text = "/* Modern Clean Typography */" & vbCrLf &
+                            "* {" & vbCrLf &
+                            "  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif !important;" & vbCrLf &
+                            "}"
+        ChkEnableCustomCss.IsChecked = True
+    End Sub
+
+    Private Sub BtnPresetReset_Click(sender As Object, e As RoutedEventArgs)
+        TxtCustomCss.Text = ""
+    End Sub
+
     ''' <summary>
     ''' Aggiorna tutti i testi delle etichette della finestra in base alle traduzioni correnti.
     ''' </summary>
@@ -339,6 +400,13 @@ Public Class SettingsWindow
         SectionNotifications.Text = loc.Get("notifications")
         ChkShowMessagePopup.Content = loc.Get("show_message_popup")
         SectionAccounts.Text = loc.Get("manage_accounts")
+        SectionCustomCss.Text = loc.Get("custom_css")
+        ChkEnableCustomCss.Content = loc.Get("enable_custom_css")
+        BtnApplyCustomCss.Content = loc.Get("apply_css")
+        BtnPresetOled.Content = loc.Get("css_preset_oled")
+        BtnPresetCompact.Content = loc.Get("css_preset_compact")
+        BtnPresetFont.Content = loc.Get("css_preset_font")
+        BtnPresetReset.Content = loc.Get("css_preset_reset")
         SectionUpdates.Text = loc.Get("updates")
         ChkUseBetaChannel.Content = loc.Get("use_beta_channel")
         SectionDevTools.Text = loc.Get("devtools")
@@ -379,6 +447,14 @@ Public Class SettingsWindow
                 txt.Foreground = fgBrush
             End If
         Next
+
+        If CustomCssBorder IsNot Nothing Then
+            CustomCssBorder.Background = BrushCache.GetBrush(If(isDark, "#111b21", "#f0f2f5"))
+            CustomCssBorder.BorderBrush = BrushCache.GetBrush(If(isDark, "#00a884", "#00a884"))
+        End If
+        If TxtCustomCss IsNot Nothing Then
+            TxtCustomCss.Foreground = BrushCache.GetBrush(If(isDark, "#25d366", "#008069"))
+        End If
 
         StyleAccountItems(isDark)
     End Sub

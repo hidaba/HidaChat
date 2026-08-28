@@ -219,14 +219,14 @@
 
 # NUOVE FUNZIONALITÀ & IDEE (Ispirate da Altus e Client Desktop Moderni)
 
-## 42. Indicatore Stato "Online" dei Contatti (Online Indicator)
+## ~~42. Indicatore Stato "Online" dei Contatti (Online Indicator)~~ ✅
 - **Descrizione**: Intercettare tramite uno script JavaScript iniettato (`MutationObserver` su intestazione chat) quando il contatto o la chat attualmente aperta è "online" (es. rilevando la dicitura `online` / `in linea` o elementi di stato nel DOM della conversazione attiva sia su WhatsApp Web che su Telegram Web).
-- **Integrazione UI**: Mostrare un indicatore visivo (es. pallino verde animato o dicitura di stato) nella barra superiore dell'applicazione o accanto al nome della scheda.
+- **Integrazione UI**: Visualizzazione di un badge elegante animato nella `TitleBar` (`OnlineIndicatorBorder`) e pallino verde sulla scheda account attiva per WhatsApp e Telegram Web.
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 43. Supporto a Temi CSS Personalizzati Utente (Custom CSS Injector)
-- **Descrizione**: Aggiungere una sezione nelle **Impostazioni** che permetta all'utente di scrivere o incollare regole CSS personalizzate per personalizzare liberamente l'aspetto di WhatsApp Web o Telegram Web (font, colori delle bolle dei messaggi, larghezza sidebar, sfondo chat, trasparenze).
-- **Implementazione**: Salvare il CSS utente in `settings.json` o file `data/custom_styles.css` e iniettarlo automaticamente al caricamento del documento tramite `AddScriptToExecuteOnDocumentCreatedAsync`.
+## ~~43. Supporto a Temi CSS Personalizzati Utente (Custom CSS Injector)~~ ✅
+- **Descrizione**: Sezione dedicata nelle **Impostazioni** per inserire e modificare regole CSS personalizzate per WhatsApp Web e Telegram Web (font, colori delle bolle dei messaggi, larghezza sidebar, sfondo chat, trasparenze, tema OLED).
+- **Funzionalità Implementate**: Editor monospace con scrollbar, checkbox di attivazione immediata, persistenza in `settings.json`, pulsanti preset rapidi (*OLED*, *Compatto*, *Font*, *Svuota*) e iniezione live sincrona su tutte le WebView2 tramite bridge IPC.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
 ## 44. Correttore Ortografico Nativo Multilingua (Spellchecker WebView2)

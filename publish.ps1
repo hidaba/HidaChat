@@ -133,12 +133,17 @@ Write-Host "Generated SHA-256 Checksum: $fileHash"
 # --- Git Commit & Push ---
 if (-not $SkipGitHub) {
     Write-Host "Committing and pushing source code changes to GitHub..."
-    git add -A
-    $gitStatus = git status --porcelain
-    if ($gitStatus) {
-        $commitMsg = "v$newVersion - Release $(if ($isBetaRelease) { 'Beta' } else { 'Stabile' })"
-        git commit -m $commitMsg
-        git push origin master
+    Push-Location $PSScriptRoot
+    try {
+        git add -A
+        $gitStatus = git status --porcelain
+        if ($gitStatus) {
+            $commitMsg = "v$newVersion - Release $(if ($isBetaRelease) { 'Beta' } else { 'Stabile' })"
+            git commit -m $commitMsg
+            git push origin master
+        }
+    } finally {
+        Pop-Location
     }
 }
 

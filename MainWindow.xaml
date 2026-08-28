@@ -131,6 +131,20 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
                     <Image Source="images/icon.ico" Width="20" Height="20" Margin="0,0,10,0"/>
                     <TextBlock x:Name="TitleText" Text="HidaChat" Foreground="#e9edef" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+
+                    <!-- Online Contact Indicator (TODO #42) -->
+                    <Border x:Name="OnlineIndicatorBorder" 
+                            Background="#1b3d2f" 
+                            CornerRadius="10" 
+                            Padding="8,3" 
+                            Margin="12,0,0,0" 
+                            VerticalAlignment="Center" 
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="OnlineDot" Width="7" Height="7" Fill="#25d366" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="OnlineStatusText" Text="in linea" Foreground="#25d366" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Quick actions and window controls -->
@@ -202,6 +216,7 @@
                                               Width="14" Height="14" Stretch="Uniform" 
                                               VerticalAlignment="Center" Margin="0,0,6,0"/>
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                        <Ellipse x:Name="TabOnlineDot" Width="6" Height="6" Fill="#25d366" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
                                         <Border x:Name="UnreadBadge"
                                                 Background="#e53935"
                                                 CornerRadius="7"
@@ -229,6 +244,9 @@
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding HasUnreadBadge}" Value="True">
                                         <Setter TargetName="UnreadBadge" Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsContactOnline}" Value="True">
+                                        <Setter TargetName="TabOnlineDot" Property="Visibility" Value="Visible"/>
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>

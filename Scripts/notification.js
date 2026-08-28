@@ -181,32 +181,99 @@
     }
   }
 
-  function scheduleUnreadCheck() {
-    if (updateDebounceTimer) clearTimeout(updateDebounceTimer);
-    updateDebounceTimer = setTimeout(checkAndNotifyUnreadCount, 400);
+
+
+  // Monitoraggio stato "Online" / "In linea" / "Sta scrivendo..." del contatto attivo (TODO #42)
+  let lastReportedOnline = null;
+  let lastReportedStatusText = '';
+
+  function scanOnlineStatus() {
+    try {
+      // 1. WhatsApp Web: #main header o [data-testid="conversation-header"]
+      const waHeader = document.querySelector('#main header, [data-testid="conversation-header"]');
+      if (waHeader) {
+        const subSpans = waHeader.querySelectorAll('span[title], span[dir="auto"], span');
+        for (let i = 0; i < subSpans.length; i++) {
+          const span = subSpans[i];
+          const text = (span.textContent || '').trim().toLowerCase();
+          const title = (span.getAttribute('title') || '').trim().toLowerCase();
+          
+          if (text === 'online' || text === 'in linea' || text === 'en línea' || text === 'en ligne' || text === 'conectado' ||
+              title === 'online' || title === 'in linea' || title === 'en línea' || title === 'en ligne' || title === 'conectado') {
+            return { isOnline: true, statusText: span.textContent.trim() || 'in linea' };
+          }
+          if (text.includes('sta scrivendo') || text.includes('typing') || text.includes('escribiendo') || text.includes('scrive...') || text.includes('registra audio') || text.includes('recording audio')) {
+            return { isOnline: true, statusText: span.textContent.trim() || 'sta scrivendo...' };
+          }
+        }
+      }
+
+      // 2. Telegram Web K / Z / A
+      const tgStatus = document.querySelector('.chat-info .person-status, .chat-info .status, .topbar .status, .chat-subtitle, .chat-info-status');
+      if (tgStatus) {
+        const text = (tgStatus.textContent || '').trim().toLowerCase();
+        if (text === 'online' || text === 'in linea' || text === 'en ligne' || text === 'en línea' || tgStatus.classList.contains('online')) {
+          return { isOnline: true, statusText: tgStatus.textContent.trim() || 'online' };
+        }
+        if (text.includes('typing') || text.includes('sta scrivendo') || text.includes('scrive') || tgStatus.classList.contains('typing')) {
+          return { isOnline: true, statusText: tgStatus.textContent.trim() || 'typing...' };
+        }
+      }
+    } catch(e) {}
+    return { isOnline: false, statusText: '' };
   }
 
-  function initUnreadMonitoring() {
+  function checkAndNotifyOnlineStatus() {
+    const res = scanOnlineStatus();
+    if (res.isOnline !== lastReportedOnline || (res.isOnline && res.statusText !== lastReportedStatusText)) {
+      lastReportedOnline = res.isOnline;
+      lastReportedStatusText = res.statusText;
+      try {
+        window.chrome.webview.postMessage({
+          channel: 'NotificationChannel',
+          type: 'ONLINE_STATUS_CHANGED',
+          isOnline: res.isOnline,
+          statusText: res.statusText,
+          bridgeToken: __bridgeToken
+        });
+      } catch(e) {}
+    }
+  }
+
+  function scheduleAllChecks() {
+    if (updateDebounceTimer) clearTimeout(updateDebounceTimer);
+    updateDebounceTimer = setTimeout(function() {
+      checkAndNotifyUnreadCount();
+      checkAndNotifyOnlineStatus();
+    }, 400);
+  }
+
+  function initMonitoring() {
     const titleEl = document.querySelector('title');
     if (titleEl) {
-      const titleObserver = new MutationObserver(scheduleUnreadCheck);
+      const titleObserver = new MutationObserver(scheduleAllChecks);
       titleObserver.observe(titleEl, { subtree: true, characterData: true, childList: true });
     }
 
     if (document.body) {
-      const bodyObserver = new MutationObserver(scheduleUnreadCheck);
+      const bodyObserver = new MutationObserver(scheduleAllChecks);
       bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: false });
     }
 
-    // Polling di controllo periodico a basso consumo (ogni 3 secondi)
-    setInterval(checkAndNotifyUnreadCount, 3000);
+    // Polling periodico per notifiche e stato online
+    setInterval(function() {
+      checkAndNotifyUnreadCount();
+      checkAndNotifyOnlineStatus();
+    }, 2000);
+
     checkAndNotifyUnreadCount();
+    checkAndNotifyOnlineStatus();
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initUnreadMonitoring);
+    document.addEventListener('DOMContentLoaded', initMonitoring);
   } else {
-    initUnreadMonitoring();
+    initMonitoring();
   }
 
   window.onNotificationClicked = function(id) {

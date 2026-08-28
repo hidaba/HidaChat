@@ -149,6 +149,7 @@ Public Class MainWindow
         ' 6. Collega l'elenco account alla barra delle schede orizzontale
         AccountsList.ItemsSource = _accountManager.Accounts
         UpdateAddAccountButtonState()
+        HookAccountEvents()
         
         ' 7. Istanzia e configura i controlli WebView2 per gli account
         PopulateWebViews()
@@ -163,6 +164,7 @@ Public Class MainWindow
         ' 10. Verifica in background la disponibilità di aggiornamenti all'avvio
         Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
         
+        UpdateOnlineIndicator()
         VersionText.Text = "v" & Constants.AppVersion
     End Sub
 
@@ -519,6 +521,8 @@ Public Class MainWindow
             newAccount.WebView.UpdateLayout()
             newAccount.WebView.Focus()
         End If
+
+        UpdateOnlineIndicator()
     End Function
 
     ''' <summary>
@@ -679,6 +683,12 @@ Public Class MainWindow
     Private Async Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(SettingsController.Theme) Then
             Await ApplyWpfThemeAsync()
+        ElseIf e.PropertyName = NameOf(SettingsController.EnableCustomCss) OrElse e.PropertyName = NameOf(SettingsController.CustomCss) Then
+            For Each acc In _accountManager.Accounts
+                Await acc.ApplyCustomCssAsync(_settingsController.CustomCss, _settingsController.EnableCustomCss)
+            Next
+        ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
+            UpdateOnlineIndicator()
         End If
     End Sub
 
@@ -687,6 +697,56 @@ Public Class MainWindow
             UpdateTrayIconImage()
         ElseIf e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse e.PropertyName = NameOf(AccountManager.Accounts) Then
             UpdateAddAccountButtonState()
+            HookAccountEvents()
+            UpdateOnlineIndicator()
+        ElseIf e.PropertyName = NameOf(AccountManager.CurrentAccount) Then
+            UpdateOnlineIndicator()
+        End If
+    End Sub
+
+    Private Sub HookAccountEvents()
+        If _accountManager?.Accounts IsNot Nothing Then
+            For Each acc In _accountManager.Accounts
+                RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
+                AddHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
+            Next
+        End If
+    End Sub
+
+    Private Sub OnAccountPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+        If e.PropertyName = NameOf(AppAccounts.IsContactOnline) OrElse
+           e.PropertyName = NameOf(AppAccounts.ContactOnlineStatusText) OrElse
+           e.PropertyName = NameOf(AppAccounts.OnlineStatusDisplay) Then
+            Dim acc = TryCast(sender, AppAccounts)
+            If acc IsNot Nothing AndAlso _accountManager?.CurrentAccount IsNot Nothing AndAlso acc.Id = _accountManager.CurrentAccount.Id Then
+                UpdateOnlineIndicator()
+            End If
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Aggiorna la visibilità e il testo dell'indicatore di stato "Online" / "In linea" per il contatto attualmente aperto (TODO #42).
+    ''' </summary>
+    Private Sub UpdateOnlineIndicator()
+        Dim current = _accountManager?.CurrentAccount
+        If current IsNot Nothing AndAlso current.IsContactOnline Then
+            Dim status = current.OnlineStatusDisplay
+            If String.IsNullOrWhiteSpace(status) Then
+                status = _settingsController.Localizations.Get("contact_online")
+            End If
+            OnlineStatusText.Text = status
+            If current.IsTelegram Then
+                OnlineIndicatorBorder.Background = BrushCache.GetBrush("#152d3d")
+                OnlineDot.Fill = BrushCache.GetBrush("#24A1DE")
+                OnlineStatusText.Foreground = BrushCache.GetBrush("#24A1DE")
+            Else
+                OnlineIndicatorBorder.Background = BrushCache.GetBrush("#1b3d2f")
+                OnlineDot.Fill = BrushCache.GetBrush("#25d366")
+                OnlineStatusText.Foreground = BrushCache.GetBrush("#25d366")
+            End If
+            OnlineIndicatorBorder.Visibility = Visibility.Visible
+        Else
+            OnlineIndicatorBorder.Visibility = Visibility.Collapsed
         End If
     End Sub
 

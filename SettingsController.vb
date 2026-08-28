@@ -159,6 +159,35 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Temi CSS Personalizzati (TODO #43) ---
+    Private _enableCustomCss As Boolean = False
+    ''' <summary>Indica se abilitare l'iniezione delle regole CSS personalizzate dell'utente.</summary>
+    Public Property EnableCustomCss As Boolean
+        Get
+            Return _enableCustomCss
+        End Get
+        Set(value As Boolean)
+            If _enableCustomCss <> value Then
+                _enableCustomCss = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
+    Private _customCss As String = ""
+    ''' <summary>Regole CSS personalizzate inserite dall'utente.</summary>
+    Public Property CustomCss As String
+        Get
+            Return _customCss
+        End Get
+        Set(value As String)
+            If _customCss <> value Then
+                _customCss = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
     Private _language As String = "en"
     ''' <summary>Codice della lingua attualmente selezionata dall'utente (es. "en", "it").</summary>
     Public Property Language As String
@@ -336,6 +365,13 @@ Public Class SettingsController
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)
         _showMessagePopup = GetBoolSetting(settings, "showMessagePopup", True)
+        _enableCustomCss = GetBoolSetting(settings, "enableCustomCss", False)
+
+        If settings.ContainsKey("customCss") Then
+            _customCss = settings("customCss").ToString()
+        Else
+            _customCss = ""
+        End If
         
         If settings.ContainsKey("language") Then
             _language = settings("language").ToString()
@@ -392,6 +428,19 @@ Public Class SettingsController
     Public Async Function SaveSettingAsync(key As String, value As Object) As Task
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings(key) = value
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e persiste le impostazioni del CSS personalizzato (TODO #43).</summary>
+    Public Async Function SaveCustomCssAsync(enabled As Boolean, css As String) As Task
+        _enableCustomCss = enabled
+        _customCss = If(css, String.Empty)
+        NotifyPropertyChanged(NameOf(EnableCustomCss))
+        NotifyPropertyChanged(NameOf(CustomCss))
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("enableCustomCss") = enabled
+        _cachedSettings("customCss") = _customCss
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

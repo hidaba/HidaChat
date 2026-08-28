@@ -184,6 +184,51 @@ Public Class AppAccounts
             End If
         End Get
     End Property
+
+    Private _isContactOnline As Boolean = False
+    ''' <summary>Indica se il contatto della chat attualmente aperta nella sessione è in linea o sta scrivendo (TODO #42).</summary>
+    <JsonIgnore>
+    Public Property IsContactOnline As Boolean
+        Get
+            Return _isContactOnline
+        End Get
+        Set(value As Boolean)
+            If _isContactOnline <> value Then
+                _isContactOnline = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsContactOnline)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
+            End If
+        End Set
+    End Property
+
+    Private _contactOnlineStatusText As String = ""
+    ''' <summary>Testo descrittivo dello stato del contatto (es. "in linea", "online", "sta scrivendo...").</summary>
+    <JsonIgnore>
+    Public Property ContactOnlineStatusText As String
+        Get
+            Return _contactOnlineStatusText
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, String.Empty).Trim()
+            If _contactOnlineStatusText <> cleanVal Then
+                _contactOnlineStatusText = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ContactOnlineStatusText)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
+            End If
+        End Set
+    End Property
+
+    ''' <summary>Etichetta formattata per la visualizzazione dello stato online nella UI.</summary>
+    <JsonIgnore>
+    Public ReadOnly Property OnlineStatusDisplay As String
+        Get
+            If Not _isContactOnline Then Return String.Empty
+            If Not String.IsNullOrWhiteSpace(_contactOnlineStatusText) Then
+                Return _contactOnlineStatusText
+            End If
+            Return "in linea"
+        End Get
+    End Property
     
     ''' <summary>Token di sicurezza generato ad ogni sessione per validare i messaggi IPC provenienti dal JavaScript della WebView.</summary>
     <JsonIgnore>
@@ -395,6 +440,9 @@ Public Class AppAccounts
                         settings.FullPageTranslation
                     )
                     Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
+
+                    ' Iniezione CSS personalizzato utente (TODO #43)
+                    Await ApplyCustomCssAsync(settings.CustomCss, settings.EnableCustomCss)
                 End If
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
@@ -404,6 +452,20 @@ Public Class AppAccounts
         Catch ex As Exception
             Debug.WriteLine($"Error configuring WebView2 for account {Id}: {ex.Message}")
         End Try
+    End Function
+
+    ''' <summary>
+    ''' Inietta o aggiorna le regole CSS personalizzate dell'utente all'interno della WebView2 (TODO #43).
+    ''' </summary>
+    Public Async Function ApplyCustomCssAsync(cssText As String, enabled As Boolean) As Task
+        If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
+            Try
+                Dim script = ThemeJsScripts.GetCustomCssJS(cssText, enabled)
+                Await WebView.CoreWebView2.ExecuteScriptAsync(script)
+            Catch ex As Exception
+                Debug.WriteLine($"Error applying custom CSS to account {Id}: {ex.Message}")
+            End Try
+        End If
     End Function
 
     ''' <summary>
@@ -502,6 +564,19 @@ Public Class AppAccounts
             Me.UnreadCount = count
             HasNotification = (count > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
+        ElseIf type = "ONLINE_STATUS_CHANGED" Then
+            Dim online As Boolean = False
+            Dim onlineNode As JsonElement = Nothing
+            If root.TryGetProperty("isOnline", onlineNode) AndAlso (onlineNode.ValueKind = JsonValueKind.True OrElse onlineNode.ValueKind = JsonValueKind.False) Then
+                online = onlineNode.GetBoolean()
+            End If
+            Dim statusText As String = ""
+            Dim statusNode As JsonElement = Nothing
+            If root.TryGetProperty("statusText", statusNode) AndAlso statusNode.ValueKind = JsonValueKind.String Then
+                statusText = statusNode.GetString()
+            End If
+            Me.IsContactOnline = online
+            Me.ContactOnlineStatusText = statusText
         End If
         Return Task.CompletedTask
     End Function

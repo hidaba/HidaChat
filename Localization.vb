@@ -529,6 +529,17 @@ Public Class AppLocalizations
         {"report_issue", "Report Issue"},
         {"view_releases", "View Releases"},
         {"bulk_sender", "Excel / CSV Bulk Sender"},
+        {"custom_css", "Custom CSS"},
+        {"enable_custom_css", "Enable custom CSS rules"},
+        {"custom_css_placeholder", "/* Write or paste your custom CSS for WhatsApp and Telegram Web here */"},
+        {"apply_css", "Apply CSS"},
+        {"css_applied", "CSS applied successfully!"},
+        {"css_preset_oled", "OLED Pure Dark"},
+        {"css_preset_compact", "Compact Layout"},
+        {"css_preset_font", "Modern Font"},
+        {"css_preset_reset", "Clear"},
+        {"contact_online", "Online"},
+        {"contact_typing", "typing..."},
         {"close", "Close"}
     }
 
@@ -584,6 +595,17 @@ Public Class AppLocalizations
         {"report_issue", "Segnala un problema"},
         {"view_releases", "Vedi Release"},
         {"bulk_sender", "Invio Massivo da Excel / CSV"},
+        {"custom_css", "CSS Personalizzato"},
+        {"enable_custom_css", "Abilita regole CSS personalizzate"},
+        {"custom_css_placeholder", "/* Scrivi o incolla qui il tuo CSS personalizzato per WhatsApp e Telegram Web */"},
+        {"apply_css", "Applica CSS"},
+        {"css_applied", "CSS applicato con successo!"},
+        {"css_preset_oled", "OLED Nero Puro"},
+        {"css_preset_compact", "Layout Compatto"},
+        {"css_preset_font", "Font Moderno"},
+        {"css_preset_reset", "Svuota"},
+        {"contact_online", "In linea"},
+        {"contact_typing", "sta scrivendo..."},
         {"close", "Chiudi"}
     }
 

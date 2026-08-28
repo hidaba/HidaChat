@@ -165,6 +165,32 @@ Public Class ThemeJsScripts
             Return _telegramDarkModeJs.Value
         End Get
     End Property
+
+    ''' <summary>Genera lo script JavaScript per applicare o rimuovere regole CSS personalizzate dell'utente (TODO #43).</summary>
+    Public Shared Function GetCustomCssJS(cssText As String, enabled As Boolean) As String
+        Dim jsonCss = JsonSerializer.Serialize(If(cssText, String.Empty))
+        Dim isEnabled = If(enabled AndAlso Not String.IsNullOrWhiteSpace(cssText), "true", "false")
+        Return "(function() {" & vbCrLf &
+               "  try {" & vbCrLf &
+               "    var styleId = 'hidachat-custom-user-css';" & vbCrLf &
+               "    var styleEl = document.getElementById(styleId);" & vbCrLf &
+               "    var enabled = " & isEnabled & ";" & vbCrLf &
+               "    var css = " & jsonCss & ";" & vbCrLf &
+               "    if (!enabled || !css || css.trim() === '') {" & vbCrLf &
+               "      if (styleEl && styleEl.parentNode) { styleEl.parentNode.removeChild(styleEl); }" & vbCrLf &
+               "      return;" & vbCrLf &
+               "    }" & vbCrLf &
+               "    if (!styleEl) {" & vbCrLf &
+               "      styleEl = document.createElement('style');" & vbCrLf &
+               "      styleEl.id = styleId;" & vbCrLf &
+               "      (document.head || document.documentElement).appendChild(styleEl);" & vbCrLf &
+               "    }" & vbCrLf &
+               "    styleEl.textContent = css;" & vbCrLf &
+               "  } catch(e) {" & vbCrLf &
+               "    console.error('[CustomCSS] Injection error:', e);" & vbCrLf &
+               "  }" & vbCrLf &
+               "})();"
+    End Function
 End Class
 
 ''' <summary>
