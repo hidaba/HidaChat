@@ -216,7 +216,10 @@ Public Class SettingsController
 
     Private _supportedLanguages As New List(Of LanguageInfo) From {
         New LanguageInfo With {.Name = "English", .Code = "en"},
-        New LanguageInfo With {.Name = "Italiano", .Code = "it"}
+        New LanguageInfo With {.Name = "Italiano", .Code = "it"},
+        New LanguageInfo With {.Name = "Français", .Code = "fr"},
+        New LanguageInfo With {.Name = "Español", .Code = "es"},
+        New LanguageInfo With {.Name = "Deutsch", .Code = "de"}
     }
     ''' <summary>Lista delle lingue ufficialmente supportate dall'interfaccia.</summary>
     Public Property SupportedLanguages As List(Of LanguageInfo)

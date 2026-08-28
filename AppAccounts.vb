@@ -418,15 +418,10 @@ Public Class AppAccounts
                         End If
                     End If
 
-                    Dim langName = "English"
+                    Dim translatedLangName = "English"
                     Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
                     If langItem IsNot Nothing Then
-                        langName = langItem.Name
-                    End If
-
-                    Dim translatedLangName = langName
-                    If settings.Language <> "en" Then
-                        translatedLangName = If(settings.Language = "it", "Italiano", langName)
+                        translatedLangName = langItem.Name
                     End If
 
                     Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})

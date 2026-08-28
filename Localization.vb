@@ -127,14 +127,22 @@ Public Class TranslationCacheService
 
         ' Integra i valori UI predefiniti
         SyncLock _cacheLock
-            If _activeLanguage = "it" Then
-                For Each kvp In AppLocalizations.ItStrings
-                    If Not _activeUiTranslations.ContainsKey(kvp.Key) Then
-                        _activeUiTranslations(kvp.Key) = kvp.Value
-                    End If
-                Next
-            ElseIf _activeLanguage = "en" Then
-                For Each kvp In AppLocalizations.EnStrings
+            Dim sourceDict As Dictionary(Of String, String) = Nothing
+            Select Case _activeLanguage
+                Case "it"
+                    sourceDict = AppLocalizations.ItStrings
+                Case "fr"
+                    sourceDict = AppLocalizations.FrStrings
+                Case "es"
+                    sourceDict = AppLocalizations.EsStrings
+                Case "de"
+                    sourceDict = AppLocalizations.DeStrings
+                Case Else
+                    sourceDict = AppLocalizations.EnStrings
+            End Select
+
+            If sourceDict IsNot Nothing Then
+                For Each kvp In sourceDict
                     If Not _activeUiTranslations.ContainsKey(kvp.Key) Then
                         _activeUiTranslations(kvp.Key) = kvp.Value
                     End If
@@ -607,6 +615,204 @@ Public Class AppLocalizations
         {"contact_online", "In linea"},
         {"contact_typing", "sta scrivendo..."},
         {"close", "Chiudi"}
+    }
+
+    ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Francese.</summary>
+    Public Shared ReadOnly FrStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+        {"settings", "Paramètres"},
+        {"theme", "Thème"},
+        {"system", "Système"},
+        {"light", "Clair"},
+        {"dark", "Sombre"},
+        {"match_cohesive", "Harmonisez ce paramètre dans vos applications pour un aspect cohérent."},
+        {"manage_accounts", "Gestion des comptes"},
+        {"add_account", "Ajouter un compte"},
+        {"add_whatsapp_account", "Ajouter un compte WhatsApp"},
+        {"add_telegram_account", "Ajouter un compte Telegram"},
+        {"select_platform", "Sélectionner la plateforme"},
+        {"always_show_tab_bar", "Toujours afficher la barre des onglets"},
+        {"updates", "Mises à jour"},
+        {"check_updates_launch", "Rechercher les mises à jour au démarrage"},
+        {"check_now", "Vérifier maintenant"},
+        {"devtools", "Outils de développement"},
+        {"debug_active_tab", "Déboguer l'onglet actif"},
+        {"delete_account_title", "Supprimer le compte"},
+        {"delete_account_confirm", "Supprimer ""{name}"" ? Toutes les données de ce compte seront supprimées."},
+        {"delete_account_last", "Vous ne pouvez pas supprimer le seul compte actif."},
+        {"cancel", "Annuler"},
+        {"delete", "Supprimer"},
+        {"rename", "Renommer"},
+        {"language", "Langue"},
+        {"translate_to_lang", "Traduire en {lang}"},
+        {"translate_all_messages", "Traduire tous les messages"},
+        {"toggle_window", "Afficher / Masquer la fenêtre"},
+        {"exit", "Quitter"},
+        {"translate_message_button", "Bouton de traduction du message"},
+        {"keep_app_in_english", "Conserver l'interface en anglais"},
+        {"full_page_translation", "Traduire toute la page"},
+        {"show_translate_all_messages_button", "Bouton de traduction de tous les messages dans la barre"},
+        {"reload_active_tab", "Recharger l'onglet actif"},
+        {"use_beta_channel", "Utiliser le canal de mise à jour bêta"},
+        {"notifications", "Notifications"},
+        {"show_message_popup", "Afficher la notification popup"},
+        {"accounts_count_info", "Comptes configurés : {count} sur 3"},
+        {"max_accounts_reached", "Limite maximale de 3 comptes atteinte."},
+        {"about", "À propos"},
+        {"about_title", "À propos de HidaChat"},
+        {"app_description", "Client de bureau multi-comptes léger et portable pour Windows (WhatsApp, Telegram, Teams, etc.)."},
+        {"author", "Auteur"},
+        {"release_date", "Date de version"},
+        {"license", "Licence"},
+        {"runtime_environment", "Environnement et Framework"},
+        {"portable_directory", "Répertoire de données portable"},
+        {"github_repository", "Dépôt GitHub"},
+        {"report_issue", "Signaler un problème"},
+        {"view_releases", "Voir les versions"},
+        {"bulk_sender", "Envoi en masse Excel / CSV"},
+        {"custom_css", "CSS Personnalisé"},
+        {"enable_custom_css", "Activer les règles CSS personnalisées"},
+        {"custom_css_placeholder", "/* Écrivez ou collez ici votre CSS personnalisé pour WhatsApp et Telegram Web */"},
+        {"apply_css", "Appliquer le CSS"},
+        {"css_applied", "CSS appliqué avec succès !"},
+        {"css_preset_oled", "OLED Noir Pur"},
+        {"css_preset_compact", "Disposition compacte"},
+        {"css_preset_font", "Police moderne"},
+        {"css_preset_reset", "Effacer"},
+        {"contact_online", "En ligne"},
+        {"contact_typing", "écrit..."},
+        {"close", "Fermer"}
+    }
+
+    ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Spagnola.</summary>
+    Public Shared ReadOnly EsStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+        {"settings", "Ajustes"},
+        {"theme", "Tema"},
+        {"system", "Sistema"},
+        {"light", "Claro"},
+        {"dark", "Oscuro"},
+        {"match_cohesive", "Haga coincidir este ajuste en sus aplicaciones para una apariencia coherente."},
+        {"manage_accounts", "Administrar Cuentas"},
+        {"add_account", "Añadir cuenta"},
+        {"add_whatsapp_account", "Añadir cuenta de WhatsApp"},
+        {"add_telegram_account", "Añadir cuenta de Telegram"},
+        {"select_platform", "Seleccionar plataforma"},
+        {"always_show_tab_bar", "Mostrar siempre la barra de pestañas"},
+        {"updates", "Actualizaciones"},
+        {"check_updates_launch", "Buscar actualizaciones al iniciar"},
+        {"check_now", "Comprobar ahora"},
+        {"devtools", "Herramientas de desarrollo"},
+        {"debug_active_tab", "Depurar pestaña activa"},
+        {"delete_account_title", "Eliminar Cuenta"},
+        {"delete_account_confirm", "¿Eliminar ""{name}""? Todos los datos de esta cuenta se eliminarán."},
+        {"delete_account_last", "No puede eliminar la única cuenta activa."},
+        {"cancel", "Cancelar"},
+        {"delete", "Eliminar"},
+        {"rename", "Renombrar"},
+        {"language", "Idioma"},
+        {"translate_to_lang", "Traducir a {lang}"},
+        {"translate_all_messages", "Traducir todos los mensajes"},
+        {"toggle_window", "Mostrar/Ocultar ventana"},
+        {"exit", "Salir"},
+        {"translate_message_button", "Botón de traducción de mensaje"},
+        {"keep_app_in_english", "Mantener la interfaz en inglés"},
+        {"full_page_translation", "Traducir toda la página"},
+        {"show_translate_all_messages_button", "Botón de traducir todos los mensajes en la barra"},
+        {"reload_active_tab", "Recargar pestaña activa"},
+        {"use_beta_channel", "Usar canal de actualizaciones beta"},
+        {"notifications", "Notificaciones"},
+        {"show_message_popup", "Mostrar ventana emergente de mensaje"},
+        {"accounts_count_info", "Cuentas configuradas: {count} de 3"},
+        {"max_accounts_reached", "Límite máximo de 3 cuentas alcanzado."},
+        {"about", "Acerca de"},
+        {"about_title", "Acerca de HidaChat"},
+        {"app_description", "Cliente de escritorio multicuenta ligero y portátil para Windows (WhatsApp, Telegram, Teams, etc.)."},
+        {"author", "Autor"},
+        {"release_date", "Fecha de lanzamiento"},
+        {"license", "Licencia"},
+        {"runtime_environment", "Entorno y Framework"},
+        {"portable_directory", "Ruta de datos portátil"},
+        {"github_repository", "Repositorio de GitHub"},
+        {"report_issue", "Informar de un problema"},
+        {"view_releases", "Ver versiones"},
+        {"bulk_sender", "Envío Masivo desde Excel / CSV"},
+        {"custom_css", "CSS Personalizado"},
+        {"enable_custom_css", "Habilitar reglas CSS personalizadas"},
+        {"custom_css_placeholder", "/* Escriba o pegue aquí su CSS personalizado para WhatsApp y Telegram Web */"},
+        {"apply_css", "Aplicar CSS"},
+        {"css_applied", "¡CSS aplicado con éxito!"},
+        {"css_preset_oled", "OLED Negro Puro"},
+        {"css_preset_compact", "Diseño Compacto"},
+        {"css_preset_font", "Fuente Moderna"},
+        {"css_preset_reset", "Borrar"},
+        {"contact_online", "En línea"},
+        {"contact_typing", "escribiendo..."},
+        {"close", "Cerrar"}
+    }
+
+    ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Tedesca.</summary>
+    Public Shared ReadOnly DeStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+        {"settings", "Einstellungen"},
+        {"theme", "Design"},
+        {"system", "System"},
+        {"light", "Hell"},
+        {"dark", "Dunkel"},
+        {"match_cohesive", "Passen Sie diese Einstellung in Ihren Chat-Apps für ein einheitliches Erscheinungsbild an."},
+        {"manage_accounts", "Konten verwalten"},
+        {"add_account", "Konto hinzufügen"},
+        {"add_whatsapp_account", "WhatsApp-Konto hinzufügen"},
+        {"add_telegram_account", "Telegram-Konto hinzufügen"},
+        {"select_platform", "Plattform auswählen"},
+        {"always_show_tab_bar", "Registerkartenleiste immer anzeigen"},
+        {"updates", "Aktualisierungen"},
+        {"check_updates_launch", "Beim Start nach Aktualisierungen suchen"},
+        {"check_now", "Jetzt prüfen"},
+        {"devtools", "Entwicklertools"},
+        {"debug_active_tab", "Aktiven Tab debuggen"},
+        {"delete_account_title", "Konto löschen"},
+        {"delete_account_confirm", """{name}"" löschen? Alle Daten dieses Kontos werden entfernt."},
+        {"delete_account_last", "Sie können das einzige aktive Konto nicht löschen."},
+        {"cancel", "Abbrechen"},
+        {"delete", "Löschen"},
+        {"rename", "Umbenennen"},
+        {"language", "Sprache"},
+        {"translate_to_lang", "Auf {lang} übersetzen"},
+        {"translate_all_messages", "Alle Nachrichten übersetzen"},
+        {"toggle_window", "Fenster ein-/ausblenden"},
+        {"exit", "Beenden"},
+        {"translate_message_button", "Schaltfläche zur Nachrichtenübersetzung"},
+        {"keep_app_in_english", "App-Oberfläche auf Englisch behalten"},
+        {"full_page_translation", "Ganze Seite übersetzen"},
+        {"show_translate_all_messages_button", "Schaltfläche 'Alle Nachrichten übersetzen' in Titelleiste"},
+        {"reload_active_tab", "Aktiven Tab neu laden"},
+        {"use_beta_channel", "Beta-Update-Kanal verwenden"},
+        {"notifications", "Benachrichtigungen"},
+        {"show_message_popup", "Nachrichten-Popup anzeigen"},
+        {"accounts_count_info", "Konfigurierte Konten: {count} von 3"},
+        {"max_accounts_reached", "Maximallimit von 3 Konten erreicht."},
+        {"about", "Über"},
+        {"about_title", "Über HidaChat"},
+        {"app_description", "Portabler, schlanker Multi-Account-Desktop-Client für Windows (WhatsApp, Telegram, Teams usw.)."},
+        {"author", "Autor"},
+        {"release_date", "Veröffentlichungsdatum"},
+        {"license", "Lizenz"},
+        {"runtime_environment", "Umgebung und Framework"},
+        {"portable_directory", "Portabler Datenpfad"},
+        {"github_repository", "GitHub-Repository"},
+        {"report_issue", "Problem melden"},
+        {"view_releases", "Releases anzeigen"},
+        {"bulk_sender", "Massenversand via Excel / CSV"},
+        {"custom_css", "Benutzerdefiniertes CSS"},
+        {"enable_custom_css", "Benutzerdefinierte CSS-Regeln aktivieren"},
+        {"custom_css_placeholder", "/* Schreiben oder fügen Sie hier Ihr benutzerdefiniertes CSS für WhatsApp und Telegram Web ein */"},
+        {"apply_css", "CSS anwenden"},
+        {"css_applied", "CSS erfolgreich angewendet!"},
+        {"css_preset_oled", "OLED Tiefschwarz"},
+        {"css_preset_compact", "Kompaktes Layout"},
+        {"css_preset_font", "Moderne Schriftart"},
+        {"css_preset_reset", "Leeren"},
+        {"contact_online", "Online"},
+        {"contact_typing", "schreibt..."},
+        {"close", "Schließen"}
     }
 
     ''' <summary>

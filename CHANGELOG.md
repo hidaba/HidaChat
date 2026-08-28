@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.3-beta] - 2026-08-28
+
+### Pre-release / Beta — Multilingual Expansion (French, Spanish, German)
+- **Supporto Completo Nuove Lingue Interfaccia (Français, Español, Deutsch) (`Localization.vb`, `SettingsController.vb`, `SettingsWindow.xaml.vb`, `AppAccounts.vb`, `AGENTS.md`)**:
+  - **Integrazione Dizionari Nativi Precompilati**: Aggiunti i dizionari completi `FrStrings` (Francese 🇫🇷), `EsStrings` (Spagnolo 🇪🇸) e `DeStrings` (Tedesco 🇩🇪) per tutte le oltre 60 stringhe ed elementi dell'interfaccia utente (Impostazioni, Gestione account, Notifiche, DevTools, Invio Massivo Excel/CSV, Informazioni, CSS Personalizzato, Indicatore Online).
+  - **Menu a Tendina Impostazioni & Switching Live**: Estesa la lista `SupportedLanguages` con le 5 lingue ufficiali (English, Italiano, Français, Español, Deutsch), con aggiornamento dinamico immediato dell'interfaccia e notifica sincrona di traduzione verso tutti i controlli WebView2 senza richiedere il riavvio dell'applicazione.
+  - **Linee Guida di Mantenimento Traduzioni**: Istituita la regola vincolante in `AGENTS.md` per la sincronizzazione obbligatoria di tutti i dizionari ad ogni nuova stringa o funzionalità aggiunta al progetto.
+
 ## [0.7.2-beta] - 2026-08-28
 
 ### Pre-release / Beta — Online Contact Indicator & Custom CSS Injector

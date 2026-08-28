@@ -123,8 +123,7 @@ Public Class SettingsWindow
             ' Notifica alle WebView2 attive l'aggiornamento della lingua
             Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = langCode)
             If langItem IsNot Nothing Then
-                Dim langName = langItem.Name
-                Dim translatedLangName = If(langCode = "it", "Italiano", langName)
+                Dim translatedLangName = langItem.Name
                 Dim tooltipLabel = _settingsController.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
 
                 For Each acc In _accountManager.Accounts
