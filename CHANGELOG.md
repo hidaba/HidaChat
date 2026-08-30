@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.4-beta] - 2026-08-30
+
+### Pre-release / Beta — Native Multilingual Spellchecker
+- **Correttore Ortografico Nativo Multilingua (TODO #44) (`AppAccounts.vb`, `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `TODO.md`)**:
+  - **Integrazione Motore Ortografico Chromium / WebView2**: Abilitazione e configurazione del correttore ortografico nativo (`--enable-features=Spellcheck`, `--lang=...`) su tutte le istanze isolate dei profili WebView2 per WhatsApp Web e Telegram Web.
+  - **Sezione Dedicata nelle Impostazioni**: Nuova sezione nelle *Impostazioni* con checkbox per attivare o disattivare il correttore e selettore ComboBox della lingua del dizionario (*Automatica da lingua app*, *English*, *Italiano*, *Français*, *Español*, *Deutsch*).
+  - **Persistenza & Supporto Multilingua Completo**: Salvataggio automatico delle preferenze ortografiche in `settings.json` con traduzioni allineate nei 5 dizionari ufficiali (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+
 ## [0.7.3-beta] - 2026-08-28
 
 ### Pre-release / Beta — Multilingual Expansion (French, Spanish, German)

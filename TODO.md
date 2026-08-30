@@ -229,9 +229,9 @@
 - **Funzionalità Implementate**: Editor monospace con scrollbar, checkbox di attivazione immediata, persistenza in `settings.json`, pulsanti preset rapidi (*OLED*, *Compatto*, *Font*, *Svuota*) e iniezione live sincrona su tutte le WebView2 tramite bridge IPC.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
-## 44. Correttore Ortografico Nativo Multilingua (Spellchecker WebView2)
-- **Descrizione**: Abilitare il motore di correzione ortografica nativo di Edge WebView2 e permettere all'utente di configurare o alternare la lingua del dizionario (italiano, inglese, spagnolo, ecc.) per evidenziare e correggere errori nei campi di digitazione di WhatsApp e Telegram.
-- **Implementazione**: Configurazione dei parametri Chromium via `AdditionalBrowserArguments` o impostazioni WebView2 (`CoreWebView2Settings`).
+## ~~44. Correttore Ortografico Nativo Multilingua (Spellchecker WebView2)~~ ✅
+- **Descrizione**: Abilitazione e gestione del motore di correzione ortografica nativo di Microsoft Edge WebView2 / Chromium nei campi di digitazione di WhatsApp Web e Telegram Web.
+- **Funzionalità Implementate**: Sezione dedicata nelle **Impostazioni** con toggle di attivazione/disattivazione `ChkEnableSpellcheck`, selettore lingua dizionario `ComboSpellcheckLanguage` (Automatico da lingua app, Italiano `it-IT`, English `en-US`, Français `fr-FR`, Español `es-ES`, Deutsch `de-DE`), persistenza in `settings.json` e configurazione dinamica dei parametri Chromium (`--enable-features=Spellcheck`, `--lang=...`).
 - **Impatto**: Medio | **Sforzo**: Basso
 
 ## 45. Utility Bar & Gestione Rapida Audio / Dispositivi

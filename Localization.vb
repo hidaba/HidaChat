@@ -548,6 +548,11 @@ Public Class AppLocalizations
         {"css_preset_reset", "Clear"},
         {"contact_online", "Online"},
         {"contact_typing", "typing..."},
+        {"spellchecker", "Spellchecker"},
+        {"enable_spellchecker", "Enable native spellchecker in chat inputs"},
+        {"spellchecker_language", "Dictionary language"},
+        {"spellchecker_lang_auto", "Automatic (follow app language)"},
+        {"spellchecker_restart_hint", "Changes will apply when reloading tabs or restarting HidaChat."},
         {"close", "Close"}
     }
 
@@ -614,6 +619,11 @@ Public Class AppLocalizations
         {"css_preset_reset", "Svuota"},
         {"contact_online", "In linea"},
         {"contact_typing", "sta scrivendo..."},
+        {"spellchecker", "Correttore Ortografico"},
+        {"enable_spellchecker", "Abilita correttore ortografico nei campi di testo"},
+        {"spellchecker_language", "Lingua del dizionario"},
+        {"spellchecker_lang_auto", "Automatica (segui lingua app)"},
+        {"spellchecker_restart_hint", "Le modifiche saranno applicate ricaricando le schede o riavviando HidaChat."},
         {"close", "Chiudi"}
     }
 
@@ -680,6 +690,11 @@ Public Class AppLocalizations
         {"css_preset_reset", "Effacer"},
         {"contact_online", "En ligne"},
         {"contact_typing", "écrit..."},
+        {"spellchecker", "Correcteur orthographique"},
+        {"enable_spellchecker", "Activer le correcteur orthographique dans les champs de saisie"},
+        {"spellchecker_language", "Langue du dictionnaire"},
+        {"spellchecker_lang_auto", "Automatique (suivre la langue de l'app)"},
+        {"spellchecker_restart_hint", "Les modifications s'appliqueront après le rechargement des onglets ou le redémarrage de HidaChat."},
         {"close", "Fermer"}
     }
 
@@ -746,6 +761,11 @@ Public Class AppLocalizations
         {"css_preset_reset", "Borrar"},
         {"contact_online", "En línea"},
         {"contact_typing", "escribiendo..."},
+        {"spellchecker", "Corrector ortográfico"},
+        {"enable_spellchecker", "Activar corrector ortográfico en los campos de entrada"},
+        {"spellchecker_language", "Idioma del diccionario"},
+        {"spellchecker_lang_auto", "Automática (seguir idioma de la app)"},
+        {"spellchecker_restart_hint", "Los cambios se aplicarán al recargar las pestañas o reiniciar HidaChat."},
         {"close", "Cerrar"}
     }
 
@@ -812,6 +832,11 @@ Public Class AppLocalizations
         {"css_preset_reset", "Leeren"},
         {"contact_online", "Online"},
         {"contact_typing", "schreibt..."},
+        {"spellchecker", "Rechtschreibprüfung"},
+        {"enable_spellchecker", "Rechtschreibprüfung in Texteingabefeldern aktivieren"},
+        {"spellchecker_language", "Wörterbuchsprache"},
+        {"spellchecker_lang_auto", "Automatisch (App-Sprache folgen)"},
+        {"spellchecker_restart_hint", "Änderungen werden beim Neuladen der Registerkarten oder beim Neustart von HidaChat wirksam."},
         {"close", "Schließen"}
     }
 

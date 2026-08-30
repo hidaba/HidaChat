@@ -277,6 +277,26 @@
                         <Button Grid.Column="1" x:Name="BtnApplyCustomCss" Content="Applica CSS" Click="BtnApplyCustomCss_Click" Style="{StaticResource ActionButtonStyle}" Background="#00a884" Foreground="#ffffff" FontWeight="Bold" Padding="14,6"/>
                     </Grid>
 
+                    <!-- SPELLCHECKER SECTION (TODO #44) -->
+                    <TextBlock x:Name="SectionSpellcheck" Text="Spellchecker" Style="{StaticResource SectionHeaderStyle}"/>
+                    <CheckBox x:Name="ChkEnableSpellcheck" Content="Enable native spellchecker in chat inputs" Checked="ChkEnableSpellcheck_Changed" Unchecked="ChkEnableSpellcheck_Changed" Margin="0,5,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <Grid Margin="0,0,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LabelSpellcheckLanguage" Text="Dictionary language" Foreground="#aebac1" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ComboSpellcheckLanguage" Grid.Column="1" Width="180" SelectionChanged="ComboSpellcheckLanguage_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                            <ComboBoxItem x:Name="CbiSpellAuto" Content="Automatic (app language)" Tag="auto"/>
+                            <ComboBoxItem Content="English (en-US)" Tag="en"/>
+                            <ComboBoxItem Content="Italiano (it-IT)" Tag="it"/>
+                            <ComboBoxItem Content="Français (fr-FR)" Tag="fr"/>
+                            <ComboBoxItem Content="Español (es-ES)" Tag="es"/>
+                            <ComboBoxItem Content="Deutsch (de-DE)" Tag="de"/>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock x:Name="TxtSpellcheckHint" Text="Changes will apply when reloading tabs or restarting HidaChat." Foreground="#8696a0" FontSize="11" FontStyle="Italic" Margin="0,0,0,15"/>
+
                     <!-- UPDATES SECTION -->
                     <TextBlock x:Name="SectionUpdates" Text="Updates" Style="{StaticResource SectionHeaderStyle}"/>
                     <CheckBox x:Name="ChkUseBetaChannel" Content="Use beta update channel" Checked="ChkUseBetaChannel_Changed" Unchecked="ChkUseBetaChannel_Changed" Margin="0,5,0,10" Style="{StaticResource CustomCheckBoxStyle}"/>

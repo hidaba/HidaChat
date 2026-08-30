@@ -188,6 +188,59 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Correttore Ortografico (TODO #44) ---
+    Private _enableSpellcheck As Boolean = True
+    ''' <summary>Indica se abilitare il correttore ortografico nativo WebView2/Chromium.</summary>
+    Public Property EnableSpellcheck As Boolean
+        Get
+            Return _enableSpellcheck
+        End Get
+        Set(value As Boolean)
+            If _enableSpellcheck <> value Then
+                _enableSpellcheck = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
+    Private _spellcheckLanguage As String = "auto"
+    ''' <summary>Codice lingua del dizionario del correttore ("auto", "it", "en", "fr", "es", "de").</summary>
+    Public Property SpellcheckLanguage As String
+        Get
+            Return _spellcheckLanguage
+        End Get
+        Set(value As String)
+            If _spellcheckLanguage <> value Then
+                _spellcheckLanguage = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
+    ''' <summary>
+    ''' Restituisce il codice lingua Chromium effettivo (es. "it-IT", "en-US", "fr-FR", "es-ES", "de-DE") 
+    ''' per il browser e il correttore ortografico.
+    ''' </summary>
+    Public Function GetEffectiveChromiumLanguage() As String
+        Dim targetLang = If(String.IsNullOrWhiteSpace(SpellcheckLanguage) OrElse SpellcheckLanguage = "auto", Language, SpellcheckLanguage)
+        If String.IsNullOrWhiteSpace(targetLang) Then targetLang = "en"
+        
+        Select Case targetLang.ToLowerInvariant()
+            Case "it"
+                Return "it-IT"
+            Case "en"
+                Return "en-US"
+            Case "fr"
+                Return "fr-FR"
+            Case "es"
+                Return "es-ES"
+            Case "de"
+                Return "de-DE"
+            Case Else
+                Return targetLang
+        End Select
+    End Function
+
     Private _language As String = "en"
     ''' <summary>Codice della lingua attualmente selezionata dall'utente (es. "en", "it").</summary>
     Public Property Language As String
@@ -369,6 +422,13 @@ Public Class SettingsController
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)
         _showMessagePopup = GetBoolSetting(settings, "showMessagePopup", True)
         _enableCustomCss = GetBoolSetting(settings, "enableCustomCss", False)
+        _enableSpellcheck = GetBoolSetting(settings, "enableSpellcheck", True)
+
+        If settings.ContainsKey("spellcheckLanguage") Then
+            _spellcheckLanguage = settings("spellcheckLanguage").ToString()
+        Else
+            _spellcheckLanguage = "auto"
+        End If
 
         If settings.ContainsKey("customCss") Then
             _customCss = settings("customCss").ToString()
@@ -444,6 +504,19 @@ Public Class SettingsController
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings("enableCustomCss") = enabled
         _cachedSettings("customCss") = _customCss
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e persiste le impostazioni del correttore ortografico (TODO #44).</summary>
+    Public Async Function SaveSpellcheckSettingsAsync(enabled As Boolean, spellLang As String) As Task
+        _enableSpellcheck = enabled
+        _spellcheckLanguage = If(String.IsNullOrWhiteSpace(spellLang), "auto", spellLang)
+        NotifyPropertyChanged(NameOf(EnableSpellcheck))
+        NotifyPropertyChanged(NameOf(SpellcheckLanguage))
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("enableSpellcheck") = enabled
+        _cachedSettings("spellcheckLanguage") = _spellcheckLanguage
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

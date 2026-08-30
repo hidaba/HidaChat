@@ -327,13 +327,28 @@ Public Class AppAccounts
 
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
-            options.AdditionalBrowserArguments = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=Translate,OptimizationHints,MediaRouter"
+            Dim effectiveLang = settings.GetEffectiveChromiumLanguage()
+            If Not String.IsNullOrEmpty(effectiveLang) Then
+                options.Language = effectiveLang
+            End If
+
+            Dim browserArgs = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
+            If settings.EnableSpellcheck Then
+                browserArgs &= $" --enable-features=Spellcheck --lang={effectiveLang}"
+            Else
+                browserArgs &= " --disable-features=Spellcheck"
+            End If
+            browserArgs &= " --disable-features=Translate,OptimizationHints,MediaRouter"
+            options.AdditionalBrowserArguments = browserArgs
+
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
+            WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
+            WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
             
             ' Salvataggio riferimenti handler per poterli rimuovere in Dispose()
             _permissionRequestedHandler = Sub(sender, e)

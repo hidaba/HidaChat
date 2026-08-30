@@ -56,6 +56,19 @@ Public Class SettingsWindow
             ChkEnableCustomCss.IsChecked = _settingsController.EnableCustomCss
             TxtCustomCss.Text = If(_settingsController.CustomCss, String.Empty)
 
+            ' 4c. Imposta lo stato del Correttore Ortografico (TODO #44)
+            ChkEnableSpellcheck.IsChecked = _settingsController.EnableSpellcheck
+            Dim targetSpellLang = If(String.IsNullOrWhiteSpace(_settingsController.SpellcheckLanguage), "auto", _settingsController.SpellcheckLanguage.ToLowerInvariant())
+            For Each item As ComboBoxItem In ComboSpellcheckLanguage.Items
+                If item.Tag IsNot Nothing AndAlso item.Tag.ToString().ToLowerInvariant() = targetSpellLang Then
+                    ComboSpellcheckLanguage.SelectedItem = item
+                    Exit For
+                End If
+            Next
+            If ComboSpellcheckLanguage.SelectedItem Is Nothing AndAlso ComboSpellcheckLanguage.Items.Count > 0 Then
+                ComboSpellcheckLanguage.SelectedIndex = 0
+            End If
+
             ' 5. Collega l'elenco degli account
             AccountsList.ItemsSource = _accountManager.Accounts
 
@@ -383,6 +396,23 @@ Public Class SettingsWindow
         TxtCustomCss.Text = ""
     End Sub
 
+    ' --- Gestori eventi Correttore Ortografico (TODO #44) ---
+    Private Async Sub ChkEnableSpellcheck_Changed(sender As Object, e As RoutedEventArgs)
+        If _isInitializing Then Return
+        Dim enabled = ChkEnableSpellcheck.IsChecked.GetValueOrDefault(True)
+        Dim selectedItem = TryCast(ComboSpellcheckLanguage.SelectedItem, ComboBoxItem)
+        Dim spellLang = If(selectedItem?.Tag IsNot Nothing, selectedItem.Tag.ToString(), "auto")
+        Await _settingsController.SaveSpellcheckSettingsAsync(enabled, spellLang)
+    End Sub
+
+    Private Async Sub ComboSpellcheckLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim selectedItem = TryCast(ComboSpellcheckLanguage.SelectedItem, ComboBoxItem)
+        Dim spellLang = If(selectedItem?.Tag IsNot Nothing, selectedItem.Tag.ToString(), "auto")
+        Dim enabled = ChkEnableSpellcheck.IsChecked.GetValueOrDefault(True)
+        Await _settingsController.SaveSpellcheckSettingsAsync(enabled, spellLang)
+    End Sub
+
     ''' <summary>
     ''' Aggiorna tutti i testi delle etichette della finestra in base alle traduzioni correnti.
     ''' </summary>
@@ -406,6 +436,11 @@ Public Class SettingsWindow
         BtnPresetCompact.Content = loc.Get("css_preset_compact")
         BtnPresetFont.Content = loc.Get("css_preset_font")
         BtnPresetReset.Content = loc.Get("css_preset_reset")
+        SectionSpellcheck.Text = loc.Get("spellchecker")
+        ChkEnableSpellcheck.Content = loc.Get("enable_spellchecker")
+        LabelSpellcheckLanguage.Text = loc.Get("spellchecker_language")
+        CbiSpellAuto.Content = loc.Get("spellchecker_lang_auto")
+        TxtSpellcheckHint.Text = loc.Get("spellchecker_restart_hint")
         SectionUpdates.Text = loc.Get("updates")
         ChkUseBetaChannel.Content = loc.Get("use_beta_channel")
         SectionDevTools.Text = loc.Get("devtools")
@@ -437,6 +472,10 @@ Public Class SettingsWindow
         ComboLanguage.Foreground = fgBrush
         ComboTheme.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
         ComboTheme.Foreground = fgBrush
+        If ComboSpellcheckLanguage IsNot Nothing Then
+            ComboSpellcheckLanguage.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
+            ComboSpellcheckLanguage.Foreground = fgBrush
+        End If
 
         For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)
             chk.Foreground = fgBrush
