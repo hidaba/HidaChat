@@ -536,6 +536,12 @@ Public Class AppAccounts
             HasNotification = True
             onNotificationChanged?.Invoke(Id, True)
 
+            ' Se la modalità Non Disturbare è attiva (TODO #47), silenziamento totale di Toast e Popup
+            If settings.IsDndActive Then
+                Debug.WriteLine($"[DND Active] Toast & Popup suppressed for account {Id}")
+                Return Task.CompletedTask
+            End If
+
             Dim title = root.GetProperty("title").GetString()
             Dim body = root.GetProperty("body").GetString()
 

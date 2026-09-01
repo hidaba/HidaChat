@@ -183,9 +183,28 @@
                     <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
                     <CheckBox x:Name="ChkShowTranslateAllButton" Content="Title bar translate all messages button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
 
-                    <!-- NOTIFICATIONS SECTION -->
-                    <TextBlock x:Name="SectionNotifications" Text="Notifications" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkShowMessagePopup" Content="Show message popup" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,15" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <!-- NOTIFICATIONS & FOCUS SECTION (TODO #47) -->
+                    <TextBlock x:Name="SectionNotifications" Text="Notifications &amp; Focus" Style="{StaticResource SectionHeaderStyle}"/>
+                    <CheckBox x:Name="ChkShowMessagePopup" Content="Show message popup" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="LabelDndMode" Text="Do Not Disturb" Foreground="#e9edef" FontSize="13" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="TxtDndStatus" Text="Silence all notifications and audio" Foreground="#8696a0" FontSize="11"/>
+                        </StackPanel>
+                        <ComboBox x:Name="ComboDndMode" Grid.Column="1" Width="160" SelectionChanged="ComboDndMode_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                            <ComboBoxItem x:Name="CbiDndOff" Content="Disattivata" Tag="off"/>
+                            <ComboBoxItem x:Name="CbiDnd30m" Content="30 minuti" Tag="30m"/>
+                            <ComboBoxItem x:Name="CbiDnd1h" Content="1 ora" Tag="1h"/>
+                            <ComboBoxItem x:Name="CbiDnd2h" Content="2 ore" Tag="2h"/>
+                            <ComboBoxItem x:Name="CbiDnd8h" Content="8 ore" Tag="8h"/>
+                            <ComboBoxItem x:Name="CbiDndIndefinite" Content="Indefinito" Tag="indefinite"/>
+                        </ComboBox>
+                    </Grid>
 
                     <!-- ACCOUNTS MANAGEMENT SECTION -->
                     <Grid Margin="0,10,0,5">

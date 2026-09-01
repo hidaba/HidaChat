@@ -247,9 +247,9 @@
 - **Utilità**: Protegge la riservatezza delle conversazioni in ufficio, in luoghi pubblici o durante la condivisione dello schermo (Teams, Zoom, Google Meet).
 - **Impatto**: Alto | **Sforzo**: Basso
 
-## 47. Modalità "Non Disturbare" / Focus Mode Temporizzata
-- **Descrizione**: Aggiungere un pulsante rapido per silenziare tutte le notifiche (suoni, popup overlay e Windows Toast) per tutti gli account con un solo click.
-- **Funzionalità**: Supporto a timer predefiniti (30 minuti, 1 ora, 8 ore, fino a disattivazione manuale) con ripristino automatico alla scadenza e indicatore visivo di stato nella barra del titolo.
+## ~~47. Modalità "Non Disturbare" / Focus Mode Temporizzata~~ ✅
+- **Descrizione**: Silenziamento completo e istantaneo di tutte le notifiche (suoni WebView2, popup overlay e Windows Toast) per tutti gli account con timer configurabili e ripristino automatico alla scadenza.
+- **Funzionalità Implementate**: Pulsante dedicato `BtnDnd` nella barra del titolo con icona Bell-Off e badge attivo con indicatore orario di fine nel tooltip, menu contestuale per scelta rapida della durata (*30m*, *1h*, *2h*, *8h*, *Indefinito*), muting audio sincrono delle WebView2 (`IsMuted = True`), soppressione totale di Toast/Popup e configurazione nelle Impostazioni.
 - **Impatto**: Alto | **Sforzo**: Basso
 
 ## 48. Blocco dell'Applicazione con PIN / Master Password (App Lock)

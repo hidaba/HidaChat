@@ -241,6 +241,76 @@ Public Class SettingsController
         End Select
     End Function
 
+    ' --- Modalità Non Disturbare / Focus Mode (TODO #47) ---
+    Private _isDndEnabled As Boolean = False
+    ''' <summary>Indica se la modalità Non Disturbare è stata attivata manualmente o tramite timer.</summary>
+    Public Property IsDndEnabled As Boolean
+        Get
+            Return _isDndEnabled
+        End Get
+        Set(value As Boolean)
+            If _isDndEnabled <> value Then
+                _isDndEnabled = value
+                NotifyPropertyChanged()
+                NotifyPropertyChanged(NameOf(IsDndActive))
+            End If
+        End Set
+    End Property
+
+    Private _dndUntil As Nullable(Of DateTime) = Nothing
+    ''' <summary>Timestamp UTC di scadenza della modalità Non Disturbare (Nothing se indefinita o disattivata).</summary>
+    Public Property DndUntil As Nullable(Of DateTime)
+        Get
+            Return _dndUntil
+        End Get
+        Set(value As Nullable(Of DateTime))
+            If _dndUntil <> value Then
+                _dndUntil = value
+                NotifyPropertyChanged()
+                NotifyPropertyChanged(NameOf(IsDndActive))
+            End If
+        End Set
+    End Property
+
+    Private _dndDurationMode As String = "off"
+    ''' <summary>Modalità di durata ("off", "30m", "1h", "2h", "8h", "indefinite").</summary>
+    Public Property DndDurationMode As String
+        Get
+            Return _dndDurationMode
+        End Get
+        Set(value As String)
+            If _dndDurationMode <> value Then
+                _dndDurationMode = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
+    ''' <summary>Indica se la modalità Non Disturbare è attualmente attiva ed efficace.</summary>
+    Public ReadOnly Property IsDndActive As Boolean
+        Get
+            If Not _isDndEnabled Then Return False
+            If _dndUntil.HasValue Then
+                Return DateTime.UtcNow < _dndUntil.Value
+            End If
+            Return True
+        End Get
+    End Property
+
+    ''' <summary>Restituisce la descrizione testuale localizzata dello stato Non Disturbare.</summary>
+    Public Function GetDndStatusText(loc As AppLocalizations) As String
+        If loc Is Nothing Then Return "Do Not Disturb"
+        If Not IsDndActive Then
+            Return loc.Get("dnd_mode")
+        End If
+        If _dndUntil.HasValue Then
+            Dim localTime = _dndUntil.Value.ToLocalTime()
+            Return loc.Get("dnd_active_until", New Dictionary(Of String, String) From {{"time", localTime.ToString("HH:mm")}})
+        Else
+            Return loc.Get("dnd_active_indefinite")
+        End If
+    End Function
+
     Private _language As String = "en"
     ''' <summary>Codice della lingua attualmente selezionata dall'utente (es. "en", "it").</summary>
     Public Property Language As String
@@ -424,6 +494,29 @@ Public Class SettingsController
         _enableCustomCss = GetBoolSetting(settings, "enableCustomCss", False)
         _enableSpellcheck = GetBoolSetting(settings, "enableSpellcheck", True)
 
+        _isDndEnabled = GetBoolSetting(settings, "isDndEnabled", False)
+        If settings.ContainsKey("dndDurationMode") AndAlso settings("dndDurationMode") IsNot Nothing Then
+            _dndDurationMode = settings("dndDurationMode").ToString()
+        Else
+            _dndDurationMode = If(_isDndEnabled, "indefinite", "off")
+        End If
+        If settings.ContainsKey("dndUntil") AndAlso settings("dndUntil") IsNot Nothing Then
+            Dim untilStr = settings("dndUntil").ToString()
+            Dim parsedDate As DateTime
+            If DateTime.TryParse(untilStr, Nothing, Globalization.DateTimeStyles.RoundtripKind, parsedDate) Then
+                _dndUntil = parsedDate.ToUniversalTime()
+                If DateTime.UtcNow >= _dndUntil.Value Then
+                    _isDndEnabled = False
+                    _dndUntil = Nothing
+                    _dndDurationMode = "off"
+                End If
+            Else
+                _dndUntil = Nothing
+            End If
+        Else
+            _dndUntil = Nothing
+        End If
+
         If settings.ContainsKey("spellcheckLanguage") Then
             _spellcheckLanguage = settings("spellcheckLanguage").ToString()
         Else
@@ -517,6 +610,49 @@ Public Class SettingsController
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings("enableSpellcheck") = enabled
         _cachedSettings("spellcheckLanguage") = _spellcheckLanguage
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Imposta e persiste la modalità Non Disturbare con la durata specificata (TODO #47).</summary>
+    Public Async Function SetDndModeAsync(mode As String) As Task
+        Dim normMode = If(String.IsNullOrWhiteSpace(mode), "off", mode.ToLowerInvariant())
+        Select Case normMode
+            Case "30m"
+                _isDndEnabled = True
+                _dndUntil = DateTime.UtcNow.AddMinutes(30)
+                _dndDurationMode = "30m"
+            Case "1h"
+                _isDndEnabled = True
+                _dndUntil = DateTime.UtcNow.AddHours(1)
+                _dndDurationMode = "1h"
+            Case "2h"
+                _isDndEnabled = True
+                _dndUntil = DateTime.UtcNow.AddHours(2)
+                _dndDurationMode = "2h"
+            Case "8h"
+                _isDndEnabled = True
+                _dndUntil = DateTime.UtcNow.AddHours(8)
+                _dndDurationMode = "8h"
+            Case "indefinite"
+                _isDndEnabled = True
+                _dndUntil = Nothing
+                _dndDurationMode = "indefinite"
+            Case Else
+                _isDndEnabled = False
+                _dndUntil = Nothing
+                _dndDurationMode = "off"
+        End Select
+
+        NotifyPropertyChanged(NameOf(IsDndEnabled))
+        NotifyPropertyChanged(NameOf(DndUntil))
+        NotifyPropertyChanged(NameOf(DndDurationMode))
+        NotifyPropertyChanged(NameOf(IsDndActive))
+
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("isDndEnabled") = _isDndEnabled
+        _cachedSettings("dndUntil") = If(_dndUntil.HasValue, _dndUntil.Value.ToString("o"), Nothing)
+        _cachedSettings("dndDurationMode") = _dndDurationMode
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

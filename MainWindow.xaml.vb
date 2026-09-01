@@ -16,6 +16,7 @@ Public Class MainWindow
     Private _trayIcon As System.Windows.Forms.NotifyIcon
     Private _allowExit As Boolean = False
     Private _defaultShadowEffect As Effect
+    Private _dndTimer As System.Windows.Threading.DispatcherTimer
 
     Public Sub New()
         InitializeComponent()
@@ -164,6 +165,14 @@ Public Class MainWindow
         ' 10. Verifica in background la disponibilità di aggiornamenti all'avvio
         Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
         
+        ' 11. Configura il timer di scadenza per la modalità Non Disturbare (TODO #47)
+        _dndTimer = New System.Windows.Threading.DispatcherTimer With {
+            .Interval = TimeSpan.FromSeconds(5)
+        }
+        AddHandler _dndTimer.Tick, AddressOf CheckDndExpiry
+        _dndTimer.Start()
+        UpdateDndState()
+
         UpdateOnlineIndicator()
         VersionText.Text = "v" & Constants.AppVersion
     End Sub
@@ -239,6 +248,11 @@ Public Class MainWindow
     Private Sub ExitApplication()
         _allowExit = True
 
+        If _dndTimer IsNot Nothing Then
+            _dndTimer.Stop()
+            _dndTimer = Nothing
+        End If
+
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
 
@@ -263,6 +277,12 @@ Public Class MainWindow
     ''' </summary>
     Public Sub ForceExitForUpdate()
         _allowExit = True
+
+        If _dndTimer IsNot Nothing Then
+            _dndTimer.Stop()
+            _dndTimer = Nothing
+        End If
+
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
 
@@ -689,6 +709,9 @@ Public Class MainWindow
             Next
         ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
             UpdateOnlineIndicator()
+            UpdateDndState()
+        ElseIf e.PropertyName = NameOf(SettingsController.IsDndEnabled) OrElse e.PropertyName = NameOf(SettingsController.DndUntil) OrElse e.PropertyName = NameOf(SettingsController.DndDurationMode) OrElse e.PropertyName = NameOf(SettingsController.IsDndActive) Then
+            UpdateDndState()
         End If
     End Sub
 
@@ -835,6 +858,78 @@ Public Class MainWindow
                 End Function)
             End If
         End Sub
+    End Sub
+
+    ' --- Gestione Modalità Non Disturbare / Focus Mode (TODO #47) ---
+
+    Private Async Sub BtnDnd_Click(sender As Object, e As RoutedEventArgs)
+        If _settingsController.IsDndActive Then
+            ' Se è già attivo, un click rapido lo disattiva
+            Await _settingsController.SetDndModeAsync("off")
+            UpdateDndState()
+        Else
+            ' Se non è attivo, apre il menu contestuale per scegliere la durata
+            If BtnDnd.ContextMenu IsNot Nothing Then
+                BtnDnd.ContextMenu.PlacementTarget = BtnDnd
+                BtnDnd.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
+                BtnDnd.ContextMenu.IsOpen = True
+            End If
+        End If
+    End Sub
+
+    Private Async Sub MnuDndOption_Click(sender As Object, e As RoutedEventArgs)
+        Dim mi = TryCast(sender, MenuItem)
+        If mi IsNot Nothing AndAlso mi.Tag IsNot Nothing Then
+            Dim mode = mi.Tag.ToString()
+            Await _settingsController.SetDndModeAsync(mode)
+            UpdateDndState()
+        End If
+    End Sub
+
+    Private Async Sub CheckDndExpiry(sender As Object, e As EventArgs)
+        If _settingsController.IsDndEnabled AndAlso _settingsController.DndUntil.HasValue Then
+            If DateTime.UtcNow >= _settingsController.DndUntil.Value Then
+                Await _settingsController.SetDndModeAsync("off")
+                UpdateDndState()
+            Else
+                ' Aggiorna il tooltip con l'orario di scadenza
+                BtnDnd.ToolTip = _settingsController.GetDndStatusText(_settingsController.Localizations)
+            End If
+        End If
+    End Sub
+
+    Private Sub UpdateDndState()
+        Dim isDnd = _settingsController.IsDndActive
+        Dim loc = _settingsController.Localizations
+        
+        If isDnd Then
+            DndIcon.Fill = BrushCache.GetBrush("#ec4899")
+            DndActiveDot.Visibility = Visibility.Visible
+            BtnDnd.ToolTip = _settingsController.GetDndStatusText(loc)
+        Else
+            DndIcon.Fill = BrushCache.GetBrush("#8696a0")
+            DndActiveDot.Visibility = Visibility.Collapsed
+            BtnDnd.ToolTip = If(loc IsNot Nothing, loc.Get("dnd_mode"), "Do Not Disturb")
+        End If
+
+        ' Aggiorna i testi localizzati del menu contestuale DND
+        If loc IsNot Nothing Then
+            If MnuDndOff IsNot Nothing Then MnuDndOff.Header = loc.Get("dnd_off")
+            If MnuDnd30m IsNot Nothing Then MnuDnd30m.Header = loc.Get("dnd_30m")
+            If MnuDnd1h IsNot Nothing Then MnuDnd1h.Header = loc.Get("dnd_1h")
+            If MnuDnd2h IsNot Nothing Then MnuDnd2h.Header = loc.Get("dnd_2h")
+            If MnuDnd8h IsNot Nothing Then MnuDnd8h.Header = loc.Get("dnd_8h")
+            If MnuDndIndefinite IsNot Nothing Then MnuDndIndefinite.Header = loc.Get("dnd_indefinite")
+        End If
+
+        ' Muta o ripristina l'audio su tutte le istanze WebView2
+        If _accountManager?.Accounts IsNot Nothing Then
+            For Each acc In _accountManager.Accounts
+                If acc.WebView IsNot Nothing AndAlso acc.WebView.CoreWebView2 IsNot Nothing Then
+                    acc.WebView.CoreWebView2.IsMuted = isDnd
+                End If
+            Next
+        End If
     End Sub
 
     ''' <summary>

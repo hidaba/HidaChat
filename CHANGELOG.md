@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.5-beta] - 2026-09-01
+
+### Pre-release / Beta — Do Not Disturb (Focus Mode)
+- **Modalità "Non Disturbare" / Focus Mode Temporizzata (TODO #47) (`MainWindow.xaml`, `MainWindow.xaml.vb`, `SettingsController.vb`, `AppAccounts.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `TODO.md`)**:
+  - **Pulsante Rapido nella TitleBar & Menu Contestuale**: Inserito il pulsante `BtnDnd` nella barra del titolo con icona campana silenziata (`Bell-Off`), badge visivo attivo e menu a comparsa per impostare durate predefinite (*Per 30 minuti*, *Per 1 ora*, *Per 2 ore*, *Per 8 ore*, *Fino a disattivazione manuale*).
+  - **Silenziamento Totale e Muting Audio Sincrono**: Soppressione immediata delle notifiche Toast di Windows e dei popup `MessagePopup` per tutti gli account, con muting hardware dei suoni web (`CoreWebView2.IsMuted = True`).
+  - **Timer con Ripristino Automatico**: Controllo periodico dello stato e disattivazione automatica alla scadenza della durata impostata con tooltip indicante l'orario di fine (es. *"Non Disturbare attivo fino alle 16:30"*).
+  - **Configurazione nelle Impostazioni & Multilingua Completo**: Controlli dedicati nella sezione Notifiche delle *Impostazioni* e traduzioni native precompilate per tutte le 5 lingue supportate (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+
 ## [0.7.4-beta] - 2026-08-30
 
 ### Pre-release / Beta — Native Multilingual Spellchecker

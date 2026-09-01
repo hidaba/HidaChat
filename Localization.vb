@@ -553,6 +553,17 @@ Public Class AppLocalizations
         {"spellchecker_language", "Dictionary language"},
         {"spellchecker_lang_auto", "Automatic (follow app language)"},
         {"spellchecker_restart_hint", "Changes will apply when reloading tabs or restarting HidaChat."},
+        {"dnd_mode", "Do Not Disturb (Focus Mode)"},
+        {"dnd_enable", "Silence all notifications and sounds"},
+        {"dnd_duration", "Duration"},
+        {"dnd_30m", "For 30 minutes"},
+        {"dnd_1h", "For 1 hour"},
+        {"dnd_2h", "For 2 hours"},
+        {"dnd_8h", "For 8 hours"},
+        {"dnd_indefinite", "Until turned off"},
+        {"dnd_active_until", "Do Not Disturb active until {time}"},
+        {"dnd_active_indefinite", "Do Not Disturb active (indefinite)"},
+        {"dnd_off", "Turn off Do Not Disturb"},
         {"close", "Close"}
     }
 
@@ -624,6 +635,17 @@ Public Class AppLocalizations
         {"spellchecker_language", "Lingua del dizionario"},
         {"spellchecker_lang_auto", "Automatica (segui lingua app)"},
         {"spellchecker_restart_hint", "Le modifiche saranno applicate ricaricando le schede o riavviando HidaChat."},
+        {"dnd_mode", "Modalità Non Disturbare"},
+        {"dnd_enable", "Silenzia tutte le notifiche e i suoni"},
+        {"dnd_duration", "Durata"},
+        {"dnd_30m", "Per 30 minuti"},
+        {"dnd_1h", "Per 1 ora"},
+        {"dnd_2h", "Per 2 ore"},
+        {"dnd_8h", "Per 8 ore"},
+        {"dnd_indefinite", "Fino a disattivazione manuale"},
+        {"dnd_active_until", "Non Disturbare attivo fino alle {time}"},
+        {"dnd_active_indefinite", "Non Disturbare attivo (indefinito)"},
+        {"dnd_off", "Disattiva Non Disturbare"},
         {"close", "Chiudi"}
     }
 
@@ -695,6 +717,17 @@ Public Class AppLocalizations
         {"spellchecker_language", "Langue du dictionnaire"},
         {"spellchecker_lang_auto", "Automatique (suivre la langue de l'app)"},
         {"spellchecker_restart_hint", "Les modifications s'appliqueront après le rechargement des onglets ou le redémarrage de HidaChat."},
+        {"dnd_mode", "Mode Ne pas déranger"},
+        {"dnd_enable", "Désactiver toutes les notifications et les sons"},
+        {"dnd_duration", "Durée"},
+        {"dnd_30m", "Pendant 30 minutes"},
+        {"dnd_1h", "Pendant 1 heure"},
+        {"dnd_2h", "Pendant 2 heures"},
+        {"dnd_8h", "Pendant 8 heures"},
+        {"dnd_indefinite", "Jusqu'à désactivation"},
+        {"dnd_active_until", "Ne pas déranger actif jusqu'à {time}"},
+        {"dnd_active_indefinite", "Ne pas déranger actif (indéfini)"},
+        {"dnd_off", "Désactiver Ne pas déranger"},
         {"close", "Fermer"}
     }
 
@@ -766,6 +799,17 @@ Public Class AppLocalizations
         {"spellchecker_language", "Idioma del diccionario"},
         {"spellchecker_lang_auto", "Automática (seguir idioma de la app)"},
         {"spellchecker_restart_hint", "Los cambios se aplicarán al recargar las pestañas o reiniciar HidaChat."},
+        {"dnd_mode", "Modo No Molestar"},
+        {"dnd_enable", "Silenciar todas las notificaciones y sonidos"},
+        {"dnd_duration", "Duración"},
+        {"dnd_30m", "Durante 30 minutos"},
+        {"dnd_1h", "Durante 1 hora"},
+        {"dnd_2h", "Durante 2 horas"},
+        {"dnd_8h", "Durante 8 horas"},
+        {"dnd_indefinite", "Hasta que se desactive"},
+        {"dnd_active_until", "No Molestar activo hasta las {time}"},
+        {"dnd_active_indefinite", "No Molestar activo (indefinido)"},
+        {"dnd_off", "Desactivar No Molestar"},
         {"close", "Cerrar"}
     }
 
@@ -837,6 +881,17 @@ Public Class AppLocalizations
         {"spellchecker_language", "Wörterbuchsprache"},
         {"spellchecker_lang_auto", "Automatisch (App-Sprache folgen)"},
         {"spellchecker_restart_hint", "Änderungen werden beim Neuladen der Registerkarten oder beim Neustart von HidaChat wirksam."},
+        {"dnd_mode", "Nicht stören (Fokusmodus)"},
+        {"dnd_enable", "Alle Benachrichtigungen und Töne stummschalten"},
+        {"dnd_duration", "Dauer"},
+        {"dnd_30m", "Für 30 Minuten"},
+        {"dnd_1h", "Für 1 Stunde"},
+        {"dnd_2h", "Für 2 Stunden"},
+        {"dnd_8h", "Für 8 Stunden"},
+        {"dnd_indefinite", "Bis zur Deaktivierung"},
+        {"dnd_active_until", "Nicht stören aktiv bis {time}"},
+        {"dnd_active_indefinite", "Nicht stören aktiv (unbegrenzt)"},
+        {"dnd_off", "Nicht stören deaktivieren"},
         {"close", "Schließen"}
     }
 

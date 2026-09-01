@@ -69,6 +69,18 @@ Public Class SettingsWindow
                 ComboSpellcheckLanguage.SelectedIndex = 0
             End If
 
+            ' 4d. Imposta lo stato della Modalità Non Disturbare (TODO #47)
+            Dim targetDndMode = If(_settingsController.IsDndActive, _settingsController.DndDurationMode.ToLowerInvariant(), "off")
+            For Each item As ComboBoxItem In ComboDndMode.Items
+                If item.Tag IsNot Nothing AndAlso item.Tag.ToString().ToLowerInvariant() = targetDndMode Then
+                    ComboDndMode.SelectedItem = item
+                    Exit For
+                End If
+            Next
+            If ComboDndMode.SelectedItem Is Nothing AndAlso ComboDndMode.Items.Count > 0 Then
+                ComboDndMode.SelectedIndex = 0
+            End If
+
             ' 5. Collega l'elenco degli account
             AccountsList.ItemsSource = _accountManager.Accounts
 
@@ -413,6 +425,25 @@ Public Class SettingsWindow
         Await _settingsController.SaveSpellcheckSettingsAsync(enabled, spellLang)
     End Sub
 
+    ' --- Gestore Modalità Non Disturbare nelle Impostazioni (TODO #47) ---
+    Private Async Sub ComboDndMode_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim selectedItem = TryCast(ComboDndMode.SelectedItem, ComboBoxItem)
+        Dim mode = If(selectedItem?.Tag IsNot Nothing, selectedItem.Tag.ToString(), "off")
+        Await _settingsController.SetDndModeAsync(mode)
+        UpdateDndSettingsText()
+    End Sub
+
+    Private Sub UpdateDndSettingsText()
+        Dim loc = _settingsController.Localizations
+        If loc Is Nothing Then Return
+        If _settingsController.IsDndActive Then
+            TxtDndStatus.Text = _settingsController.GetDndStatusText(loc)
+        Else
+            TxtDndStatus.Text = loc.Get("dnd_enable")
+        End If
+    End Sub
+
     ''' <summary>
     ''' Aggiorna tutti i testi delle etichette della finestra in base alle traduzioni correnti.
     ''' </summary>
@@ -428,6 +459,14 @@ Public Class SettingsWindow
         ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")
         SectionNotifications.Text = loc.Get("notifications")
         ChkShowMessagePopup.Content = loc.Get("show_message_popup")
+        LabelDndMode.Text = loc.Get("dnd_mode")
+        CbiDndOff.Content = loc.Get("dnd_off")
+        CbiDnd30m.Content = loc.Get("dnd_30m")
+        CbiDnd1h.Content = loc.Get("dnd_1h")
+        CbiDnd2h.Content = loc.Get("dnd_2h")
+        CbiDnd8h.Content = loc.Get("dnd_8h")
+        CbiDndIndefinite.Content = loc.Get("dnd_indefinite")
+        UpdateDndSettingsText()
         SectionAccounts.Text = loc.Get("manage_accounts")
         SectionCustomCss.Text = loc.Get("custom_css")
         ChkEnableCustomCss.Content = loc.Get("enable_custom_css")
@@ -475,6 +514,10 @@ Public Class SettingsWindow
         If ComboSpellcheckLanguage IsNot Nothing Then
             ComboSpellcheckLanguage.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
             ComboSpellcheckLanguage.Foreground = fgBrush
+        End If
+        If ComboDndMode IsNot Nothing Then
+            ComboDndMode.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
+            ComboDndMode.Foreground = fgBrush
         End If
 
         For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)
