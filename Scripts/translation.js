@@ -2,7 +2,7 @@
   const __bridgeToken = $$BRIDGE_TOKEN$$;
   if (window.__translationOverrideInstalled) {
     if (window.setTargetLanguage) {
-      window.setTargetLanguage('$$LANG_CODE$$', '$$LANG_NAME$$', '$$TOOLTIP$$', $$ENABLE_HOVER$$);
+      window.setTargetLanguage($$LANG_CODE$$, $$LANG_NAME$$, $$TOOLTIP$$, $$ENABLE_HOVER$$);
     }
     return;
   }
@@ -30,9 +30,9 @@
     return bubble.innerText;
   }
 
-  window.__translationTargetLangCode = '$$LANG_CODE$$';
-  window.__translationTargetLangName = '$$LANG_NAME$$';
-  window.__translationTooltipLabel = '$$TOOLTIP$$';
+  window.__translationTargetLangCode = $$LANG_CODE$$;
+  window.__translationTargetLangName = $$LANG_NAME$$;
+  window.__translationTooltipLabel = $$TOOLTIP$$;
   window.__enableHoverTranslation = $$ENABLE_HOVER$$;
   $$HOVER_CLASS_CMD$$
 

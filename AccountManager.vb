@@ -384,9 +384,11 @@ Public Class AccountManager
         _accounts.Remove(accountToRemove)
         _isDirty = True
 
-        If _currentAccount.Id = accountId Then
-            _currentAccount = _accounts.First()
-            _currentAccount.IsActive = True
+        If _currentAccount IsNot Nothing AndAlso _currentAccount.Id = accountId Then
+            _currentAccount = _accounts.FirstOrDefault()
+            If _currentAccount IsNot Nothing Then
+                _currentAccount.IsActive = True
+            End If
         End If
 
         NotifyPropertyChanged(NameOf(Accounts))
@@ -401,7 +403,7 @@ Public Class AccountManager
         End Try
 
         Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
-        Dim deleted = Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=5)
+        Dim deleted = Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=10)
         If deleted Then
             Debug.WriteLine($"Deleted profile folder for: {accountId}")
         Else

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.7-beta] - 2026-09-02
+
+### Pre-release / Beta — IPC Security Hardening, JSON Escaping & Lifecycle Resilience
+- **Hardening Sicurezza IPC & Disabilitazione DevTools in Release (`AppAccounts.vb`, `Constants.vb`)**:
+  - **DevTools Condizionato al Build**: `AreDevToolsEnabled` configurato condizionalmente tramite `#If DEBUG` (abilitato solo in compilazioni Debug per sviluppo, disabilitato in Release per bloccare l'accesso al runtime, al DOM e prevenire spoofing di messaggi IPC).
+  - **Token IPC Incapsulato e Protetto**: Verificato l'incapsulamento del bridge token all'interno delle IIFE di `notification.js` e `translation.js` senza alcuna esposizione sull'oggetto globale `window.__bridgeToken`.
+- **Serializzazione JSON Rigorosa & Escaping Universale (`JsScripts.vb`, `Scripts/translation.js`, `AppAccounts.vb`)**:
+  - **Iniezione Parametri Traduzione Sicura**: Sostituita l'interpolazione cruda e l'escaping manuale (`.Replace("'", "\'")`) con `JsonSerializer.Serialize` su tutti i parametri (`langCode`, `langName`, `tooltipLabel`, stringhe vuote di fallback in `HandleTranslationMessageAsync` e `UpdateWebviewLanguageAsync`).
+  - **Pulizia Template JS**: Rimosse le virgolette statiche nei template script per accogliere direttamente token letterali JSON validi.
+- **Gestione Coda Notifiche a Politica FIFO/LRU (`AppAccounts.vb`)**:
+  - Sostituito il `Clear()` totale di `ActiveNotificationIds` al raggiungimento del limite (500) con espulsione progressiva FIFO (`ActiveNotificationIds.Remove(oldest)`), evitando disallineamenti tra eventi di chiusura notifica e badge dei non letti.
+- **Resilienza Rimozione Account & Chiusura Profilo (`AccountManager.vb`)**:
+  - **Protezione NullReference**: Aggiunto controllo difensivo `_currentAccount IsNot Nothing` prima dell'accesso a `_currentAccount.Id` in `RemoveAccountAsync`.
+  - **Eliminazione Robusta Cartelle Profilo**: Aumentati a 10 i tentativi con backoff esponenziale in `DeleteDirectoryWithRetryAsync` per consentire il rilascio completo dei file di lock Chromium su storage lenti o con scansioni antivirus attive.
+
 ## [0.7.6-beta] - 2026-09-02
 
 ### Pre-release / Beta — WebView2 Process Crash Resilience & Auto-Recovery

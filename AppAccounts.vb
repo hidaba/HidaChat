@@ -363,7 +363,11 @@ Public Class AppAccounts
             _isCrashed = False
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
+#If DEBUG Then
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
+#Else
+            WebView.CoreWebView2.Settings.AreDevToolsEnabled = False
+#End If
             WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
             WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
             
@@ -583,10 +587,15 @@ Public Class AppAccounts
         Debug.WriteLine($"[NotificationChannel] accountId={Id}, type={type}, id={notificationId}")
 
         If type = "NOTIFICATION_RECEIVED" Then
-            ' Limita le dimensioni del set per prevenire memory leak prolungato
-            If ActiveNotificationIds.Count >= MaxActiveNotificationIds Then
-                ActiveNotificationIds.Clear()
-            End If
+            ' Limita le dimensioni del set per prevenire memory leak prolungato con espulsione FIFO degli ID piu vecchi
+            While ActiveNotificationIds.Count >= MaxActiveNotificationIds
+                Dim oldest = ActiveNotificationIds.FirstOrDefault()
+                If oldest IsNot Nothing Then
+                    ActiveNotificationIds.Remove(oldest)
+                Else
+                    Exit While
+                End If
+            End While
             ActiveNotificationIds.Add(notificationId)
             HasNotification = True
             onNotificationChanged?.Invoke(Id, True)
@@ -784,9 +793,10 @@ Public Class AppAccounts
                     )
                 End Function)
             Else
+                Dim emptyJson = JsonSerializer.Serialize(String.Empty)
                 Await WebView.Dispatcher.InvokeAsync(Async Function()
                     Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, '', false); }}"
+                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {emptyJson}, false); }}"
                     )
                 End Function)
             End If
@@ -799,9 +809,9 @@ Public Class AppAccounts
     Public Async Function UpdateWebviewLanguageAsync(langCode As String, langName As String, translateTooltipLabel As String, enableHover As Boolean) As Task
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
-                Dim jsonLangCode = JsonSerializer.Serialize(langCode)
-                Dim jsonLangName = JsonSerializer.Serialize(langName)
-                Dim jsonTooltip = JsonSerializer.Serialize(translateTooltipLabel)
+                Dim jsonLangCode = JsonSerializer.Serialize(If(langCode, "en"))
+                Dim jsonLangName = JsonSerializer.Serialize(If(langName, "English"))
+                Dim jsonTooltip = JsonSerializer.Serialize(If(translateTooltipLabel, "Translate"))
                 Dim hoverBool = If(enableHover, "true", "false")
 
                 Await WebView.CoreWebView2.ExecuteScriptAsync(

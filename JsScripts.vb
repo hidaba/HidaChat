@@ -231,8 +231,9 @@ Public Class TranslationJsScripts
         enableFullPage As Boolean
     ) As String
         Dim jsonToken = JsonSerializer.Serialize(bridgeToken)
-        Dim escapedTooltip = tooltipLabel.Replace("'", "\'")
-        Dim escapedName = targetLangName.Replace("'", "\'")
+        Dim jsonLangCode = JsonSerializer.Serialize(If(targetLangCode, "en"))
+        Dim jsonLangName = JsonSerializer.Serialize(If(targetLangName, "English"))
+        Dim jsonTooltip = JsonSerializer.Serialize(If(tooltipLabel, "Translate"))
 
         Dim hoverClassListCmd = If(enableHover,
             "document.body.classList.remove('disable-hover-translation');",
@@ -244,9 +245,9 @@ Public Class TranslationJsScripts
 
         Dim sb As New StringBuilder(_translationTemplate.Value)
         sb.Replace("$$BRIDGE_TOKEN$$", jsonToken)
-        sb.Replace("$$LANG_CODE$$", targetLangCode)
-        sb.Replace("$$LANG_NAME$$", escapedName)
-        sb.Replace("$$TOOLTIP$$", escapedTooltip)
+        sb.Replace("$$LANG_CODE$$", jsonLangCode)
+        sb.Replace("$$LANG_NAME$$", jsonLangName)
+        sb.Replace("$$TOOLTIP$$", jsonTooltip)
         sb.Replace("$$ENABLE_HOVER$$", enableHover.ToString().ToLowerInvariant())
         sb.Replace("$$HOVER_CLASS_CMD$$", hoverClassListCmd)
         sb.Replace("$$FULL_PAGE_INIT$$", fullPageInitCmd)
