@@ -1,4 +1,5 @@
 (function() {
+  if (window.top !== window.self) return;
   const __bridgeToken = $$BRIDGE_TOKEN$$;
   if (window.__translationOverrideInstalled) {
     if (window.setTargetLanguage) {

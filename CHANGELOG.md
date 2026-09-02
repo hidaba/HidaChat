@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.10-beta] - 2026-09-02
+
+### Pre-release / Beta — WhatsApp Session Persistence & Telegram Web A Migration
+- **Preservazione Sessione Persistente WhatsApp Web (`AppAccounts.vb`)**:
+  - **Ripristino User-Agent Nativo**: Rimosso l'override dinamico dell'User-Agent a runtime che causava la discrepanza del fingerprint crittografico in WhatsApp Web e forzava la disconnessione della sessione/richiesta di scansione del QR code. Le credenziali e lo stato di accoppiamento IndexedDB restano ora stabili e persistenti nel tempo.
+- **Migrazione Telegram Web al Client Ufficiale Web A (`AppAccounts.vb`)**:
+  - **Adozione Telegram Web A (`https://web.telegram.org/a/`)**: Sostituita la precedente URL di Web K (`/k/`) con il client ufficiale moderno Web A, superando definitivamente i problemi di caricamento infinito, thread locking WebAssembly e compatibilità con WebView2.
+  - **Supporto Deep Linking `tg://` & `t.me`**: Aggiornati i resolver dei link a Telegram Web A per canali, gruppi, messaggi e inviti.
+- **Protezione Iframe, Sandbox e Script Helper (`Scripts/notification.js`, `Scripts/translation.js`, `JsScripts.vb`)**:
+  - Aggiunto controllo `if (window.top !== window.self) return;` a tutti gli script iniettati (`notification.js`, `translation.js`, `telegram.css`) per evitare l'iniezione accidentale in iframe interni, widget o frame di supporto Web Workers di Telegram.
+  - Sincronizzazione tema Chiaro/Scuro (`theme-light`/`theme-dark` e `night`) ottimizzata per l'architettura React/TypeScript di Telegram Web A.
+
 ## [0.7.9-beta] - 2026-09-02
 
 ### Pre-release / Beta — Telegram Web Compatibility & Notification Override Hardening

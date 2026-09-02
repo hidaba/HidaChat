@@ -63,6 +63,7 @@ Public Class ThemeJsScripts
         Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
         Dim cssJson = JsonSerializer.Serialize(telegramCss)
         Return "(function() {" & vbCrLf &
+               "  if (window.top !== window.self) return;" & vbCrLf &
                "  var injectCss = function() {" & vbCrLf &
                "    try {" & vbCrLf &
                "      var styleId = 'hidachat-telegram-css';" & vbCrLf &
@@ -85,6 +86,7 @@ Public Class ThemeJsScripts
         Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
         Dim cssJson = JsonSerializer.Serialize(telegramCss)
         Return "(function() {" & vbCrLf &
+               "  if (window.top !== window.self) return;" & vbCrLf &
                "  try {" & vbCrLf &
                "    var styleId = 'hidachat-telegram-css';" & vbCrLf &
                "    if (!document.getElementById(styleId)) {" & vbCrLf &
@@ -94,9 +96,13 @@ Public Class ThemeJsScripts
                "      (document.head || document.documentElement).appendChild(style);" & vbCrLf &
                "    }" & vbCrLf &
                "    document.documentElement.classList.remove('night', 'theme-dark', 'dark');" & vbCrLf &
-               "    if (document.body) { document.body.classList.remove('night', 'theme-dark', 'dark'); }" & vbCrLf &
-               "    localStorage.setItem('tt-theme', 'day');" & vbCrLf &
-               "    localStorage.setItem('theme', 'day');" & vbCrLf &
+               "    document.documentElement.classList.add('theme-light', 'light');" & vbCrLf &
+               "    if (document.body) {" & vbCrLf &
+               "      document.body.classList.remove('night', 'theme-dark', 'dark');" & vbCrLf &
+               "      document.body.classList.add('theme-light', 'light');" & vbCrLf &
+               "    }" & vbCrLf &
+               "    try { localStorage.setItem('tt-theme', 'day'); } catch(e) {}" & vbCrLf &
+               "    try { localStorage.setItem('theme', 'day'); } catch(e) {}" & vbCrLf &
                "  } catch(e) {}" & vbCrLf &
                "  if (window.themeController && typeof window.themeController.setTheme === 'function') {" & vbCrLf &
                "    try { window.themeController.setTheme('day'); } catch(e) {}" & vbCrLf &
@@ -111,6 +117,7 @@ Public Class ThemeJsScripts
         Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
         Dim cssJson = JsonSerializer.Serialize(telegramCss)
         Return "(function() {" & vbCrLf &
+               "  if (window.top !== window.self) return;" & vbCrLf &
                "  try {" & vbCrLf &
                "    var styleId = 'hidachat-telegram-css';" & vbCrLf &
                "    var existingStyle = document.getElementById(styleId);" & vbCrLf &
@@ -120,10 +127,14 @@ Public Class ThemeJsScripts
                "      style.textContent = " & cssJson & ";" & vbCrLf &
                "      (document.head || document.documentElement).appendChild(style);" & vbCrLf &
                "    }" & vbCrLf &
-               "    document.documentElement.classList.add('night');" & vbCrLf &
-               "    if (document.body) { document.body.classList.add('night'); }" & vbCrLf &
-               "    localStorage.setItem('tt-theme', 'night');" & vbCrLf &
-               "    localStorage.setItem('theme', 'night');" & vbCrLf &
+               "    document.documentElement.classList.remove('theme-light', 'light');" & vbCrLf &
+               "    document.documentElement.classList.add('night', 'theme-dark', 'dark');" & vbCrLf &
+               "    if (document.body) {" & vbCrLf &
+               "      document.body.classList.remove('theme-light', 'light');" & vbCrLf &
+               "      document.body.classList.add('night', 'theme-dark', 'dark');" & vbCrLf &
+               "    }" & vbCrLf &
+               "    try { localStorage.setItem('tt-theme', 'night'); } catch(e) {}" & vbCrLf &
+               "    try { localStorage.setItem('theme', 'night'); } catch(e) {}" & vbCrLf &
                "  } catch(e) {}" & vbCrLf &
                "  if (window.themeController && typeof window.themeController.setTheme === 'function') {" & vbCrLf &
                "    try { window.themeController.setTheme('night'); } catch(e) {}" & vbCrLf &

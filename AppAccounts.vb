@@ -64,7 +64,7 @@ Public Class AppAccounts
     Public ReadOnly Property WebUrl As String
         Get
             If IsTelegram Then
-                Return "https://web.telegram.org/k/"
+                Return "https://web.telegram.org/a/"
             Else
                 Return "https://web.whatsapp.com/"
             End If
@@ -367,17 +367,6 @@ Public Class AppAccounts
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
             WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
             WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
-
-            ' Rimuove "WebView2/..." dal UserAgent per garantire che Telegram Web e WhatsApp Web riconoscano il browser come client desktop nativo
-            Try
-                Dim currentUa = WebView.CoreWebView2.Settings.UserAgent
-                If Not String.IsNullOrEmpty(currentUa) AndAlso currentUa.Contains("WebView2/") Then
-                    Dim cleanUa = System.Text.RegularExpressions.Regex.Replace(currentUa, "\s*WebView2\/[0-9\.]+", "")
-                    WebView.CoreWebView2.Settings.UserAgent = cleanUa
-                End If
-            Catch ex As Exception
-                Debug.WriteLine($"UserAgent sanitize error: {ex.Message}")
-            End Try
             
             ' Registra listener crash a livello di CoreWebView2
             _processFailedHandler = Sub(sender, e)
@@ -686,16 +675,16 @@ Public Class AppAccounts
                 If domainMatch.Success Then
                     Dim domain = domainMatch.Groups(1).Value
                     If postMatch.Success Then
-                        Return $"https://web.telegram.org/k/#@{domain}/{postMatch.Groups(1).Value}"
+                        Return $"https://web.telegram.org/a/#@{domain}/{postMatch.Groups(1).Value}"
                     Else
-                        Return $"https://web.telegram.org/k/#@{domain}"
+                        Return $"https://web.telegram.org/a/#@{domain}"
                     End If
                 End If
-                Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString(trimmed)
+                Return "https://web.telegram.org/a/#?tgaddr=" & Uri.EscapeDataString(trimmed)
             ElseIf lower.StartsWith("tg://join?") OrElse lower.StartsWith("tg://msg_url?") Then
-                Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString(trimmed)
+                Return "https://web.telegram.org/a/#?tgaddr=" & Uri.EscapeDataString(trimmed)
             Else
-                Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString(trimmed)
+                Return "https://web.telegram.org/a/#?tgaddr=" & Uri.EscapeDataString(trimmed)
             End If
         End If
 
@@ -705,16 +694,16 @@ Public Class AppAccounts
             Dim host = uriObj.Host.ToLowerInvariant()
             If host = "t.me" OrElse host.EndsWith(".t.me") OrElse host = "telegram.me" OrElse host.EndsWith(".telegram.me") Then
                 Dim path = uriObj.AbsolutePath.TrimStart("/"c)
-                If String.IsNullOrEmpty(path) Then Return "https://web.telegram.org/k/"
+                If String.IsNullOrEmpty(path) Then Return "https://web.telegram.org/a/"
                 
                 If path.StartsWith("+") OrElse path.StartsWith("joinchat/", StringComparison.OrdinalIgnoreCase) Then
-                    Return "https://web.telegram.org/k/#?tgaddr=" & Uri.EscapeDataString($"tg://join?invite={path.Replace("joinchat/", "").TrimStart("+"c)}")
+                    Return "https://web.telegram.org/a/#?tgaddr=" & Uri.EscapeDataString($"tg://join?invite={path.Replace("joinchat/", "").TrimStart("+"c)}")
                 ElseIf path.StartsWith("c/", StringComparison.OrdinalIgnoreCase) Then
-                    Return $"https://web.telegram.org/k/#{path}"
+                    Return $"https://web.telegram.org/a/#{path}"
                 ElseIf path.StartsWith("s/", StringComparison.OrdinalIgnoreCase) Then
-                    Return $"https://web.telegram.org/k/#@{path.Substring(2)}"
+                    Return $"https://web.telegram.org/a/#@{path.Substring(2)}"
                 Else
-                    Return $"https://web.telegram.org/k/#@{path}"
+                    Return $"https://web.telegram.org/a/#@{path}"
                 End If
             End If
         Catch

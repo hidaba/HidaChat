@@ -1,5 +1,6 @@
 (function() {
   try {
+    if (window.top !== window.self) return;
     const __bridgeToken = $$BRIDGE_TOKEN$$;
     if (window.__notificationOverrideInstalled) return;
     window.__notificationOverrideInstalled = true;
