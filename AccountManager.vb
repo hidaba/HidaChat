@@ -12,11 +12,24 @@ Imports System.Runtime.CompilerServices
 Public Class AccountManager
     Implements INotifyPropertyChanged
 
-    Public Const MaxAccounts As Integer = 3
+    Public Const DefaultMaxAccounts As Integer = 5
+    Public Const AbsoluteMaxAccounts As Integer = 10
+
+    ''' <summary>
+    ''' Limite massimo di account configurabili contemporaneamente (configurabile nelle impostazioni, default 5, max 10).
+    ''' </summary>
+    Public ReadOnly Property MaxAccounts As Integer
+        Get
+            If _settingsController IsNot Nothing AndAlso _settingsController.MaxAccounts > 0 Then
+                Return Math.Clamp(_settingsController.MaxAccounts, 2, AbsoluteMaxAccounts)
+            End If
+            Return DefaultMaxAccounts
+        End Get
+    End Property
 
     Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
 
-    Private Sub NotifyPropertyChanged(<CallerMemberName> Optional propertyName As String = Nothing)
+    Public Sub NotifyPropertyChanged(<CallerMemberName> Optional propertyName As String = Nothing)
         RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(propertyName))
     End Sub
 
@@ -24,7 +37,7 @@ Public Class AccountManager
     Private _isDirty As Boolean = False
 
     ''' <summary>
-    ''' Indica se è possibile aggiungere un nuovo account (limite massimo di 3 account non ancora raggiunto).
+    ''' Indica se è possibile aggiungere un nuovo account (limite massimo configurato non ancora raggiunto).
     ''' </summary>
     Public ReadOnly Property CanAddAccount As Boolean
         Get
@@ -242,14 +255,14 @@ Public Class AccountManager
             End If
 
             Dim activeSet As New HashSet(Of String)(If(activeIds, New List(Of String)()), StringComparer.OrdinalIgnoreCase)
-            Dim profileDirs = Directory.GetDirectories(sharedDir, "WV2Profile_*")
 
-            For Each profileDir In profileDirs
+            For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
                 Dim dirName = Path.GetFileName(profileDir)
                 If dirName.StartsWith("WV2Profile_") Then
                     Dim profileId = dirName.Substring("WV2Profile_".Length)
-                    If Not activeSet.Contains(profileId) Then
-                        Await DeleteDirectoryWithRetryAsync(profileDir)
+                    If Not String.IsNullOrEmpty(profileId) AndAlso Not activeSet.Contains(profileId) Then
+                        Debug.WriteLine($"CleanupUnusedProfiles: eliminazione profilo orfano {profileDir}")
+                        Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=5)
                     End If
                 End If
             Next
@@ -451,11 +464,19 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Ricalcola lo stato globale delle notifiche in base allo stato dei singoli account.
+    ''' Ricalcola lo stato globale delle notifiche quando cambia lo stato di un singolo account.
     ''' </summary>
     Public Sub HandleNotificationStateChanged(accountId As String, hasNotif As Boolean)
-        Dim anyNotif = _accounts.Any(Function(a) a.HasNotification)
-        HasAnyNotification = anyNotif
+        Dim target = _accounts.FirstOrDefault(Function(a) a.Id = accountId)
+        If target IsNot Nothing Then
+            target.HasNotification = hasNotif
+        End If
+
+        If hasNotif Then
+            HasAnyNotification = True
+        Else
+            HasAnyNotification = _accounts.Any(Function(a) a.HasNotification)
+        End If
     End Sub
 End Class
 

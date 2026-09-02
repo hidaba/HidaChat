@@ -241,6 +241,22 @@ Public Class SettingsController
         End Select
     End Function
 
+    ' --- Limite Massimo Account ---
+    Private _maxAccounts As Integer = 5
+    ''' <summary>Numero massimo di account configurabili contemporaneamente (default: 5, min: 2, max: 10).</summary>
+    Public Property MaxAccounts As Integer
+        Get
+            Return _maxAccounts
+        End Get
+        Set(value As Integer)
+            Dim clamped = Math.Clamp(value, 2, 10)
+            If _maxAccounts <> clamped Then
+                _maxAccounts = clamped
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
     ' --- Modalità Non Disturbare / Focus Mode (TODO #47) ---
     Private _isDndEnabled As Boolean = False
     ''' <summary>Indica se la modalità Non Disturbare è stata attivata manualmente o tramite timer.</summary>
@@ -528,6 +544,16 @@ Public Class SettingsController
         Else
             _customCss = ""
         End If
+
+        If settings.ContainsKey("maxAccounts") Then
+            Try
+                _maxAccounts = Math.Clamp(Convert.ToInt32(settings("maxAccounts").ToString()), 2, 10)
+            Catch
+                _maxAccounts = 5
+            End Try
+        Else
+            _maxAccounts = 5
+        End If
         
         If settings.ContainsKey("language") Then
             _language = settings("language").ToString()
@@ -584,6 +610,15 @@ Public Class SettingsController
     Public Async Function SaveSettingAsync(key As String, value As Object) As Task
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings(key) = value
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e persiste il numero massimo di account consentiti.</summary>
+    Public Async Function SaveMaxAccountsAsync(maxAcc As Integer) As Task
+        MaxAccounts = maxAcc
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("maxAccounts") = _maxAccounts
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

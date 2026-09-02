@@ -260,7 +260,22 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Button x:Name="BtnAddAccountSettings" Content="Add account" Click="BtnAddAccountSettings_Click" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Left" Margin="0,0,0,15"/>
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnAddAccountSettings" Content="Add account" Click="BtnAddAccountSettings_Click" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Left"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="LabelMaxAccounts" Text="Max accounts:" Foreground="#aebac1" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+                            <ComboBox x:Name="ComboMaxAccounts" Width="75" SelectionChanged="ComboMaxAccounts_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                                <ComboBoxItem Content="3" Tag="3"/>
+                                <ComboBoxItem Content="5" Tag="5"/>
+                                <ComboBoxItem Content="8" Tag="8"/>
+                                <ComboBoxItem Content="10" Tag="10"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
 
                     <!-- CUSTOM CSS SECTION (TODO #43) -->
                     <TextBlock x:Name="SectionCustomCss" Text="Custom CSS" Style="{StaticResource SectionHeaderStyle}"/>

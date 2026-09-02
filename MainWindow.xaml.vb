@@ -776,7 +776,7 @@ Public Class MainWindow
     Private Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
         Try
             If Not _accountManager.CanAddAccount Then
-                Dim msg = _settingsController.Localizations.Get("max_accounts_reached")
+                Dim msg = _settingsController.Localizations.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}})
                 MessageBox.Show(msg, "Limiti Account", MessageBoxButton.OK, MessageBoxImage.Information)
                 Return
             End If

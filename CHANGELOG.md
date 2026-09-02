@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.8-beta] - 2026-09-02
+
+### Pre-release / Beta — Dynamic Max Accounts, Lazy Directory Enumeration & Notification Tuning
+- **Numero Massimo di Account Configurabile (`AccountManager.vb`, `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`)**:
+  - **Limite Dinamico Flessibile**: Rimosso il limite rigido hardcoded a 3 account; introdotta la proprietà configurabile `MaxAccounts` (selezionabile nelle Impostazioni fra 3, 5, 8 e 10 account, default 5) persistita in `settings.json`.
+  - **Aggiornamento Dinamico UI e Localizzazione**: Aggiornati i testi informativi sui contatori e messaggi di blocco (`accounts_count_info` e `max_accounts_reached`) con segnaposto dinamico `{max}` in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+- **Ottimizzazione I/O Pulizia Profili con Enumerazione Lazy (`AccountManager.vb`)**:
+  - Sostituita la chiamata eager `Directory.GetDirectories` in `CleanupUnusedProfilesAsync` con l'iteratore lazy e token-efficient `Directory.EnumerateDirectories`, allineando il pattern a tutte le scansioni directory del progetto.
+- **Tuning e Consistenza `HandleNotificationStateChanged` (`AccountManager.vb`)**:
+  - Eliminato il codice morto/inutilizzato: il parametro `hasNotif` e `accountId` vengono ora attivamente utilizzati per allineare tempestivamente lo stato dell'account target e determinare `HasAnyNotification` in modo reattivo senza scansioni ridondanti.
+
 ## [0.7.7-beta] - 2026-09-02
 
 ### Pre-release / Beta — IPC Security Hardening, JSON Escaping & Lifecycle Resilience

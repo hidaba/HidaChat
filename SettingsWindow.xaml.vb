@@ -81,6 +81,18 @@ Public Class SettingsWindow
                 ComboDndMode.SelectedIndex = 0
             End If
 
+            ' 4e. Imposta il valore selezionato per MaxAccounts
+            Dim currentMax = _settingsController.MaxAccounts.ToString()
+            For Each item As ComboBoxItem In ComboMaxAccounts.Items
+                If item.Tag IsNot Nothing AndAlso item.Tag.ToString() = currentMax Then
+                    ComboMaxAccounts.SelectedItem = item
+                    Exit For
+                End If
+            Next
+            If ComboMaxAccounts.SelectedItem Is Nothing AndAlso ComboMaxAccounts.Items.Count > 0 Then
+                ComboMaxAccounts.SelectedIndex = 1
+            End If
+
             ' 5. Collega l'elenco degli account
             AccountsList.ItemsSource = _accountManager.Accounts
 
@@ -275,7 +287,7 @@ Public Class SettingsWindow
     Private Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)
         If Not _accountManager.CanAddAccount Then
             Dim loc = _settingsController.Localizations
-            MessageBox.Show(loc.Get("max_accounts_reached"), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
+            MessageBox.Show(loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}}), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
             Return
         End If
 
@@ -302,6 +314,19 @@ Public Class SettingsWindow
         menu.IsOpen = True
     End Sub
 
+    Private Async Sub ComboMaxAccounts_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim item = TryCast(ComboMaxAccounts.SelectedItem, ComboBoxItem)
+        If item IsNot Nothing AndAlso item.Tag IsNot Nothing Then
+            Dim maxVal As Integer
+            If Integer.TryParse(item.Tag.ToString(), maxVal) Then
+                Await _settingsController.SaveMaxAccountsAsync(maxVal)
+                _accountManager.NotifyPropertyChanged(NameOf(AccountManager.CanAddAccount))
+                UpdateAccountsUIState()
+            End If
+        End If
+    End Sub
+
     Private Async Function AddAccountSettingsWithPlatformAsync(platform As String) As Task
         Dim success = Await _accountManager.AddAccountAsync(platform:=platform)
         If success Then
@@ -319,7 +344,10 @@ Public Class SettingsWindow
     Private Sub UpdateAccountsUIState()
         Dim loc = _settingsController.Localizations
         If TxtAccountsCount IsNot Nothing Then
-            TxtAccountsCount.Text = loc.Get("accounts_count_info", New Dictionary(Of String, String) From {{"count", _accountManager.Accounts.Count.ToString()}})
+            TxtAccountsCount.Text = loc.Get("accounts_count_info", New Dictionary(Of String, String) From {
+                {"count", _accountManager.Accounts.Count.ToString()},
+                {"max", _accountManager.MaxAccounts.ToString()}
+            })
         End If
         If BtnAddAccountSettings IsNot Nothing Then
             BtnAddAccountSettings.IsEnabled = _accountManager.CanAddAccount
@@ -468,6 +496,9 @@ Public Class SettingsWindow
         CbiDndIndefinite.Content = loc.Get("dnd_indefinite")
         UpdateDndSettingsText()
         SectionAccounts.Text = loc.Get("manage_accounts")
+        If LabelMaxAccounts IsNot Nothing Then
+            LabelMaxAccounts.Text = loc.Get("max_accounts")
+        End If
         SectionCustomCss.Text = loc.Get("custom_css")
         ChkEnableCustomCss.Content = loc.Get("enable_custom_css")
         BtnApplyCustomCss.Content = loc.Get("apply_css")
@@ -518,6 +549,10 @@ Public Class SettingsWindow
         If ComboDndMode IsNot Nothing Then
             ComboDndMode.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
             ComboDndMode.Foreground = fgBrush
+        End If
+        If ComboMaxAccounts IsNot Nothing Then
+            ComboMaxAccounts.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
+            ComboMaxAccounts.Foreground = fgBrush
         End If
 
         For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)
