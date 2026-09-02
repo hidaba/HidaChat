@@ -61,6 +61,7 @@ Public Class ThemeJsScripts
 
     Private Shared ReadOnly _telegramInitJs As New Lazy(Of String)(Function()
         Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
+        Dim cssJson = JsonSerializer.Serialize(telegramCss)
         Return "(function() {" & vbCrLf &
                "  var injectCss = function() {" & vbCrLf &
                "    try {" & vbCrLf &
@@ -68,7 +69,7 @@ Public Class ThemeJsScripts
                "      if (!document.getElementById(styleId)) {" & vbCrLf &
                "        var style = document.createElement('style');" & vbCrLf &
                "        style.id = styleId;" & vbCrLf &
-               "        style.textContent = `" & telegramCss & "`;" & vbCrLf &
+               "        style.textContent = " & cssJson & ";" & vbCrLf &
                "        (document.head || document.documentElement).appendChild(style);" & vbCrLf &
                "      }" & vbCrLf &
                "    } catch(e) {}" & vbCrLf &
@@ -82,13 +83,14 @@ Public Class ThemeJsScripts
 
     Private Shared ReadOnly _telegramLightModeJs As New Lazy(Of String)(Function()
         Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
+        Dim cssJson = JsonSerializer.Serialize(telegramCss)
         Return "(function() {" & vbCrLf &
                "  try {" & vbCrLf &
                "    var styleId = 'hidachat-telegram-css';" & vbCrLf &
                "    if (!document.getElementById(styleId)) {" & vbCrLf &
                "      var style = document.createElement('style');" & vbCrLf &
                "      style.id = styleId;" & vbCrLf &
-               "      style.textContent = `" & telegramCss & "`;" & vbCrLf &
+               "      style.textContent = " & cssJson & ";" & vbCrLf &
                "      (document.head || document.documentElement).appendChild(style);" & vbCrLf &
                "    }" & vbCrLf &
                "    document.documentElement.classList.remove('night', 'theme-dark', 'dark');" & vbCrLf &
@@ -107,6 +109,7 @@ Public Class ThemeJsScripts
 
     Private Shared ReadOnly _telegramDarkModeJs As New Lazy(Of String)(Function()
         Dim telegramCss = EmbeddedScriptLoader.GetEmbeddedString("telegram.css")
+        Dim cssJson = JsonSerializer.Serialize(telegramCss)
         Return "(function() {" & vbCrLf &
                "  try {" & vbCrLf &
                "    var styleId = 'hidachat-telegram-css';" & vbCrLf &
@@ -114,7 +117,7 @@ Public Class ThemeJsScripts
                "    if (!existingStyle) {" & vbCrLf &
                "      var style = document.createElement('style');" & vbCrLf &
                "      style.id = styleId;" & vbCrLf &
-               "      style.textContent = `" & telegramCss & "`;" & vbCrLf &
+               "      style.textContent = " & cssJson & ";" & vbCrLf &
                "      (document.head || document.documentElement).appendChild(style);" & vbCrLf &
                "    }" & vbCrLf &
                "    document.documentElement.classList.add('night');" & vbCrLf &

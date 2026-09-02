@@ -349,12 +349,13 @@ Public Class AppAccounts
             End If
 
             Dim browserArgs = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
+            Dim disabledFeatures As New List(Of String) From {"Translate", "MediaRouter"}
             If settings.EnableSpellcheck Then
                 browserArgs &= $" --enable-features=Spellcheck --lang={effectiveLang}"
             Else
-                browserArgs &= " --disable-features=Spellcheck"
+                disabledFeatures.Add("Spellcheck")
             End If
-            browserArgs &= " --disable-features=Translate,OptimizationHints,MediaRouter"
+            browserArgs &= $" --disable-features={String.Join(",", disabledFeatures)}"
             options.AdditionalBrowserArguments = browserArgs
 
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
@@ -363,13 +364,20 @@ Public Class AppAccounts
             _isCrashed = False
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
-#If DEBUG Then
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
-#Else
-            WebView.CoreWebView2.Settings.AreDevToolsEnabled = False
-#End If
             WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
             WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
+
+            ' Rimuove "WebView2/..." dal UserAgent per garantire che Telegram Web e WhatsApp Web riconoscano il browser come client desktop nativo
+            Try
+                Dim currentUa = WebView.CoreWebView2.Settings.UserAgent
+                If Not String.IsNullOrEmpty(currentUa) AndAlso currentUa.Contains("WebView2/") Then
+                    Dim cleanUa = System.Text.RegularExpressions.Regex.Replace(currentUa, "\s*WebView2\/[0-9\.]+", "")
+                    WebView.CoreWebView2.Settings.UserAgent = cleanUa
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"UserAgent sanitize error: {ex.Message}")
+            End Try
             
             ' Registra listener crash a livello di CoreWebView2
             _processFailedHandler = Sub(sender, e)

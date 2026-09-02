@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.9-beta] - 2026-09-02
+
+### Pre-release / Beta — Telegram Web Compatibility & Notification Override Hardening
+- **Risoluzione Blocco Caricamento Chat Telegram Web (`Scripts/notification.js`, `AppAccounts.vb`)**:
+  - **Preservazione Catena Prototipale `window.Notification`**: Riformulato l'override di `Notification` mantenendo l'ereditarietà prototipale completa da `OriginalNotification.prototype` (`Object.setPrototypeOf`), i costruttori standard e le proprietà statiche per prevenire eccezioni di tipo e blocchi di inizializzazione MTProto/WASM su Telegram Web K e Telegram Web A.
+  - **Intercettazione Sicura `navigator.permissions.query`**: Sostituita la delega bound con invocazione sicura tramite `Reflect.apply`/`apply` all'interno di blocchi protetti `try...catch` per evitare l'eccezione nativa Blink `TypeError: Illegal invocation` durante i controlli permessi all'avvio.
+  - **Sanitizzazione User-Agent WebView2**: Rimosso il token identificativo `WebView2/...` dall'User-Agent per garantire il corretto riconoscimento client desktop nativo senza restrizioni o pagine di fallback.
+  - **Ottimizzazione Flag Browser Chromium**: Rimossi flag potenzialmente limitanti per WebAssembly (`OptimizationHints`) e unificati i parametri `--disable-features` in un'unica direttiva formattata.
+  - **Ripristino DevTools Window (`AppAccounts.vb`)**: Riattivata la possibilità di aprire gli Strumenti di Sviluppo tramite il pulsante nelle Impostazioni per agevolare diagnostica e ispezione runtime.
+
 ## [0.7.8-beta] - 2026-09-02
 
 ### Pre-release / Beta — Dynamic Max Accounts, Lazy Directory Enumeration & Notification Tuning
