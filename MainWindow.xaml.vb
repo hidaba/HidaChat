@@ -258,6 +258,8 @@ Public Class MainWindow
 
         For Each acc In _accountManager.Accounts
             Try
+                RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
+                RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
                 acc.Dispose()
             Catch
             End Try
@@ -288,6 +290,8 @@ Public Class MainWindow
 
         For Each acc In _accountManager.Accounts
             Try
+                RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
+                RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
                 acc.Dispose()
             Catch
             End Try
@@ -447,31 +451,98 @@ Public Class MainWindow
 
     ''' <summary>
     ''' Assicura che l'istanza WebView2 per l'account sia creata, aggiunta alla griglia ed inizializzata.
+    ''' In caso di crash pregresso o stato invalidato, attiva il ripristino automatico (Auto-Recovery).
     ''' </summary>
     Private Async Function EnsureWebViewAsync(account As AppAccounts) As Task
-        If account.WebView Is Nothing Then
-            account.WebView = New WebView2()
-            account.WebView.HorizontalAlignment = HorizontalAlignment.Stretch
-            account.WebView.VerticalAlignment = VerticalAlignment.Stretch
-            
-            Dim isDark = _settingsController.IsDarkThemeEffective
-            account.WebView.DefaultBackgroundColor = If(isDark, System.Drawing.Color.FromArgb(17, 27, 33), System.Drawing.Color.FromArgb(240, 242, 245))
-            
-            account.WebView.Visibility = Visibility.Visible
-            If account.IsActive Then
-                account.WebView.Margin = New Thickness(0)
-                Panel.SetZIndex(account.WebView, 10)
-            Else
-                account.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
-                Panel.SetZIndex(account.WebView, 0)
-            End If
-            WebViewsGrid.Children.Add(account.WebView)
+        If account Is Nothing Then Return
+
+        Dim needsRecreation As Boolean = (account.WebView Is Nothing OrElse account.IsCrashed)
+        If Not needsRecreation AndAlso account.WebView IsNot Nothing Then
+            Try
+                ' Verifica preventiva della validità del CoreWebView2 (non deve sollevare eccezioni di processo terminato)
+                If account.WebView.CoreWebView2 IsNot Nothing Then
+                    Dim dummy = account.WebView.CoreWebView2.Source
+                End If
+            Catch
+                needsRecreation = True
+            End Try
+        End If
+
+        If needsRecreation Then
+            Await RecreateAccountWebViewAsync(account)
+            Return
         End If
 
         If account.WebView.CoreWebView2 Is Nothing Then
             Await account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
         End If
     End Function
+
+    ''' <summary>
+    ''' Ricrea da zero il controllo WebView2 per un account in seguito a un crash del processo browser (Auto-Recovery trasparente).
+    ''' </summary>
+    Public Async Function RecreateAccountWebViewAsync(account As AppAccounts) As Task
+        If account Is Nothing Then Return
+
+        Debug.WriteLine($"[Auto-Recovery] Recreating WebView2 control for account {account.Id} ({account.Name})")
+
+        ' 1. Rimozione e rilascio sicuro del vecchio controllo compromesso
+        If account.WebView IsNot Nothing Then
+            Try
+                WebViewsGrid.Children.Remove(account.WebView)
+            Catch
+            End Try
+            Try
+                account.Dispose()
+            Catch
+            End Try
+            account.WebView = Nothing
+        End If
+
+        account.IsCrashed = False
+
+        ' 2. Creazione del nuovo controllo WebView2 WPF
+        Dim newWv As New WebView2()
+        newWv.HorizontalAlignment = HorizontalAlignment.Stretch
+        newWv.VerticalAlignment = VerticalAlignment.Stretch
+        
+        Dim isDark = _settingsController.IsDarkThemeEffective
+        newWv.DefaultBackgroundColor = If(isDark, System.Drawing.Color.FromArgb(17, 27, 33), System.Drawing.Color.FromArgb(240, 242, 245))
+        newWv.Visibility = Visibility.Visible
+
+        If account.IsActive Then
+            newWv.Margin = New Thickness(0)
+            Panel.SetZIndex(newWv, 10)
+        Else
+            newWv.Margin = New Thickness(-20000, 0, 20000, 0)
+            Panel.SetZIndex(newWv, 0)
+        End If
+
+        WebViewsGrid.Children.Add(newWv)
+        account.WebView = newWv
+
+        ' 3. Re-inizializzazione completa dell'ambiente e navigazione
+        Await account.SetupWebViewAsync(_settingsController, AddressOf OnAccountNotificationChanged)
+
+        If account.IsActive AndAlso account.WebView IsNot Nothing Then
+            Try
+                account.WebView.UpdateLayout()
+                account.WebView.Focus()
+            Catch
+            End Try
+        End If
+    End Function
+
+    ''' <summary>
+    ''' Gestisce l'evento di richiesta Auto-Recovery sollevato dall'account a seguito di un crash irreversibile del browser WebView2.
+    ''' </summary>
+    Private Async Sub OnAccountProcessFailedRecoveryRequested(sender As Object, e As Microsoft.Web.WebView2.Core.CoreWebView2ProcessFailedEventArgs)
+        Dim acc = TryCast(sender, AppAccounts)
+        If acc IsNot Nothing Then
+            Debug.WriteLine($"[MainWindow] Received ProcessFailed recovery request for account {acc.Id} ({acc.Name}) - Kind: {e.ProcessFailedKind}")
+            Await RecreateAccountWebViewAsync(acc)
+        End If
+    End Sub
 
     Private Sub OnAccountNotificationChanged(accountId As String, hasNotification As Boolean)
         _accountManager.HandleNotificationStateChanged(accountId, hasNotification)
@@ -481,16 +552,38 @@ Public Class MainWindow
     ''' Evento generato dal click su una scheda account per passare alla vista dell'account corrispondente.
     ''' </summary>
     Private Async Sub AccountTab_Click(sender As Object, e As RoutedEventArgs)
+        Dim clickedAccountId As String = Nothing
+        Dim switchException As Exception = Nothing
         Try
             Dim btn = CType(sender, Button)
-            Dim accountId = btn.Tag?.ToString()
-            If Not String.IsNullOrEmpty(accountId) Then
-                Await SwitchToAccountAsync(accountId)
+            clickedAccountId = btn.Tag?.ToString()
+            If Not String.IsNullOrEmpty(clickedAccountId) Then
+                Await SwitchToAccountAsync(clickedAccountId)
             End If
         Catch ex As Exception
-            Debug.WriteLine($"AccountTab_Click error: {ex.Message}")
-            MessageBox.Show("Errore nel cambio account: " & ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
+            switchException = ex
         End Try
+
+        If switchException IsNot Nothing Then
+            Debug.WriteLine($"AccountTab_Click error: {switchException.Message}")
+            ' In caso di errore imprevisto, tenta il recupero trasparente dell'account prima di mostrare qualsiasi pop-up
+            Dim recoverySuccess As Boolean = False
+            If Not String.IsNullOrEmpty(clickedAccountId) Then
+                Dim targetAcc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = clickedAccountId)
+                If targetAcc IsNot Nothing Then
+                    Try
+                        Await RecreateAccountWebViewAsync(targetAcc)
+                        Await SwitchToAccountAsync(clickedAccountId)
+                        recoverySuccess = True
+                    Catch recEx As Exception
+                        Debug.WriteLine($"AccountTab_Click recovery failed: {recEx.Message}")
+                    End Try
+                End If
+            End If
+            If Not recoverySuccess Then
+                MessageBox.Show("Errore nel cambio account: " & switchException.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
+            End If
+        End If
     End Sub
 
     ''' <summary>
@@ -514,10 +607,19 @@ Public Class MainWindow
     Public Async Function SwitchToAccountAsync(accountId As String) As Task
         Dim prevAccount = _accountManager.CurrentAccount
         If prevAccount IsNot Nothing AndAlso prevAccount.Id = accountId Then
+            Dim sameAccNeedsRecovery As Boolean = False
             If prevAccount.WebView IsNot Nothing Then
-                prevAccount.WebView.Margin = New Thickness(0)
-                Panel.SetZIndex(prevAccount.WebView, 10)
-                prevAccount.WebView.Focus()
+                Try
+                    prevAccount.WebView.Margin = New Thickness(0)
+                    Panel.SetZIndex(prevAccount.WebView, 10)
+                    prevAccount.WebView.Focus()
+                Catch ex As Exception
+                    Debug.WriteLine($"Error switching to same account {accountId}: {ex.Message}")
+                    sameAccNeedsRecovery = True
+                End Try
+            End If
+            If sameAccNeedsRecovery Then
+                Await RecreateAccountWebViewAsync(prevAccount)
             End If
             Return
         End If
@@ -529,17 +631,31 @@ Public Class MainWindow
 
         ' Sposta il controllo del precedente account fuori schermo lasciandolo attivo
         If prevAccount IsNot Nothing AndAlso prevAccount.WebView IsNot Nothing Then
-            prevAccount.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
-            Panel.SetZIndex(prevAccount.WebView, 0)
+            Try
+                prevAccount.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
+                Panel.SetZIndex(prevAccount.WebView, 0)
+            Catch ex As Exception
+                Debug.WriteLine($"Error moving prevAccount {prevAccount.Id} offscreen: {ex.Message}")
+            End Try
         End If
 
-        ' Inizializza se necessario e porta in primo piano il controllo WebView2 per il nuovo account
+        ' Inizializza o ripristina se necessario e porta in primo piano il controllo WebView2 per il nuovo account
         Await EnsureWebViewAsync(newAccount)
+        Dim newAccNeedsRecovery As Boolean = False
         If newAccount.WebView IsNot Nothing Then
-            newAccount.WebView.Margin = New Thickness(0)
-            Panel.SetZIndex(newAccount.WebView, 10)
-            newAccount.WebView.UpdateLayout()
-            newAccount.WebView.Focus()
+            Try
+                newAccount.WebView.Margin = New Thickness(0)
+                Panel.SetZIndex(newAccount.WebView, 10)
+                newAccount.WebView.UpdateLayout()
+                newAccount.WebView.Focus()
+            Catch ex As Exception
+                Debug.WriteLine($"Error focusing newAccount {newAccount.Id}: {ex.Message}")
+                newAccNeedsRecovery = True
+            End Try
+        End If
+
+        If newAccNeedsRecovery Then
+            Await RecreateAccountWebViewAsync(newAccount)
         End If
 
         UpdateOnlineIndicator()
@@ -625,12 +741,21 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Ricarica la pagina corrente all'interno della WebView2 dell'account attivo.
+    ''' Ricarica la pagina corrente all'interno della WebView2 dell'account attivo con gestione di Auto-Recovery.
     ''' </summary>
     Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
-        If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
-            activeAcc.WebView.CoreWebView2.Reload()
+        If activeAcc IsNot Nothing Then
+            Try
+                If activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing AndAlso Not activeAcc.IsCrashed Then
+                    activeAcc.WebView.CoreWebView2.Reload()
+                Else
+                    Dim ignore = EnsureWebViewAsync(activeAcc)
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"BtnReloadActiveTab error: {ex.Message}")
+                Dim ignore = RecreateAccountWebViewAsync(activeAcc)
+            End Try
         End If
     End Sub
 
@@ -732,6 +857,9 @@ Public Class MainWindow
             For Each acc In _accountManager.Accounts
                 RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
                 AddHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
+
+                RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
+                AddHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
             Next
         End If
     End Sub

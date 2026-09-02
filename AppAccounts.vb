@@ -244,12 +244,28 @@ Public Class AppAccounts
 
     Private Shared ReadOnly MaxActiveNotificationIds As Integer = 500
 
+    ''' <summary>Evento sollevato quando il processo WebView2 crasha e richiede una rigenerazione completa del controllo.</summary>
+    Public Event ProcessFailedRecoveryRequested As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
+
+    Private _isCrashed As Boolean = False
+    ''' <summary>Indica se il processo browser associato alla WebView2 è crashato o non valido.</summary>
+    <JsonIgnore>
+    Public Property IsCrashed As Boolean
+        Get
+            Return _isCrashed
+        End Get
+        Set(value As Boolean)
+            _isCrashed = value
+        End Set
+    End Property
+
     ' Event Handlers fortemente tipizzati per WebView2 (evita memory leak)
     Private _permissionRequestedHandler As EventHandler(Of CoreWebView2PermissionRequestedEventArgs)
     Private _newWindowRequestedHandler As EventHandler(Of CoreWebView2NewWindowRequestedEventArgs)
     Private _navigationStartingHandler As EventHandler(Of CoreWebView2NavigationStartingEventArgs)
     Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
+    Private _processFailedHandler As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
 
     ''' <summary>Percorso base per il salvataggio dei profili WebView2 isolati degli account.</summary>
     Public Shared ReadOnly Property SharedDataDirectory As String
@@ -291,7 +307,7 @@ Public Class AppAccounts
     ''' e naviga verso la pagina della piattaforma di messaggistica (WhatsApp Web o Telegram Web).
     ''' </summary>
     Public Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
-        If _initTask IsNot Nothing Then
+        If _initTask IsNot Nothing AndAlso Not _initTask.IsFaulted AndAlso Not _isCrashed Then
             Return _initTask
         End If
         _initTask = SetupWebViewInternalAsync(settings, onNotificationChanged)
@@ -344,11 +360,18 @@ Public Class AppAccounts
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
+            _isCrashed = False
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
             WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
             WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
+            
+            ' Registra listener crash a livello di CoreWebView2
+            _processFailedHandler = Sub(sender, e)
+                HandleProcessFailed(e)
+            End Sub
+            AddHandler WebView.CoreWebView2.ProcessFailed, _processFailedHandler
             
             ' Salvataggio riferimenti handler per poterli rimuovere in Dispose()
             _permissionRequestedHandler = Sub(sender, e)
@@ -463,6 +486,38 @@ Public Class AppAccounts
             Debug.WriteLine($"Error configuring WebView2 for account {Id}: {ex.Message}")
         End Try
     End Function
+
+    ''' <summary>
+    ''' Intercetta i crash del processo di rendering o del processo browser principale di WebView2 ed avvia il ripristino automatico.
+    ''' </summary>
+    Private Sub HandleProcessFailed(e As CoreWebView2ProcessFailedEventArgs)
+        Try
+            Debug.WriteLine($"[ProcessFailed] Account {Id} ({Name}) - Kind: {e.ProcessFailedKind}, Reason: {e.Reason}, ExitCode: {e.ExitCode}, Description: {e.ProcessDescription}")
+            
+            ' Se crasha unicamente il processo di rendering (tab), un rapido reload è sufficiente per ripristinarlo
+            If e.ProcessFailedKind = CoreWebView2ProcessFailedKind.RenderProcessExited Then
+                Debug.WriteLine($"[ProcessFailed] Render process exited for account {Id}, attempting fast reload...")
+                Try
+                    If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
+                        WebView.CoreWebView2.Reload()
+                        Return
+                    End If
+                Catch ex As Exception
+                    Debug.WriteLine($"[ProcessFailed] Fast reload failed: {ex.Message}")
+                End Try
+            End If
+
+            ' Per BrowserProcessExited o fallimento del reload, segna lo stato di crash e richiede l'Auto-Recovery completa
+            _isCrashed = True
+            _initTask = Nothing
+            
+            Application.Current?.Dispatcher.BeginInvoke(Sub()
+                RaiseEvent ProcessFailedRecoveryRequested(Me, e)
+            End Sub)
+        Catch ex As Exception
+            Debug.WriteLine($"[ProcessFailed] Error in HandleProcessFailed: {ex.Message}")
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Inietta o aggiorna le regole CSS personalizzate dell'utente all'interno della WebView2 (TODO #43).
@@ -779,26 +834,36 @@ Public Class AppAccounts
     ''' </summary>
     Public Sub Dispose() Implements IDisposable.Dispose
         Try
-            If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
-                If _permissionRequestedHandler IsNot Nothing Then
-                    RemoveHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
-                    _permissionRequestedHandler = Nothing
-                End If
-                If _newWindowRequestedHandler IsNot Nothing Then
-                    RemoveHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
-                    _newWindowRequestedHandler = Nothing
-                End If
-                If _navigationStartingHandler IsNot Nothing Then
-                    RemoveHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
-                    _navigationStartingHandler = Nothing
-                End If
-                If _webMessageReceivedHandler IsNot Nothing Then
-                    RemoveHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
-                    _webMessageReceivedHandler = Nothing
-                End If
-                If _navigationCompletedHandler IsNot Nothing Then
-                    RemoveHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
-                    _navigationCompletedHandler = Nothing
+            If WebView IsNot Nothing Then
+                If WebView.CoreWebView2 IsNot Nothing Then
+                    Try
+                        If _processFailedHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.ProcessFailed, _processFailedHandler
+                            _processFailedHandler = Nothing
+                        End If
+                        If _permissionRequestedHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
+                            _permissionRequestedHandler = Nothing
+                        End If
+                        If _newWindowRequestedHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
+                            _newWindowRequestedHandler = Nothing
+                        End If
+                        If _navigationStartingHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
+                            _navigationStartingHandler = Nothing
+                        End If
+                        If _webMessageReceivedHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
+                            _webMessageReceivedHandler = Nothing
+                        End If
+                        If _navigationCompletedHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
+                            _navigationCompletedHandler = Nothing
+                        End If
+                    Catch
+                        ' Se il CoreWebView2 è in stato invalidato a causa di un crash, la rimozione degli handler potrebbe sollevare eccezioni
+                    End Try
                 End If
             End If
 
@@ -810,6 +875,7 @@ Public Class AppAccounts
             End If
 
             _initTask = Nothing
+            _isCrashed = False
             ActiveNotificationIds.Clear()
         Catch ex As Exception
             Debug.WriteLine($"Error disposing AppAccounts: {ex.Message}")

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.6-beta] - 2026-09-02
+
+### Pre-release / Beta — WebView2 Process Crash Resilience & Auto-Recovery
+- **Resilienza ai Crash di WebView2 & Ripristino Automatico Trasparente (Auto-Recovery) (`AppAccounts.vb`, `MainWindow.xaml.vb`, `TODO.md`)**:
+  - **Intercettazione Eventi `CoreProcessFailed` e `ProcessFailed`**: Implementata la gestione fortemente tipizzata degli eventi di errore del processo a livello sia di controllo WPF (`WebView.CoreProcessFailed`) che di ambiente CoreWebView2 (`WebView.CoreWebView2.ProcessFailed`).
+  - **Gestione Differenziata del Guasto di Processo**:
+    - *Crash Renderer (`RenderProcessExited`)*: Ricaricamento rapido e automatico della pagina (`Reload()`) senza distruggere l'istanza né interrompere la sessione dell'utente.
+    - *Crash Browser Principale (`BrowserProcessExited` / OOM / GPU reset / Edge update)*: Rilevamento dello stato di crash (`IsCrashed = True`), distruzione sicura del controllo invalidato e rigenerazione automatica trasparente (`RecreateAccountWebViewAsync`) con re-inizializzazione dell'ambiente e navigazione.
+  - **Protezione nel Cambio Account (`SwitchToAccountAsync` & `AccountTab_Click`)**: Introdotta la verifica preventiva di validità dell'istanza e blocco di recupero automatico con re-switch trasparente, eliminando la comparsa di pop-up di errore bloccanti quando un processo browser in background subisce un crash o un aggiornamento silenzioso da parte di Windows Update.
+  - **Hardening `BtnReloadActiveTab_Click`**: Ricarica protetta della scheda attiva con fallback automatico alla re-istanziazione in caso di processo non più valido.
+  - **Pulizia Risorse & Memory Leak Prevention**: Disiscrizione sicura e protetta di tutti i listener di processo in `Dispose()` e in fase di chiusura dell'applicazione (`ExitApplication` / `ForceExitForUpdate`).
+
 ## [0.7.5-beta] - 2026-09-01
 
 ### Pre-release / Beta — Do Not Disturb (Focus Mode)

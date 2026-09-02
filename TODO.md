@@ -283,7 +283,64 @@
   - Pulsante dedicato con icona Excel integrato nella barra del titolo (`MainWindow.xaml`) e supporto multilingua completo in `Localization.vb`.
 - **Impatto**: Alto | **Sforzo**: Medio
 
+## 53. Integrazione Console Web GUI di OpenClaw via Tailscale (Mesh VPN & Gateway Token)
+- **Descrizione**: Aggiungere il supporto nativo a **OpenClaw** come piattaforma di account in HidaChat (accanto a WhatsApp e Telegram), consentendo di gestire sessioni di chat, monitoraggio log, esecuzione skill e configurazione del gateway AI OpenClaw all'interno di una tab dedicata isolata in WebView2.
+- **Specifiche Tecniche & Architettura**:
+  1. **Modello Account & Configurazione (`AppAccounts.vb`, `AccountManager.vb`)**:
+     - Estensione enum/proprietà `Platform`: aggiunta supporto `"OpenClaw"` con property booleana `IsOpenClaw`.
+     - Nuove proprietà persistenti per l'account:
+       - `ServerUrl` (String): URL del gateway OpenClaw (default: `http://127.0.0.1:18789` per istanze locali, oppure dominio/IP Tailscale).
+       - `AuthToken` (String): Token di autenticazione amministrativa del gateway OpenClaw (salvato con cifratura sicura Windows DPAPI / `ProtectedData`).
+       - `TailscaleIntegration` (Boolean): Flag per abilitare controlli specifici per mesh network Tailscale.
+     - Palette grafica dedicata: icona vettoriale SVG a tema (robot/claw/terminale) e brush distintivo (es. `#FF5722` arancione o `#7C4DFF` viola).
+  2. **Integrazione di Rete & Tailscale Mesh VPN**:
+     - **Modalità Locale (`127.0.0.1:18789`)**: Connessione diretta a bassa latenza su loopback quando il gateway OpenClaw è in esecuzione sulla stessa macchina.
+     - **Modalità Remota via Tailscale (Consigliata)**:
+       - Pieno supporto per **Tailscale Serve** (es. `https://<nome-dispositivo>.<tailnet>.ts.net/`) con certificati TLS validi gestiti automaticamente da Tailscale.
+       - Supporto per **Direct Tailnet Bind** su indirizzi IP privati Tailscale (range `100.64.0.0/10`, porta standard `18789`).
+       - Fallback e validazione: test di connettività asincrono (ping HTTP/healthcheck su `/api/health` o endpoint radice) prima della navigazione, con visualizzazione dello stato online/offline del nodo gateway.
+  3. **Gestione del Token & Flusso di Pairing**:
+     - Composizione automatica dell'URL di bootstrap con token di autenticazione (`?token=<AuthToken>`) o iniezione sicura via header HTTP `Authorization: Bearer <AuthToken>` tramite evento `WebResourceRequested` di CoreWebView2.
+     - Supporto al *token stripping* automatico di OpenClaw (il token viene rimosso dalla barra indirizzi dopo l'autenticazione per evitare leak visivi).
+  4. **Notifiche & Monitoraggio Eventi**:
+     - Intercettazione degli alert del Control UI di OpenClaw (completamento task agentici, errori del gateway, nuovi messaggi ricevuti) tramite bridge JavaScript dedicato (`NotificationJsScripts.vb`) e conversione in notifiche native **Windows Toast** e badge di notifica sulla scheda.
+  5. **UI di Configurazione (`SettingsWindow.xaml`)**:
+     - Selettore piattaforma esteso con opzione OpenClaw.
+     - Form dinamico con campi specifici (URL Gateway, Token segreto con opzione visualizza/incolla, pulsante "Verifica Connessione").
+- **Impatto**: Alto | **Sforzo**: Medio-Alto
 
+## 54. Integrazione Dashboard & Web Console di Hermes Agent via Tailscale (Mesh VPN & API/Token Auth)
+- **Descrizione**: Aggiungere il supporto nativo a **Hermes Agent** (Nous Research) come piattaforma di account in HidaChat, consentendo agli utenti di avere una tab dedicata in WebView2 per interagire con l'assistente (chat / TUI integrato), monitorare i log, gestire le skill e i task automatici (cron jobs) e configurare i parametri del gateway Hermes sia in locale che tramite rete mesh privata Tailscale.
+- **Specifiche Tecniche & Architettura**:
+  1. **Modello Account & Configurazione (`AppAccounts.vb`, `AccountManager.vb`)**:
+     - Estensione enum/proprietà `Platform`: aggiunta supporto `"Hermes"` con property booleana `IsHermes`.
+     - Nuove proprietà persistenti per l'account:
+       - `ServerUrl` (String): URL del dashboard Hermes (default: `http://127.0.0.1:9119` per istanze locali, oppure MagicDNS/IP Tailscale es. `https://<device>.<tailnet>.ts.net` o `http://100.x.y.z:9119`).
+       - `AuthToken` / `ApiKey` (String): Token o chiave di accesso amministrativo del dashboard o dell'API server OpenAI-compatibile (memorizzato con protezione DPAPI).
+       - `TailscaleIntegration` (Boolean): Flag per abilitare controlli specifici per mesh network Tailscale.
+     - Palette grafica e branding: icona vettoriale SVG a tema (elmo alato / Hermes icon / terminale AI) e brush tematico distintivo (es. `#00B0FF` azzurro ciano o `#651FFF` indaco).
+  2. **Integrazione di Rete & Connessione Tailscale Mesh VPN**:
+     - **Modalità Locale (`127.0.0.1:9119`)**: Connessione diretta su porta standard `9119` generata dal comando `hermes dashboard` in locale.
+     - **Modalità Remota via Tailscale (Mesh VPN)**:
+       - Pieno supporto per **Tailscale Serve** con endpoint HTTPS e certificati automatici TLS.
+       - Supporto per **Direct Tailnet Bind** su indirizzi IP Tailscale (`100.x.y.z:9119`).
+       - Validazione asincrona dello stato di raggiungibilità del servizio Hermes (healthcheck HTTP) con indicatore visivo Online/Offline.
+  3. **Gestione Autenticazione & Interfaccia Web**:
+     - Iniezione sicura delle credenziali di sessione o Bearer token per l'interfaccia web e per l'endpoint API integrato via `CoreWebView2.WebResourceRequested` o parametri URL.
+     - Supporto per dashboard standard o interfacce web alternative collegate al backend Hermes (es. Open WebUI).
+  4. **Notifiche Desktop & Monitoraggio Task**:
+     - Intercettazione degli output di completamento task autonomi, alert di cron job ed eventi dell'agente tramite bridge script JavaScript e inoltro alle **Windows Toast Notifications** e al badge non letti della scheda.
+  5. **UI di Configurazione (`SettingsWindow.xaml`)**:
+     - Selettore piattaforma aggiornato con l'opzione "Hermes Agent".
+     - Form dedicato per URL Dashboard (default `http://127.0.0.1:9119`), Token/Key di autenticazione e test di connettività in tempo reale.
+- **Impatto**: Alto | **Sforzo**: Medio-Alto
 
-
-
+## ~~55. Resilienza Crash WebView2 & Auto-Recovery Trasparente (`ProcessFailed`)~~ ✅
+- **Descrizione**: Gestione degli errori irreversibili del runtime Microsoft Edge WebView2 (`BrowserProcessExited`, `RenderProcessExited`, crash GPU o aggiornamenti silenziosi del runtime in background).
+- **Funzionalità Implementate**:
+  - Intercettazione strongly-typed di `CoreProcessFailed` e `ProcessFailed` a livello di controllo WPF e CoreWebView2.
+  - Auto-reload immediato per crash isolati del processo di rendering (`RenderProcessExited`).
+  - Ricreazione completa e trasparente del controllo (`RecreateAccountWebViewAsync`) per crash dell'intero browser Chromium o invalidamento dell'HWND.
+  - Prevenzione pop-up di errore e re-switch automatico trasparente al cambio scheda (`SwitchToAccountAsync` & `AccountTab_Click`).
+  - Hardening del pulsante di ricarica (`BtnReloadActiveTab_Click`) e disiscrizione sicura dei listener in `Dispose()`.
+- **Impatto**: Alto | **Sforzo**: Basso-Medio
