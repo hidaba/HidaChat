@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.11-beta] - 2026-09-03
+
+### Pre-release / Beta — WebView2 Storage Optimization, Pure Cache Purge & Chromium Hardening
+- **Ottimizzazione Impronta su Disco Cartella Dati (`AppAccounts.vb`, `AccountManager.vb`)**:
+  - **Pulizia Automatica Cache Volatile (`CleanTransientCacheFolders`)**: Introdotta una routine di rimozione mirata per le cartelle di cache pura non critiche (`GPUCache`, `ShaderCache`, `GrShaderCache`, `DawnGraphiteCache`, `DawnWebGPUCache`, `GPUPersistentCache` e `Crashpad/reports`), preservando integralmente cookie, chiavi di sessione e database offline IndexedDB senza richiedere nuove scansioni del QR code.
+  - **Sanitizzazione Preventiva all'Avvio (`CleanupTransientCachesAsync`)**: Esecuzione asincrona della pulizia all'avvio dell'applicazione su tutti i profili isolati (`WV2Profile_*`) prima che i processi browser WebView2 aggancino i file di lock.
+- **Tuning Parametri Browser Chromium (`AppAccounts.vb`)**:
+  - **Disabilitazione Cache Shader su Disco (`--disable-gpu-shader-disk-cache`)**: Eliminata la generazione continua di migliaia di micro-file di shader Direct3D/GPU non necessari per interfacce 2D di messaggistica.
+  - **Regolazione Disk Cache (`--disk-cache-size=104857600`)**: Confermato il tetto massimo della cache su disco a 100MB per prevenire la crescita incontrollata dei dati temporanei.
+  - **Disattivazione Componenti e Telemetria Inutilizzati**: Aggiunti i flag `--disable-component-update`, `--disable-domain-reliability` e `--no-crash-upload` per bloccare download in background e report diagnostici non essenziali.
+
 ## [0.7.10-beta] - 2026-09-02
 
 ### Pre-release / Beta — WhatsApp Session Persistence & Telegram Web A Migration

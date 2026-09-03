@@ -274,6 +274,36 @@ Public Class AppAccounts
         End Get
     End Property
 
+    ''' <summary>
+    ''' Rimuove in modo sicuro le cartelle di cache volatile (GPUCache, ShaderCache, Crashpad)
+    ''' senza alterare cookie, sessioni attive o il database messaggi IndexedDB.
+    ''' </summary>
+    Public Shared Sub CleanTransientCacheFolders(profileDir As String)
+        If String.IsNullOrEmpty(profileDir) OrElse Not Directory.Exists(profileDir) Then Return
+
+        Dim relativeDirsToClean As String() = {
+            "EBWebView\ShaderCache",
+            "EBWebView\GrShaderCache",
+            "EBWebView\Crashpad\reports",
+            "EBWebView\Default\GPUCache",
+            "EBWebView\Default\DawnGraphiteCache",
+            "EBWebView\Default\DawnWebGPUCache",
+            "EBWebView\Default\GPUPersistentCache"
+        }
+
+        For Each relDir In relativeDirsToClean
+            Try
+                Dim targetDir = Path.Combine(profileDir, relDir)
+                If Directory.Exists(targetDir) Then
+                    Directory.Delete(targetDir, recursive:=True)
+                    Debug.WriteLine($"CleanTransientCacheFolders: rimossa {targetDir}")
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"CleanTransientCacheFolders error for {relDir}: {ex.Message}")
+            End Try
+        Next
+    End Sub
+
     ''' <summary>Genera un identificativo alfanumerico univoco basato sul timestamp corrente.</summary>
     Public Shared Function GenerateId() As String
         Return "account_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
@@ -341,6 +371,9 @@ Public Class AppAccounts
             Debug.WriteLine($"SetupWebView: creato nuovo profilo {profileDir}")
         End If
 
+        ' Pulizia preventiva delle cartelle di cache volatile prima di agganciare il processo WebView2
+        CleanTransientCacheFolders(profileDir)
+
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
             Dim effectiveLang = settings.GetEffectiveChromiumLanguage()
@@ -348,7 +381,7 @@ Public Class AppAccounts
                 options.Language = effectiveLang
             End If
 
-            Dim browserArgs = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
+            Dim browserArgs = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-gpu-shader-disk-cache --disable-component-update --disable-domain-reliability --no-crash-upload --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
             Dim disabledFeatures As New List(Of String) From {"Translate", "MediaRouter"}
             If settings.EnableSpellcheck Then
                 browserArgs &= $" --enable-features=Spellcheck --lang={effectiveLang}"

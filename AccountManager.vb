@@ -160,6 +160,7 @@ Public Class AccountManager
 
                     Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
                     Await CleanupUnusedProfilesAsync(activeIds)
+                    Await CleanupTransientCachesAsync()
                     
                     _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
                     If _currentAccount Is Nothing AndAlso _accounts.Count > 0 Then
@@ -272,6 +273,25 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
+    ''' Esegue una pulizia preventiva delle cartelle di cache volatile (GPUCache, ShaderCache, Crashpad)
+    ''' su tutti i profili presenti su disco prima dell'inizializzazione dei processi WebView2.
+    ''' </summary>
+    Private Async Function CleanupTransientCachesAsync() As Task
+        Await Task.Run(Sub()
+            Try
+                Dim sharedDir = AppAccounts.SharedDataDirectory
+                If Not Directory.Exists(sharedDir) Then Return
+
+                For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
+                    AppAccounts.CleanTransientCacheFolders(profileDir)
+                Next
+            Catch ex As Exception
+                Debug.WriteLine($"CleanupTransientCachesAsync error: {ex.Message}")
+            End Try
+        End Sub)
+    End Function
+
+    ''' <summary>
     ''' Crea l'account predefinito ("Account 1") quando non è presente alcuna configurazione precedente.
     ''' </summary>
     Private Async Function CreateDefaultAccountAsync() As Task
@@ -322,6 +342,7 @@ Public Class AccountManager
         _isDirty = True
         
         Await SaveAccountsAsync(force:=True)
+        Await CleanupTransientCachesAsync()
         
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
