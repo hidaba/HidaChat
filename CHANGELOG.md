@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.0] - 2026-09-03
+
+### Release Stabile — Storage Optimization, Privacy Hardening & WhatsApp/Telegram Core Upgrades
+- **Ottimizzazione Storage e Pulizia Automatica all'Avvio e all'Uscita (`AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`)**:
+  - **Abbattimento Impronta su Disco**: Riduzione dello spazio occupato dalla cartella dati da oltre 500 MB a circa 28 MB per profilo grazie all'eliminazione automatica delle cartelle di cache pura (`Code Cache`, `Disk Cache`, `Service Worker\CacheStorage`, `component_crx_cache`, `Subresource Filter`, `Crashpad`, `ShaderCache`).
+  - **Zero Disconnessioni**: Salvaguardia rigorosa di `IndexedDB`, `Local Storage` e `Cookies`, garantendo che l'accesso a WhatsApp e Telegram rimanga attivo senza richiedere nuove scansioni del QR code.
+  - **Sanitizzazione Automatica all'Entrata e all'Uscita**: Esecuzione asincrona della pulizia preventiva all'avvio prima dell'attivazione dei processi browser e svuotamento nativo WebView2 (`ClearBrowsingDataAsync`) alla chiusura.
+- **Privacy Hardening e Tuning Parametri Chromium (`AppAccounts.vb`)**:
+  - **Incremento Privacy & Zero Telemetria**: Disabilitazione dell'invio dei crash dump a server remoti (`--no-crash-upload`), disattivazione del monitoraggio di rete (`--disable-domain-reliability`) e blocco dei controlli silenziosi di componenti interni (`--disable-component-update`).
+  - **Stop Accumulo Micro-File Shader**: Disabilitata la cache degli shader su disco (`--disable-gpu-shader-disk-cache`) e limitata la disk cache a 100 MB (`--disk-cache-size=104857600`).
+- **Persistenza Sessione WhatsApp & Client Telegram Web A (`AppAccounts.vb`, `Scripts/`)**:
+  - **Persistenza Affidabile WhatsApp**: Risolta definitivamente la perdita di sessione causata da discrepanze nell'User-Agent.
+  - **Migrazione Telegram Web A**: Adozione del client moderno Web A (`https://web.telegram.org/a/`) con supporto deep linking `tg://` e `t.me`.
+- **Configurabilità Dinamica Multi-Account (`AccountManager.vb`, `SettingsWindow.xaml`)**:
+  - Limite massimo di account configurabile nelle Impostazioni (fino a 10 account simultanei).
+  - Resilienza ai crash WebView2 con ripristino automatico trasparente delle schede.
+
 ## [0.7.12-beta] - 2026-09-03
 
 ### Pre-release / Beta — Automated Full Cache Purge on Startup & Exit (Code Cache, Disk Cache & Service Worker)
