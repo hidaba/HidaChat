@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.12-beta] - 2026-09-03
+
+### Pre-release / Beta — Automated Full Cache Purge on Startup & Exit (Code Cache, Disk Cache & Service Worker)
+- **Automazione Completa Pulizia Cache all'Entrata e all'Uscita (`AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`)**:
+  - **Estensione Rimozione ad Alto Volume (`CleanTransientCacheFolders`)**: Estesa la routine di eliminazione per ripulire le cartelle responsabili del 90% del peso su disco (`Default\Code Cache`, `Default\Cache`, `Default\Service Worker\CacheStorage`, `Default\Service Worker\ScriptCache`, `component_crx_cache`, `Subresource Filter` e `Crashpad`), abbattendo le dimensioni del profilo da oltre 500MB a ~28MB senza toccare chiavi di accesso, sessioni o database messaggi.
+  - **Svuotamento Nativo Disk Cache all'Uscita (`ClearBrowsingCacheAsync`)**: Introdotta l'invocazione preventiva dell'API WebView2 `ClearBrowsingDataAsync(DiskCache)` prima del rilascio dei controlli.
+  - **Sanitizzazione all'Entrata & all'Uscita**: Esecuzione sincronizzata e asincrona della pulizia all'avvio dell'applicazione (`LoadAccountsAsync`) prima dell'aggancio dei processi e alla chiusura definitiva (`ExitApplication` e `ForceExitForUpdate`).
+
 ## [0.7.11-beta] - 2026-09-03
 
 ### Pre-release / Beta — WebView2 Storage Optimization, Pure Cache Purge & Chromium Hardening

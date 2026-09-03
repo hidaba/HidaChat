@@ -273,10 +273,10 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Esegue una pulizia preventiva delle cartelle di cache volatile (GPUCache, ShaderCache, Crashpad)
-    ''' su tutti i profili presenti su disco prima dell'inizializzazione dei processi WebView2.
+    ''' Esegue una pulizia preventiva delle cartelle di cache volatile (Code Cache, Disk Cache, Service Worker CacheStorage, ShaderCache, Crashpad)
+    ''' su tutti i profili presenti su disco prima dell'inizializzazione dei processi WebView2 o alla chiusura.
     ''' </summary>
-    Private Async Function CleanupTransientCachesAsync() As Task
+    Public Async Function CleanupTransientCachesAsync() As Task
         Await Task.Run(Sub()
             Try
                 Dim sharedDir = AppAccounts.SharedDataDirectory

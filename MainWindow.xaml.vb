@@ -245,7 +245,7 @@ Public Class MainWindow
     ''' <summary>
     ''' Esegue la chiusura definitiva dell'applicazione liberando tutte le risorse allocati e rimuovendo i listener.
     ''' </summary>
-    Private Sub ExitApplication()
+    Private Async Sub ExitApplication()
         _allowExit = True
 
         If _dndTimer IsNot Nothing Then
@@ -258,12 +258,24 @@ Public Class MainWindow
 
         For Each acc In _accountManager.Accounts
             Try
+                Await acc.ClearBrowsingCacheAsync()
+            Catch
+            End Try
+        Next
+
+        For Each acc In _accountManager.Accounts
+            Try
                 RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
                 RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
                 acc.Dispose()
             Catch
             End Try
         Next
+
+        Try
+            Await _accountManager.CleanupTransientCachesAsync()
+        Catch
+        End Try
 
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
@@ -277,7 +289,7 @@ Public Class MainWindow
     ''' <summary>
     ''' Forza l'uscita dell'applicazione senza conferma per consentire l'avvio della procedura di aggiornamento automatico.
     ''' </summary>
-    Public Sub ForceExitForUpdate()
+    Public Async Sub ForceExitForUpdate()
         _allowExit = True
 
         If _dndTimer IsNot Nothing Then
@@ -290,12 +302,24 @@ Public Class MainWindow
 
         For Each acc In _accountManager.Accounts
             Try
+                Await acc.ClearBrowsingCacheAsync()
+            Catch
+            End Try
+        Next
+
+        For Each acc In _accountManager.Accounts
+            Try
                 RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
                 RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
                 acc.Dispose()
             Catch
             End Try
         Next
+
+        Try
+            Await _accountManager.CleanupTransientCachesAsync()
+        Catch
+        End Try
 
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False

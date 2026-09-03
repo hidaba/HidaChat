@@ -275,7 +275,7 @@ Public Class AppAccounts
     End Property
 
     ''' <summary>
-    ''' Rimuove in modo sicuro le cartelle di cache volatile (GPUCache, ShaderCache, Crashpad)
+    ''' Rimuove in modo sicuro le cartelle di cache volatile (Code Cache, Disk Cache, Service Worker CacheStorage, ShaderCache, Crashpad)
     ''' senza alterare cookie, sessioni attive o il database messaggi IndexedDB.
     ''' </summary>
     Public Shared Sub CleanTransientCacheFolders(profileDir As String)
@@ -285,10 +285,17 @@ Public Class AppAccounts
             "EBWebView\ShaderCache",
             "EBWebView\GrShaderCache",
             "EBWebView\Crashpad\reports",
+            "EBWebView\Crashpad",
+            "EBWebView\component_crx_cache",
+            "EBWebView\Subresource Filter",
+            "EBWebView\Default\Cache",
+            "EBWebView\Default\Code Cache",
             "EBWebView\Default\GPUCache",
             "EBWebView\Default\DawnGraphiteCache",
             "EBWebView\Default\DawnWebGPUCache",
-            "EBWebView\Default\GPUPersistentCache"
+            "EBWebView\Default\GPUPersistentCache",
+            "EBWebView\Default\Service Worker\CacheStorage",
+            "EBWebView\Default\Service Worker\ScriptCache"
         }
 
         For Each relDir In relativeDirsToClean
@@ -299,7 +306,19 @@ Public Class AppAccounts
                     Debug.WriteLine($"CleanTransientCacheFolders: rimossa {targetDir}")
                 End If
             Catch ex As Exception
-                Debug.WriteLine($"CleanTransientCacheFolders error for {relDir}: {ex.Message}")
+                Try
+                    Dim targetDir = Path.Combine(profileDir, relDir)
+                    If Directory.Exists(targetDir) Then
+                        For Each f In Directory.EnumerateFiles(targetDir, "*", SearchOption.AllDirectories)
+                            Try
+                                File.Delete(f)
+                            Catch
+                            End Try
+                        Next
+                    End If
+                Catch
+                End Try
+                Debug.WriteLine($"CleanTransientCacheFolders warning for {relDir}: {ex.Message}")
             End Try
         Next
     End Sub
@@ -867,6 +886,22 @@ Public Class AppAccounts
                 Debug.WriteLine($"Failed to apply theme for account {Id}: {ex.Message}")
             End Try
         End If
+    End Function
+
+    ''' <summary>
+    ''' Notifica al motore WebView2 di svuotare la disk cache e cronologia temporanea tramite API nativa.
+    ''' </summary>
+    Public Async Function ClearBrowsingCacheAsync() As Task
+        Try
+            If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.Profile IsNot Nothing Then
+                Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(
+                    CoreWebView2BrowsingDataKinds.DiskCache Or 
+                    CoreWebView2BrowsingDataKinds.DownloadHistory
+                )
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"ClearBrowsingCacheAsync error: {ex.Message}")
+        End Try
     End Function
 
     ''' <summary>
