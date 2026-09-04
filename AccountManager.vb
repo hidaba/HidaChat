@@ -145,11 +145,32 @@ Public Class AccountManager
                         End If
                     Next
 
+                    Dim usedPorts As New HashSet(Of Integer)()
+                    For Each acc In accountsData
+                        If acc.LocalProxyPort > 0 Then
+                            usedPorts.Add(acc.LocalProxyPort)
+                        End If
+                    Next
+
+                    Dim baseProxyPort = 18800
+                    For Each acc In accountsData
+                        If acc.IsOpenClaw Then
+                            If acc.LocalProxyPort <= 0 Then
+                                While usedPorts.Contains(baseProxyPort)
+                                    baseProxyPort += 1
+                                End While
+                                acc.LocalProxyPort = baseProxyPort
+                                usedPorts.Add(baseProxyPort)
+                                needsSave = True
+                            End If
+                        End If
+                    Next
+
                     _accounts = New ObservableCollection(Of AppAccounts)(accountsData)
 
                     Debug.WriteLine($"LoadAccounts: caricati {accountsData.Count} account, needsSave={needsSave}")
                     For i As Integer = 0 To accountsData.Count - 1
-                        Debug.WriteLine($"  Account[{i}]: Id='{accountsData(i).Id}', Name='{accountsData(i).Name}', IsActive={accountsData(i).IsActive}")
+                        Debug.WriteLine($"  Account[{i}]: Id='{accountsData(i).Id}', Name='{accountsData(i).Name}', ProxyPort={accountsData(i).LocalProxyPort}, IsActive={accountsData(i).IsActive}")
                     Next
 
                     Await MigrateOrphanProfileAsync()
@@ -377,7 +398,7 @@ Public Class AccountManager
         
         Dim accountName = name
         If String.IsNullOrWhiteSpace(accountName) Then
-            Dim platformLabel = If(String.Equals(cleanPlatform, "Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp")
+            Dim platformLabel = If(String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase), "OpenClaw", If(String.Equals(cleanPlatform, "Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp"))
             Dim existingNames = _accounts.Select(Function(a) a.Name).ToHashSet()
             For i As Integer = 1 To MaxAccounts + 1
                 Dim candidate = $"{platformLabel} {i}"
@@ -392,6 +413,14 @@ Public Class AccountManager
         End If
         
         Dim newAccount As New AppAccounts(accountId, accountName, False, cleanPlatform)
+        If String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase) Then
+            Dim usedPorts = _accounts.Where(Function(a) a.LocalProxyPort > 0).Select(Function(a) a.LocalProxyPort).ToHashSet()
+            Dim portCandidate = 18800
+            While usedPorts.Contains(portCandidate)
+                portCandidate += 1
+            End While
+            newAccount.LocalProxyPort = portCandidate
+        End If
 
         _accounts.Add(newAccount)
         _isDirty = True

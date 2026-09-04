@@ -102,6 +102,12 @@ Public Class SettingsWindow
             ' 7. Applica le stringhe tradotte all'interfaccia utente
             RefreshLocalization()
 
+            If TxtTsnetAuthKey IsNot Nothing Then
+                TxtTsnetAuthKey.Text = _settingsController.TsnetAuthKey
+            End If
+            UpdateTsnetUI()
+            AddHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
+
             _isInitializing = False
 
         Catch ex As Exception
@@ -123,6 +129,7 @@ Public Class SettingsWindow
     End Sub
 
     Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
+        RemoveHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
         Me.Close()
     End Sub
 
@@ -215,6 +222,159 @@ Public Class SettingsWindow
         End If
     End Sub
 
+    Private Async Sub TxtServerUrl_LostFocus(sender As Object, e As RoutedEventArgs)
+        Dim txt = CType(sender, TextBox)
+        Dim acc = CType(txt.DataContext, AppAccounts)
+        If acc IsNot Nothing Then
+            Dim newUrl = If(String.IsNullOrWhiteSpace(txt.Text), "http://127.0.0.1:18789", txt.Text.Trim())
+            If acc.ServerUrl <> newUrl Then
+                acc.ServerUrl = newUrl
+                If acc.TailscaleIntegration AndAlso acc.IsOpenClaw Then
+                    Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
+                End If
+                Await _accountManager.SaveAccountsAsync()
+                If acc.WebView?.CoreWebView2 IsNot Nothing Then
+                    acc.WebView.CoreWebView2.Navigate(acc.WebUrl)
+                End If
+            End If
+        End If
+    End Sub
+
+    Private Async Sub TxtAuthToken_LostFocus(sender As Object, e As RoutedEventArgs)
+        Dim txt = CType(sender, TextBox)
+        Dim acc = CType(txt.DataContext, AppAccounts)
+        If acc IsNot Nothing Then
+            Dim newToken = If(txt.Text, "").Trim()
+            If acc.AuthToken <> newToken Then
+                acc.AuthToken = newToken
+                Await _accountManager.SaveAccountsAsync()
+            End If
+        End If
+    End Sub
+
+    Private Async Sub ChkAccountTailscale_Click(sender As Object, e As RoutedEventArgs)
+        Dim chk = TryCast(sender, CheckBox)
+        If chk Is Nothing Then Return
+        Dim accountId = TryCast(chk.Tag, String)
+        Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
+        If acc IsNot Nothing Then
+            acc.TailscaleIntegration = chk.IsChecked.GetValueOrDefault()
+            Await _accountManager.SaveAccountsAsync()
+            If acc.TailscaleIntegration AndAlso acc.IsOpenClaw Then
+                Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
+                acc.WebView?.CoreWebView2?.Navigate(acc.WebUrl)
+            ElseIf Not acc.TailscaleIntegration Then
+                acc.LocalProxyUrl = ""
+                Await TsnetManager.Instance.RemoveRouteAsync(acc.Id)
+                acc.WebView?.CoreWebView2?.Navigate(acc.WebUrl)
+            End If
+            UpdateTsnetUI()
+        End If
+    End Sub
+
+    Private Async Sub BtnTestConnection_Click(sender As Object, e As RoutedEventArgs)
+        Dim btn = TryCast(sender, Button)
+        If btn Is Nothing Then Return
+        Dim accountId = TryCast(btn.Tag, String)
+        Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
+        If acc Is Nothing Then Return
+
+        Dim loc = _settingsController.Localizations
+        acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_testing"), "Verifica in corso...")
+        acc.ConnectionStatusBrush = BrushCache.GetBrush("#FFD54F")
+        btn.IsEnabled = False
+
+        Dim isOnline = False
+        Try
+            Dim targetUrl = acc.ServerUrl
+            Dim localToken = ""
+
+            If acc.TailscaleIntegration Then
+                Dim port = Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
+                If port > 0 Then
+                    targetUrl = acc.LocalProxyUrl
+                    localToken = TsnetManager.Instance.LocalToken
+                End If
+            End If
+
+            If Not targetUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) AndAlso Not targetUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) Then
+                targetUrl = "http://" & targetUrl
+            End If
+
+            Using handler As New System.Net.Http.SocketsHttpHandler()
+                handler.SslOptions.RemoteCertificateValidationCallback = Function(message, cert, chain, sslPolicyErrors) True
+                Using client As New System.Net.Http.HttpClient(handler)
+                    client.Timeout = TimeSpan.FromSeconds(4.0)
+                    If Not String.IsNullOrEmpty(localToken) Then
+                        client.DefaultRequestHeaders.Add("X-HidaChat-Local-Token", localToken)
+                    End If
+                    Using response = Await client.GetAsync(targetUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
+                        isOnline = True
+                    End Using
+                End Using
+            End Using
+        Catch ex As Exception
+            isOnline = False
+        Finally
+            btn.IsEnabled = True
+        End Try
+
+        If isOnline Then
+            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_success"), "✓ Online")
+            acc.ConnectionStatusBrush = BrushCache.GetBrush("#25d366")
+        Else
+            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_failed"), "✗ Non raggiungibile")
+            acc.ConnectionStatusBrush = BrushCache.GetBrush("#EF5350")
+        End If
+        UpdateTsnetUI()
+    End Sub
+
+    Private Sub OnTsnetPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+        Dispatcher.Invoke(Sub() UpdateTsnetUI())
+    End Sub
+
+    Private Sub UpdateTsnetUI()
+        If TxtTsnetStatus Is Nothing Then Return
+        Dim ts = TsnetManager.Instance
+        Select Case ts.NodeState
+            Case "Running"
+                TxtTsnetStatus.Text = If(Not String.IsNullOrEmpty(ts.TailnetIP), $"Online ({ts.TailnetIP})", "Online")
+                BadgeTsnetStatus.Background = BrushCache.GetBrush("#1b3d2f")
+                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#25d366")
+                BtnTsnetLogin.Visibility = Visibility.Collapsed
+            Case "NeedsLogin"
+                TxtTsnetStatus.Text = "Richiede Login"
+                BadgeTsnetStatus.Background = BrushCache.GetBrush("#3e3215")
+                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#FFD54F")
+                BtnTsnetLogin.Visibility = Visibility.Visible
+            Case "Starting"
+                TxtTsnetStatus.Text = "Avvio..."
+                BadgeTsnetStatus.Background = BrushCache.GetBrush("#2a3942")
+                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#8696a0")
+                BtnTsnetLogin.Visibility = Visibility.Collapsed
+            Case Else
+                TxtTsnetStatus.Text = "Non attivo"
+                BadgeTsnetStatus.Background = BrushCache.GetBrush("#2a3942")
+                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#8696a0")
+                BtnTsnetLogin.Visibility = Visibility.Collapsed
+        End Select
+    End Sub
+
+    Private Sub BtnTsnetLogin_Click(sender As Object, e As RoutedEventArgs)
+        Dim loginUrl = TsnetManager.Instance.LoginUrl
+        If Not String.IsNullOrEmpty(loginUrl) Then
+            Try
+                Process.Start(New ProcessStartInfo(loginUrl) With {.UseShellExecute = True})
+            Catch ex As Exception
+                Debug.WriteLine($"Error opening login URL: {ex.Message}")
+            End Try
+        End If
+    End Sub
+
+    Private Async Sub TxtTsnetAuthKey_LostFocus(sender As Object, e As RoutedEventArgs)
+        Await _settingsController.SaveTsnetAuthKeyAsync(TxtTsnetAuthKey.Text)
+    End Sub
+
     ''' <summary>
     ''' Gestisce l'evento di eliminazione di un account previa conferma dell'utente.
     ''' </summary>
@@ -258,7 +418,7 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Gestisce il cambio di piattaforma (WhatsApp / Telegram) di un account dall'elenco nelle impostazioni.
+    ''' Gestisce il cambio di piattaforma (WhatsApp / Telegram / OpenClaw) di un account dall'elenco nelle impostazioni.
     ''' </summary>
     Private Async Sub ComboAccountPlatform_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
@@ -308,8 +468,16 @@ Public Class SettingsWindow
             Await AddAccountSettingsWithPlatformAsync("Telegram")
         End Sub
 
+        Dim itemOpenClaw As New MenuItem With {
+            .Header = locStrings.Get("add_openclaw_account")
+        }
+        AddHandler itemOpenClaw.Click, Async Sub()
+            Await AddAccountSettingsWithPlatformAsync("OpenClaw")
+        End Sub
+
         menu.Items.Add(itemWhatsApp)
         menu.Items.Add(itemTelegram)
+        menu.Items.Add(itemOpenClaw)
         menu.PlacementTarget = BtnAddAccountSettings
         menu.IsOpen = True
     End Sub

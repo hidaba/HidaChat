@@ -277,6 +277,11 @@ Public Class MainWindow
         Catch
         End Try
 
+        Try
+            Await TsnetManager.Instance.ShutdownAsync()
+        Catch
+        End Try
+
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
@@ -318,6 +323,11 @@ Public Class MainWindow
 
         Try
             Await _accountManager.CleanupTransientCachesAsync()
+        Catch
+        End Try
+
+        Try
+            Await TsnetManager.Instance.ShutdownAsync()
         Catch
         End Try
 
@@ -665,6 +675,9 @@ Public Class MainWindow
 
         ' Inizializza o ripristina se necessario e porta in primo piano il controllo WebView2 per il nuovo account
         Await EnsureWebViewAsync(newAccount)
+        If newAccount.IsOpenClaw AndAlso newAccount.TailscaleIntegration AndAlso String.IsNullOrEmpty(newAccount.LocalProxyUrl) Then
+            Await newAccount.ReloadAsync(True)
+        End If
         Dim newAccNeedsRecovery As Boolean = False
         If newAccount.WebView IsNot Nothing Then
             Try
@@ -697,6 +710,11 @@ Public Class MainWindow
             _accountManager.IsDialogOpen = False
 
             Await ApplyWpfThemeAsync()
+
+            ' Ricarica e sincronizza le schede OpenClaw con le nuove impostazioni di rete/Tailscale
+            For Each acc In _accountManager.Accounts.Where(Function(a) a.IsOpenClaw)
+                Await acc.ReloadAsync(True)
+            Next
         Catch ex As Exception
             _accountManager.IsDialogOpen = False
             MessageBox.Show(
@@ -734,6 +752,15 @@ Public Class MainWindow
     ''' </summary>
     Private Sub BtnBulkSender_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
+        If activeAcc IsNot Nothing AndAlso activeAcc.IsOpenClaw Then
+            MessageBox.Show(
+                "L'inviatore massivo messaggi (Bulk Sender) è supportato esclusivamente per WhatsApp e Telegram.",
+                "Piattaforma Non Supportata",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            )
+            Return
+        End If
         If activeAcc Is Nothing OrElse activeAcc.WebView Is Nothing OrElse activeAcc.WebView.CoreWebView2 Is Nothing Then
             Dim platformName = If(activeAcc IsNot Nothing AndAlso activeAcc.IsTelegram, "Telegram", "WhatsApp")
             MessageBox.Show(
@@ -767,11 +794,13 @@ Public Class MainWindow
     ''' <summary>
     ''' Ricarica la pagina corrente all'interno della WebView2 dell'account attivo con gestione di Auto-Recovery.
     ''' </summary>
-    Private Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)
+    Private Async Sub BtnReloadActiveTab_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc IsNot Nothing Then
             Try
-                If activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing AndAlso Not activeAcc.IsCrashed Then
+                If activeAcc.IsOpenClaw Then
+                    Await activeAcc.ReloadAsync(True)
+                ElseIf activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing AndAlso Not activeAcc.IsCrashed Then
                     activeAcc.WebView.CoreWebView2.Reload()
                 Else
                     Dim ignore = EnsureWebViewAsync(activeAcc)

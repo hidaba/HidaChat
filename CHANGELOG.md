@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.1-beta] - 2026-09-04
+
+### Pre-release / Beta — OpenClaw Permanent Device Pairing & Tailscale Startup Resilience
+- **Persistenza Identità Dispositivo OpenClaw (`AppAccounts.vb`, `AccountManager.vb`, `tsnetd/main.go`)**:
+  - **Porta Proxy Deterministica**: Assegnazione e salvataggio permanente in `settings.json` di una porta TCP locale fissa (`localProxyPort` a partire da `18800`) per ciascun account OpenClaw con Tailscale attivo.
+  - **Eliminazione Richieste di Riconnessione Continue**: In Chromium/WebView2 l'Origin include la porta locale (`http://127.0.0.1:<porta>`). Mantenendo la porta invariata ad ogni apertura e chiusura dell'app, le chiavi crittografiche Ed25519 e i token di sessione salvati in IndexedDB (`openclaw-control-ui`) rimangono stabili, eliminando la necessità di riapprovare il dispositivo ad ogni riavvio (`openclaw devices approve`).
+  - **Token Locale Persistente**: Il token di sicurezza locale per l'IPC con `tsnetd` viene ora generato una sola volta e salvato in `data/tsnet/local_token.txt` invece di cambiare a ogni sessione.
+- **Risoluzione Race Condition e Bad Gateway 502 all'Avvio (`tsnetd/main.go`, `TsnetManager.vb`)**:
+  - **Sincronizzazione Avvio Tailscale (`tsReady`)**: In `tsnetd`, le richieste HTTP verso il gateway OpenClaw vengono trattenute nei primi istanti di avvio fino al completamento dell'handshake WireGuard (`tsServer.Up`), impedendo che la WebView2 riceva errori di mancata connessione.
+  - **Trasporto con Retry Automatico (`retryTransport`)**: Introdotto un meccanismo di riprova trasparente con backoff di 1 secondo (fino a 3 tentativi) per assorbire i tempi di risposta della tailnet remota.
+  - **Attesa Stato Running all'Avvio**: `TsnetManager.StartAsync` attende attivamente che lo stato del nodo diventi `Running` prima di navigare la scheda OpenClaw.
+  - **Schermata di Fallback con Auto-Refresh**: In caso di ritardo temporaneo della rete, il proxy restituisce una pagina HTML scura con spinner e meta-refresh automatico a 2 secondi.
+
 ## [0.8.0] - 2026-09-03
 
 ### Release Stabile — Storage Optimization, Privacy Hardening & WhatsApp/Telegram Core Upgrades

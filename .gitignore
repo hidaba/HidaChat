@@ -367,3 +367,7 @@ FodyWeavers.xsd
 AGENTS.md
 .agents/
 .agents/rules/
+
+# Runtime and local data
+data/
+tsnetd.exe

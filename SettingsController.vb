@@ -1,8 +1,10 @@
 Imports System.IO
+Imports System.Text
 Imports System.Text.Json
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
 Imports System.Threading
+Imports System.Security.Cryptography
 Imports Microsoft.Win32
 
 
@@ -183,6 +185,21 @@ Public Class SettingsController
         Set(value As String)
             If _customCss <> value Then
                 _customCss = value
+                NotifyPropertyChanged()
+            End If
+        End Set
+    End Property
+
+    Private _tsnetAuthKey As String = ""
+    ''' <summary>Chiave di autenticazione (AuthKey) opzionale per il nodo Tailscale embedded.</summary>
+    Public Property TsnetAuthKey As String
+        Get
+            Return _tsnetAuthKey
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, String.Empty).Trim()
+            If _tsnetAuthKey <> cleanVal Then
+                _tsnetAuthKey = cleanVal
                 NotifyPropertyChanged()
             End If
         End Set
@@ -545,6 +562,23 @@ Public Class SettingsController
             _customCss = ""
         End If
 
+        If settings.ContainsKey("tsnetAuthKey") Then
+            Dim enc = settings("tsnetAuthKey")?.ToString()
+            If Not String.IsNullOrEmpty(enc) Then
+                Try
+                    Dim protectedBytes = Convert.FromBase64String(enc)
+                    Dim bytes = ProtectedData.Unprotect(protectedBytes, Nothing, DataProtectionScope.CurrentUser)
+                    _tsnetAuthKey = Encoding.UTF8.GetString(bytes)
+                Catch
+                    _tsnetAuthKey = ""
+                End Try
+            Else
+                _tsnetAuthKey = ""
+            End If
+        Else
+            _tsnetAuthKey = ""
+        End If
+
         If settings.ContainsKey("maxAccounts") Then
             Try
                 _maxAccounts = Math.Clamp(Convert.ToInt32(settings("maxAccounts").ToString()), 2, 10)
@@ -645,6 +679,26 @@ Public Class SettingsController
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings("enableSpellcheck") = enabled
         _cachedSettings("spellcheckLanguage") = _spellcheckLanguage
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e cifra via DPAPI la chiave Tailscale AuthKey opzionale per il nodo tsnet.</summary>
+    Public Async Function SaveTsnetAuthKeyAsync(authKey As String) As Task
+        TsnetAuthKey = If(authKey, String.Empty).Trim()
+        Dim encryptedBase64 = ""
+        If Not String.IsNullOrEmpty(_tsnetAuthKey) Then
+            Try
+                Dim bytes = Encoding.UTF8.GetBytes(_tsnetAuthKey)
+                Dim protectedBytes = ProtectedData.Protect(bytes, Nothing, DataProtectionScope.CurrentUser)
+                encryptedBase64 = Convert.ToBase64String(protectedBytes)
+            Catch ex As Exception
+                Debug.WriteLine($"Error encrypting tsnetAuthKey: {ex.Message}")
+            End Try
+        End If
+
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("tsnetAuthKey") = encryptedBase64
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

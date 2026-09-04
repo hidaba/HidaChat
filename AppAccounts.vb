@@ -25,7 +25,7 @@ Public Class AppAccounts
     Public Property Id As String
 
     Private _platform As String = "WhatsApp"
-    ''' <summary>Tipo di piattaforma di messaggistica ("WhatsApp" o "Telegram").</summary>
+    ''' <summary>Tipo di piattaforma ("WhatsApp", "Telegram" o "OpenClaw").</summary>
     <JsonPropertyName("platform")>
     Public Property Platform As String
         Get
@@ -39,11 +39,20 @@ Public Class AppAccounts
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(Platform)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsWhatsApp)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsTelegram)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsOpenClaw)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OpenClawSettingsVisibility)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformIconData)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformColorBrush)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
             End If
         End Set
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property IsOpenClaw As Boolean
+        Get
+            Return Platform.Equals("OpenClaw", StringComparison.OrdinalIgnoreCase)
+        End Get
     End Property
 
     <JsonIgnore>
@@ -56,14 +65,147 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property IsWhatsApp As Boolean
         Get
-            Return Not IsTelegram
+            Return Not IsTelegram AndAlso Not IsOpenClaw
         End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property OpenClawSettingsVisibility As Visibility
+        Get
+            Return If(IsOpenClaw, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    Private _serverUrl As String = "http://127.0.0.1:18789"
+    ''' <summary>URL del gateway OpenClaw (locale o remoto via Tailscale).</summary>
+    <JsonPropertyName("serverUrl")>
+    Public Property ServerUrl As String
+        Get
+            If String.IsNullOrWhiteSpace(_serverUrl) Then Return "http://127.0.0.1:18789"
+            Return _serverUrl
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(String.IsNullOrWhiteSpace(value), "http://127.0.0.1:18789", value.Trim())
+            If _serverUrl <> cleanVal Then
+                _serverUrl = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ServerUrl)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+            End If
+        End Set
+    End Property
+
+    Private _authToken As String = ""
+    ''' <summary>Token di autenticazione del gateway OpenClaw.</summary>
+    <JsonPropertyName("authToken")>
+    Public Property AuthToken As String
+        Get
+            Return If(_authToken, "")
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, "").Trim()
+            If _authToken <> cleanVal Then
+                _authToken = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthToken)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+            End If
+        End Set
+    End Property
+
+    Private _tailscaleIntegration As Boolean = False
+    ''' <summary>Se True, instrada il traffico verso la Tailnet tramite il nodo tsnet embedded.</summary>
+    <JsonPropertyName("tailscaleIntegration")>
+    Public Property TailscaleIntegration As Boolean
+        Get
+            Return _tailscaleIntegration
+        End Get
+        Set(value As Boolean)
+            If _tailscaleIntegration <> value Then
+                _tailscaleIntegration = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(TailscaleIntegration)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+            End If
+        End Set
+    End Property
+
+    Private _localProxyPort As Integer = 0
+    ''' <summary>Porta TCP locale fissa riservata al proxy tsnet per preservare l'Origin e l'approvazione del dispositivo.</summary>
+    <JsonPropertyName("localProxyPort")>
+    Public Property LocalProxyPort As Integer
+        Get
+            Return _localProxyPort
+        End Get
+        Set(value As Integer)
+            If _localProxyPort <> value Then
+                _localProxyPort = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(LocalProxyPort)))
+            End If
+        End Set
+    End Property
+
+    Private _localProxyUrl As String = ""
+    ''' <summary>URL del proxy locale generato a runtime dal companion tsnetd.</summary>
+    <JsonIgnore>
+    Public Property LocalProxyUrl As String
+        Get
+            Return _localProxyUrl
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, "").Trim()
+            If _localProxyUrl <> cleanVal Then
+                _localProxyUrl = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(LocalProxyUrl)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+            End If
+        End Set
+    End Property
+
+    Private _connectionStatusText As String = ""
+    <JsonIgnore>
+    Public Property ConnectionStatusText As String
+        Get
+            Return _connectionStatusText
+        End Get
+        Set(value As String)
+            If _connectionStatusText <> value Then
+                _connectionStatusText = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ConnectionStatusText)))
+            End If
+        End Set
+    End Property
+
+    Private _connectionStatusBrush As Brush = BrushCache.GetBrush("#8696a0")
+    <JsonIgnore>
+    Public Property ConnectionStatusBrush As Brush
+        Get
+            Return _connectionStatusBrush
+        End Get
+        Set(value As Brush)
+            If _connectionStatusBrush IsNot value Then
+                _connectionStatusBrush = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ConnectionStatusBrush)))
+            End If
+        End Set
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property WebUrl As String
         Get
-            If IsTelegram Then
+            If IsOpenClaw Then
+                Dim base = If(TailscaleIntegration AndAlso Not String.IsNullOrEmpty(LocalProxyUrl), LocalProxyUrl, ServerUrl)
+                If String.IsNullOrWhiteSpace(base) Then base = "http://127.0.0.1:18789"
+                If Not base.StartsWith("http://", StringComparison.OrdinalIgnoreCase) AndAlso Not base.StartsWith("https://", StringComparison.OrdinalIgnoreCase) Then
+                    base = "http://" & base
+                End If
+                If Not String.IsNullOrWhiteSpace(AuthToken) AndAlso Not base.Contains("token=") Then
+                    Dim sep = If(base.Contains("?"), "&", "?")
+                    base = $"{base}{sep}token={Uri.EscapeDataString(AuthToken)}"
+                End If
+                If TailscaleIntegration AndAlso Not String.IsNullOrEmpty(LocalProxyUrl) Then
+                    Dim sep = If(base.Contains("?"), "&", "?")
+                    base = $"{base}{sep}__htok={Uri.EscapeDataString(TsnetManager.Instance.LocalToken)}"
+                End If
+                Return base
+            ElseIf IsTelegram Then
                 Return "https://web.telegram.org/a/"
             Else
                 Return "https://web.whatsapp.com/"
@@ -73,11 +215,14 @@ Public Class AppAccounts
 
     Private Shared ReadOnly WhatsAppBrush As Brush = BrushCache.GetBrush("#25d366")
     Private Shared ReadOnly TelegramBrush As Brush = BrushCache.GetBrush("#24A1DE")
+    Private Shared ReadOnly OpenClawBrush As Brush = BrushCache.GetBrush("#FF5722")
 
     <JsonIgnore>
     Public ReadOnly Property PlatformIconData As String
         Get
-            If IsTelegram Then
+            If IsOpenClaw Then
+                Return "M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"
+            ElseIf IsTelegram Then
                 Return "M9.78 18.65L10.06 14.42L17.74 7.5C18.08 7.19 17.67 7.04 17.22 7.31L7.74 13.3L3.64 12C2.76 11.75 2.75 11.14 3.84 10.7L19.81 4.54C20.54 4.21 21.24 4.72 20.97 5.84L18.25 18.67C18.05 19.6 17.5 19.82 16.73 19.38L12.58 16.32L10.58 18.25C10.36 18.47 10.17 18.65 9.78 18.65Z"
             Else
                 Return "M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M8.53 7.33C8.37 7.33 8.1 7.39 7.87 7.64C7.65 7.89 7.02 8.48 7.02 9.68C7.02 10.88 7.9 12.03 8.02 12.19C8.14 12.35 9.73 14.81 12.18 15.86C12.76 16.11 13.22 16.26 13.57 16.37C14.16 16.56 14.69 16.53 15.11 16.47C15.59 16.4 16.58 15.87 16.78 15.3C16.98 14.73 16.98 14.24 16.92 14.14C16.86 14.04 16.7 13.98 16.45 13.85C16.2 13.73 14.97 13.12 14.74 13.04C14.52 12.96 14.35 12.92 14.19 13.17C14.03 13.41 13.56 13.98 13.42 14.14C13.28 14.31 13.13 14.33 12.89 14.21C12.64 14.08 11.84 13.82 10.89 12.97C10.15 12.31 9.65 11.5 9.51 11.25C9.36 11.01 9.5 10.87 9.62 10.75C9.73 10.64 9.87 10.45 10 10.31C10.13 10.16 10.17 10.06 10.25 9.9C10.33 9.73 10.29 9.59 10.23 9.47C10.17 9.35 9.7 8.19 9.5 7.72C9.31 7.26 9.12 7.32 8.97 7.31C8.84 7.31 8.68 7.33 8.53 7.33Z"
@@ -88,7 +233,9 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property PlatformColorBrush As Brush
         Get
-            If IsTelegram Then
+            If IsOpenClaw Then
+                Return OpenClawBrush
+            ElseIf IsTelegram Then
                 Return TelegramBrush
             Else
                 Return WhatsAppBrush
@@ -265,6 +412,7 @@ Public Class AppAccounts
     Private _navigationStartingHandler As EventHandler(Of CoreWebView2NavigationStartingEventArgs)
     Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
+    Private _webResourceRequestedHandler As EventHandler(Of CoreWebView2WebResourceRequestedEventArgs)
     Private _processFailedHandler As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
 
     ''' <summary>Percorso base per il salvataggio dei profili WebView2 isolati degli account.</summary>
@@ -469,18 +617,27 @@ Public Class AppAccounts
 
                     Dim uri = New Uri(uriStr)
                     Dim host = uri.Host.ToLower()
-                    If IsWhatsApp AndAlso (host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com")) Then
+                    If IsOpenClaw Then
+                        Dim baseUri As Uri = Nothing
+                        If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) AndAlso String.Equals(uri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) Then
+                            WebView.CoreWebView2.Navigate(uriStr)
+                            Return
+                        End If
+                    ElseIf IsWhatsApp AndAlso (host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com")) Then
                         WebView.CoreWebView2.Navigate(uriStr)
+                        Return
                     ElseIf IsTelegram AndAlso (host = "web.telegram.org" OrElse host = "telegram.org" OrElse host.EndsWith(".telegram.org")) Then
                         WebView.CoreWebView2.Navigate(uriStr)
+                        Return
                     ElseIf IsTelegram AndAlso (host = "t.me" OrElse host.EndsWith(".t.me") OrElse host = "telegram.me" OrElse host.EndsWith(".telegram.me")) Then
                         Dim target = ResolveTelegramUrl(uriStr)
                         WebView.CoreWebView2.Navigate(target)
-                    Else
-                        System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(uriStr) With {
-                            .UseShellExecute = True
-                        })
+                        Return
                     End If
+
+                    System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(uriStr) With {
+                        .UseShellExecute = True
+                    })
                 Catch
                 End Try
             End Sub
@@ -493,45 +650,51 @@ Public Class AppAccounts
 
             _navigationCompletedHandler = Async Sub(sender, e)
                 If e.IsSuccess Then
-                    Dim brightnessDark = settings.IsDarkThemeEffective
+                    If Not IsOpenClaw Then
+                        Dim brightnessDark = settings.IsDarkThemeEffective
 
-                    If IsTelegram Then
-                        If brightnessDark Then
-                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramDarkModeJS)
+                        If IsTelegram Then
+                            If brightnessDark Then
+                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramDarkModeJS)
+                            Else
+                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramLightModeJS)
+                            End If
                         Else
-                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramLightModeJS)
+                            If brightnessDark Then
+                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
+                            Else
+                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                            End If
                         End If
-                    Else
-                        If brightnessDark Then
-                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
-                        Else
-                            Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+
+                        Dim translatedLangName = "English"
+                        Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
+                        If langItem IsNot Nothing Then
+                            translatedLangName = langItem.Name
                         End If
-                    End If
 
-                    Dim translatedLangName = "English"
-                    Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
-                    If langItem IsNot Nothing Then
-                        translatedLangName = langItem.Name
+                        Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
+                        
+                        Dim translationScript = TranslationJsScripts.GetTranslationJS(
+                            BridgeToken,
+                            settings.Language,
+                            translatedLangName,
+                            tooltipLabel,
+                            settings.TranslateMessageButton,
+                            settings.FullPageTranslation
+                        )
+                        Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
                     End If
-
-                    Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
-                    
-                    Dim translationScript = TranslationJsScripts.GetTranslationJS(
-                        BridgeToken,
-                        settings.Language,
-                        translatedLangName,
-                        tooltipLabel,
-                        settings.TranslateMessageButton,
-                        settings.FullPageTranslation
-                    )
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
 
                     ' Iniezione CSS personalizzato utente (TODO #43)
                     Await ApplyCustomCssAsync(settings.CustomCss, settings.EnableCustomCss)
                 End If
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
+
+            If TailscaleIntegration AndAlso IsOpenClaw Then
+                Await EnsureLocalProxyAsync(forceUpdate:=True)
+            End If
 
             WebView.CoreWebView2.Navigate(WebUrl)
 
@@ -584,6 +747,48 @@ Public Class AppAccounts
                 Debug.WriteLine($"Error applying custom CSS to account {Id}: {ex.Message}")
             End Try
         End If
+    End Function
+
+    ''' <summary>
+    ''' Assicura che la rotta tsnet sia registrata ed attiva per questo account, configurando il filtro WebView2 se necessario.
+    ''' </summary>
+    Public Async Function EnsureLocalProxyAsync(Optional forceUpdate As Boolean = False) As Task(Of Integer)
+        If TailscaleIntegration AndAlso IsOpenClaw Then
+            Try
+                Dim preferred = If(LocalProxyPort > 0, LocalProxyPort, 18800)
+                Dim port = Await TsnetManager.Instance.EnsureRouteAsync(Id, ServerUrl, preferredPort:=preferred, forceUpdate:=forceUpdate)
+                If port > 0 Then
+                    LocalProxyPort = port
+                    LocalProxyUrl = $"http://127.0.0.1:{port}"
+                    If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
+                        If _webResourceRequestedHandler Is Nothing Then
+                            WebView.CoreWebView2.AddWebResourceRequestedFilter("http://127.0.0.1:*/*", CoreWebView2WebResourceContext.All)
+                            _webResourceRequestedHandler = Sub(sender, reqArgs)
+                                reqArgs.Request.Headers.SetHeader("X-HidaChat-Local-Token", TsnetManager.Instance.LocalToken)
+                            End Sub
+                            AddHandler WebView.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
+                        End If
+                    End If
+                    Return port
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"Error establishing tsnet route for account {Id}: {ex.Message}")
+            End Try
+        End If
+        Return 0
+    End Function
+
+    ''' <summary>
+    ''' Ricarica forzatamente l'account garantendo che la rotta locale tsnet (se attiva) sia allineata e naviga a WebUrl.
+    ''' </summary>
+    Public Async Function ReloadAsync(Optional forceUpdateProxy As Boolean = True) As Task
+        If WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
+
+        If TailscaleIntegration AndAlso IsOpenClaw Then
+            Await EnsureLocalProxyAsync(forceUpdate:=forceUpdateProxy)
+        End If
+
+        WebView.CoreWebView2.Navigate(WebUrl)
     End Function
 
     ''' <summary>
@@ -856,6 +1061,7 @@ Public Class AppAccounts
     ''' Notifica alla WebView2 l'aggiornamento della lingua di destinazione per le traduzioni messaggi.
     ''' </summary>
     Public Async Function UpdateWebviewLanguageAsync(langCode As String, langName As String, translateTooltipLabel As String, enableHover As Boolean) As Task
+        If IsOpenClaw Then Return
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
                 Dim jsonLangCode = JsonSerializer.Serialize(If(langCode, "en"))
@@ -875,6 +1081,7 @@ Public Class AppAccounts
     ''' Applica lo script per la sincronizzazione del tema (Scuro o Chiaro) all'interno della WebView2.
     ''' </summary>
     Public Async Function ApplyThemeAsync(isDark As Boolean) As Task
+        If IsOpenClaw Then Return
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
                 If IsTelegram Then
@@ -936,10 +1143,19 @@ Public Class AppAccounts
                             RemoveHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
                             _navigationCompletedHandler = Nothing
                         End If
+                        If _webResourceRequestedHandler IsNot Nothing Then
+                            RemoveHandler WebView.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
+                            _webResourceRequestedHandler = Nothing
+                        End If
                     Catch
                         ' Se il CoreWebView2 è in stato invalidato a causa di un crash, la rimozione degli handler potrebbe sollevare eccezioni
                     End Try
                 End If
+            End If
+
+            If TailscaleIntegration Then
+                Dim accId = Id
+                Task.Run(Function() TsnetManager.Instance.RemoveRouteAsync(accId))
             End If
 
             If WebView IsNot Nothing Then

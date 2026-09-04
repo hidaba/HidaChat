@@ -219,42 +219,84 @@
                     <ItemsControl x:Name="AccountsList" Margin="0,5,0,10">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderThickness="0,0,0,1" Padding="0,8">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="110"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        
-                                        <!-- Platform Icon Preview -->
-                                        <Path Grid.Column="0" Data="{Binding PlatformIconData}" 
-                                              Fill="{Binding PlatformColorBrush}" 
-                                              Width="16" Height="16" Stretch="Uniform" 
-                                              VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Border BorderThickness="0,0,0,1" BorderBrush="#222e35" Padding="0,8">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <!-- Platform Icon Preview -->
+                                            <Path Grid.Column="0" Data="{Binding PlatformIconData}" 
+                                                  Fill="{Binding PlatformColorBrush}" 
+                                                  Width="16" Height="16" Stretch="Uniform" 
+                                                  VerticalAlignment="Center" Margin="0,0,10,0"/>
 
-                                        <!-- Editable Account Name TextBox -->
-                                        <TextBox Grid.Column="1" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                 LostFocus="TxtAccountName_LostFocus"
-                                                 Foreground="#ffffff" Background="#2a3942" BorderBrush="#00a884" 
-                                                 Padding="8,6" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
+                                            <!-- Editable Account Name TextBox -->
+                                            <TextBox Grid.Column="1" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                     LostFocus="TxtAccountName_LostFocus"
+                                                     Foreground="#ffffff" Background="#2a3942" BorderBrush="#00a884" 
+                                                     Padding="8,6" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
 
-                                        <!-- Platform Selector ComboBox -->
-                                        <ComboBox Grid.Column="2" 
-                                                  SelectedValuePath="Tag"
-                                                  SelectedValue="{Binding Platform, Mode=TwoWay}"
-                                                  SelectionChanged="ComboAccountPlatform_SelectionChanged"
-                                                  Tag="{Binding Id}"
-                                                  Style="{StaticResource CustomComboBoxStyle}"
-                                                  VerticalAlignment="Center" Margin="0,0,10,0">
-                                            <ComboBoxItem Content="WhatsApp" Tag="WhatsApp"/>
-                                            <ComboBoxItem Content="Telegram" Tag="Telegram"/>
-                                        </ComboBox>
+                                            <!-- Platform Selector ComboBox -->
+                                            <ComboBox Grid.Column="2" 
+                                                      SelectedValuePath="Tag"
+                                                      SelectedValue="{Binding Platform, Mode=TwoWay}"
+                                                      SelectionChanged="ComboAccountPlatform_SelectionChanged"
+                                                      Tag="{Binding Id}"
+                                                      Style="{StaticResource CustomComboBoxStyle}"
+                                                      VerticalAlignment="Center" Margin="0,0,10,0">
+                                                <ComboBoxItem Content="WhatsApp" Tag="WhatsApp"/>
+                                                <ComboBoxItem Content="Telegram" Tag="Telegram"/>
+                                                <ComboBoxItem Content="OpenClaw" Tag="OpenClaw"/>
+                                            </ComboBox>
 
-                                        <!-- Delete Account Button -->
-                                        <Button Grid.Column="3" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>
-                                    </Grid>
+                                            <!-- Delete Account Button -->
+                                            <Button Grid.Column="3" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>
+                                        </Grid>
+
+                                        <!-- OpenClaw Gateway & Tailscale Panel -->
+                                        <Border Visibility="{Binding OpenClawSettingsVisibility}" 
+                                                Background="#1f2c34" CornerRadius="6" Padding="10,8" Margin="26,6,0,2">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Server URL / Tailscale:" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="140"/>
+                                                    <TextBox Grid.Column="1" Text="{Binding ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             LostFocus="TxtServerUrl_LostFocus"
+                                                             Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
+                                                             Padding="6,4" FontSize="12" ToolTip="Es: http://127.0.0.1:18789 o https://node.tailnet.ts.net"/>
+                                                </Grid>
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Gateway Auth Token:" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="140"/>
+                                                    <TextBox Grid.Column="1" Text="{Binding AuthToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             LostFocus="TxtAuthToken_LostFocus"
+                                                             Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
+                                                             Padding="6,4" FontSize="12" ToolTip="Token segreto OpenClaw gateway"/>
+                                                </Grid>
+                                                <CheckBox Content="Usa nodo Tailscale integrato (tsnet portatile)" 
+                                                          IsChecked="{Binding TailscaleIntegration, Mode=TwoWay}" 
+                                                          Click="ChkAccountTailscale_Click" Tag="{Binding Id}" 
+                                                          Margin="0,2,0,8" Foreground="#e9edef" FontSize="12"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding ConnectionStatusText}" Foreground="{Binding ConnectionStatusBrush}" 
+                                                               FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <Button Content="Test Connessione" Click="BtnTestConnection_Click" Tag="{Binding Id}"
+                                                            Style="{StaticResource ActionButtonStyle}" Height="26" Padding="10,2" FontSize="12"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -276,6 +318,40 @@
                             </ComboBox>
                         </StackPanel>
                     </Grid>
+
+                    <!-- TAILSCALE EMBEDDED (tsnet) SECTION -->
+                    <Border Background="#202c33" CornerRadius="8" Padding="12,10" Margin="0,0,0,15">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Tailscale Integrato (tsnet)" FontWeight="SemiBold" FontSize="14" Foreground="#e9edef" Margin="0,0,10,0"/>
+                                    <Border x:Name="BadgeTsnetStatus" CornerRadius="4" Padding="6,2" Background="#2a3942" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtTsnetStatus" Text="Non attivo" Foreground="#8696a0" FontSize="11" FontWeight="Bold"/>
+                                    </Border>
+                                </StackPanel>
+                                <Button x:Name="BtnTsnetLogin" Grid.Column="1" Content="Accedi a Tailscale" Click="BtnTsnetLogin_Click" 
+                                        Style="{StaticResource ActionButtonStyle}" Height="26" Padding="10,2" FontSize="12" Visibility="Collapsed"/>
+                            </Grid>
+
+                            <TextBlock Text="Consente di raggiungere host sulla tua Tailnet privata (*.ts.net o 100.x.y.z) in modalità 100% portatile senza installare Tailscale sulla macchina." 
+                                       Foreground="#8696a0" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="AuthKey (opzionale):" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="130"/>
+                                <TextBox x:Name="TxtTsnetAuthKey" Grid.Column="1" LostFocus="TxtTsnetAuthKey_LostFocus"
+                                         Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
+                                         Padding="6,4" FontSize="12" ToolTip="Chiave tskey-auth-... per registrazione automatica del nodo senza login browser"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
                     <!-- CUSTOM CSS SECTION (TODO #43) -->
                     <TextBlock x:Name="SectionCustomCss" Text="Custom CSS" Style="{StaticResource SectionHeaderStyle}"/>

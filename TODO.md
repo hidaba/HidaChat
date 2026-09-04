@@ -283,21 +283,20 @@
   - Pulsante dedicato con icona Excel integrato nella barra del titolo (`MainWindow.xaml`) e supporto multilingua completo in `Localization.vb`.
 - **Impatto**: Alto | **Sforzo**: Medio
 
-## 53. Integrazione Console Web GUI di OpenClaw via Tailscale (Mesh VPN & Gateway Token)
+## ~~53. Integrazione Console Web GUI di OpenClaw via Tailscale (Mesh VPN & Gateway Token)~~ ✅
 - **Descrizione**: Aggiungere il supporto nativo a **OpenClaw** come piattaforma di account in HidaChat (accanto a WhatsApp e Telegram), consentendo di gestire sessioni di chat, monitoraggio log, esecuzione skill e configurazione del gateway AI OpenClaw all'interno di una tab dedicata isolata in WebView2.
 - **Specifiche Tecniche & Architettura**:
   1. **Modello Account & Configurazione (`AppAccounts.vb`, `AccountManager.vb`)**:
      - Estensione enum/proprietà `Platform`: aggiunta supporto `"OpenClaw"` con property booleana `IsOpenClaw`.
      - Nuove proprietà persistenti per l'account:
-       - `ServerUrl` (String): URL del gateway OpenClaw (default: `http://127.0.0.1:18789` per istanze locali, oppure dominio/IP Tailscale).
-       - `AuthToken` (String): Token di autenticazione amministrativa del gateway OpenClaw (salvato con cifratura sicura Windows DPAPI / `ProtectedData`).
-       - `TailscaleIntegration` (Boolean): Flag per abilitare controlli specifici per mesh network Tailscale.
+        - `ServerUrl` (String): URL del gateway OpenClaw (default: `http://127.0.0.1:18789` o dominio Tailnet).
+        - `TailscaleIntegration` (Boolean): Flag per abilitare il routing tramite nodo Tailscale embedded (`tsnetd.exe`) con reverse proxy loopback e token di sicurezza locale.
      - Palette grafica dedicata: icona vettoriale SVG a tema (robot/claw/terminale) e brush distintivo (es. `#FF5722` arancione o `#7C4DFF` viola).
-  2. **Integrazione di Rete & Tailscale Mesh VPN**:
-     - **Modalità Locale (`127.0.0.1:18789`)**: Connessione diretta a bassa latenza su loopback quando il gateway OpenClaw è in esecuzione sulla stessa macchina.
-     - **Modalità Remota via Tailscale (Consigliata)**:
-       - Pieno supporto per **Tailscale Serve** (es. `https://<nome-dispositivo>.<tailnet>.ts.net/`) con certificati TLS validi gestiti automaticamente da Tailscale.
-       - Supporto per **Direct Tailnet Bind** su indirizzi IP privati Tailscale (range `100.64.0.0/10`, porta standard `18789`).
+  2. **Integrazione di Rete & Tailscale Mesh VPN (tsnet Userspace)**:
+     - **Companion `tsnetd.exe`**: Binario statico autonomo Go con stack gVisor e WireGuard (Zero Installation, nessun driver o client Tailscale di sistema richiesto).
+     - **Loopback Reverse Proxy (`127.0.0.1:<randomPort>`)**: Ascolto su porta dinamica casuale ad uso esclusivo di WebView2, protetto da header/cookie `X-HidaChat-Local-Token`.
+     - **Persistenza Portabile (`data/tsnet/`)**: Lo stato del nodo viaggia con la cartella dati di HidaChat mantenendo stabile l'identità del dispositivo sulla Tailnet.
+     - **Flusso Autenticazione & Login**: Gestione stati `Running`, `NeedsLogin` (con apertura browser) e supporto AuthKey cifrata con Windows DPAPI.
        - Fallback e validazione: test di connettività asincrono (ping HTTP/healthcheck su `/api/health` o endpoint radice) prima della navigazione, con visualizzazione dello stato online/offline del nodo gateway.
   3. **Gestione del Token & Flusso di Pairing**:
      - Composizione automatica dell'URL di bootstrap con token di autenticazione (`?token=<AuthToken>`) o iniezione sicura via header HTTP `Authorization: Bearer <AuthToken>` tramite evento `WebResourceRequested` di CoreWebView2.

@@ -17,6 +17,9 @@
     <Content Include="images\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="tsnetd.exe" Condition="Exists('tsnetd.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <EmbeddedResource Include="Scripts\**" />
   </ItemGroup>
 

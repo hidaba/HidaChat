@@ -47,6 +47,26 @@ if ($Bump -ne "none") {
     Write-Host "Publishing Version: $newVersion (no bump)"
 }
 
+# --- Build tsnetd (Go static binary) ---
+$goCmd = Get-Command go -ErrorAction SilentlyContinue
+if ($goCmd) {
+    Write-Host "Compiling tsnetd.exe (Go static binary)..."
+    $tsnetdDir = Join-Path $PSScriptRoot "tsnetd"
+    if (-not (Test-Path $tsnetdDir)) {
+        $tsnetdDir = Join-Path $PSScriptRoot "..\tsnetd"
+    }
+    if (Test-Path $tsnetdDir) {
+        $targetOut = Join-Path $PSScriptRoot "tsnetd.exe"
+        Push-Location $tsnetdDir
+        try {
+            $env:CGO_ENABLED = "0"
+            & $goCmd.Source build -ldflags="-s -w" -trimpath -o $targetOut .
+        } finally {
+            Pop-Location
+        }
+    }
+}
+
 # --- Build ---
 Write-Host "Building Release..."
 dotnet build -c Release --nologo $PSScriptRoot 2>&1 | Out-Host
