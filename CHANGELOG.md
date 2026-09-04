@@ -2,7 +2,10 @@
 
 ## [0.8.1-beta] - 2026-09-04
 
-### Pre-release / Beta — OpenClaw Permanent Device Pairing & Tailscale Startup Resilience
+### Pre-release / Beta — Supporto OpenClaw & Miglioramenti di Stabilità e Connessione Tailscale
+- **Nuova Piattaforma Supportata: OpenClaw (`AppAccounts.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`)**:
+  - **Integrazione Completa Gateway e Client Web OpenClaw**: Supporto nativo all'aggiunta e gestione di account della piattaforma OpenClaw all'interno dell'applicazione, con schede dedicate, switch rapido e profilazione WebView2 isolata.
+  - **Integrazione con Rete Privata Tailscale (tsnet)**: Connessione trasparente e sicura verso le istanze e i gateway OpenClaw ospitati su tailnet private tramite il demone `tsnetd` integrato, senza necessità di installare il client Tailscale sul sistema host.
 - **Persistenza Identità Dispositivo OpenClaw (`AppAccounts.vb`, `AccountManager.vb`, `tsnetd/main.go`)**:
   - **Porta Proxy Deterministica**: Assegnazione e salvataggio permanente in `settings.json` di una porta TCP locale fissa (`localProxyPort` a partire da `18800`) per ciascun account OpenClaw con Tailscale attivo.
   - **Eliminazione Richieste di Riconnessione Continue**: In Chromium/WebView2 l'Origin include la porta locale (`http://127.0.0.1:<porta>`). Mantenendo la porta invariata ad ogni apertura e chiusura dell'app, le chiavi crittografiche Ed25519 e i token di sessione salvati in IndexedDB (`openclaw-control-ui`) rimangono stabili, eliminando la necessità di riapprovare il dispositivo ad ogni riavvio (`openclaw devices approve`).
