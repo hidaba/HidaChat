@@ -472,15 +472,39 @@ Public Class MainWindow
             End If
         End If
 
-        ' 3. Pre-carica in background tutti gli altri account configurati mantenendoli attivi fuori dallo schermo
+        ' 3. Pre-carica in background tutti gli altri account configurati in modo scaglionato
         Dim otherAccounts = _accountManager.Accounts.Where(Function(a) activeAccount Is Nothing OrElse a.Id <> activeAccount.Id).ToList()
-        For Each acc In otherAccounts
-            Await EnsureWebViewAsync(acc)
-            If acc.WebView IsNot Nothing Then
-                acc.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
-                Panel.SetZIndex(acc.WebView, 0)
-            End If
-        Next
+        If otherAccounts.Count > 0 Then
+            PreloadOtherAccountsAsync(otherAccounts)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Pre-carica in background gli altri account in modo scaglionato (Staggered Preload) per non intasare CPU, RAM e banda all'avvio.
+    ''' </summary>
+    Private Async Sub PreloadOtherAccountsAsync(accountsToPreload As List(Of AppAccounts))
+        Try
+            ' Lascia prima il tempo all'account principale di completare il rendering iniziale
+            Await Task.Delay(1500)
+
+            For Each acc In accountsToPreload
+                If _allowExit Then Return
+
+                ' Se l'account non è ancora stato inizializzato (es. tramite switch manuale), inizializzalo
+                If acc.WebView Is Nothing OrElse acc.WebView.CoreWebView2 Is Nothing Then
+                    Await EnsureWebViewAsync(acc)
+                    If acc.WebView IsNot Nothing AndAlso Not acc.IsActive Then
+                        acc.WebView.Margin = New Thickness(-20000, 0, 20000, 0)
+                        Panel.SetZIndex(acc.WebView, 0)
+                    End If
+                End If
+
+                ' Pausa tra un account e il successivo per distribuire il carico I/O e CPU
+                Await Task.Delay(1500)
+            Next
+        Catch ex As Exception
+            Debug.WriteLine($"PreloadOtherAccountsAsync error: {ex.Message}")
+        End Try
     End Sub
 
     ''' <summary>

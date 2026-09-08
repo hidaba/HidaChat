@@ -423,28 +423,33 @@ Public Class AppAccounts
     End Property
 
     ''' <summary>
-    ''' Rimuove in modo sicuro le cartelle di cache volatile (Code Cache, Disk Cache, Service Worker CacheStorage, ShaderCache, Crashpad)
-    ''' senza alterare cookie, sessioni attive o il database messaggi IndexedDB.
+    ''' Rimuove in modo sicuro le cartelle di cache volatile e diagnostica (ShaderCache, GPUCache, Crashpad)
+    ''' senza alterare i file essenziali di accelerazione (Code Cache, Disk Cache, Service Worker) o sessioni/cookie/IndexedDB.
     ''' </summary>
-    Public Shared Sub CleanTransientCacheFolders(profileDir As String)
+    Public Shared Sub CleanTransientCacheFolders(profileDir As String, Optional purgeDiskAndCodeCache As Boolean = False)
         If String.IsNullOrEmpty(profileDir) OrElse Not Directory.Exists(profileDir) Then Return
 
-        Dim relativeDirsToClean As String() = {
+        Dim relativeDirsToClean As New List(Of String) From {
             "EBWebView\ShaderCache",
             "EBWebView\GrShaderCache",
             "EBWebView\Crashpad\reports",
             "EBWebView\Crashpad",
             "EBWebView\component_crx_cache",
             "EBWebView\Subresource Filter",
-            "EBWebView\Default\Cache",
-            "EBWebView\Default\Code Cache",
             "EBWebView\Default\GPUCache",
             "EBWebView\Default\DawnGraphiteCache",
             "EBWebView\Default\DawnWebGPUCache",
-            "EBWebView\Default\GPUPersistentCache",
-            "EBWebView\Default\Service Worker\CacheStorage",
-            "EBWebView\Default\Service Worker\ScriptCache"
+            "EBWebView\Default\GPUPersistentCache"
         }
+
+        If purgeDiskAndCodeCache Then
+            relativeDirsToClean.AddRange({
+                "EBWebView\Default\Cache",
+                "EBWebView\Default\Code Cache",
+                "EBWebView\Default\Service Worker\CacheStorage",
+                "EBWebView\Default\Service Worker\ScriptCache"
+            })
+        End If
 
         For Each relDir In relativeDirsToClean
             Try
@@ -1096,15 +1101,16 @@ Public Class AppAccounts
     End Function
 
     ''' <summary>
-    ''' Notifica al motore WebView2 di svuotare la disk cache e cronologia temporanea tramite API nativa.
+    ''' Notifica al motore WebView2 di svuotare la cronologia temporanea e, se richiesto, la disk cache tramite API nativa.
     ''' </summary>
-    Public Async Function ClearBrowsingCacheAsync() As Task
+    Public Async Function ClearBrowsingCacheAsync(Optional clearDiskCache As Boolean = False) As Task
         Try
             If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.Profile IsNot Nothing Then
-                Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(
-                    CoreWebView2BrowsingDataKinds.DiskCache Or 
-                    CoreWebView2BrowsingDataKinds.DownloadHistory
-                )
+                Dim dataKinds = CoreWebView2BrowsingDataKinds.DownloadHistory
+                If clearDiskCache Then
+                    dataKinds = dataKinds Or CoreWebView2BrowsingDataKinds.DiskCache
+                End If
+                Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(dataKinds)
             End If
         Catch ex As Exception
             Debug.WriteLine($"ClearBrowsingCacheAsync error: {ex.Message}")

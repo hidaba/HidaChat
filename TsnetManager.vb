@@ -153,6 +153,7 @@ Public Class TsnetManager
     ''' Avvia tsnetd.exe se non è già in esecuzione.
     ''' </summary>
     Public Async Function StartAsync(Optional authKey As String = "") As Task(Of Boolean)
+        Await Task.Yield()
         If _process IsNot Nothing AndAlso Not _process.HasExited Then
             Return True
         End If
@@ -206,18 +207,14 @@ Public Class TsnetManager
             End Sub
 
             NodeState = "Starting"
-            ' Attendi fino a 5 secondi che il nodo Tailscale sia effettivamente connesso ed in stato "Running"
-            For attempt As Integer = 1 To 10
-                Await CheckStatusAsync()
-                If NodeState = "Running" Then
-                    Debug.WriteLine($"[TsnetManager] tsnetd is Running with IP: {TailnetIP} (attempt {attempt})")
-                    Exit For
-                End If
-                Await Task.Delay(500)
-            Next
-
-            ' Avvia polling periodico dello stato per intercettare il login dell'utente
+            ' Avvia immediatamente il polling dello stato in background senza bloccare il thread chiamante
             StartStatusPolling()
+            Dim ignoreCheck = Task.Run(Async Function()
+                Try
+                    Await CheckStatusAsync()
+                Catch
+                End Try
+            End Function)
             Return True
         Catch ex As Exception
             Debug.WriteLine($"[TsnetManager] Failed to start tsnetd: {ex.Message}")

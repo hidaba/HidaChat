@@ -294,17 +294,17 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Esegue una pulizia preventiva delle cartelle di cache volatile (Code Cache, Disk Cache, Service Worker CacheStorage, ShaderCache, Crashpad)
+    ''' Esegue una pulizia preventiva delle cartelle di cache volatile e diagnostica (ShaderCache, GPUCache, Crashpad)
     ''' su tutti i profili presenti su disco prima dell'inizializzazione dei processi WebView2 o alla chiusura.
     ''' </summary>
-    Public Async Function CleanupTransientCachesAsync() As Task
+    Public Async Function CleanupTransientCachesAsync(Optional purgeDiskAndCodeCache As Boolean = False) As Task
         Await Task.Run(Sub()
             Try
                 Dim sharedDir = AppAccounts.SharedDataDirectory
                 If Not Directory.Exists(sharedDir) Then Return
 
                 For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
-                    AppAccounts.CleanTransientCacheFolders(profileDir)
+                    AppAccounts.CleanTransientCacheFolders(profileDir, purgeDiskAndCodeCache:=purgeDiskAndCodeCache)
                 Next
             Catch ex As Exception
                 Debug.WriteLine($"CleanupTransientCachesAsync error: {ex.Message}")

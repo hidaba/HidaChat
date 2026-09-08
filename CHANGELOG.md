@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.2-beta] - 2026-09-08
+
+### Pre-release / Beta — Ottimizzazione Prestazioni Avvio Multi-Account & Preservazione Cache Web
+- **Ottimizzazione Prestazioni di Avvio Multi-Account (`MainWindow.xaml.vb`)**:
+  - **Pre-caricamento Scaglionato (Staggered Preload)**: L'account attualmente selezionato viene caricato e mostrato con priorità assoluta all'avvio, rendendo la schermata immediatamente reattiva in 1–2 secondi. Gli altri account configurati vengono precaricati in background con intervalli scaglionati di 1.5 secondi, azzerando la saturazione contemporanea di CPU, RAM e banda.
+  - **Caricamento Istantaneo On-Demand**: Cliccando su una scheda prima del termine del precaricamento automatico, l'account viene agganciato e mostrato istantaneamente.
+- **Preservazione Intelligente della Cache Web (`AppAccounts.vb`, `AccountManager.vb`)**:
+  - **Persistenza Code Cache & App Shell**: Disattivata la cancellazione sistematica a ogni avvio e chiusura delle cartelle `Default\Code Cache` (bytecode V8 precompilato), `Default\Cache` (HTTP disk cache) e `Default\Service Worker\CacheStorage`. WhatsApp Web e Telegram non devono più riscaricare oltre 50 MB di codice ad ogni apertura dell'applicazione.
+  - **Pulizia Mirata File Effimeri**: La pulizia automatica si concentra esclusivamente su log di crash (`Crashpad`) e cache grafica temporanea (`ShaderCache`, `GPUCache`), lasciando a Chromium la regolazione della disk cache entro il limite di 100 MB.
+- **Avvio Asincrono Non Bloccante di Tsnet per OpenClaw (`TsnetManager.vb`)**:
+  - Rimosso il ciclo di attesa bloccante da 5 secondi all'avvio del demone `tsnetd.exe`. L'inizializzazione del nodo Tailscale procede ora in background senza ritardare il caricamento delle schede.
+
 ## [0.8.1-beta] - 2026-09-04
 
 ### Pre-release / Beta — Supporto OpenClaw & Miglioramenti di Stabilità e Connessione Tailscale

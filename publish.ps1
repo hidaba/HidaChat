@@ -50,19 +50,30 @@ if ($Bump -ne "none") {
 # --- Build tsnetd (Go static binary) ---
 $goCmd = Get-Command go -ErrorAction SilentlyContinue
 if ($goCmd) {
-    Write-Host "Compiling tsnetd.exe (Go static binary)..."
     $tsnetdDir = Join-Path $PSScriptRoot "tsnetd"
     if (-not (Test-Path $tsnetdDir)) {
         $tsnetdDir = Join-Path $PSScriptRoot "..\tsnetd"
     }
     if (Test-Path $tsnetdDir) {
         $targetOut = Join-Path $PSScriptRoot "tsnetd.exe"
-        Push-Location $tsnetdDir
-        try {
-            $env:CGO_ENABLED = "0"
-            & $goCmd.Source build -ldflags="-s -w" -trimpath -o $targetOut .
-        } finally {
-            Pop-Location
+        $needRebuild = -not (Test-Path $targetOut)
+        if (-not $needRebuild) {
+            $mainGo = Join-Path $tsnetdDir "main.go"
+            if ((Test-Path $mainGo) -and ((Get-Item $mainGo).LastWriteTime -gt (Get-Item $targetOut).LastWriteTime)) {
+                $needRebuild = $true
+            }
+        }
+        if ($needRebuild) {
+            Write-Host "Compiling tsnetd.exe (Go static binary)..."
+            Push-Location $tsnetdDir
+            try {
+                $env:CGO_ENABLED = "0"
+                & $goCmd.Source build -ldflags="-s -w" -trimpath -o $targetOut .
+            } finally {
+                Pop-Location
+            }
+        } else {
+            Write-Host "tsnetd.exe is up to date."
         }
     }
 }
