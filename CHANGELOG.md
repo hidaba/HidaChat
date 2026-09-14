@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0] - 2026-09-14
+
+### Release Stabile — Supporto OpenClaw via Tailscale Mesh VPN, Staggered Preload & Cache Optimization
+- **Nuova Piattaforma Supportata: OpenClaw (`AppAccounts.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `AccountManager.vb`)**:
+  - **Integrazione Completa Gateway e Web UI OpenClaw**: Supporto nativo all'aggiunta e gestione di account della piattaforma OpenClaw all'interno di HidaChat, con schede dedicate, switch rapido e profilazione isolata WebView2.
+  - **Integrazione con Rete Privata Mesh Tailscale (tsnet)**: Connessione trasparente e sicura verso le istanze e gateway OpenClaw ospitati su tailnet private tramite il companion demone `tsnetd.exe` (Go static binary con stack gVisor e WireGuard), senza necessità di installare o configurare il client Tailscale sul sistema operativo host.
+  - **Persistenza Identità Dispositivo OpenClaw**: Assegnazione e persistenza in `settings.json` di una porta proxy locale deterministica (`localProxyPort` a partire da `18800`) e token di sicurezza locale salvato in `data/tsnet/local_token.txt`. In questo modo le chiavi crittografiche e i token in IndexedDB rimangono stabili, eliminando la richiesta continua di riapprovazione del dispositivo (`openclaw devices approve`).
+  - **Risoluzione Race Condition e Handshake Sicuro all'Avvio**: Attesa sincronizzata dell'handshake WireGuard (`tsReady`), trasporto con retry automatico per assorbire latenze di rete e schermata di attesa fluida con meta-refresh automatico.
+  - **Inizializzazione Asincrona Non Bloccante**: Avvio asincrono del demone `tsnetd` in background per non ritardare il caricamento dell'interfaccia.
+- **Ottimizzazione Prestazioni di Avvio Multi-Account (`MainWindow.xaml.vb`)**:
+  - **Pre-caricamento Scaglionato (Staggered Preload)**: L'account attivo viene caricato immediatamente all'avvio con priorità assoluta (interfaccia reattiva in 1–2 secondi), mentre gli account secondari vengono precaricati in background a intervalli distanziati di 1.5 secondi, azzerando picchi di CPU, RAM e banda.
+  - **Caricamento On-Demand Istantaneo**: Cliccando su una scheda prima del completamento del precaricamento, l'account viene agganciato e caricato immediatamente senza attese.
+- **Preservazione Intelligente della Cache Web & Prestazioni di Riapertura (`AppAccounts.vb`, `AccountManager.vb`)**:
+  - **Persistenza Bytecode V8 e App Shell**: Conservazione tra le sessioni delle cartelle `Code Cache` (bytecode V8 precompilato), `Cache` (HTTP disk cache) e `Service Worker\CacheStorage`. WhatsApp Web e Telegram non devono più riscaricare oltre 50 MB di codice e asset ad ogni apertura.
+  - **Pulizia Mirata dei File Effimeri**: La pulizia automatica si concentra esclusivamente sui report di crash (`Crashpad`) e cache grafica temporanea (`ShaderCache`, `GPUCache`), lasciando a Chromium la gestione controllata della disk cache (tetto a 100 MB).
+- **Resilienza e Stabilità di Sistema**:
+  - Resilienza nativa trasparente ai crash del runtime WebView2 (`ProcessFailed` / `RenderProcessExited`) con auto-recovery istantaneo della sessione attiva (TODO #55).
+
 ## [0.8.2-beta] - 2026-09-08
 
 ### Pre-release / Beta — Ottimizzazione Prestazioni Avvio Multi-Account & Preservazione Cache Web
