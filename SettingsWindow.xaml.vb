@@ -226,10 +226,11 @@ Public Class SettingsWindow
         Dim txt = CType(sender, TextBox)
         Dim acc = CType(txt.DataContext, AppAccounts)
         If acc IsNot Nothing Then
-            Dim newUrl = If(String.IsNullOrWhiteSpace(txt.Text), "http://127.0.0.1:18789", txt.Text.Trim())
+            Dim defaultUrl = If(acc.IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+            Dim newUrl = If(String.IsNullOrWhiteSpace(txt.Text), defaultUrl, txt.Text.Trim())
             If acc.ServerUrl <> newUrl Then
                 acc.ServerUrl = newUrl
-                If acc.TailscaleIntegration AndAlso acc.IsOpenClaw Then
+                If acc.TailscaleIntegration AndAlso (acc.IsOpenClaw OrElse acc.IsHermes) Then
                     Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
                 End If
                 Await _accountManager.SaveAccountsAsync()
@@ -260,7 +261,7 @@ Public Class SettingsWindow
         If acc IsNot Nothing Then
             acc.TailscaleIntegration = chk.IsChecked.GetValueOrDefault()
             Await _accountManager.SaveAccountsAsync()
-            If acc.TailscaleIntegration AndAlso acc.IsOpenClaw Then
+            If acc.TailscaleIntegration AndAlso (acc.IsOpenClaw OrElse acc.IsHermes) Then
                 Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
                 acc.WebView?.CoreWebView2?.Navigate(acc.WebUrl)
             ElseIf Not acc.TailscaleIntegration Then
@@ -307,6 +308,9 @@ Public Class SettingsWindow
                     client.Timeout = TimeSpan.FromSeconds(4.0)
                     If Not String.IsNullOrEmpty(localToken) Then
                         client.DefaultRequestHeaders.Add("X-HidaChat-Local-Token", localToken)
+                    End If
+                    If acc.IsHermes AndAlso Not String.IsNullOrWhiteSpace(acc.AuthToken) Then
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {acc.AuthToken}")
                     End If
                     Using response = Await client.GetAsync(targetUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
                         isOnline = True
@@ -475,9 +479,17 @@ Public Class SettingsWindow
             Await AddAccountSettingsWithPlatformAsync("OpenClaw")
         End Sub
 
+        Dim itemHermes As New MenuItem With {
+            .Header = locStrings.Get("add_hermes_account")
+        }
+        AddHandler itemHermes.Click, Async Sub()
+            Await AddAccountSettingsWithPlatformAsync("Hermes")
+        End Sub
+
         menu.Items.Add(itemWhatsApp)
         menu.Items.Add(itemTelegram)
         menu.Items.Add(itemOpenClaw)
+        menu.Items.Add(itemHermes)
         menu.PlacementTarget = BtnAddAccountSettings
         menu.IsOpen = True
     End Sub

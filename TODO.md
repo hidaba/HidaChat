@@ -308,30 +308,15 @@
      - Form dinamico con campi specifici (URL Gateway, Token segreto con opzione visualizza/incolla, pulsante "Verifica Connessione").
 - **Impatto**: Alto | **Sforzo**: Medio-Alto
 
-## 54. Integrazione Dashboard & Web Console di Hermes Agent via Tailscale (Mesh VPN & API/Token Auth)
-- **Descrizione**: Aggiungere il supporto nativo a **Hermes Agent** (Nous Research) come piattaforma di account in HidaChat, consentendo agli utenti di avere una tab dedicata in WebView2 per interagire con l'assistente (chat / TUI integrato), monitorare i log, gestire le skill e i task automatici (cron jobs) e configurare i parametri del gateway Hermes sia in locale che tramite rete mesh privata Tailscale.
-- **Specifiche Tecniche & Architettura**:
-  1. **Modello Account & Configurazione (`AppAccounts.vb`, `AccountManager.vb`)**:
-     - Estensione enum/proprietà `Platform`: aggiunta supporto `"Hermes"` con property booleana `IsHermes`.
-     - Nuove proprietà persistenti per l'account:
-       - `ServerUrl` (String): URL del dashboard Hermes (default: `http://127.0.0.1:9119` per istanze locali, oppure MagicDNS/IP Tailscale es. `https://<device>.<tailnet>.ts.net` o `http://100.x.y.z:9119`).
-       - `AuthToken` / `ApiKey` (String): Token o chiave di accesso amministrativo del dashboard o dell'API server OpenAI-compatibile (memorizzato con protezione DPAPI).
-       - `TailscaleIntegration` (Boolean): Flag per abilitare controlli specifici per mesh network Tailscale.
-     - Palette grafica e branding: icona vettoriale SVG a tema (elmo alato / Hermes icon / terminale AI) e brush tematico distintivo (es. `#00B0FF` azzurro ciano o `#651FFF` indaco).
-  2. **Integrazione di Rete & Connessione Tailscale Mesh VPN**:
-     - **Modalità Locale (`127.0.0.1:9119`)**: Connessione diretta su porta standard `9119` generata dal comando `hermes dashboard` in locale.
-     - **Modalità Remota via Tailscale (Mesh VPN)**:
-       - Pieno supporto per **Tailscale Serve** con endpoint HTTPS e certificati automatici TLS.
-       - Supporto per **Direct Tailnet Bind** su indirizzi IP Tailscale (`100.x.y.z:9119`).
-       - Validazione asincrona dello stato di raggiungibilità del servizio Hermes (healthcheck HTTP) con indicatore visivo Online/Offline.
-  3. **Gestione Autenticazione & Interfaccia Web**:
-     - Iniezione sicura delle credenziali di sessione o Bearer token per l'interfaccia web e per l'endpoint API integrato via `CoreWebView2.WebResourceRequested` o parametri URL.
-     - Supporto per dashboard standard o interfacce web alternative collegate al backend Hermes (es. Open WebUI).
-  4. **Notifiche Desktop & Monitoraggio Task**:
-     - Intercettazione degli output di completamento task autonomi, alert di cron job ed eventi dell'agente tramite bridge script JavaScript e inoltro alle **Windows Toast Notifications** e al badge non letti della scheda.
-  5. **UI di Configurazione (`SettingsWindow.xaml`)**:
-     - Selettore piattaforma aggiornato con l'opzione "Hermes Agent".
-     - Form dedicato per URL Dashboard (default `http://127.0.0.1:9119`), Token/Key di autenticazione e test di connettività in tempo reale.
+## ~~54. Integrazione Dashboard & Web Console di Hermes Agent via Tailscale (Mesh VPN & API/Token Auth)~~ ✅
+- **Descrizione**: Aggiunto il supporto nativo a **Hermes Agent** (Nous Research) come piattaforma di account in HidaChat, consentendo agli utenti di avere una tab dedicata in WebView2 per interagire con l'assistente (chat / TUI integrato), monitorare i log, gestire le skill e i task automatici (cron jobs) e configurare i parametri del gateway Hermes sia in locale che tramite rete mesh privata Tailscale.
+- **Funzionalità Implementate**:
+  - Estensione del modello account (`AppAccounts.vb`, `AccountManager.vb`) con piattaforma `"Hermes"`, proprietà `IsHermes`, branding grafico (icona vettoriale SVG a tema elmo alato e brush distintivo `#00B0FF`), e porta proxy locale deterministica isolata (`18900+`).
+  - Configurazione endpoint flessibile con URL predefinito `http://127.0.0.1:9119` (istanza dashboard locale standard) o host Tailscale privati.
+  - Iniezione sicura del token di autenticazione o API Key tramite header HTTP `Authorization: Bearer <AuthToken>` con filtro WebView2 `WebResourceRequested` e supporto parametri URL.
+  - Routing di rete con Tailscale mesh proxy (`tsnetd`) integrato con header di autenticazione e token locale `X-HidaChat-Local-Token`.
+  - Aggiornamento della UI (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`) con selezione piattaforma Hermes Agent, form di configurazione contestuale con label e tooltip dedicati, menu di aggiunta rapida e test di connettività HTTP in tempo reale.
+  - Localizzazione completa multilingua (IT, EN, FR, ES, DE) in `Localization.vb`.
 - **Impatto**: Alto | **Sforzo**: Medio-Alto
 
 ## ~~55. Resilienza Crash WebView2 & Auto-Recovery Trasparente (`ProcessFailed`)~~ ✅

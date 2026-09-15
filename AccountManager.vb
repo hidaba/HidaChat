@@ -163,6 +163,16 @@ Public Class AccountManager
                                 usedPorts.Add(baseProxyPort)
                                 needsSave = True
                             End If
+                        ElseIf acc.IsHermes Then
+                            If acc.LocalProxyPort <= 0 Then
+                                Dim hermesPort = 18900
+                                While usedPorts.Contains(hermesPort)
+                                    hermesPort += 1
+                                End While
+                                acc.LocalProxyPort = hermesPort
+                                usedPorts.Add(hermesPort)
+                                needsSave = True
+                            End If
                         End If
                     Next
 
@@ -398,7 +408,7 @@ Public Class AccountManager
         
         Dim accountName = name
         If String.IsNullOrWhiteSpace(accountName) Then
-            Dim platformLabel = If(String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase), "OpenClaw", If(String.Equals(cleanPlatform, "Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp"))
+            Dim platformLabel = If(String.Equals(cleanPlatform, "Hermes", StringComparison.OrdinalIgnoreCase), "Hermes", If(String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase), "OpenClaw", If(String.Equals(cleanPlatform, "Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp")))
             Dim existingNames = _accounts.Select(Function(a) a.Name).ToHashSet()
             For i As Integer = 1 To MaxAccounts + 1
                 Dim candidate = $"{platformLabel} {i}"
@@ -413,7 +423,15 @@ Public Class AccountManager
         End If
         
         Dim newAccount As New AppAccounts(accountId, accountName, False, cleanPlatform)
-        If String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase) Then
+        If String.Equals(cleanPlatform, "Hermes", StringComparison.OrdinalIgnoreCase) Then
+            newAccount.ServerUrl = "http://127.0.0.1:9119"
+            Dim usedPorts = _accounts.Where(Function(a) a.LocalProxyPort > 0).Select(Function(a) a.LocalProxyPort).ToHashSet()
+            Dim portCandidate = 18900
+            While usedPorts.Contains(portCandidate)
+                portCandidate += 1
+            End While
+            newAccount.LocalProxyPort = portCandidate
+        ElseIf String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase) Then
             Dim usedPorts = _accounts.Where(Function(a) a.LocalProxyPort > 0).Select(Function(a) a.LocalProxyPort).ToHashSet()
             Dim portCandidate = 18800
             While usedPorts.Contains(portCandidate)

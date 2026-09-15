@@ -298,7 +298,7 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 <head>
     <meta charset="utf-8">
     <meta http-equiv="refresh" content="2">
-    <title>Connessione a OpenClaw...</title>
+    <title>Connessione al servizio...</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #111b21; color: #e9edef; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
         .box { text-align: center; max-width: 420px; padding: 24px; }
@@ -312,7 +312,7 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
     <div class="box">
         <div class="spinner"></div>
         <h2>Connessione alla rete Tailscale in corso...</h2>
-        <p>Collegamento a OpenClaw in corso, la pagina si aggiornerà automaticamente.</p>
+        <p>Collegamento al servizio in corso, la pagina si aggiornerà automaticamente.</p>
     </div>
 </body>
 </html>`)

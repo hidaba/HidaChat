@@ -252,14 +252,15 @@
                                                 <ComboBoxItem Content="WhatsApp" Tag="WhatsApp"/>
                                                 <ComboBoxItem Content="Telegram" Tag="Telegram"/>
                                                 <ComboBoxItem Content="OpenClaw" Tag="OpenClaw"/>
+                                                <ComboBoxItem Content="Hermes Agent" Tag="Hermes"/>
                                             </ComboBox>
 
                                             <!-- Delete Account Button -->
                                             <Button Grid.Column="3" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>
                                         </Grid>
 
-                                        <!-- OpenClaw Gateway & Tailscale Panel -->
-                                        <Border Visibility="{Binding OpenClawSettingsVisibility}" 
+                                        <!-- AI Gateway & Tailscale Panel (OpenClaw / Hermes Agent) -->
+                                        <Border Visibility="{Binding AgentSettingsVisibility}" 
                                                 Background="#1f2c34" CornerRadius="6" Padding="10,8" Margin="26,6,0,2">
                                             <StackPanel>
                                                 <Grid Margin="0,0,0,6">
@@ -271,18 +272,18 @@
                                                     <TextBox Grid.Column="1" Text="{Binding ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                              LostFocus="TxtServerUrl_LostFocus"
                                                              Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
-                                                             Padding="6,4" FontSize="12" ToolTip="Es: http://127.0.0.1:18789 o https://node.tailnet.ts.net"/>
+                                                             Padding="6,4" FontSize="12" ToolTip="{Binding ServerUrlTooltip}"/>
                                                 </Grid>
                                                 <Grid Margin="0,0,0,6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="Gateway Auth Token:" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="140"/>
+                                                    <TextBlock Text="{Binding AuthTokenLabel}" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="140"/>
                                                     <TextBox Grid.Column="1" Text="{Binding AuthToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                              LostFocus="TxtAuthToken_LostFocus"
                                                              Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
-                                                             Padding="6,4" FontSize="12" ToolTip="Token segreto OpenClaw gateway"/>
+                                                             Padding="6,4" FontSize="12" ToolTip="{Binding AuthTokenTooltip}"/>
                                                 </Grid>
                                                 <CheckBox Content="Usa nodo Tailscale integrato (tsnet portatile)" 
                                                           IsChecked="{Binding TailscaleIntegration, Mode=TwoWay}" 

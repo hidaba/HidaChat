@@ -875,8 +875,24 @@ Public Class MainWindow
                 Await AddAccountWithPlatformAsync("Telegram")
             End Sub
 
+            Dim itemOpenClaw As New MenuItem With {
+                .Header = loc.Get("add_openclaw_account")
+            }
+            AddHandler itemOpenClaw.Click, Async Sub()
+                Await AddAccountWithPlatformAsync("OpenClaw")
+            End Sub
+
+            Dim itemHermes As New MenuItem With {
+                .Header = loc.Get("add_hermes_account")
+            }
+            AddHandler itemHermes.Click, Async Sub()
+                Await AddAccountWithPlatformAsync("Hermes")
+            End Sub
+
             menu.Items.Add(itemWhatsApp)
             menu.Items.Add(itemTelegram)
+            menu.Items.Add(itemOpenClaw)
+            menu.Items.Add(itemHermes)
             menu.PlacementTarget = BtnAddAccount
             menu.IsOpen = True
 

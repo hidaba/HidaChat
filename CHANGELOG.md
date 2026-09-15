@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.1-beta] - 2026-09-15
+
+### Pre-release / Beta — Supporto Hermes Agent via Tailscale Mesh VPN & Local Gateway
+- **Supporto Piattaforma Hermes Agent (`AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Integrazione Dashboard e Web Console**: Supporto nativo per istanze Hermes Agent (Nous Research) con schede isolate WebView2, switch immediato e profilazione dedicata.
+  - **Endpoint e Porte Determistiche**: Endpoint predefinito `http://127.0.0.1:9119` e allocazione automatica di porta proxy deterministica locale nel range `18900+` per evitare conflitti con altre piattaforme.
+  - **Autenticazione Sicura**: Iniezione automatica dell'header `Authorization: Bearer <AuthToken>` tramite filtro WebView2 `WebResourceRequested` sia per connessioni dirette che proxy loopback tsnet, oltre al supporto per passaggio token in query string.
+  - **Integrazione Rete Mesh Tailscale (`tsnetd`)**: Connessione remota trasparente verso host Tailnet (`*.ts.net` o `100.x.y.z:9119`) tramite demone `tsnetd` integrato con token locale `X-HidaChat-Local-Token`.
+  - **Branding & Identità Grafica**: Icona SVG vettoriale personalizzata a tema (elmo alato di Mercurio / Hermes AI) e colore distintivo azzurro ciano `#00B0FF`.
+  - **Interfaccia e Impostazioni**: Selettore piattaforma, form di configurazione contestuale con label e tooltip dedicati, menu di aggiunta rapida e test di connettività HTTP in tempo reale.
+  - **Localizzazione Multilingua**: Traduzioni complete in Italiano, Inglese, Francese, Spagnolo e Tedesco (`Localization.vb`).
+
 ## [0.9.0] - 2026-09-14
 
 ### Release Stabile — Supporto OpenClaw via Tailscale Mesh VPN, Staggered Preload & Cache Optimization

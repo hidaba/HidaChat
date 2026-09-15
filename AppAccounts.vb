@@ -25,7 +25,7 @@ Public Class AppAccounts
     Public Property Id As String
 
     Private _platform As String = "WhatsApp"
-    ''' <summary>Tipo di piattaforma ("WhatsApp", "Telegram" o "OpenClaw").</summary>
+    ''' <summary>Tipo di piattaforma ("WhatsApp", "Telegram", "OpenClaw" o "Hermes").</summary>
     <JsonPropertyName("platform")>
     Public Property Platform As String
         Get
@@ -40,12 +40,25 @@ Public Class AppAccounts
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsWhatsApp)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsTelegram)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsOpenClaw)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsHermes)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OpenClawSettingsVisibility)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HermesSettingsVisibility)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AgentSettingsVisibility)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformIconData)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformColorBrush)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthTokenLabel)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ServerUrlTooltip)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthTokenTooltip)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
             End If
         End Set
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property IsHermes As Boolean
+        Get
+            Return Platform.Equals("Hermes", StringComparison.OrdinalIgnoreCase)
+        End Get
     End Property
 
     <JsonIgnore>
@@ -65,7 +78,7 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property IsWhatsApp As Boolean
         Get
-            Return Not IsTelegram AndAlso Not IsOpenClaw
+            Return Not IsTelegram AndAlso Not IsOpenClaw AndAlso Not IsHermes
         End Get
     End Property
 
@@ -76,16 +89,66 @@ Public Class AppAccounts
         End Get
     End Property
 
-    Private _serverUrl As String = "http://127.0.0.1:18789"
-    ''' <summary>URL del gateway OpenClaw (locale o remoto via Tailscale).</summary>
+    <JsonIgnore>
+    Public ReadOnly Property HermesSettingsVisibility As Visibility
+        Get
+            Return If(IsHermes, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property AgentSettingsVisibility As Visibility
+        Get
+            Return If(IsOpenClaw OrElse IsHermes, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property AuthTokenLabel As String
+        Get
+            If IsHermes Then
+                Return "API Key / Auth Token:"
+            Else
+                Return "Gateway Auth Token:"
+            End If
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property ServerUrlTooltip As String
+        Get
+            If IsHermes Then
+                Return "Es: http://127.0.0.1:9119 o https://node.tailnet.ts.net"
+            Else
+                Return "Es: http://127.0.0.1:18789 o https://node.tailnet.ts.net"
+            End If
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property AuthTokenTooltip As String
+        Get
+            If IsHermes Then
+                Return "Token o API Key per Hermes Agent / Dashboard"
+            Else
+                Return "Token segreto OpenClaw gateway"
+            End If
+        End Get
+    End Property
+
+    Private _serverUrl As String = ""
+    ''' <summary>URL del gateway o server (OpenClaw, Hermes, locale o remoto via Tailscale).</summary>
     <JsonPropertyName("serverUrl")>
     Public Property ServerUrl As String
         Get
-            If String.IsNullOrWhiteSpace(_serverUrl) Then Return "http://127.0.0.1:18789"
+            If String.IsNullOrWhiteSpace(_serverUrl) Then
+                Return If(IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+            End If
             Return _serverUrl
         End Get
         Set(value As String)
-            Dim cleanVal = If(String.IsNullOrWhiteSpace(value), "http://127.0.0.1:18789", value.Trim())
+            Dim defaultUrl = If(IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+            Dim cleanVal = If(String.IsNullOrWhiteSpace(value), defaultUrl, value.Trim())
             If _serverUrl <> cleanVal Then
                 _serverUrl = cleanVal
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ServerUrl)))
@@ -95,7 +158,7 @@ Public Class AppAccounts
     End Property
 
     Private _authToken As String = ""
-    ''' <summary>Token di autenticazione del gateway OpenClaw.</summary>
+    ''' <summary>Token di autenticazione o API Key del gateway (OpenClaw / Hermes Agent).</summary>
     <JsonPropertyName("authToken")>
     Public Property AuthToken As String
         Get
@@ -190,9 +253,10 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property WebUrl As String
         Get
-            If IsOpenClaw Then
+            If IsOpenClaw OrElse IsHermes Then
+                Dim defaultUrl = If(IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
                 Dim base = If(TailscaleIntegration AndAlso Not String.IsNullOrEmpty(LocalProxyUrl), LocalProxyUrl, ServerUrl)
-                If String.IsNullOrWhiteSpace(base) Then base = "http://127.0.0.1:18789"
+                If String.IsNullOrWhiteSpace(base) Then base = defaultUrl
                 If Not base.StartsWith("http://", StringComparison.OrdinalIgnoreCase) AndAlso Not base.StartsWith("https://", StringComparison.OrdinalIgnoreCase) Then
                     base = "http://" & base
                 End If
@@ -216,11 +280,14 @@ Public Class AppAccounts
     Private Shared ReadOnly WhatsAppBrush As Brush = BrushCache.GetBrush("#25d366")
     Private Shared ReadOnly TelegramBrush As Brush = BrushCache.GetBrush("#24A1DE")
     Private Shared ReadOnly OpenClawBrush As Brush = BrushCache.GetBrush("#FF5722")
+    Private Shared ReadOnly HermesBrush As Brush = BrushCache.GetBrush("#00B0FF")
 
     <JsonIgnore>
     Public ReadOnly Property PlatformIconData As String
         Get
-            If IsOpenClaw Then
+            If IsHermes Then
+                Return "M12,2A3,3 0 0,0 9,5C9,5.27 9.04,5.53 9.1,5.78C6.67,6.34 5.09,8.5 5,11C3.12,11.36 1.74,12.82 1.3,14.7C0.85,16.63 1.45,18.66 2.87,20.08L3.58,19.37C2.4,18.19 1.9,16.5 2.27,14.92C2.64,13.35 3.82,12.13 5.38,11.83L6,11.71V11C6,8.68 7.5,6.67 9.71,6.13L10.5,5.94L10.15,5.2C10.05,5 10,4.76 10,4.5A2,2 0 0,1 12,2.5A2,2 0 0,1 14,4.5C14,4.76 13.95,5 13.85,5.2L13.5,5.94L14.29,6.13C16.5,6.67 18,8.68 18,11V11.71L18.62,11.83C20.18,12.13 21.36,13.35 21.73,14.92C22.1,16.5 21.6,18.19 20.42,19.37L21.13,20.08C22.55,18.66 23.15,16.63 22.7,14.7C22.26,12.82 20.88,11.36 19,11C18.91,8.5 17.33,6.34 14.9,5.78C14.96,5.53 15,5.27 15,5A3,3 0 0,0 12,2M12,7A5,5 0 0,1 17,12V14A5,5 0 0,1 12,19A5,5 0 0,1 7,14V12A5,5 0 0,1 12,7M10,13A1,1 0 0,0 9,14A1,1 0 0,0 10,15A1,1 0 0,0 11,14A1,1 0 0,0 10,13M14,13A1,1 0 0,0 13,14A1,1 0 0,0 14,15A1,1 0 0,0 15,14A1,1 0 0,0 14,13Z"
+            ElseIf IsOpenClaw Then
                 Return "M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"
             ElseIf IsTelegram Then
                 Return "M9.78 18.65L10.06 14.42L17.74 7.5C18.08 7.19 17.67 7.04 17.22 7.31L7.74 13.3L3.64 12C2.76 11.75 2.75 11.14 3.84 10.7L19.81 4.54C20.54 4.21 21.24 4.72 20.97 5.84L18.25 18.67C18.05 19.6 17.5 19.82 16.73 19.38L12.58 16.32L10.58 18.25C10.36 18.47 10.17 18.65 9.78 18.65Z"
@@ -233,7 +300,9 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property PlatformColorBrush As Brush
         Get
-            If IsOpenClaw Then
+            If IsHermes Then
+                Return HermesBrush
+            ElseIf IsOpenClaw Then
                 Return OpenClawBrush
             ElseIf IsTelegram Then
                 Return TelegramBrush
@@ -622,7 +691,7 @@ Public Class AppAccounts
 
                     Dim uri = New Uri(uriStr)
                     Dim host = uri.Host.ToLower()
-                    If IsOpenClaw Then
+                    If IsOpenClaw OrElse IsHermes Then
                         Dim baseUri As Uri = Nothing
                         If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) AndAlso String.Equals(uri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) Then
                             WebView.CoreWebView2.Navigate(uriStr)
@@ -655,7 +724,7 @@ Public Class AppAccounts
 
             _navigationCompletedHandler = Async Sub(sender, e)
                 If e.IsSuccess Then
-                    If Not IsOpenClaw Then
+                    If Not IsOpenClaw AndAlso Not IsHermes Then
                         Dim brightnessDark = settings.IsDarkThemeEffective
 
                         If IsTelegram Then
@@ -697,7 +766,25 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
-            If TailscaleIntegration AndAlso IsOpenClaw Then
+            If IsHermes AndAlso Not String.IsNullOrWhiteSpace(AuthToken) AndAlso Not TailscaleIntegration Then
+                Try
+                    Dim targetUri As Uri = Nothing
+                    Dim filterPattern = "*://*/*"
+                    If Uri.TryCreate(ServerUrl, UriKind.Absolute, targetUri) Then
+                        filterPattern = $"{targetUri.Scheme}://{targetUri.Authority}/*"
+                    End If
+                    WebView.CoreWebView2.AddWebResourceRequestedFilter(filterPattern, CoreWebView2WebResourceContext.All)
+                    AddHandler WebView.CoreWebView2.WebResourceRequested, Sub(sender, reqArgs)
+                        If Not reqArgs.Request.Headers.Contains("Authorization") Then
+                            reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
+                        End If
+                    End Sub
+                Catch ex As Exception
+                    Debug.WriteLine($"Failed to set Hermes auth filter: {ex.Message}")
+                End Try
+            End If
+
+            If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
                 Await EnsureLocalProxyAsync(forceUpdate:=True)
             End If
 
@@ -758,9 +845,10 @@ Public Class AppAccounts
     ''' Assicura che la rotta tsnet sia registrata ed attiva per questo account, configurando il filtro WebView2 se necessario.
     ''' </summary>
     Public Async Function EnsureLocalProxyAsync(Optional forceUpdate As Boolean = False) As Task(Of Integer)
-        If TailscaleIntegration AndAlso IsOpenClaw Then
+        If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
             Try
-                Dim preferred = If(LocalProxyPort > 0, LocalProxyPort, 18800)
+                Dim defaultPort = If(IsHermes, 18900, 18800)
+                Dim preferred = If(LocalProxyPort > 0, LocalProxyPort, defaultPort)
                 Dim port = Await TsnetManager.Instance.EnsureRouteAsync(Id, ServerUrl, preferredPort:=preferred, forceUpdate:=forceUpdate)
                 If port > 0 Then
                     LocalProxyPort = port
@@ -770,6 +858,11 @@ Public Class AppAccounts
                             WebView.CoreWebView2.AddWebResourceRequestedFilter("http://127.0.0.1:*/*", CoreWebView2WebResourceContext.All)
                             _webResourceRequestedHandler = Sub(sender, reqArgs)
                                 reqArgs.Request.Headers.SetHeader("X-HidaChat-Local-Token", TsnetManager.Instance.LocalToken)
+                                If IsHermes AndAlso Not String.IsNullOrWhiteSpace(AuthToken) Then
+                                    If Not reqArgs.Request.Headers.Contains("Authorization") Then
+                                        reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
+                                    End If
+                                End If
                             End Sub
                             AddHandler WebView.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
                         End If
@@ -789,7 +882,7 @@ Public Class AppAccounts
     Public Async Function ReloadAsync(Optional forceUpdateProxy As Boolean = True) As Task
         If WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
 
-        If TailscaleIntegration AndAlso IsOpenClaw Then
+        If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
             Await EnsureLocalProxyAsync(forceUpdate:=forceUpdateProxy)
         End If
 
@@ -1066,7 +1159,7 @@ Public Class AppAccounts
     ''' Notifica alla WebView2 l'aggiornamento della lingua di destinazione per le traduzioni messaggi.
     ''' </summary>
     Public Async Function UpdateWebviewLanguageAsync(langCode As String, langName As String, translateTooltipLabel As String, enableHover As Boolean) As Task
-        If IsOpenClaw Then Return
+        If IsOpenClaw OrElse IsHermes Then Return
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
                 Dim jsonLangCode = JsonSerializer.Serialize(If(langCode, "en"))
@@ -1086,7 +1179,7 @@ Public Class AppAccounts
     ''' Applica lo script per la sincronizzazione del tema (Scuro o Chiaro) all'interno della WebView2.
     ''' </summary>
     Public Async Function ApplyThemeAsync(isDark As Boolean) As Task
-        If IsOpenClaw Then Return
+        If IsOpenClaw OrElse IsHermes Then Return
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
                 If IsTelegram Then
