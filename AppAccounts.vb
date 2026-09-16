@@ -374,17 +374,27 @@ Public Class AppAccounts
     End Property
 
     Private Sub NotifyUnreadPropertiesChanged()
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadCount)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasNotification)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeVisibility)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeTextVisibility)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeCornerRadius)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeMinWidth)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeHeight)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgePadding)))
-        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadTooltip)))
+        Dim notifyAction = Sub()
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadCount)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasNotification)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeVisibility)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeTextVisibility)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeCornerRadius)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeMinWidth)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeWidth)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeHeight)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgePadding)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadTooltip)))
+        End Sub
+
+        Dim app = Application.Current
+        If app IsNot Nothing AndAlso app.Dispatcher IsNot Nothing AndAlso Not app.Dispatcher.CheckAccess() Then
+            app.Dispatcher.BeginInvoke(notifyAction)
+        Else
+            notifyAction()
+        End If
     End Sub
 
     ''' <summary>Indica se visualizzare il badge numerico o il bollino di notifica sulla scheda.</summary>
@@ -442,6 +452,13 @@ Public Class AppAccounts
     End Property
 
     <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeWidth As Double
+        Get
+            If _unreadCount > 0 Then Return Double.NaN Else Return 9.0
+        End Get
+    End Property
+
+    <JsonIgnore>
     Public ReadOnly Property UnreadBadgeHeight As Double
         Get
             If _unreadCount > 0 Then Return 16.0 Else Return 9.0
@@ -480,9 +497,17 @@ Public Class AppAccounts
         Set(value As Boolean)
             If _isContactOnline <> value Then
                 _isContactOnline = value
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsContactOnline)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineDotVisibility)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
+                Dim notifyAction = Sub()
+                    RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsContactOnline)))
+                    RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineDotVisibility)))
+                    RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
+                End Sub
+                Dim app = Application.Current
+                If app IsNot Nothing AndAlso app.Dispatcher IsNot Nothing AndAlso Not app.Dispatcher.CheckAccess() Then
+                    app.Dispatcher.BeginInvoke(notifyAction)
+                Else
+                    notifyAction()
+                End If
             End If
         End Set
     End Property
@@ -505,8 +530,16 @@ Public Class AppAccounts
             Dim cleanVal = If(value, String.Empty).Trim()
             If _contactOnlineStatusText <> cleanVal Then
                 _contactOnlineStatusText = cleanVal
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ContactOnlineStatusText)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
+                Dim notifyAction = Sub()
+                    RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ContactOnlineStatusText)))
+                    RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
+                End Sub
+                Dim app = Application.Current
+                If app IsNot Nothing AndAlso app.Dispatcher IsNot Nothing AndAlso Not app.Dispatcher.CheckAccess() Then
+                    app.Dispatcher.BeginInvoke(notifyAction)
+                Else
+                    notifyAction()
+                End If
             End If
         End Set
     End Property
@@ -802,6 +835,12 @@ Public Class AppAccounts
             _navigationCompletedHandler = Async Sub(sender, e)
                 If e.IsSuccess Then
                     If Not IsOpenClaw AndAlso Not IsHermes Then
+                        ' Iniezione di sicurezza/fallback di notification.js se non precedentemente caricato
+                        Try
+                            Await WebView.CoreWebView2.ExecuteScriptAsync(NotificationJsScripts.GetNotificationOverrideJS(BridgeToken))
+                        Catch
+                        End Try
+
                         Dim brightnessDark = settings.IsDarkThemeEffective
 
                         If IsTelegram Then
@@ -987,11 +1026,20 @@ Public Class AppAccounts
         Try
             Using doc As JsonDocument = JsonDocument.Parse(messageJson)
                 Dim root = doc.RootElement
-                Dim channel = root.GetProperty("channel").GetString()
-                Dim token = root.GetProperty("bridgeToken").GetString()
+                Dim channel = ""
+                Dim channelNode As JsonElement = Nothing
+                If root.TryGetProperty("channel", channelNode) AndAlso channelNode.ValueKind = JsonValueKind.String Then
+                    channel = channelNode.GetString()
+                End If
+
+                Dim token = ""
+                Dim tokenNode As JsonElement = Nothing
+                If root.TryGetProperty("bridgeToken", tokenNode) AndAlso tokenNode.ValueKind = JsonValueKind.String Then
+                    token = tokenNode.GetString()
+                End If
                 
                 If token <> BridgeToken Then
-                    Debug.WriteLine("Invalid bridge token, ignoring message.")
+                    Debug.WriteLine($"[WebMessageReceived] Invalid bridge token for account {Id}, ignoring.")
                     Return
                 End If
 
@@ -1010,22 +1058,33 @@ Public Class AppAccounts
     ''' Gestisce la ricezione o chiusura delle notifiche dai messaggi IPC e attiva le notifiche Toast o Popup della UI.
     ''' </summary>
     Private Function HandleNotificationMessageAsync(root As JsonElement, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
-        Dim type = root.GetProperty("type").GetString()
-        Dim notificationId = root.GetProperty("id").GetString()
+        Dim type = ""
+        Dim typeNode As JsonElement = Nothing
+        If root.TryGetProperty("type", typeNode) AndAlso typeNode.ValueKind = JsonValueKind.String Then
+            type = typeNode.GetString()
+        End If
+
+        Dim notificationId = ""
+        Dim idNode As JsonElement = Nothing
+        If root.TryGetProperty("id", idNode) AndAlso idNode.ValueKind = JsonValueKind.String Then
+            notificationId = idNode.GetString()
+        End If
         
         Debug.WriteLine($"[NotificationChannel] accountId={Id}, type={type}, id={notificationId}")
 
         If type = "NOTIFICATION_RECEIVED" Then
             ' Limita le dimensioni del set per prevenire memory leak prolungato con espulsione FIFO degli ID piu vecchi
-            While ActiveNotificationIds.Count >= MaxActiveNotificationIds
-                Dim oldest = ActiveNotificationIds.FirstOrDefault()
-                If oldest IsNot Nothing Then
-                    ActiveNotificationIds.Remove(oldest)
-                Else
-                    Exit While
-                End If
-            End While
-            ActiveNotificationIds.Add(notificationId)
+            If Not String.IsNullOrEmpty(notificationId) Then
+                While ActiveNotificationIds.Count >= MaxActiveNotificationIds
+                    Dim oldest = ActiveNotificationIds.FirstOrDefault()
+                    If oldest IsNot Nothing Then
+                        ActiveNotificationIds.Remove(oldest)
+                    Else
+                        Exit While
+                    End If
+                End While
+                ActiveNotificationIds.Add(notificationId)
+            End If
             HasNotification = True
             onNotificationChanged?.Invoke(Id, True)
 
@@ -1035,8 +1094,17 @@ Public Class AppAccounts
                 Return Task.CompletedTask
             End If
 
-            Dim title = root.GetProperty("title").GetString()
-            Dim body = root.GetProperty("body").GetString()
+            Dim title = ""
+            Dim titleNode As JsonElement = Nothing
+            If root.TryGetProperty("title", titleNode) AndAlso titleNode.ValueKind = JsonValueKind.String Then
+                title = titleNode.GetString()
+            End If
+
+            Dim body = ""
+            Dim bodyNode As JsonElement = Nothing
+            If root.TryGetProperty("body", bodyNode) AndAlso bodyNode.ValueKind = JsonValueKind.String Then
+                body = bodyNode.GetString()
+            End If
 
             Try
                 Dim builder As New ToastContentBuilder()
@@ -1061,7 +1129,9 @@ Public Class AppAccounts
             End If
 
         ElseIf type = "NOTIFICATION_CLOSED" Then
-            ActiveNotificationIds.Remove(notificationId)
+            If Not String.IsNullOrEmpty(notificationId) Then
+                ActiveNotificationIds.Remove(notificationId)
+            End If
             HasNotification = (UnreadCount > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
         ElseIf type = "UNREAD_COUNT_CHANGED" Then

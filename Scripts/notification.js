@@ -139,35 +139,42 @@
     console.warn('[NotificationOverride] init error:', topEx);
   }
 
-  // Monitoraggio unread count combinato (Title Observer + DOM Badge Scanner)
+  // Monitoraggio unread count combinato (Title Observer + Title Setter Interceptor + DOM Badge Scanner)
   let lastReportedUnreadCount = -1;
   let updateDebounceTimer = null;
 
   function scanDomUnreadCount() {
     let count = 0;
     try {
-      // 1. Selettori Telegram Web K / Z / A
-      const tgBadges = document.querySelectorAll('.badge.unread, .unread-count, .chatlist-chat .badge, .dialog-subtitle .badge, .chat-badge, .sidebar-header .badge');
-      if (tgBadges && tgBadges.length > 0) {
-        tgBadges.forEach(el => {
-          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
-          if (txt) {
-            const num = parseInt(txt, 10);
+      const selectors = [
+        // 1. Telegram Web K / A / Z
+        '.badge.unread', '.unread-count', '.chatlist-chat .badge', '.dialog-subtitle .badge',
+        '.chat-badge', '.sidebar-header .badge', '.Badge.unread', '.Badge', '.unread',
+        '.ListItem-badge', '[class*="badge"][class*="unread"]', '[class*="Badge"][class*="unread"]',
+        // 2. WhatsApp Web
+        '[data-testid="unread-count"]', '[data-testid="icon-unread-count"]',
+        '[aria-label*="unread" i]', '[aria-label*="non lett" i]',
+        '[aria-label*="ungelesen" i]', '[aria-label*="no leí" i]',
+        '[aria-label*="non lu" i]', '[aria-label*="não lida" i]'
+      ];
+
+      const elements = document.querySelectorAll(selectors.join(', '));
+      if (elements && elements.length > 0) {
+        const seen = new Set();
+        elements.forEach(el => {
+          if (seen.has(el)) return;
+          seen.add(el);
+          // Ignora elementi non visualizzati nel layout
+          if (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0) return;
+
+          const aria = el.getAttribute('aria-label') || '';
+          const txt = (el.textContent || '').trim();
+          const match = (aria || txt).match(/(\d+)/);
+          if (match) {
+            const num = parseInt(match[1], 10);
             if (!isNaN(num) && num > 0) count += num;
           } else {
-            count += 1; // Pallino di notifica senza numero esplicito
-          }
-        });
-      }
-
-      // 2. Selettori WhatsApp Web
-      const waBadges = document.querySelectorAll('[data-testid="unread-count"], span[aria-label*="unread"], span[aria-label*="non letto"], span[aria-label*="non letti"]');
-      if (waBadges && waBadges.length > 0) {
-        waBadges.forEach(el => {
-          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
-          if (txt) {
-            const num = parseInt(txt, 10);
-            if (!isNaN(num) && num > 0) count += num;
+            count += 1;
           }
         });
       }
@@ -177,28 +184,30 @@
 
   function checkAndNotifyUnreadCount() {
     const title = document.title || '';
-    const titleMatch = title.match(/^\((\d+)\)/);
-    const titleCount = titleMatch ? parseInt(titleMatch[1], 10) : 0;
+    const titleMatch = title.match(/[\(\[](\d+)\+?[\)\]]/);
+    const hasBullet = /[\(•\*\)]/.test(title) && (title.includes('•') || title.includes('*') || /\(\s*\)/.test(title));
+    const titleCount = titleMatch ? parseInt(titleMatch[1], 10) : (hasBullet ? 1 : 0);
     const domCount = scanDomUnreadCount();
 
-    // Preferisci il massimo tra il titolo e i badge DOM
+    // Preferisci il massimo tra il conteggio estratto dal titolo e i badge del DOM
     const effectiveCount = Math.max(titleCount, domCount);
 
     if (effectiveCount !== lastReportedUnreadCount) {
       lastReportedUnreadCount = effectiveCount;
       try {
-        window.chrome.webview.postMessage({
-          channel: 'NotificationChannel',
-          type: 'UNREAD_COUNT_CHANGED',
-          unreadCount: effectiveCount,
-          title: title,
-          bridgeToken: __bridgeToken
-        });
+        if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+          window.chrome.webview.postMessage({
+            channel: 'NotificationChannel',
+            type: 'UNREAD_COUNT_CHANGED',
+            id: 'unread_' + Date.now(),
+            unreadCount: effectiveCount,
+            title: title,
+            bridgeToken: __bridgeToken
+          });
+        }
       } catch(e) {}
     }
   }
-
-
 
   // Monitoraggio stato "Online" / "In linea" / "Sta scrivendo..." del contatto attivo (TODO #42)
   let lastReportedOnline = null;
@@ -246,13 +255,16 @@
       lastReportedOnline = res.isOnline;
       lastReportedStatusText = res.statusText;
       try {
-        window.chrome.webview.postMessage({
-          channel: 'NotificationChannel',
-          type: 'ONLINE_STATUS_CHANGED',
-          isOnline: res.isOnline,
-          statusText: res.statusText,
-          bridgeToken: __bridgeToken
-        });
+        if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+          window.chrome.webview.postMessage({
+            channel: 'NotificationChannel',
+            type: 'ONLINE_STATUS_CHANGED',
+            id: 'online_' + Date.now(),
+            isOnline: res.isOnline,
+            statusText: res.statusText,
+            bridgeToken: __bridgeToken
+          });
+        }
       } catch(e) {}
     }
   }
@@ -262,14 +274,38 @@
     updateDebounceTimer = setTimeout(function() {
       checkAndNotifyUnreadCount();
       checkAndNotifyOnlineStatus();
-    }, 400);
+    }, 250);
   }
 
   function initMonitoring() {
+    // Intercetta la modifica diretta a document.title (WhatsApp Web e Telegram SPA)
+    try {
+      const titleDesc = Object.getOwnPropertyDescriptor(Document.prototype, 'title') ||
+                        Object.getOwnPropertyDescriptor(HTMLDocument.prototype, 'title');
+      if (titleDesc && titleDesc.set) {
+        const origTitleSet = titleDesc.set;
+        Object.defineProperty(document, 'title', {
+          get: function() {
+            return titleDesc.get ? titleDesc.get.call(this) : '';
+          },
+          set: function(val) {
+            origTitleSet.call(this, val);
+            scheduleAllChecks();
+          },
+          configurable: true
+        });
+      }
+    } catch(e) {}
+
     const titleEl = document.querySelector('title');
     if (titleEl) {
       const titleObserver = new MutationObserver(scheduleAllChecks);
       titleObserver.observe(titleEl, { subtree: true, characterData: true, childList: true });
+    }
+
+    if (document.head) {
+      const headObserver = new MutationObserver(scheduleAllChecks);
+      headObserver.observe(document.head, { subtree: true, characterData: true, childList: true });
     }
 
     if (document.body) {
@@ -277,11 +313,11 @@
       bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: false });
     }
 
-    // Polling periodico per notifiche e stato online
+    // Polling periodico continuo per notifiche e stato online
     setInterval(function() {
       checkAndNotifyUnreadCount();
       checkAndNotifyOnlineStatus();
-    }, 2000);
+    }, 1500);
 
     checkAndNotifyUnreadCount();
     checkAndNotifyOnlineStatus();

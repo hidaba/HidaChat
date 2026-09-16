@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.3-beta] - 2026-09-16
+
+### Pre-release / Beta — Risoluzione Ricezione Conteggio Non Letti & Riconoscimento Real-Time Notifiche
+- **Risoluzione Eccezione IPC KeyNotFoundException (`AppAccounts.vb`)**:
+  - Risolto il blocco silente nell'elaboratore messaggi web `HandleNotificationMessageAsync` causato dalla lettura non protetta di `root.GetProperty("id")`: nei messaggi di tipo `UNREAD_COUNT_CHANGED` e `ONLINE_STATUS_CHANGED` l'identificativo ID non era presente, generando un'eccezione `KeyNotFoundException` che impediva l'assegnazione di `UnreadCount`, `HasNotification` e dello stato online.
+  - Sostituito l'accesso a tutte le proprietà JSON (`type`, `id`, `title`, `body`, `channel`, `bridgeToken`) con `TryGetProperty` e fallback difensivi.
+- **Miglioramento Intercettazione Titolo e Scansione DOM (`Scripts/notification.js`)**:
+  - Aggiunto l'intercettatore diretto del setter `document.title` tramite `Object.defineProperty` su `Document.prototype`, garantendo una reazione istantanea ai cambi di titolo delle SPA (WhatsApp Web e Telegram) a latenza zero.
+  - Ampliata la regex di estrazione del conteggio messaggi non letti a `[\(\[](\d+)\+?[\)\]]` (supporta formati come `(1) WhatsApp`, `WhatsApp (1)`, `(99+) WhatsApp`, `[2] Telegram`).
+  - Arricchiti i selettori DOM per Telegram A/K/Z e WhatsApp Web per intercettare sia i badge numerici che i pallini senza testo numerico esplicito.
+  - Incluso sempre un campo `id` generato per payload IPC per totale compatibilità.
+- **Rafforzamento Thread-Safety e Rendering Badge WPF (`AppAccounts.vb`, `MainWindow.xaml`)**:
+  - Notifiche `PropertyChanged` per `UnreadCount`, `HasNotification`, `IsContactOnline` e stato online ora sempre instradate sul Dispatcher della UI WPF.
+  - Aggiunta la proprietà `UnreadBadgeWidth` con binding esplicito su `MainWindow.xaml` per assicurare un cerchio perfetto (9×9 px) anche in assenza di testo numerico.
+
 ## [0.9.2-beta] - 2026-09-16
 
 ### Pre-release / Beta — Bollino Rosso & Badge Notifiche Schede Account

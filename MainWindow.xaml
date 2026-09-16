@@ -243,6 +243,7 @@
                                                 Background="#e53935"
                                                 CornerRadius="{Binding UnreadBadgeCornerRadius}"
                                                 MinWidth="{Binding UnreadBadgeMinWidth}"
+                                                Width="{Binding UnreadBadgeWidth}"
                                                 Height="{Binding UnreadBadgeHeight}"
                                                 Padding="{Binding UnreadBadgePadding}"
                                                 Margin="6,0,0,0"
