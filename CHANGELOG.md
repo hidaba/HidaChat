@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.2-beta] - 2026-09-16
+
+### Pre-release / Beta — Bollino Rosso & Badge Notifiche Schede Account
+- **Bollino Rosso & Badge Notifiche Schede Account (`MainWindow.xaml`, `AppAccounts.vb`)**:
+  - Aggiunto indicatore visivo "bollino rosso" dinamico accanto al nome di ciascuna scheda account per segnalare istantaneamente la presenza di nuovi messaggi o notifiche non lette.
+  - Layout adattivo: se è presente un conteggio numerico, il badge mostra il numero di messaggi (`1`, `2`, `99+`) in bianco su sfondo rosso; per notifiche generiche o avvisi, si ridimensiona a bollino circolare compatto.
+  - Risolto il conflitto di precedenza delle proprietà di stile WPF collegando la visibilità direttamente alle proprietà reattive `INotifyPropertyChanged` (`UnreadBadgeVisibility` e `OnlineDotVisibility`).
+
 ## [0.9.1-beta] - 2026-09-15
 
 ### Pre-release / Beta — Supporto Hermes Agent via Tailscale Mesh VPN & Local Gateway

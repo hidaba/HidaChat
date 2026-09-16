@@ -237,24 +237,33 @@
                                               Width="14" Height="14" Stretch="Uniform" 
                                               VerticalAlignment="Center" Margin="0,0,6,0"/>
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                        <Ellipse x:Name="TabOnlineDot" Width="6" Height="6" Fill="#25d366" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+
+                                        <!-- Bollino Rosso / Badge Messaggi Non Letti -->
                                         <Border x:Name="UnreadBadge"
                                                 Background="#e53935"
-                                                CornerRadius="7"
-                                                MinWidth="16"
-                                                Height="16"
-                                                Padding="4,0"
+                                                CornerRadius="{Binding UnreadBadgeCornerRadius}"
+                                                MinWidth="{Binding UnreadBadgeMinWidth}"
+                                                Height="{Binding UnreadBadgeHeight}"
+                                                Padding="{Binding UnreadBadgePadding}"
                                                 Margin="6,0,0,0"
                                                 VerticalAlignment="Center"
                                                 HorizontalAlignment="Center"
-                                                Visibility="Collapsed">
+                                                ToolTip="{Binding UnreadTooltip}"
+                                                Visibility="{Binding UnreadBadgeVisibility}">
                                             <TextBlock Text="{Binding UnreadBadgeText}"
                                                        Foreground="#ffffff"
                                                        FontSize="10"
                                                        FontWeight="Bold"
                                                        HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"/>
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding UnreadBadgeTextVisibility}"/>
                                         </Border>
+
+                                        <!-- Indicatore Contatto Online -->
+                                        <Ellipse x:Name="TabOnlineDot" Width="6" Height="6" Fill="#25d366" Margin="6,0,0,0" 
+                                                 VerticalAlignment="Center" 
+                                                 Visibility="{Binding OnlineDotVisibility}" 
+                                                 ToolTip="{Binding ContactOnlineStatusText}"/>
                                     </StackPanel>
                                     <Button.ContextMenu>
                                         <ContextMenu>
@@ -262,14 +271,6 @@
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding HasUnreadBadge}" Value="True">
-                                        <Setter TargetName="UnreadBadge" Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsContactOnline}" Value="True">
-                                        <Setter TargetName="TabOnlineDot" Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

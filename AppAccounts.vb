@@ -352,9 +352,7 @@ Public Class AppAccounts
         Set(value As Boolean)
             If _hasNotification <> value Then
                 _hasNotification = value
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasNotification)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
+                NotifyUnreadPropertiesChanged()
             End If
         End Set
     End Property
@@ -370,14 +368,26 @@ Public Class AppAccounts
             Dim cleanVal = Math.Max(0, value)
             If _unreadCount <> cleanVal Then
                 _unreadCount = cleanVal
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadCount)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
+                NotifyUnreadPropertiesChanged()
             End If
         End Set
     End Property
 
-    ''' <summary>Indica se visualizzare il badge numerico o il pallino di notifica sulla scheda.</summary>
+    Private Sub NotifyUnreadPropertiesChanged()
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadCount)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasNotification)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HasUnreadBadge)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeVisibility)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeText)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeTextVisibility)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeCornerRadius)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeMinWidth)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgeHeight)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadBadgePadding)))
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(UnreadTooltip)))
+    End Sub
+
+    ''' <summary>Indica se visualizzare il badge numerico o il bollino di notifica sulla scheda.</summary>
     <JsonIgnore>
     Public ReadOnly Property HasUnreadBadge As Boolean
         Get
@@ -385,7 +395,14 @@ Public Class AppAccounts
         End Get
     End Property
 
-    ''' <summary>Testo formattato del badge (es. "1", "5", "99+" o "•").</summary>
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeVisibility As Visibility
+        Get
+            Return If(HasUnreadBadge, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    ''' <summary>Testo formattato del badge (es. "1", "5", "99+").</summary>
     <JsonIgnore>
     Public ReadOnly Property UnreadBadgeText As String
         Get
@@ -393,8 +410,60 @@ Public Class AppAccounts
                 Return "99+"
             ElseIf _unreadCount > 0 Then
                 Return _unreadCount.ToString()
+            Else
+                Return String.Empty
+            End If
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeTextVisibility As Visibility
+        Get
+            Return If(_unreadCount > 0, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeCornerRadius As CornerRadius
+        Get
+            If _unreadCount > 0 Then
+                Return New CornerRadius(8)
+            Else
+                Return New CornerRadius(4.5)
+            End If
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeMinWidth As Double
+        Get
+            If _unreadCount > 0 Then Return 16.0 Else Return 9.0
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgeHeight As Double
+        Get
+            If _unreadCount > 0 Then Return 16.0 Else Return 9.0
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property UnreadBadgePadding As Thickness
+        Get
+            If _unreadCount > 0 Then Return New Thickness(4, 0, 4, 0) Else Return New Thickness(0)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property UnreadTooltip As String
+        Get
+            If _unreadCount > 1 Then
+                Return $"{_unreadCount} messaggi non letti"
+            ElseIf _unreadCount = 1 Then
+                Return "1 messaggio non letto"
             ElseIf _hasNotification Then
-                Return "•"
+                Return "Nuovi messaggi non letti"
             Else
                 Return String.Empty
             End If
@@ -412,9 +481,17 @@ Public Class AppAccounts
             If _isContactOnline <> value Then
                 _isContactOnline = value
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsContactOnline)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineDotVisibility)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OnlineStatusDisplay)))
             End If
         End Set
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property OnlineDotVisibility As Visibility
+        Get
+            Return If(_isContactOnline, Visibility.Visible, Visibility.Collapsed)
+        End Get
     End Property
 
     Private _contactOnlineStatusText As String = ""
