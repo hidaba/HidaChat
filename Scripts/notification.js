@@ -139,26 +139,72 @@
     console.warn('[NotificationOverride] init error:', topEx);
   }
 
-  // Monitoraggio unread count combinato (Title Observer + Title Setter Interceptor + DOM Badge Scanner)
+  // Hook per Badging API nativa (navigator.setAppBadge / clearAppBadge usata da Telegram PWA e web moderni)
+  let appBadgeCount = 0;
+  try {
+    if (typeof navigator !== 'undefined') {
+      const origSetAppBadge = typeof navigator.setAppBadge === 'function' ? navigator.setAppBadge.bind(navigator) : null;
+      navigator.setAppBadge = function(count) {
+        try {
+          if (count === undefined || count === null) {
+            appBadgeCount = 1;
+          } else {
+            const num = typeof count === 'number' ? count : (parseInt(count, 10) || 0);
+            appBadgeCount = Math.max(0, num);
+          }
+          scheduleAllChecks();
+        } catch(e) {}
+        if (origSetAppBadge) return origSetAppBadge(count);
+        return Promise.resolve();
+      };
+
+      const origClearAppBadge = typeof navigator.clearAppBadge === 'function' ? navigator.clearAppBadge.bind(navigator) : null;
+      navigator.clearAppBadge = function() {
+        try {
+          appBadgeCount = 0;
+          scheduleAllChecks();
+        } catch(e) {}
+        if (origClearAppBadge) return origClearAppBadge();
+        return Promise.resolve();
+      };
+    }
+  } catch(e) {}
+
+  // Monitoraggio unread count combinato (Title Observer + Title Setter Interceptor + DOM Badge Scanner + Badging API)
   let lastReportedUnreadCount = -1;
   let lastHeartbeatTime = 0;
   let updateDebounceTimer = null;
 
-  function scanDomUnreadCount() {
+  function scanTelegramUnreadCount() {
     let count = 0;
     try {
-      // 1. Badge specifici di Telegram Web K / A / Z
-      const tgSelectors = [
-        '.badge.unread', '.unread-count', '.chatlist-chat .badge', '.dialog-subtitle .badge',
-        '.chat-badge', '.sidebar-header .badge', '.Badge.unread', '.unread',
-        '.ListItem-badge', '[class*="badge"][class*="unread"]', '[class*="Badge"][class*="unread"]'
+      // 1. Badge chat Telegram Web (Web A, Web K, Web Z)
+      const tgChatSelectors = [
+        '.ChatBadge',
+        '[class*="ChatBadge"]',
+        '.dialog-subtitle-badge',
+        '[class*="dialog-subtitle-badge"]',
+        '.ListItem .Badge',
+        '.ListItem [class*="Badge"]',
+        '.ListItem .badge',
+        '.ListItem [class*="badge"]',
+        '.rp .badge',
+        '.rp .unread',
+        '.chatlist-chat .badge',
+        '.chat-badge',
+        '.unread-count',
+        '[class*="unread-count"]',
+        '[class*="unread_count"]',
+        '.chat-list .Badge',
+        '.ChatList .Badge'
       ];
-      const tgElements = document.querySelectorAll(tgSelectors.join(', '));
+      const tgElements = document.querySelectorAll(tgChatSelectors.join(', '));
       if (tgElements && tgElements.length > 0) {
-        const seenTg = new Set();
+        const seen = new Set();
         tgElements.forEach(el => {
-          if (seenTg.has(el)) return;
-          seenTg.add(el);
+          const container = el.closest('.ListItem, .rp, .chatlist-chat, [data-peer-id], li') || el;
+          if (seen.has(container)) return;
+          seen.add(container);
           const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
           if (txt) {
             const n = parseInt(txt, 10);
@@ -169,7 +215,48 @@
         });
       }
 
-      // 2. Badge specifici di WhatsApp Web
+      // 2. Se non ci sono badge nelle chat visibili (chat list virtualizzata o chiusa), fallback sui tab cartella
+      if (count === 0) {
+        const tgFolderSelectors = [
+          '.folders-tabs .Tab .Badge',
+          '.folders-tabs .Badge',
+          '.tabs-tab .badge',
+          '.tabs-tab .dialog-subtitle-badge',
+          '.sidebar-header .Badge',
+          '.sidebar-header .badge',
+          'nav .Badge',
+          'nav .badge'
+        ];
+        const tgFolders = document.querySelectorAll(tgFolderSelectors.join(', '));
+        if (tgFolders && tgFolders.length > 0) {
+          const firstFolder = tgFolders[0];
+          const txt = (firstFolder.textContent || '').trim().replace(/[^\d]/g, '');
+          if (txt) {
+            const n = parseInt(txt, 10);
+            if (!isNaN(n) && n > 0) count = n;
+          } else {
+            count = 1;
+          }
+        }
+      }
+
+      // 3. Controllo favicon per indicatore non letti di Telegram
+      if (count === 0) {
+        const iconEl = document.querySelector('link[rel*="icon"]');
+        if (iconEl && iconEl.href) {
+          const href = iconEl.href.toLowerCase();
+          if (href.includes('unread') || href.includes('badge')) {
+            count = 1;
+          }
+        }
+      }
+    } catch(e) {}
+    return count;
+  }
+
+  function scanWhatsAppUnreadCount() {
+    let count = 0;
+    try {
       const waSelectors = [
         '[data-testid="unread-count"]', '[data-testid="icon-unread-count"]',
         'span[data-icon="unread-count"]', 'span[aria-label*="unread" i]',
@@ -204,6 +291,15 @@
     return count;
   }
 
+  function scanDomUnreadCount() {
+    const isTelegram = (location.hostname || '').includes('telegram');
+    if (isTelegram) {
+      return scanTelegramUnreadCount();
+    } else {
+      return scanWhatsAppUnreadCount();
+    }
+  }
+
   function checkAndNotifyUnreadCount() {
     const title = document.title || '';
     const titleMatch = title.match(/[\(\[](\d+)\+?[\)\]]/);
@@ -211,8 +307,8 @@
     const titleCount = titleMatch ? parseInt(titleMatch[1], 10) : (hasBullet ? 1 : 0);
     const domCount = scanDomUnreadCount();
 
-    // Preferisci il massimo tra il conteggio estratto dal titolo e i badge del DOM
-    const effectiveCount = Math.max(titleCount, domCount);
+    // Preferisci il massimo tra il conteggio estratto dal titolo, i badge del DOM e la Badging API
+    const effectiveCount = Math.max(titleCount, domCount, appBadgeCount);
     const now = Date.now();
 
     if (effectiveCount !== lastReportedUnreadCount || (effectiveCount > 0 && (now - lastHeartbeatTime > 3000))) {
@@ -334,7 +430,7 @@
 
     if (document.body) {
       const bodyObserver = new MutationObserver(scheduleAllChecks);
-      bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: false });
+      bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-label', 'href'] });
     }
 
     // Polling periodico continuo per notifiche e stato online
