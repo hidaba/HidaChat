@@ -1156,6 +1156,75 @@ Public Class AppAccounts
             Me.UnreadCount = count
             HasNotification = (count > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
+
+            If IsTelegram Then
+                Try
+                    Dim debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "telegram_debug.txt")
+                    Dim sb As New System.Text.StringBuilder()
+                    sb.AppendLine($"=== TELEGRAM UNREAD DEBUG REPORT ===")
+                    sb.AppendLine($"Data/Ora: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                    sb.AppendLine($"Account: {Id} ({Name})")
+                    sb.AppendLine($"UnreadCount Totale: {count}")
+
+                    Dim domCount = 0
+                    Dim domNode As JsonElement = Nothing
+                    If root.TryGetProperty("domCount", domNode) AndAlso domNode.ValueKind = JsonValueKind.Number Then
+                        domCount = domNode.GetInt32()
+                    End If
+                    sb.AppendLine($"DOM Count: {domCount}")
+
+                    Dim appBadge = 0
+                    Dim badgeNode As JsonElement = Nothing
+                    If root.TryGetProperty("appBadgeCount", badgeNode) AndAlso badgeNode.ValueKind = JsonValueKind.Number Then
+                        appBadge = badgeNode.GetInt32()
+                    End If
+                    sb.AppendLine($"AppBadge (Badging API): {appBadge}")
+
+                    Dim tCount = 0
+                    Dim titleNode As JsonElement = Nothing
+                    If root.TryGetProperty("titleCount", titleNode) AndAlso titleNode.ValueKind = JsonValueKind.Number Then
+                        tCount = titleNode.GetInt32()
+                    End If
+                    sb.AppendLine($"Title Count: {tCount}")
+
+                    Dim debugItemsNode As JsonElement = Nothing
+                    If root.TryGetProperty("debugItems", debugItemsNode) AndAlso debugItemsNode.ValueKind = JsonValueKind.Array Then
+                        sb.AppendLine()
+                        sb.AppendLine($"--- Elementi Rilevati nel DOM ({debugItemsNode.GetArrayLength()}) ---")
+                        For Each item In debugItemsNode.EnumerateArray()
+                            Dim chatTitle = "N/D"
+                            Dim chatNode As JsonElement = Nothing
+                            If item.TryGetProperty("chatTitle", chatNode) AndAlso chatNode.ValueKind = JsonValueKind.String Then
+                                chatTitle = chatNode.GetString()
+                            End If
+                            Dim c = 0
+                            Dim cNode As JsonElement = Nothing
+                            If item.TryGetProperty("count", cNode) AndAlso cNode.ValueKind = JsonValueKind.Number Then
+                                c = cNode.GetInt32()
+                            End If
+                            Dim txt = ""
+                            Dim txtNode As JsonElement = Nothing
+                            If item.TryGetProperty("rawText", txtNode) AndAlso txtNode.ValueKind = JsonValueKind.String Then
+                                txt = txtNode.GetString()
+                            End If
+                            Dim cls = ""
+                            Dim clsNode As JsonElement = Nothing
+                            If item.TryGetProperty("classes", clsNode) AndAlso clsNode.ValueKind = JsonValueKind.String Then
+                                cls = clsNode.GetString()
+                            End If
+                            Dim html = ""
+                            Dim htmlNode As JsonElement = Nothing
+                            If item.TryGetProperty("html", htmlNode) AndAlso htmlNode.ValueKind = JsonValueKind.String Then
+                                html = htmlNode.GetString()
+                            End If
+                            sb.AppendLine($"• [{chatTitle}] -> {c} messaggi (testo: '{txt}', classi: '{cls}')")
+                            sb.AppendLine($"   HTML: {html}")
+                        Next
+                    End If
+                    File.WriteAllText(debugPath, sb.ToString())
+                Catch
+                End Try
+            End If
         ElseIf type = "ONLINE_STATUS_CHANGED" Then
             Dim online As Boolean = False
             Dim onlineNode As JsonElement = Nothing

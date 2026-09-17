@@ -177,17 +177,14 @@
 
   function scanTelegramUnreadCount() {
     let count = 0;
+    const debugItems = [];
     try {
       // 1. Badge chat Telegram Web (Web A, Web K, Web Z)
       const tgChatSelectors = [
-        '.ChatBadge',
-        '[class*="ChatBadge"]',
+        '.ChatBadge.unread',
+        '.ChatBadge .Badge',
+        '.Badge.unread',
         '.dialog-subtitle-badge',
-        '[class*="dialog-subtitle-badge"]',
-        '.ListItem .Badge',
-        '.ListItem [class*="Badge"]',
-        '.ListItem .badge',
-        '.ListItem [class*="badge"]',
         '.rp .badge',
         '.rp .unread',
         '.chatlist-chat .badge',
@@ -195,27 +192,57 @@
         '.unread-count',
         '[class*="unread-count"]',
         '[class*="unread_count"]',
-        '.chat-list .Badge',
-        '.ChatList .Badge'
+        '.ListItem .Badge'
       ];
       const tgElements = document.querySelectorAll(tgChatSelectors.join(', '));
       if (tgElements && tgElements.length > 0) {
         const seen = new Set();
         tgElements.forEach(el => {
+          // Ignora icone di fissaggio in alto (pin 📌) o elementi decorativi
+          if (el.querySelector('.icon-pin, [class*="pin"], .icon-reaction') || el.classList.contains('icon-pin')) return;
+
           const container = el.closest('.ListItem, .rp, .chatlist-chat, [data-peer-id], li') || el;
           if (seen.has(container)) return;
           seen.add(container);
-          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
-          if (txt) {
-            const n = parseInt(txt, 10);
-            if (!isNaN(n) && n > 0) count += n;
-          } else {
+
+          const rawText = (el.textContent || '').trim();
+          const digits = rawText.replace(/[^\d]/g, '');
+          const isExplicitUnread = el.classList.contains('unread') || el.classList.contains('Badge') || el.classList.contains('dialog-subtitle-badge') || (el.getAttribute('class') || '').includes('unread');
+
+          // Nome chat per il report di debug
+          let chatTitle = '';
+          try {
+            const titleEl = container.querySelector('.peer-title, .title, .dialog-title, .user-title, h3, .name, [class*="title"]');
+            if (titleEl) chatTitle = titleEl.textContent.trim();
+          } catch(e) {}
+
+          if (digits) {
+            const n = parseInt(digits, 10);
+            if (!isNaN(n) && n > 0) {
+              count += n;
+              debugItems.push({
+                chatTitle: chatTitle || 'Chat',
+                count: n,
+                rawText: rawText,
+                classes: el.className,
+                html: el.outerHTML.substring(0, 150)
+              });
+            }
+          } else if (isExplicitUnread && (el.classList.contains('unread') || rawText === '•' || rawText === '*')) {
+            // Solo se è un contrassegno unread esplicito senza numero (es. pallino non letto)
             count += 1;
+            debugItems.push({
+              chatTitle: chatTitle || 'Chat',
+              count: 1,
+              rawText: rawText,
+              classes: el.className,
+              html: el.outerHTML.substring(0, 150)
+            });
           }
         });
       }
 
-      // 2. Se non ci sono badge nelle chat visibili (chat list virtualizzata o chiusa), fallback sui tab cartella
+      // 2. Se non ci sono badge nelle chat visibili (chat list virtualizzata o chiusa), fallback sui tab cartella (solo se contengono numeri > 0)
       if (count === 0) {
         const tgFolderSelectors = [
           '.folders-tabs .Tab .Badge',
@@ -223,35 +250,48 @@
           '.tabs-tab .badge',
           '.tabs-tab .dialog-subtitle-badge',
           '.sidebar-header .Badge',
-          '.sidebar-header .badge',
-          'nav .Badge',
-          'nav .badge'
+          '.sidebar-header .badge'
         ];
         const tgFolders = document.querySelectorAll(tgFolderSelectors.join(', '));
         if (tgFolders && tgFolders.length > 0) {
           const firstFolder = tgFolders[0];
-          const txt = (firstFolder.textContent || '').trim().replace(/[^\d]/g, '');
-          if (txt) {
-            const n = parseInt(txt, 10);
-            if (!isNaN(n) && n > 0) count = n;
-          } else {
-            count = 1;
+          const rawText = (firstFolder.textContent || '').trim();
+          const digits = rawText.replace(/[^\d]/g, '');
+          if (digits) {
+            const n = parseInt(digits, 10);
+            if (!isNaN(n) && n > 0) {
+              count = n;
+              debugItems.push({
+                chatTitle: 'Tab Cartella Principale',
+                count: n,
+                rawText: rawText,
+                classes: firstFolder.className,
+                html: firstFolder.outerHTML.substring(0, 150)
+              });
+            }
           }
         }
       }
 
-      // 3. Controllo favicon per indicatore non letti di Telegram
+      // 3. Controllo favicon per indicatore non letti di Telegram (solo se presente icona specifica unread)
       if (count === 0) {
         const iconEl = document.querySelector('link[rel*="icon"]');
         if (iconEl && iconEl.href) {
           const href = iconEl.href.toLowerCase();
           if (href.includes('unread') || href.includes('badge')) {
             count = 1;
+            debugItems.push({
+              chatTitle: 'Favicon Unread Indicator',
+              count: 1,
+              rawText: iconEl.href,
+              classes: 'link-icon',
+              html: iconEl.outerHTML.substring(0, 150)
+            });
           }
         }
       }
     } catch(e) {}
-    return count;
+    return { count: count, items: debugItems };
   }
 
   function scanWhatsAppUnreadCount() {
@@ -291,21 +331,22 @@
     return count;
   }
 
-  function scanDomUnreadCount() {
-    const isTelegram = (location.hostname || '').includes('telegram');
-    if (isTelegram) {
-      return scanTelegramUnreadCount();
-    } else {
-      return scanWhatsAppUnreadCount();
-    }
-  }
-
   function checkAndNotifyUnreadCount() {
+    const isTelegram = (location.hostname || '').includes('telegram');
     const title = document.title || '';
     const titleMatch = title.match(/[\(\[](\d+)\+?[\)\]]/);
     const hasBullet = /[\(•\*\)]/.test(title) && (title.includes('•') || title.includes('*') || /\(\s*\)/.test(title));
     const titleCount = titleMatch ? parseInt(titleMatch[1], 10) : (hasBullet ? 1 : 0);
-    const domCount = scanDomUnreadCount();
+
+    let domCount = 0;
+    let debugItems = [];
+    if (isTelegram) {
+      const tgRes = scanTelegramUnreadCount();
+      domCount = tgRes.count;
+      debugItems = tgRes.items;
+    } else {
+      domCount = scanWhatsAppUnreadCount();
+    }
 
     // Preferisci il massimo tra il conteggio estratto dal titolo, i badge del DOM e la Badging API
     const effectiveCount = Math.max(titleCount, domCount, appBadgeCount);
@@ -322,6 +363,10 @@
             id: 'unread_' + now,
             unreadCount: effectiveCount,
             title: title,
+            domCount: domCount,
+            appBadgeCount: appBadgeCount,
+            titleCount: titleCount,
+            debugItems: debugItems,
             bridgeToken: __bridgeToken
           });
         }
