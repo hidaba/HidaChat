@@ -1,12 +1,12 @@
 (function() {
+  if (window.top !== window.self) return;
+  const __bridgeToken = $$BRIDGE_TOKEN$$;
+  if (window.__notificationOverrideInstalled) return;
+  window.__notificationOverrideInstalled = true;
+
+  const activeCustomNotifications = {};
+
   try {
-    if (window.top !== window.self) return;
-    const __bridgeToken = $$BRIDGE_TOKEN$$;
-    if (window.__notificationOverrideInstalled) return;
-    window.__notificationOverrideInstalled = true;
-
-    const activeCustomNotifications = {};
-
     // 1. Intercetta ServiceWorkerRegistration.prototype.showNotification (usato da WhatsApp Web e Telegram PWA)
     if (window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype) {
       try {
@@ -141,38 +141,60 @@
 
   // Monitoraggio unread count combinato (Title Observer + Title Setter Interceptor + DOM Badge Scanner)
   let lastReportedUnreadCount = -1;
+  let lastHeartbeatTime = 0;
   let updateDebounceTimer = null;
 
   function scanDomUnreadCount() {
     let count = 0;
     try {
-      const selectors = [
-        // 1. Telegram Web K / A / Z
+      // 1. Badge specifici di Telegram Web K / A / Z
+      const tgSelectors = [
         '.badge.unread', '.unread-count', '.chatlist-chat .badge', '.dialog-subtitle .badge',
-        '.chat-badge', '.sidebar-header .badge', '.Badge.unread', '.Badge', '.unread',
-        '.ListItem-badge', '[class*="badge"][class*="unread"]', '[class*="Badge"][class*="unread"]',
-        // 2. WhatsApp Web
-        '[data-testid="unread-count"]', '[data-testid="icon-unread-count"]',
-        '[aria-label*="unread" i]', '[aria-label*="non lett" i]',
-        '[aria-label*="ungelesen" i]', '[aria-label*="no leí" i]',
-        '[aria-label*="non lu" i]', '[aria-label*="não lida" i]'
+        '.chat-badge', '.sidebar-header .badge', '.Badge.unread', '.unread',
+        '.ListItem-badge', '[class*="badge"][class*="unread"]', '[class*="Badge"][class*="unread"]'
       ];
+      const tgElements = document.querySelectorAll(tgSelectors.join(', '));
+      if (tgElements && tgElements.length > 0) {
+        const seenTg = new Set();
+        tgElements.forEach(el => {
+          if (seenTg.has(el)) return;
+          seenTg.add(el);
+          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
+          if (txt) {
+            const n = parseInt(txt, 10);
+            if (!isNaN(n) && n > 0) count += n;
+          } else {
+            count += 1;
+          }
+        });
+      }
 
-      const elements = document.querySelectorAll(selectors.join(', '));
-      if (elements && elements.length > 0) {
-        const seen = new Set();
-        elements.forEach(el => {
-          if (seen.has(el)) return;
-          seen.add(el);
-          // Ignora elementi non visualizzati nel layout
-          if (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0) return;
-
-          const aria = el.getAttribute('aria-label') || '';
-          const txt = (el.textContent || '').trim();
-          const match = (aria || txt).match(/(\d+)/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (!isNaN(num) && num > 0) count += num;
+      // 2. Badge specifici di WhatsApp Web
+      const waSelectors = [
+        '[data-testid="unread-count"]', '[data-testid="icon-unread-count"]',
+        'span[data-icon="unread-count"]', 'span[aria-label*="unread" i]',
+        'span[aria-label*="non lett" i]', 'span[aria-label*="ungelesen" i]',
+        'span[aria-label*="no leí" i]', 'span[aria-label*="non lu" i]',
+        'span[aria-label*="não lida" i]', 'div[aria-label*="unread" i]',
+        'div[aria-label*="non lett" i]'
+      ];
+      const waElements = document.querySelectorAll(waSelectors.join(', '));
+      if (waElements && waElements.length > 0) {
+        const seenWa = new Set();
+        waElements.forEach(el => {
+          if (seenWa.has(el)) return;
+          seenWa.add(el);
+          const txt = (el.textContent || '').trim().replace(/[^\d]/g, '');
+          const aria = (el.getAttribute('aria-label') || '').trim();
+          let num = 0;
+          if (txt) {
+            num = parseInt(txt, 10);
+          } else if (aria) {
+            const m = aria.match(/(\d+)\s*(?:non lett|unread|messagg)/i) || aria.match(/(\d+)/);
+            if (m) num = parseInt(m[1], 10);
+          }
+          if (!isNaN(num) && num > 0) {
+            count += num;
           } else {
             count += 1;
           }
@@ -191,15 +213,17 @@
 
     // Preferisci il massimo tra il conteggio estratto dal titolo e i badge del DOM
     const effectiveCount = Math.max(titleCount, domCount);
+    const now = Date.now();
 
-    if (effectiveCount !== lastReportedUnreadCount) {
+    if (effectiveCount !== lastReportedUnreadCount || (effectiveCount > 0 && (now - lastHeartbeatTime > 3000))) {
       lastReportedUnreadCount = effectiveCount;
+      lastHeartbeatTime = now;
       try {
         if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
           window.chrome.webview.postMessage({
             channel: 'NotificationChannel',
             type: 'UNREAD_COUNT_CHANGED',
-            id: 'unread_' + Date.now(),
+            id: 'unread_' + now,
             unreadCount: effectiveCount,
             title: title,
             bridgeToken: __bridgeToken

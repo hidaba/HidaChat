@@ -555,6 +555,14 @@ Public Class AppAccounts
             Return "in linea"
         End Get
     End Property
+
+    ''' <summary>Tooltip informativo associato al pallino dello stato online.</summary>
+    <JsonIgnore>
+    Public ReadOnly Property OnlineTooltip As String
+        Get
+            Return OnlineStatusDisplay
+        End Get
+    End Property
     
     ''' <summary>Token di sicurezza generato ad ogni sessione per validare i messaggi IPC provenienti dal JavaScript della WebView.</summary>
     <JsonIgnore>
@@ -1137,9 +1145,14 @@ Public Class AppAccounts
         ElseIf type = "UNREAD_COUNT_CHANGED" Then
             Dim count As Integer = 0
             Dim unreadNode As JsonElement = Nothing
-            If root.TryGetProperty("unreadCount", unreadNode) AndAlso unreadNode.ValueKind = JsonValueKind.Number Then
-                count = unreadNode.GetInt32()
+            If root.TryGetProperty("unreadCount", unreadNode) Then
+                If unreadNode.ValueKind = JsonValueKind.Number Then
+                    count = unreadNode.GetInt32()
+                ElseIf unreadNode.ValueKind = JsonValueKind.String Then
+                    Integer.TryParse(unreadNode.GetString(), count)
+                End If
             End If
+            System.Diagnostics.Trace.WriteLine($"[UNREAD_COUNT_CHANGED] account={Id} ({Name}), count={count}")
             Me.UnreadCount = count
             HasNotification = (count > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.4-beta] - 2026-09-17
+
+### Pre-release / Beta — Risoluzione Blocco Scope JavaScript IPC & Ripristino Funzionalità Bollino Rosso
+- **Risoluzione Critica Scope Token IPC (`Scripts/notification.js`)**:
+  - Risolto l'errore `ReferenceError: __bridgeToken is not defined`: la variabile `const __bridgeToken` era dichiarata all'interno del blocco `try` iniziale, rendendola inaccessibile (blocco ES6 block-scoped) alle funzioni di scansione `checkAndNotifyUnreadCount` e `scanOnlineStatus`. Di conseguenza, ogni invio di `UNREAD_COUNT_CHANGED` e `ONLINE_STATUS_CHANGED` verso l'host WPF falliva silenziosamente.
+  - Spostata la dichiarazione di `__bridgeToken` e della mappa `activeCustomNotifications` a livello di funzione principale della IIFE per garantire visibilità globale all'intero script.
+- **Ottimizzazione Scansione DOM e Cuore Battito Notifiche (`Scripts/notification.js`)**:
+  - Rimosso il vincolo restrittivo `offsetParent === null` che ignorava i badge generati da WhatsApp Web e Telegram con layout moderno (es. elementi `position: fixed`, SVG o flexbox).
+  - Rafforzato l'algoritmo di estrazione dei conteggi unread distinguendo chiaramente i badge numerici nativi Telegram e WhatsApp Web dall'aria-label generale della chat per evitare conteggi errati.
+  - Introdotto un heartbeat periodico continuo (ogni 3 secondi) per gli account con messaggi non letti per garantire che l'host WPF mantenga sempre lo stato sincronizzato.
+- **Rafforzamento Rendering Grafico XAML (`MainWindow.xaml`, `AppAccounts.vb`)**:
+  - Rimosso il vincolo fisso su `Width` nel controllo WPF `UnreadBadge`, consentendo al badge di dimensionarsi perfettamente in modo fluido: cerchio compatto (9×9 px) in caso di notifica generica senza conteggio numerico e pillola orizzontale auto-adattiva con raggio 8 px e padding quando è presente un contatore messaggi non letti (`1`, `2`, `99+`).
+  - Aggiunta la proprietà `OnlineTooltip` per il corretto binding del tooltip sullo stato online.
+
 ## [0.9.3-beta] - 2026-09-16
 
 ### Pre-release / Beta — Risoluzione Ricezione Conteggio Non Letti & Riconoscimento Real-Time Notifiche
