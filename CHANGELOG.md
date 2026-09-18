@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.5-beta] - 2026-09-18
+
+### Pre-release / Beta — Supporto Completo & Preciso Notifiche e Bollini Telegram Web
+- **Integrazione Badging API Nativa (`Scripts/notification.js`)**:
+  - Implementato hook diretto sulle API web standard `navigator.setAppBadge(count)` e `navigator.clearAppBadge()` usate dalle PWA di Telegram Web per comunicare il conteggio unread esatto calcolato internamente.
+- **Risoluzione Sovra-Conteggio / Falsi Positivi Telegram Web A (`Scripts/notification.js`)**:
+  - Risolto il conteggio anomalo (messaggi "fantasma"): Teact (Telegram Web A) genera un elemento contenitore `<div class="ChatBadge">` per ciascuna riga di chat visibile (riservato a pin, reazioni o badge). Il selettore generico precedente interpretava tali elementi privi di cifre come non letti.
+  - Rafforzati i selettori richiedendo espressamente classi di stato unread reali (`.ChatBadge.unread`, `.ChatBadge .Badge`, `.Badge.unread`, `.dialog-subtitle-badge`, `.rp .unread`, `.rp .badge`).
+  - Escluse esplicitamente le chat fissate in alto (icone puntina `.icon-pin`).
+- **Scansione Isolata per Piattaforma & Fallback Avanzati (`Scripts/notification.js`)**:
+  - Separata la logica di analisi DOM tra `telegram` e `whatsapp` garantendo totale impermeabilità reciproca.
+  - Aggiunto fallback sui tab cartella (`.folders-tabs .Tab .Badge`) per catturare il totale unread anche con chatlist virtualizzata o chiusa.
+  - Aggiunto controllo favicon unread.
+- **Diagnostica e Tracciamento Automatico (`AppAccounts.vb`, `Scripts/notification.js`)**:
+  - Generazione automatica del report diagnostico `telegram_debug.txt` con la mappa dettagliata dei messaggi rilevati, canali, titoli chat e classi HTML.
+
 ## [0.9.4-beta] - 2026-09-17
 
 ### Pre-release / Beta — Risoluzione Blocco Scope JavaScript IPC & Ripristino Funzionalità Bollino Rosso
