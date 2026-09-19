@@ -572,7 +572,14 @@ Public Class AppLocalizations
         {"dnd_indefinite", "Until turned off"},
         {"dnd_active_until", "Do Not Disturb active until {time}"},
         {"dnd_active_indefinite", "Do Not Disturb active (indefinite)"},
-        {"dnd_off", "Turn off Do Not Disturb"},
+        {"update_insufficient_permissions", "Cannot update automatically." & vbCrLf & "The application lacks write permissions in the installation directory." & vbCrLf & vbCrLf & "Please move the application to a writable location (e.g. Documents, Desktop, or USB drive)." & vbCrLf & "Avoid protected system directories like Program Files." & vbCrLf & vbCrLf & "Available version: v{version}"},
+        {"update_insufficient_permissions_title", "Insufficient Permissions"},
+        {"update_missing_checksum", "Cannot verify update integrity." & vbCrLf & vbCrLf & "No valid SHA-256 cryptographic checksum was provided with this version on GitHub." & vbCrLf & vbCrLf & "The update has been aborted for security reasons."},
+        {"update_integrity_failed_title", "Update Integrity Error"},
+        {"update_checksum_mismatch", "Update integrity check failed!" & vbCrLf & vbCrLf & "The SHA-256 cryptographic hash of the downloaded update file does not match the expected hash:" & vbCrLf & vbCrLf & "Computed: {computed}" & vbCrLf & "Expected: {expected}" & vbCrLf & vbCrLf & "The update has been aborted to ensure system safety."},
+        {"update_download_error", "Update download failed or timed out:" & vbCrLf & vbCrLf & "{error}"},
+        {"update_download_error_title", "Update Download Error"},
+        {"update_signature_invalid", "Digital signature verification failed on the update executable." & vbCrLf & vbCrLf & "The update has been aborted for security reasons."},
         {"close", "Close"}
     }
 
@@ -663,7 +670,14 @@ Public Class AppLocalizations
         {"dnd_indefinite", "Fino a disattivazione manuale"},
         {"dnd_active_until", "Non Disturbare attivo fino alle {time}"},
         {"dnd_active_indefinite", "Non Disturbare attivo (indefinito)"},
-        {"dnd_off", "Disattiva Non Disturbare"},
+        {"update_insufficient_permissions", "Impossibile aggiornare automaticamente." & vbCrLf & "L'applicazione non ha i permessi di scrittura nella cartella di installazione." & vbCrLf & vbCrLf & "Sposta l'applicazione in una cartella con permessi di scrittura (es. Documenti, Desktop o unità USB)." & vbCrLf & "Evita percorsi di sistema protetti come C:\Programmi." & vbCrLf & vbCrLf & "Versione disponibile: v{version}"},
+        {"update_insufficient_permissions_title", "Permessi insufficienti"},
+        {"update_missing_checksum", "Impossibile verificare l'integrità dell'aggiornamento." & vbCrLf & vbCrLf & "Nessun checksum crittografico SHA-256 valido è stato fornito con questa versione su GitHub." & vbCrLf & vbCrLf & "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema."},
+        {"update_integrity_failed_title", "Errore Integrità Aggiornamento"},
+        {"update_checksum_mismatch", "Verifica di integrità fallita!" & vbCrLf & vbCrLf & "L'impronta crittografica SHA-256 del file di aggiornamento scaricato non corrisponde a quella attesa:" & vbCrLf & vbCrLf & "Hash calcolato: {computed}" & vbCrLf & "Hash atteso:    {expected}" & vbCrLf & vbCrLf & "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema."},
+        {"update_download_error", "Download dell'aggiornamento non riuscito o timeout superato:" & vbCrLf & vbCrLf & "{error}"},
+        {"update_download_error_title", "Errore Download Aggiornamento"},
+        {"update_signature_invalid", "Verifica della firma digitale fallita sull'eseguibile di aggiornamento." & vbCrLf & vbCrLf & "L'installazione è stata interrotta per garantire la sicurezza del sistema."},
         {"close", "Chiudi"}
     }
 
@@ -754,7 +768,14 @@ Public Class AppLocalizations
         {"dnd_indefinite", "Jusqu'à désactivation"},
         {"dnd_active_until", "Ne pas déranger actif jusqu'à {time}"},
         {"dnd_active_indefinite", "Ne pas déranger actif (indéfini)"},
-        {"dnd_off", "Désactiver Ne pas déranger"},
+        {"update_insufficient_permissions", "Impossible de mettre à jour automatiquement." & vbCrLf & "L'application n'a pas les droits d'écriture dans le dossier d'installation." & vbCrLf & vbCrLf & "Veuillez déplacer l'application vers un dossier accessible en écriture (ex. Documents, Bureau ou clé USB)." & vbCrLf & "Évitez les dossiers système protégés comme Program Files." & vbCrLf & vbCrLf & "Version disponible : v{version}"},
+        {"update_insufficient_permissions_title", "Autorisations insuffisantes"},
+        {"update_missing_checksum", "Impossible de vérifier l'intégrité de la mise à jour." & vbCrLf & vbCrLf & "Aucune somme de contrôle cryptographique SHA-256 valide n'a été fournie avec cette version sur GitHub." & vbCrLf & vbCrLf & "La mise à jour a été annulée pour des raisons de sécurité."},
+        {"update_integrity_failed_title", "Erreur d'Intégrité de Mise à Jour"},
+        {"update_checksum_mismatch", "Échec de la vérification d'intégrité !" & vbCrLf & vbCrLf & "L'empreinte cryptographique SHA-256 du fichier de mise à jour téléchargé ne correspond pas à celle attendue :" & vbCrLf & vbCrLf & "Calculé : {computed}" & vbCrLf & "Attendu :  {expected}" & vbCrLf & vbCrLf & "La mise à jour a été interrompue pour garantir la sécurité du système."},
+        {"update_download_error", "Le téléchargement de la mise à jour a échoué ou le délai a expiré :" & vbCrLf & vbCrLf & "{error}"},
+        {"update_download_error_title", "Erreur de Téléchargement"},
+        {"update_signature_invalid", "La vérification de la signature numérique a échoué sur l'exécutable de mise à jour." & vbCrLf & vbCrLf & "L'installation a été interrompue pour des raisons de sécurité."},
         {"close", "Fermer"}
     }
 
@@ -845,7 +866,14 @@ Public Class AppLocalizations
         {"dnd_indefinite", "Hasta que se desactive"},
         {"dnd_active_until", "No Molestar activo hasta las {time}"},
         {"dnd_active_indefinite", "No Molestar activo (indefinido)"},
-        {"dnd_off", "Desactivar No Molestar"},
+        {"update_insufficient_permissions", "No se puede actualizar automáticamente." & vbCrLf & "La aplicación no tiene permisos de escritura en la carpeta de instalación." & vbCrLf & vbCrLf & "Mueva la aplicación a una carpeta con permisos de escritura (ej. Documentos, Escritorio o memoria USB)." & vbCrLf & "Evite carpetas protegidas del sistema como Archivos de programa." & vbCrLf & vbCrLf & "Versión disponible: v{version}"},
+        {"update_insufficient_permissions_title", "Permisos insuficientes"},
+        {"update_missing_checksum", "No se puede verificar la integridad de la actualización." & vbCrLf & vbCrLf & "No se proporcionó una suma de comprobación criptográfica SHA-256 válida con esta versión en GitHub." & vbCrLf & vbCrLf & "La actualización se canceló por motivos de seguridad."},
+        {"update_integrity_failed_title", "Error de Integridad de Actualización"},
+        {"update_checksum_mismatch", "¡Error en la verificación de integridad!" & vbCrLf & vbCrLf & "La huella criptográfica SHA-256 del archivo de actualización descargado no coincide con la esperada:" & vbCrLf & vbCrLf & "Calculado: {computed}" & vbCrLf & "Esperado:  {expected}" & vbCrLf & vbCrLf & "La actualización se detuvo para garantizar la seguridad del sistema."},
+        {"update_download_error", "Error al descargar la actualización o tiempo de espera agotado:" & vbCrLf & vbCrLf & "{error}"},
+        {"update_download_error_title", "Error de Descarga de Actualización"},
+        {"update_signature_invalid", "Falló la verificación de la firma digital en el ejecutable de actualización." & vbCrLf & vbCrLf & "La instalación se canceló por motivos de seguridad."},
         {"close", "Cerrar"}
     }
 
@@ -936,7 +964,14 @@ Public Class AppLocalizations
         {"dnd_indefinite", "Bis zur Deaktivierung"},
         {"dnd_active_until", "Nicht stören aktiv bis {time}"},
         {"dnd_active_indefinite", "Nicht stören aktiv (unbegrenzt)"},
-        {"dnd_off", "Nicht stören deaktivieren"},
+        {"update_insufficient_permissions", "Automatisches Update nicht möglich." & vbCrLf & "Die Anwendung hat keine Schreibrechte im Installationsordner." & vbCrLf & vbCrLf & "Bitte verschieben Sie die Anwendung in einen beschreibbaren Ordner (z. B. Dokumente, Desktop oder USB-Stick)." & vbCrLf & "Vermeiden Sie geschützte Systemordner wie Programme." & vbCrLf & vbCrLf & "Verfügbare Version: v{version}"},
+        {"update_insufficient_permissions_title", "Unzureichende Berechtigungen"},
+        {"update_missing_checksum", "Integrität des Updates kann nicht überprüft werden." & vbCrLf & vbCrLf & "Für diese Version auf GitHub wurde keine gültige kryptografische SHA-256-Prüfsumme bereitgestellt." & vbCrLf & vbCrLf & "Das Update wurde aus Sicherheitsgründen abgebrochen."},
+        {"update_integrity_failed_title", "Update-Integritätsfehler"},
+        {"update_checksum_mismatch", "Überprüfung der Integrität fehlgeschlagen!" & vbCrLf & vbCrLf & "Die kryptografische SHA-256-Prüfsumme der heruntergeladenen Update-Datei stimmt nicht mit dem erwarteten Wert überein:" & vbCrLf & vbCrLf & "Berechnet: {computed}" & vbCrLf & "Erwartet:   {expected}" & vbCrLf & vbCrLf & "Das Update wurde abgebrochen, um die Systemsicherheit zu gewährleisten."},
+        {"update_download_error", "Update-Download fehlgeschlagen oder Zeitüberschreitung:" & vbCrLf & vbCrLf & "{error}"},
+        {"update_download_error_title", "Fehler beim Herunterladen des Updates"},
+        {"update_signature_invalid", "Überprüfung der digitalen Signatur der Update-Ausführungsdatei fehlgeschlagen." & vbCrLf & vbCrLf & "Die Installation wurde aus Sicherheitsgründen abgebrochen."},
         {"close", "Schließen"}
     }
 

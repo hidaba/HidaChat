@@ -18,8 +18,14 @@
   - Gestione trasparente di eventuali crash del runtime WebView2 (`ProcessFailed` / `RenderProcessExited`) con ripristino automatico e indolore della sessione.
 - **Invio Massivo Personalizzato (Bulk Sender Engine)**:
   - Automazione invio messaggi da file Excel (`.xlsx`, `.xls`) e CSV con mapping intelligente colonne, segnaposto dinamici (`{Nome}`, `{Azienda}`, ecc.) e protezione naturale anti-spam con jitter timer minimo di 30 secondi.
-- **Documentazione Completa Aggiornata (`README.md`, `README.it.md`, `ANALISI_PROGETTO.md`)**:
-  - Documentate le 4 piattaforme supportate con istruzioni dettagliate passo-passo per la configurazione di account OpenClaw ed Hermes Agent (parametri gateway, token di autenticazione, supporto Tailscale Mesh).
+- **Hardening del Download e Verifica Integrità Aggiornamenti OTA (`UpdateChecker.vb`, `Localization.vb`)**:
+  - **Streaming Diretto su Disco & Eliminazione Saturation RAM (#56)**: Sostituito il download in-memory con un client HTTP dedicato (`_downloadClient`) configurato con timeout di connessione infinito e `CancellationTokenSource` globale da 10 minuti. Il payload dell'archivio `.zip` viene scaricato in streaming asincrono direttamente su disco (`ResponseHeadersRead` e `CopyToAsync`), supportando file di grandi dimensioni o connessioni lente senza sovraccaricare la memoria di sistema.
+  - **Calcolo Hash in Streaming (#56)**: Calcolo dell'impronta crittografica SHA-256 eseguito direttamente dal file su disco tramite `SHA256.HashDataAsync(stream)` anziché da buffer di byte in RAM.
+  - **Verifica Integrità Fail-Closed (#57)**: Blocco immediato e sicuro della procedura di aggiornamento qualora non sia reperibile un'impronta SHA-256 affidabile (sia dall'asset `.sha256` che dal body della release su GitHub).
+  - **Restrizione Ricerca Checksum al File di Release (#57)**: Restretta la regex di estrazione dell'hash esclusivamente al nome dell'archivio ZIP specifico o a prefissi dedicati (`SHA256:`), eliminando il fallback debole su stringhe esadecimali generiche.
+  - **Validazione Firma Digitale Authenticode (#57)**: Introdotta la verifica della firma Authenticode sull'eseguibile `HidaChat.exe` estratto prima di procedere all'aggiornamento, rifiutando file corrotti o non validi.
+  - **Scrittura Atomica del Marcatore di Versione (#57)**: Rimossa la chiamata anticipata a `WriteLocalVersionMarker` da codice C#/VB; il file marcatore `.app_version` viene ora generato unicamente da `update.bat` solo a copia robocopy avvenuta con pieno successo.
+  - **Messaggi di Errore Localizzati e Riformulazione Permessi Cartella (#57)**: Aggiornato l'avviso di permessi insufficienti per raccomandare directory utente normalmente scrivibili (`Documenti`, `Desktop`, cartella su chiavetta USB) in ossequio alla natura 100% portabile dell'applicazione; sincronizzate tutte le nuove stringhe di errore in 5 lingue (`it`, `en`, `fr`, `es`, `de`).
 
 ## [0.9.5-beta] - 2026-09-18
 

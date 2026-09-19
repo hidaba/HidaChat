@@ -333,35 +333,31 @@
 
 # REVISIONE CODICE — AFFIDABILITÀ & AGGIORNAMENTI
 
-## 56. Download aggiornamento: timeout di 15 s e ZIP interamente in RAM
+## ~~56. Download aggiornamento: timeout di 15 s e ZIP interamente in RAM~~ ✅
 - **File**: `UpdateChecker.vb` (`Shared Sub New`, `PerformUpdateFromGitHubAsync`)
 - **Problema**: `_httpClient.Timeout = 15s` copre l'intera operazione: `GetByteArrayAsync(downloadUrl)` fallisce con uno ZIP di grandi dimensioni o con connessioni lente. Inoltre l'intero archivio viene caricato in memoria prima della scrittura su disco.
-- **Fix**: Introdurre un client dedicato al download con timeout infinito e `CancellationToken` (timeout globale es. 10 min), streaming diretto su disco e calcolo dell'impronta crittografica SHA-256 in streaming dal file:
-  ```vb
-  Private Shared ReadOnly _downloadClient As New HttpClient() With {
-      .Timeout = Threading.Timeout.InfiniteTimeSpan}
-
-  Using resp = Await _downloadClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct)
-      resp.EnsureSuccessStatusCode()
-      Using src = Await resp.Content.ReadAsStreamAsync(ct), dst = File.Create(tempZipPath)
-          Await src.CopyToAsync(dst, ct)
-      End Using
-  End Using
-  Using fs = File.OpenRead(tempZipPath)
-      computed = Convert.ToHexString(Await SHA256.HashDataAsync(fs)).ToLowerInvariant()
-  End Using
-  ```
+- **Fix Implementato**:
+  - Introdotto client `_downloadClient` dedicato con `Timeout = InfiniteTimeSpan` e header User-Agent di prodotto;
+  - Streaming HTTP diretto su file temporaneo su disco (`File.Create(tempZipPath)`) tramite `ResponseHeadersRead` e `CopyToAsync`, evitando di caricare l'intero archivio in memoria RAM;
+  - CancellationTokenSource con timeout globale esteso a 10 minuti per consentire il download affidabile anche su connessioni lente;
+  - Calcolo asincrono dell'hash SHA-256 in streaming direttamente dal file su disco tramite `SHA256.HashDataAsync(stream)`.
 - **Impatto**: Alto | **Sforzo**: Basso
 
-## 57. Verifica integrità aggiornamento: fail-closed e autenticità
-- **File**: `UpdateChecker.vb` (`PerformUpdateFromGitHubAsync`, `ExtractSha256FromText`, `WriteLocalVersionMarker`)
+## ~~57. Verifica integrità aggiornamento: fail-closed e autenticità~~ ✅
+- **File**: `UpdateChecker.vb` (`PerformUpdateFromGitHubAsync`, `ExtractSha256FromText`, `WriteLocalVersionMarker`), `Localization.vb`
 - **Problema**:
   - Se non viene reperito alcun checksum l'aggiornamento viene installato comunque ("verificato via HTTPS");
   - L'hash proviene dalla stessa release dello ZIP: protegge da errori di trasmissione, non da una release compromessa su GitHub;
   - `WriteLocalVersionMarker` viene invocato prima della copia dei file: se lo script robocopy fallisce, il marker dichiara ugualmente la nuova versione (mentre lo scrive già il batch al termine della copia);
   - Il messaggio di errore per permessi insufficienti suggerisce `C:\Programmi\HidaChat`, cartella di norma non scrivibile per utenti standard senza privilegi elevati (mentre l'applicazione scrive in `data/` accanto all'eseguibile);
   - Il fallback regex su qualsiasi stringa esadecimale da 64 caratteri nelle note di rilascio può intercettare un hash non pertinente.
-- **Fix**: Bloccare l'installazione se manca il checksum (fail-closed); predisporre la firma degli artefatti (minisign o Authenticode) con verifica crittografica; rimuovere la chiamata anticipata a `WriteLocalVersionMarker`; sostituire il suggerimento nel messaggio con percorsi scrivibili dall'utente (`%LOCALAPPDATA%\HidaChat`, Desktop, chiavetta USB); restringere il fallback di ricerca dell'hash esclusivamente al nome del file ZIP corrispondente.
+- **Fix Implementato**:
+  - Controllo di integrità rigoroso fail-closed: blocco immediato della procedura se non viene reperito un checksum SHA-256 valido (nell'asset `.sha256` o nel corpo del rilascio);
+  - Restrizione della ricerca dell'impronta crittografica esclusivamente al nome del file ZIP della release corrente (`<hash> <filename>`, `<filename> <hash>`, o etichetta `SHA256:`), eliminando il fallback generico a qualsiasi stringa hex da 64 caratteri;
+  - Verifica della firma digitale Authenticode sull'eseguibile estratto `HidaChat.exe` (se firmato ne valida certificato e periodo di validità, bloccando l'aggiornamento in caso di firma corrotta);
+  - Rimozione della chiamata anticipata a `WriteLocalVersionMarker`: il marcatore di versione viene scritto unicamente da `update.bat` solo dopo il completamento effettivo della copia robocopy;
+  - Riformulazione del messaggio sui permessi di scrittura insufficienti, raccomandando cartelle utente scrivibili (`Documenti`, `Desktop`, unità USB) in conformità con la portabilità 100%;
+  - Aggiunta e sincronizzazione dei messaggi di diagnostica ed errore dell'aggiornamento nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Medio-Alto | **Sforzo**: Medio
 
 ## 58. `settings.json`: scrittura atomica, serializzata, con flush in chiusura

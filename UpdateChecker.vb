@@ -3,24 +3,30 @@ Imports System.IO.Compression
 Imports System.Net.Http
 Imports System.Net.Http.Headers
 Imports System.Diagnostics
+Imports System.Threading
 Imports System.Threading.Tasks
 Imports System.Windows
 Imports System.Text.Json
 Imports System.Security.Cryptography
+Imports System.Security.Cryptography.X509Certificates
 Imports System.Text.RegularExpressions
 
 ''' <summary>
-
 ''' Gestisce il controllo, download ed installazione automatica degli aggiornamenti tramite GitHub Releases o cartella di rete locale (OTA).
 ''' </summary>
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
     Private Shared ReadOnly _httpClient As New HttpClient()
+    Private Shared ReadOnly _downloadClient As New HttpClient() With {
+        .Timeout = System.Threading.Timeout.InfiniteTimeSpan
+    }
 
     Shared Sub New()
         _httpClient.Timeout = TimeSpan.FromSeconds(15)
         _httpClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("HidaChat-App", Constants.AppVersion))
         _httpClient.DefaultRequestHeaders.Accept.Add(New MediaTypeWithQualityHeaderValue("application/json"))
+
+        _downloadClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("HidaChat-App", Constants.AppVersion))
     End Sub
 
     ''' <summary>
@@ -171,7 +177,8 @@ Public Class UpdateChecker
     End Class
 
     ''' <summary>
-    ''' Estrae un hash SHA-256 valido (64 caratteri esadecimali) da un testo o da un file di checksum.
+    ''' Estrae un hash SHA-256 valido (64 caratteri esadecimali) associato al file specificato o da un pattern etichettato.
+    ''' Non accetta stringhe esadecimali isolate prive di contesto per prevenire falsi positivi (Fail-Closed).
     ''' </summary>
     Private Shared Function ExtractSha256FromText(text As String, Optional filename As String = Nothing) As String
         If String.IsNullOrWhiteSpace(text) Then Return String.Empty
@@ -179,25 +186,35 @@ Public Class UpdateChecker
         ' 1. Se c'è un nome file da cercare (es. formato standard sha256sum: "<hash>  <filename>" o "<hash> *<filename>")
         If Not String.IsNullOrWhiteSpace(filename) Then
             Dim escapedName = Regex.Escape(Path.GetFileName(filename))
-            Dim matchFile = Regex.Match(text, "([a-fA-F0-9]{64})\s+[\*]?" & escapedName, RegexOptions.IgnoreCase)
+            Dim matchFile = Regex.Match(text, "([a-fA-F0-9]{64})\s+[\*]?" & escapedName & "\b", RegexOptions.IgnoreCase)
             If matchFile.Success Then
                 Return matchFile.Groups(1).Value.ToLowerInvariant()
             End If
+
+            ' 1b. Formato inverso o etichettato con nome file: "<filename>[:=] <hash>"
+            Dim matchFileRev = Regex.Match(text, escapedName & "\s*[:=\-]\s*([a-fA-F0-9]{64})\b", RegexOptions.IgnoreCase)
+            If matchFileRev.Success Then
+                Return matchFileRev.Groups(1).Value.ToLowerInvariant()
+            End If
         End If
 
-        ' 2. Cerca pattern espliciti tipo "SHA256: <hash>", "SHA-256: <hash>" o "hash: <hash>"
-        Dim matchLabeled = Regex.Match(text, "(?:SHA-?256|checksum|hash)\s*[:=]?\s*([a-fA-F0-9]{64})", RegexOptions.IgnoreCase)
+        ' 2. Cerca pattern espliciti etichettati tipo "SHA256: <hash>", "SHA-256: <hash>" o "checksum: <hash>"
+        Dim matchLabeled = Regex.Match(text, "(?:SHA-?256|checksum)\s*[:=]\s*([a-fA-F0-9]{64})\b", RegexOptions.IgnoreCase)
         If matchLabeled.Success Then
             Return matchLabeled.Groups(1).Value.ToLowerInvariant()
         End If
 
-        ' 3. Cerca qualsiasi stringa esadecimale da 64 caratteri (SHA-256 isolato)
-        Dim matchAny = Regex.Match(text, "\b([a-fA-F0-9]{64})\b")
-        If matchAny.Success Then
-            Return matchAny.Groups(1).Value.ToLowerInvariant()
-        End If
-
+        ' Rimosso il fallback arbitrario su stringhe esadecimali a 64 caratteri per prevenire falsi positivi (commit SHA, ecc.)
         Return String.Empty
+    End Function
+
+    ''' <summary>
+    ''' Calcola l'hash crittografico SHA-256 in formato esadecimale minuscolo leggendo direttamente da uno Stream.
+    ''' </summary>
+    Private Shared Async Function ComputeSha256Async(stream As Stream) As Task(Of String)
+        If stream Is Nothing Then Return String.Empty
+        Dim hashBytes = Await SHA256.HashDataAsync(stream)
+        Return Convert.ToHexString(hashBytes).ToLowerInvariant()
     End Function
 
     ''' <summary>
@@ -207,6 +224,29 @@ Public Class UpdateChecker
         If data Is Nothing OrElse data.Length = 0 Then Return String.Empty
         Dim hashBytes = SHA256.HashData(data)
         Return Convert.ToHexString(hashBytes).ToLowerInvariant()
+    End Function
+
+    ''' <summary>
+    ''' Verifica la presenza e la validità crittografica della firma digitale Authenticode sull'eseguibile.
+    ''' Restituisce (HasSignature, IsValid, SignerName).
+    ''' </summary>
+    Private Shared Function VerifyAuthenticodeSignature(filePath As String) As (HasSignature As Boolean, IsValid As Boolean, SignerName As String)
+        If String.IsNullOrWhiteSpace(filePath) OrElse Not File.Exists(filePath) Then
+            Return (False, False, String.Empty)
+        End If
+        Try
+#Disable Warning SYSLIB0057
+            Dim rawCert = X509Certificate.CreateFromSignedFile(filePath)
+#Enable Warning SYSLIB0057
+            If rawCert IsNot Nothing Then
+                Using cert2 As New X509Certificate2(rawCert)
+                    Dim isValid = cert2.Verify()
+                    Return (True, isValid, cert2.Subject)
+                End Using
+            End If
+        Catch
+        End Try
+        Return (False, False, String.Empty)
     End Function
 
     ''' <summary>
@@ -306,7 +346,8 @@ Public Class UpdateChecker
     End Function
 
     ''' <summary>
-    ''' Scarica l'archivio ZIP da GitHub Releases, verifica l'integrità crittografica SHA-256, estrae i file e riavvia l'applicazione tramite uno script batch temporaneo.
+    ''' Scarica l'archivio ZIP da GitHub Releases tramite streaming su disco, verifica l'integrità crittografica SHA-256 (Fail-Closed)
+    ''' e l'eventuale firma digitale Authenticode, estrae i file e riavvia l'applicazione tramite script batch protetto.
     ''' </summary>
     Private Shared Async Function PerformUpdateFromGitHubAsync(
         releaseInfo As ReleaseInfo,
@@ -315,22 +356,24 @@ Public Class UpdateChecker
     ) As Task
         Dim latestVersion = releaseInfo.Version
         Dim downloadUrl = releaseInfo.DownloadUrl
+        Dim loc = settings?.Localizations
 
-        ' Verifica i permessi di scrittura nella cartella corrente
+        ' Verifica preventiva dei permessi di scrittura nella cartella corrente
         Dim testFile = Path.Combine(installDir, ".update_test")
         Try
             File.WriteAllText(testFile, "test")
             File.Delete(testFile)
         Catch
-            MessageBox.Show(
+            Dim permMsg = If(loc IsNot Nothing,
+                loc.Get("update_insufficient_permissions", New Dictionary(Of String, String) From {{"version", latestVersion}}),
                 "Impossibile aggiornare automaticamente." & vbCrLf &
                 "L'applicazione non ha i permessi di scrittura nella cartella di installazione." & vbCrLf & vbCrLf &
-                "Sposta l'applicazione in una cartella locale scrivibile (es. C:\Programmi\HidaChat)" & vbCrLf &
-                "Versione disponibile su GitHub: v" & latestVersion,
-                "Permessi insufficienti",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+                "Sposta l'applicazione in una cartella locale con permessi di scrittura (es. Documenti, Desktop o unità USB)." & vbCrLf &
+                "Evita percorsi di sistema protetti come C:\Programmi." & vbCrLf & vbCrLf &
+                "Versione disponibile: v" & latestVersion)
+            Dim permTitle = If(loc IsNot Nothing, loc.Get("update_insufficient_permissions_title"), "Permessi insufficienti")
+
+            MessageBox.Show(permMsg, permTitle, MessageBoxButton.OK, MessageBoxImage.Warning)
             Return
         End Try
 
@@ -344,72 +387,141 @@ Public Class UpdateChecker
 
         If result <> MessageBoxResult.Yes Then Return
 
+        ' 1. Verifica dell'impronta crittografica SHA-256 (Fail-Closed)
+        Dim expectedHash = releaseInfo.ExpectedSha256
+
+        ' Se non presente nelle note di rilascio, prova a scaricare il file di checksum allegato agli asset
+        If String.IsNullOrEmpty(expectedHash) AndAlso Not String.IsNullOrEmpty(releaseInfo.Sha256Url) Then
+            Try
+                Debug.WriteLine($"Downloading SHA-256 checksum file from: {releaseInfo.Sha256Url}")
+                Dim checksumContent = Await _httpClient.GetStringAsync(releaseInfo.Sha256Url)
+                expectedHash = ExtractSha256FromText(checksumContent, releaseInfo.ZipFileName)
+            Catch ex As Exception
+                Debug.WriteLine($"Could not download or parse checksum asset: {ex.Message}")
+            End Try
+        End If
+
+        ' FAIL-CLOSED: Se non è presente alcun checksum SHA-256 verificabile, blocca tassativamente l'aggiornamento
+        If String.IsNullOrEmpty(expectedHash) Then
+            Debug.WriteLine("Security fail-closed: no valid SHA-256 checksum found for this release.")
+            Dim missingChecksumMsg = If(loc IsNot Nothing,
+                loc.Get("update_missing_checksum"),
+                "Impossibile verificare l'integrità dell'aggiornamento." & vbCrLf & vbCrLf &
+                "Nessun checksum crittografico SHA-256 valido è stato fornito con questa versione su GitHub." & vbCrLf & vbCrLf &
+                "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.")
+            MessageBox.Show(
+                missingChecksumMsg,
+                If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+            Return
+        End If
+
         Dim tempZipPath = Path.Combine(Path.GetTempPath(), "HidaChat_Update.zip")
         Dim tempDir = Path.Combine(Path.GetTempPath(), "HidaChat_Update")
 
         Try
-            ' 1. Scarica lo ZIP da GitHub
-            Debug.WriteLine($"Downloading update zip from: {downloadUrl}")
-            Dim zipBytes = Await _httpClient.GetByteArrayAsync(downloadUrl)
+            If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
+        Catch
+        End Try
 
-            ' 2. Verifica di integrità crittografica (SHA-256)
-            Dim computedSha256 = ComputeSha256(zipBytes)
-            Debug.WriteLine($"Downloaded update SHA-256: {computedSha256}")
+        Try
+            ' 2. Scarica lo ZIP da GitHub tramite streaming su disco con timeout esteso a 10 minuti (Punto 56)
+            Debug.WriteLine($"Downloading update zip (streaming) from: {downloadUrl}")
+            Using cts As New CancellationTokenSource(TimeSpan.FromMinutes(10))
+                Dim ct = cts.Token
+                Using resp = Await _downloadClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct)
+                    resp.EnsureSuccessStatusCode()
+                    Using src = Await resp.Content.ReadAsStreamAsync(ct),
+                          dst = File.Create(tempZipPath)
+                        Await src.CopyToAsync(dst, ct)
+                    End Using
+                End Using
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine($"Download failed or timed out: {ex.Message}")
+            Dim dlErrMsg = If(loc IsNot Nothing,
+                loc.Get("update_download_error", New Dictionary(Of String, String) From {{"error", ex.Message}}),
+                "Download dell'aggiornamento non riuscito o timeout superato:" & vbCrLf & vbCrLf & ex.Message)
+            MessageBox.Show(
+                dlErrMsg,
+                If(loc IsNot Nothing, loc.Get("update_download_error_title"), "Errore Download Aggiornamento"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            )
+            Try
+                If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
+            Catch
+            End Try
+            Return
+        End Try
 
-            Dim expectedHash = releaseInfo.ExpectedSha256
+        Try
+            ' 3. Verifica di integrità crittografica (SHA-256 calcolato direttamente dal file)
+            Dim computedSha256 As String
+            Using fs = File.OpenRead(tempZipPath)
+                computedSha256 = Await ComputeSha256Async(fs)
+            End Using
+            Debug.WriteLine($"Downloaded update file SHA-256: {computedSha256}")
 
-            ' Se non presente nelle note di rilascio, prova a scaricare il file di checksum allegato agli asset
-            If String.IsNullOrEmpty(expectedHash) AndAlso Not String.IsNullOrEmpty(releaseInfo.Sha256Url) Then
-                Try
-                    Debug.WriteLine($"Downloading SHA-256 checksum file from: {releaseInfo.Sha256Url}")
-                    Dim checksumContent = Await _httpClient.GetStringAsync(releaseInfo.Sha256Url)
-                    expectedHash = ExtractSha256FromText(checksumContent, releaseInfo.ZipFileName)
-                Catch ex As Exception
-                    Debug.WriteLine($"Could not download or parse checksum asset: {ex.Message}")
-                End Try
-            End If
-
-            ' Se è disponibile un hash atteso, esegui il confronto di integrità
-            If Not String.IsNullOrEmpty(expectedHash) Then
-                If Not String.Equals(computedSha256, expectedHash, StringComparison.OrdinalIgnoreCase) Then
-                    Debug.WriteLine($"SHA-256 mismatch! Computed: {computedSha256}, Expected: {expectedHash}")
-                    MessageBox.Show(
-                        "Verifica di integrità fallita!" & vbCrLf & vbCrLf &
-                        "L'impronta crittografica SHA-256 del file di aggiornamento scaricato non corrisponde a quella attesa:" & vbCrLf & vbCrLf &
-                        $"Hash calcolato: {computedSha256}" & vbCrLf &
-                        $"Hash atteso:    {expectedHash}" & vbCrLf & vbCrLf &
-                        "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.",
-                        "Errore Integrità Aggiornamento",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error
-                    )
-                    Return
-                Else
-                    Debug.WriteLine($"Update integrity verified successfully with SHA-256: {computedSha256}")
-                End If
+            If Not String.Equals(computedSha256, expectedHash, StringComparison.OrdinalIgnoreCase) Then
+                Debug.WriteLine($"SHA-256 mismatch! Computed: {computedSha256}, Expected: {expectedHash}")
+                Dim mismatchMsg = If(loc IsNot Nothing,
+                    loc.Get("update_checksum_mismatch", New Dictionary(Of String, String) From {{"computed", computedSha256}, {"expected", expectedHash}}),
+                    "Verifica di integrità fallita!" & vbCrLf & vbCrLf &
+                    "L'impronta crittografica SHA-256 del file di aggiornamento scaricato non corrisponde a quella attesa:" & vbCrLf & vbCrLf &
+                    $"Hash calcolato: {computedSha256}" & vbCrLf &
+                    $"Hash atteso:    {expectedHash}" & vbCrLf & vbCrLf &
+                    "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.")
+                MessageBox.Show(
+                    mismatchMsg,
+                    If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                )
+                Return
             Else
-                Debug.WriteLine($"No SHA-256 checksum found for this release. Computed hash: {computedSha256}. Verified via HTTPS transport.")
+                Debug.WriteLine($"Update integrity verified successfully with SHA-256: {computedSha256}")
             End If
 
-            Await File.WriteAllBytesAsync(tempZipPath, zipBytes)
-
-            ' 3. Estrai l'archivio temporaneo
+            ' 4. Estrai l'archivio temporaneo
             If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
             Directory.CreateDirectory(tempDir)
             ZipFile.ExtractToDirectory(tempZipPath, tempDir, True)
 
             ' Gestisci eventuale sottocartella singola estratta dallo ZIP
             Dim sourceDir = tempDir
-            Dim subDirs = Directory.GetDirectories(tempDir)
             Dim exeInTemp = Directory.GetFiles(tempDir, "HidaChat.exe", SearchOption.AllDirectories)
             If exeInTemp.Length > 0 Then
                 sourceDir = Path.GetDirectoryName(exeInTemp(0))
+
+                ' 4b. Verifica firma digitale Authenticode se presente sull'eseguibile (Punto 57)
+                Dim auth = VerifyAuthenticodeSignature(exeInTemp(0))
+                If auth.HasSignature Then
+                    Debug.WriteLine($"Authenticode signature detected: Valid={auth.IsValid}, Signer={auth.SignerName}")
+                    If Not auth.IsValid Then
+                        Debug.WriteLine("Security abort: Authenticode signature is present but INVALID.")
+                        Dim sigErrMsg = If(loc IsNot Nothing,
+                            loc.Get("update_signature_invalid"),
+                            "Verifica della firma digitale fallita sull'eseguibile di aggiornamento." & vbCrLf & vbCrLf &
+                            "L'installazione è stata interrotta per garantire la sicurezza del sistema.")
+                        MessageBox.Show(
+                            sigErrMsg,
+                            If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error
+                        )
+                        Return
+                    End If
+                Else
+                    Debug.WriteLine("Authenticode signature not present on update binary (verified via SHA-256).")
+                End If
             End If
 
-            ' Marca la versione locale prima del riavvio
-            WriteLocalVersionMarker(installDir, latestVersion)
+            ' NOTA PUNTO 57: WriteLocalVersionMarker rimosso da qui! Il marker viene scritto esclusivamente dallo script batch DOPO robocopy con successo.
 
-            ' 4. Crea ed esegui lo script batch di sostituzione file
+            ' 5. Crea ed esegui lo script batch di sostituzione file
             Dim logFile = Path.Combine(installDir, ".update_log.txt")
             Dim batchPath = Path.Combine(tempDir, "update.bat")
             Dim sbBatch As New System.Text.StringBuilder()
@@ -444,6 +556,7 @@ Public Class UpdateChecker
             sbBatch.AppendLine(")")
             sbBatch.AppendLine($"echo v{latestVersion}>""{installDir}\.app_version""")
             sbBatch.AppendLine("echo [%date% %time%] Version marker written >> %LOG%")
+            sbBatch.AppendLine($"if exist ""{tempZipPath}"" del /f /q ""{tempZipPath}""")
             sbBatch.AppendLine("echo [%date% %time%] Launching app... >> %LOG%")
             sbBatch.AppendLine($"start """" ""{installDir}\HidaChat.exe""")
             sbBatch.AppendLine("echo [%date% %time%] Done >> %LOG%")
