@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.0] - 2026-09-19
+
+### Release Stabile (General Availability Milestone) — Supporto 4 Piattaforme (WhatsApp, Telegram, OpenClaw, Hermes), Stabilità Consolidata e Portabilità Assoluta
+- **Milestone Ufficiale v1.0.0 (Release Stabile)**:
+  - Primo rilascio ufficiale stabile (General Availability) di HidaChat: client desktop Windows (.NET 9 / WPF) per messaggistica e agenti IA, 100% portabile, privo di framework pesanti come Electron e ottimizzato per alte prestazioni.
+- **Supporto Piattaforme Consolidato a 4 Ecosistemi (`AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml`)**:
+  - **WhatsApp Web**: Istanza WebView2 isolata, QR scan immediato, messaggistica istantanea, supporto Bulk Sender e traduzione al volo.
+  - **Telegram Web**: Pieno supporto Telegram Web A / K / Z con badging unread accurato (`navigator.setAppBadge`), eliminazione falsi positivi e notifica istantanea.
+  - **OpenClaw (Autonomous AI Agent Gateway & Web UI)**: Integrazione completa console web con connessione mesh VPN Tailscale trasparente tramite il companion daemon `tsnetd.exe` (Go statico), porta proxy locale deterministica (`18800+`), token di sicurezza deterministico e conservazione identità Ed25519 (elimina la necessità di approvazione ripetuta `openclaw devices approve`).
+  - **Hermes Agent (Nous Research)**: Integrazione Web Console e Dashboard IA per agenti Hermes, autenticazione Bearer Token automatica in WebView2, connettività diretta locale (`http://127.0.0.1:9119`) o remota via Tailscale Mesh VPN (`18900+`), con branding grafico dedicato (icona elmo alato azzurro `#00B0FF`).
+- **Indicatori Notifiche Real-Time & Bollino Rosso Reattivo (`MainWindow.xaml`, `AppAccounts.vb`, `Scripts/notification.js`)**:
+  - Sistema consolidato di badge non letti dinamico sulle schede (bollino compatto o pillola con contatore numerico esatto `1`, `2`, `99+`), sincronizzato in modo asincrono sul Dispatcher WPF.
+- **Staggered Preload & Preservazione Cache V8 (`MainWindow.xaml.vb`, `AccountManager.vb`)**:
+  - Priorità istantanea alla scheda attiva (pronta in 1-2 secondi), pre-riscaldamento scaglionato degli altri account in background a intervalli di 1.5s per azzerare i picchi di risorse, e preservazione delle cartelle bytecode V8 (`Code Cache`) per azzerare i tempi di caricamento tra una riapertura e l'altra.
+- **Resilienza e Auto-Recovery (`AppAccounts.vb`)**:
+  - Gestione trasparente di eventuali crash del runtime WebView2 (`ProcessFailed` / `RenderProcessExited`) con ripristino automatico e indolore della sessione.
+- **Invio Massivo Personalizzato (Bulk Sender Engine)**:
+  - Automazione invio messaggi da file Excel (`.xlsx`, `.xls`) e CSV con mapping intelligente colonne, segnaposto dinamici (`{Nome}`, `{Azienda}`, ecc.) e protezione naturale anti-spam con jitter timer minimo di 30 secondi.
+- **Documentazione Completa Aggiornata (`README.md`, `README.it.md`, `ANALISI_PROGETTO.md`)**:
+  - Documentate le 4 piattaforme supportate con istruzioni dettagliate passo-passo per la configurazione di account OpenClaw ed Hermes Agent (parametri gateway, token di autenticazione, supporto Tailscale Mesh).
+
 ## [0.9.5-beta] - 2026-09-18
 
 ### Pre-release / Beta — Supporto Completo & Preciso Notifiche e Bollini Telegram Web

@@ -2,9 +2,11 @@
 
 ## 1. SCOPO DELL'APPLICAZIONE
 
-**HidaChat** (versione 0.9.0, precedentemente nota come WhatsAppVB / "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per **WhatsApp Web** e **Telegram Web**. È un **wrapper avanzato** che carica le piattaforme all'interno di controlli **WebView2** (Chromium Edge) indipendenti, aggiungendo funzionalità esclusive non disponibili nei browser standard:
+**HidaChat** (versione **1.0.0**, precedentemente nota come WhatsAppVB / "WhatsApp Portable") è un **client WPF desktop multipiattaforma Windows** per **WhatsApp Web**, **Telegram Web**, **OpenClaw** (Gateway e Web UI per agenti IA autonomi) ed **Hermes Agent** (Nous Research). È un **wrapper avanzato** che carica le piattaforme all'interno di controlli **WebView2** (Chromium Edge) indipendenti, aggiungendo funzionalità esclusive non disponibili nei browser standard:
 
-- **Multi-piattaforma & Multi-account**: gestione simultanea di account WhatsApp e Telegram in tab separati con precaricamento istantaneo
+- **Multi-piattaforma & Multi-account**: gestione simultanea di account WhatsApp, Telegram, OpenClaw ed Hermes Agent in schede separate con precaricamento istantaneo
+- **Integrazione Rete Mesh VPN Tailscale (tsnet)**: companion daemon `tsnetd.exe` statico in Go per connettere istanze OpenClaw ed Hermes su reti mesh private senza installare client esterni sul sistema operativo host
+- **Persistenza Identità Dispositivo Deterministica**: porte proxy fisse (`18800+` per OpenClaw, `18900+` per Hermes) e token locale sicuro per azzerare continue riapprovazioni crittografiche (IndexedDB Ed25519)
 - **Invio Massivo Personalizzato da Excel / CSV**: importazione rubriche con segnaposto dinamici (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Testo}`) e delay anti-spam
 - **Tema scuro/chiaro personalizzato** con rilevamento automatico del tema di sistema Windows e sincronizzazione completa (inclusa interfaccia Telegram Web)
 - **Traduzione integrata dei messaggi**: hover button per tradurre singoli messaggi, traduzione batch dell'intera pagina e traduzione notifiche
@@ -24,9 +26,11 @@
 | UI | **WPF** (Windows Presentation Foundation) + `UseWindowsForms` per System Tray |
 | Embedded Browser | **Microsoft.Web.WebView2** v1.0.4078.44 (Chromium Edge) |
 | Notifiche native | **Microsoft.Toolkit.Uwp.Notifications** v7.1.3 (Toast notifications) |
+| Invio massivo / Excel | **ExcelDataReader** v3.9.0 e **ExcelDataReader.DataSet** v3.9.0 |
+| Companion Mesh VPN | **tsnetd.exe** (Go static binary con stack gVisor e WireGuard Tailscale) |
 | IDE | Visual Studio 2022 |
 | Serializzazione | `System.Text.Json` |
-| Traduzioni UI | **Pre-compilate** (dizionari `EnStrings`/`ItStrings`) |
+| Traduzioni UI | **Pre-compilate** (dizionari `EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) |
 | Traduzione messaggi | **Google Translate API** non ufficiale (`translate.googleapis.com`) |
 | Tema di sistema rilevato | Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` |
 | Repository OTA | GitHub Releases API (`https://api.github.com/repos/hidaba/HidaChat/releases`) |
@@ -45,9 +49,9 @@ Application.xaml
           ├── TitleBar (barra personalizzata)
           ├── AccountTabs (barra orizzontale degli account)
           └── WebViewsGrid (contenitore WebView2 per ogni account)
-                └── SettingsWindow (dialog modale)
-                      ├── Theme/Language settings
-                      └── Account management
+                ├── SettingsWindow (dialog modale impostazioni)
+                ├── BulkSenderWindow (invio massivo Excel/CSV)
+                └── AboutWindow (informazioni versione e licenza)
 ```
 
 **Classi di servizio (core logic):**
@@ -55,11 +59,12 @@ Application.xaml
 ```
 SettingsController  ←→  settings.json       (persistenza impostazioni)
 AccountManager      ←→  AccountManager      (gestione lista account)
-AppAccounts         ──  WebView2 (per-account WhatsApp/Telegram)
+AppAccounts         ──  WebView2 (per-account WhatsApp/Telegram/OpenClaw/Hermes)
+TsnetManager        ──  tsnetd.exe          (demone companion Tailscale Mesh VPN)
 UpdateChecker       ──  GitHub Releases API (check OTA con verifica SHA-256)
 AppLocalizations    ──  Google Translate API (localizzazione UI + traduzione messaggi)
 JsScripts           ──  JavaScript injection in WebView2
-BulkSenderEngine    ──  Automazione invio sequenziale WhatsApp Web
+BulkSenderEngine    ──  Automazione invio sequenziale WhatsApp / Telegram Web
 ExcelContactService ──  Parsing e normalizzazione rubriche Excel (.xlsx, .xls) e CSV
 ```
 
@@ -123,31 +128,41 @@ ExcelContactService ──  Parsing e normalizzazione rubriche Excel (.xlsx, .xl
 - **HandleNotificationStateChanged**: aggiorna `HasAnyNotification` flag
 - **Extension**: `IEnumerableExtensions.Map` (wrapper per LINQ Select)
 
-### `WhatsAppAccount.vb` – Modello account (324 righe)
+### `AppAccounts.vb` – Modello account e gestione WebView2 per-account
 - **Proprietà**:
   - `Id` (string), `Name` (string), `IsActive` (bool)
-  - `HasNotification` (bool, JsonIgnore)
+  - `Platform` (string): `"WhatsApp"`, `"Telegram"`, `"OpenClaw"` o `"Hermes"`
+  - `IsOpenClaw` (bool), `IsHermes` (bool), `IsTelegram` (bool), `IsWhatsApp` (bool)
+  - `ServerUrl` (string): URL per OpenClaw (default `http://127.0.0.1:18789`) o Hermes (default `http://127.0.0.1:9119`)
+  - `AuthToken` (string): Token di accesso o API Key per il gateway
+  - `TailscaleIntegration` (bool): abilita tunneling privato sicuro tramite companion demone `tsnetd`
+  - `LocalProxyPort` (int): porta loopback deterministica (`18800+` per OpenClaw, `18900+` per Hermes)
+  - `HasNotification` (bool), `UnreadCount` (int), `IsContactOnline` (bool)
   - `BridgeToken` (string, JsonIgnore) – token univoco di sicurezza per ponte JS↔VB.NET
   - `WebView` (WebView2, JsonIgnore)
-  - `ActiveNotificationIds` (HashSet(Of String))
 - **SharedDataDirectory**: `baseDir/data/webview/`
-- **GenerateId**: `"account_" + UnixTimeMs`
-- **GenerateBridgeToken**: `"bt_" + timestamp + "_" + random 6-digit`
 - **SetupWebViewAsync**:
-  1. Crea directory profilo `WV2Profile_{id}`
+  1. Crea directory profilo `WV2Profile_{id}` isolata per ciascuna sessione
   2. Crea `CoreWebView2Environment` isolato puntando al profilo
-  3. Configura: WebMessage abilitato, DevTools abilitati
-  4. **NewWindowRequested**: link WhatsApp naviga nello stesso WebView, altri link si aprono nel browser di sistema
-  5. **WebMessageReceived**: bridge JSON bidirezionale (canali Notification e Translation)
-  6. **NavigationCompleted**: inietta bridge token, tema CSS, override notifiche JS, script di traduzione
-  7. Naviga a `https://web.whatsapp.com/`
-- **HandleWebMessageAsync**: verifica `bridgeToken`, smista su canale Notification o Translation
-- **HandleNotificationMessageAsync**: gestisce NOTIFICATION_RECEIVED (crea Toast notification nativa) e NOTIFICATION_CLOSED
-- **HandleTranslationMessageAsync**: gestisce singola traduzione (`type="BATCH_TRANSLATE"` o singola), chiama `AppLocalizations.TranslateSingle`, restituisce via `ExecuteScriptAsync` callback JS
-- **UpdateWebviewLanguageAsync**: chiama `window.setTargetLanguage()` nel WebView
+  3. Per OpenClaw ed Hermes con Tailscale: avvia istanza `TsnetManager` dedicata con porta locale deterministica
+  4. Per Hermes: inietta header `Authorization: Bearer <token>` tramite filtro `WebResourceRequested`
+  5. Configura bridge JSON bidirezionale e script di notifica e traduzione
+  6. Naviga verso la destinazione appropriata:
+     - **WhatsApp**: `https://web.whatsapp.com/`
+     - **Telegram**: `https://web.telegram.org/a/`
+     - **OpenClaw**: `http://127.0.0.1:<LocalProxyPort>` (se Tailscale) o `ServerUrl`
+     - **Hermes**: `http://127.0.0.1:<LocalProxyPort>` (se Tailscale) o `ServerUrl`
+- **Auto-Recovery**: intercetta l'evento `ProcessFailed` del runtime WebView2 ed esegue un ripristino automatico istantaneo.
+
+### `TsnetManager.vb` – Controller Companion Tailscale Mesh VPN
+- Gestisce l'esecuzione e il ciclo di vita del demone Go companion `tsnetd.exe`.
+- Avvia il processo in background passando parametri di configurazione isolati (`-target`, `-local-port`, `-local-token`, `-node-name`, `-state-dir`).
+- Monitora l'endpoint interno `/tsnet-status` fino al completamento dell'handshake WireGuard (`Running`), garantendo che la WebView2 non riceva errori di caricamento pagina.
+- Rilascia e termina in modo pulito il demone alla chiusura della scheda o dell'applicazione.
 
 ### `Constants.vb` – Costanti globali
-- `AppVersion = "1.2.1"`
+- `AppVersion = "1.0.0"`
+- `AppReleaseDate = "2026-09-19"`
 - `GitHubReleasesApiUrl = "https://api.github.com/repos/hidaba/HidaChat/releases"`
 - `GitHubLatestReleaseApiUrl = "https://api.github.com/repos/hidaba/HidaChat/releases/latest"`
 - `MutexId = "Local\HidaChat_SingleInstance_Mutex"`
@@ -329,23 +344,33 @@ Tre classi statiche che contengono JavaScript inline:
 
 ```
 WhatsAppVB/
-├── WhatsAppVB.sln
-├── WhatsAppVB.vbproj
-├── ANALISI_PROGETTO.md                ← Questo documento
+├── HidaChat.sln                       ← Soluzione Visual Studio
+├── HidaChat.vbproj                    ← File di progetto .NET 9 WPF
+├── ANALISI_PROGETTO.md                ← Questo documento di analisi tecnica
 ├── Application.xaml / .vb             ← Entry point WPF + Mutex single instance
-├── AssemblyInfo.vb                    ← Tema WPF
-├── Constants.vb                       ← Versioni e percorsi OTA
-├── MainWindow.xaml / .vb              ← Finestra principale (345 righe)
-├── AccountManager.vb                  ← Gestione multi-account (258 righe)
-├── WhatsAppAccount.vb                 ← Modello account + WebView bridge (321 righe)
-├── SettingsController.vb              ← Impostazioni e persistenza (345 righe)
-├── SettingsWindow.xaml / .vb          ← Finestra impostazioni modale (225+270 righe)
-├── Localization.vb                    ← Traduzioni UI pre-compilate (205 righe)
-├── JsScripts.vb                       ← Script JS iniettati (606 righe)
-├── UpdateChecker.vb                   ← Controllo aggiornamenti OTA (157 righe)
-├── images/
-│   ├── icon.ico
-│   └── icon_notification.ico
-├── settings.json                      ← Impostazioni utente (generato a runtime)
-└── translations_cache.json            ← Cache traduzioni (generato a runtime)
+├── AssemblyInfo.vb                    ← Informazioni assembly e tema WPF
+├── Constants.vb                       ← Versione (v1.0.0), metadati e costanti OTA
+├── MainWindow.xaml / .vb              ← Finestra principale e tab manager
+├── AccountManager.vb                  ← Gestione accounts (load/save/switch/create)
+├── AppAccounts.vb                     ← Modello account (WhatsApp/Telegram/OpenClaw/Hermes)
+├── TsnetManager.vb                    ← Gestione companion daemon Tailscale Mesh VPN
+├── SettingsController.vb              ← Controller impostazioni e persistenza JSON
+├── SettingsWindow.xaml / .vb          ← Finestra impostazioni modale
+├── BulkSenderEngine.vb                ← Motore invio sequenziale automatizzato
+├── BulkSenderWindow.xaml / .vb        ← Finestra invio massivo da Excel/CSV
+├── BulkContactItem.vb                 ← Modello contatto per invio massivo
+├── ExcelContactService.vb             ← Parser e normalizzatore Excel e CSV
+├── AboutWindow.xaml / .vb             ← Finestra Informazioni su HidaChat
+├── Localization.vb                    ← Dizionari localizzazione (IT, EN, FR, ES, DE)
+├── JsScripts.vb                       ← Script JS iniettati in WebView2
+├── UpdateChecker.vb                   ← Controllo aggiornamenti OTA via GitHub Releases
+├── tsnetd/                            ← Companion daemon Tailscale Mesh VPN (Go)
+│   ├── main.go                        ← Sorgente Go con stack gVisor/WireGuard
+│   ├── go.mod
+│   └── go.sum
+├── tsnetd.exe                         ← Eseguibile companion Go compilato
+├── images/                            ← Icone e asset grafici
+├── manifests/winget/                  ← Manifest per Windows Package Manager
+├── publish.ps1                        ← Script PowerShell di build e pubblicazione
+└── data/                              ← Dati applicazione e profili WebView2 isolati (creato a runtime)
 ```

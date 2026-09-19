@@ -1,7 +1,7 @@
-﻿# yaml-language-server: =https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# yaml-language-server: =https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 
 PackageIdentifier: hidaba.HidaChat
-PackageVersion: 0.5.1
+PackageVersion: 1.0.0
 MinimumOSVersion: 10.0.19041.0
 InstallerType: zip
 NestedInstallerType: portable
@@ -10,10 +10,10 @@ NestedInstallerFiles:
     PortableCommandAlias: hidachat
 Commands:
   - hidachat
-ReleaseDate: 2026-08-19
+ReleaseDate: 2026-09-19
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/hidaba/HidaChat/releases/download/v0.5.1/HidaChat-v0.5.1.zip
-    InstallerSha256: ED30493A2BF50131F95EDD0C17BF7F2650BDE93876C3C5CAB28622BC55F314DE
+    InstallerUrl: https://github.com/hidaba/HidaChat/releases/download/v1.0.0/HidaChat-v1.0.0.zip
+    InstallerSha256: F49621EB853CB36D9A30E0F331CBAA0E6D01CBE948FF29D33E84BF867DBFCFF2
 ManifestType: installer
 ManifestVersion: 1.6.0

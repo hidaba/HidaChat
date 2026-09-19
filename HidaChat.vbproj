@@ -7,7 +7,7 @@
     <AssemblyName>HidaChat</AssemblyName>
     <Product>HidaChat</Product>
     <AssemblyTitle>HidaChat</AssemblyTitle>
-    <Description>Multi-platform Desktop Client (WhatsApp, Telegram, Teams, etc.)</Description>
+    <Description>Multi-platform Desktop Client (WhatsApp, Telegram, OpenClaw, Hermes, etc.)</Description>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>images\icon.ico</ApplicationIcon>

@@ -107,10 +107,10 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="HidaChat" Foreground="#ffffff" FontSize="20" FontWeight="Bold"/>
                             <Border Background="#00a884" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                <TextBlock x:Name="TxtVersionTag" Text="v0.3.0" Foreground="#ffffff" FontSize="11" FontWeight="Bold"/>
+                                <TextBlock x:Name="TxtVersionTag" Text="v1.0.0" Foreground="#ffffff" FontSize="11" FontWeight="Bold"/>
                             </Border>
                         </StackPanel>
-                        <TextBlock x:Name="TxtDescription" Text="Client desktop multi-account portabile e leggero per Windows (WhatsApp, Telegram, Teams, ecc.)." 
+                        <TextBlock x:Name="TxtDescription" Text="Client desktop multi-account portabile e leggero per Windows (WhatsApp, Telegram, OpenClaw, Hermes)." 
                                    Foreground="#aebac1" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     </StackPanel>
                 </StackPanel>

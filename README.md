@@ -3,7 +3,7 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.it.md)
 
-**Portable Windows Desktop Client (.NET 9 / WPF)** featuring **Multi-Account & Multi-Platform** tab management (**WhatsApp Web** & **Telegram Web**), **Instant Background Preloading**, **Built-In Message Translation**, **Native Toast Notifications & Popups**, and **Zero Installation**.
+**Portable Windows Desktop Client (.NET 9 / WPF)** featuring **Multi-Account & Multi-Platform** tab management (**WhatsApp Web**, **Telegram Web**, **OpenClaw**, and **Hermes Agent**), **Instant Background Preloading**, **Built-In Message Translation**, **Native Toast Notifications & Popups**, and **Zero Installation**.
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
@@ -50,7 +50,8 @@ Get the latest ready-to-use portable release for Windows (ZIP archive):
 |---|:---:|:---:|:---:|:---:|
 | **Installation Required** | ❌ **No (100% Portable)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Moveable Data / Portable** | ✅ **Yes (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
-| **Multi-Platform in One App** | ✅ **Yes (WhatsApp & Telegram)** | ❌ WhatsApp only | ❌ Telegram only | ❌ WhatsApp only |
+| **Multi-Platform in One App** | ✅ **Yes (4 Platforms)** | ❌ WhatsApp only | ❌ Telegram only | ❌ WhatsApp only |
+| **AI Agent Gateway (OpenClaw & Hermes)** | ✅ **Yes (via Tailscale Mesh & Local)** | ❌ No | ❌ No | ❌ No |
 | **Multi-Account Tabs** | ✅ **Yes (Isolated Profiles)** | ❌ No | ⚠️ Switcher only | ✅ Yes |
 | **Bulk Sender (Excel & CSV)** | ✅ **Yes (WhatsApp & Telegram)** | ❌ No | ❌ No | ❌ No |
 | **Instant Tab Preloading** | ✅ **Yes (Zero Reload Lag)** | ❌ No | ❌ No | ❌ No |
@@ -71,12 +72,16 @@ Get the latest ready-to-use portable release for Windows (ZIP archive):
 - **Anti-Spam Delay Protection**: Configurable natural jitter delay with a strict **30-second minimum security threshold** and live countdown timer to safeguard accounts from spam flags.
 - **Full Execution Controls**: Pause, Resume, Stop immediately, and monitor per-contact statuses (`Pending`, `Sending...`, `Sent ✔`, `Error ✖`, `Invalid`).
 
-### 👥 Multi-Account & Multi-Platform (WhatsApp & Telegram)
-- **Simultaneous Accounts**: Manage up to 3 separate accounts (**WhatsApp Web** and **Telegram Web**) in distinct horizontal tabs.
+### 👥 Multi-Account & Multi-Platform (WhatsApp, Telegram, OpenClaw, Hermes)
+- **4 Supported Ecosystems**: Manage simultaneous accounts across instant messaging and autonomous AI agents in distinct horizontal tabs:
+  - 🟢 **WhatsApp Web**: Full web client with QR code login, real-time messaging, audio/video preview, instant message translation, and bulk sender integration.
+  - 🔷 **Telegram Web**: Full support for Telegram Web A, K, and Z with accurate Badging API integration (`navigator.setAppBadge`), zero phantom unread counts, and real-time alerts.
+  - 🟠 **OpenClaw (Autonomous AI Agent Gateway & Web UI)**: Native support for OpenClaw web UI. Connects seamlessly to local gateways (`http://127.0.0.1:18789`) or remote private tailnets via the built-in Tailscale mesh VPN daemon (`tsnetd.exe`). Uses deterministic local proxy ports (`18800+`) and persistent identity tokens so IndexedDB Ed25519 device keys remain permanent, eliminating repeated `openclaw devices approve` confirmations.
+  - 🌐 **Hermes Agent (Nous Research)**: Native dashboard and web console for Hermes AI agent instances. Features automatic `Authorization: Bearer <token>` injection in WebView2, local connectivity (`http://127.0.0.1:9119`), remote Tailscale mesh tunneling (`18900+`), and dedicated Hermes cyan branding (`#00B0FF`).
 - **Isolated WebView2 Profiles**: Each tab maintains its own independent cache, cookies, local storage, and login session under `data/webview/`.
 - **Instant Preloading**: Accounts are preloaded in the background on startup (prioritizing the active account), allowing zero-delay, instant switching between tabs without page reloads or black screen glitches.
-- **Quick Platform Selector**: Click the `+` button in the tab bar or in Settings to instantly add a WhatsApp or Telegram tab with dedicated brand icons (WhatsApp green, Telegram cyan).
-- **Background Notifications**: Even while chatting on Telegram, WhatsApp keeps receiving real-time WebSocket messages and triggers native Windows toasts and overlay popups, and vice versa.
+- **Quick Platform Selector**: Click the `+` button in the tab bar or in Settings to instantly add a WhatsApp, Telegram, OpenClaw, or Hermes tab with dedicated brand icons.
+- **Background Notifications**: Even when switching tabs or using AI agent consoles, messaging tabs keep receiving real-time WebSocket messages and trigger native Windows toasts and overlay popups.
 
 ### 🌐 Integrated Translation Engine
 - **Hover Button**: Hover over any incoming or outgoing message to display an instant translation button.
@@ -122,12 +127,14 @@ Alternatively, open `HidaChat.sln` in **Visual Studio 2022** (.NET 9 SDK install
 
 ## 📖 Quick Start Guide
 
-1. **Add Accounts**: Launch `HidaChat.exe`. Click the `+` button on the top tab bar to choose between **WhatsApp** or **Telegram**.
-2. **Log In**:
-   - **WhatsApp**: Scan the displayed QR code using the WhatsApp mobile app (*Linked Devices*).
-   - **Telegram**: Scan the QR code with your Telegram mobile app or log in with your phone number / SMS code.
-3. **Rename Tabs**: Right-click on any tab header and select **Rename** to customize the label.
-4. **Translate Messages**: Hover over any chat bubble to show the translation button 🌐.
+1. **Add Accounts**: Launch `HidaChat.exe`. Click the `+` button on the top tab bar to choose from **WhatsApp**, **Telegram**, **OpenClaw**, or **Hermes Agent**.
+2. **Log In & Connect**:
+   - **WhatsApp**: Scan the displayed QR code using your WhatsApp mobile app (*Linked Devices*).
+   - **Telegram**: Scan the QR code with your Telegram mobile app or log in via phone number / SMS code.
+   - **OpenClaw**: Enter your Gateway URL (default `http://127.0.0.1:18789` or remote Tailnet IP/hostname) and Auth Token. Enable **Tailscale Mesh Integration** if connecting over a private Tailnet without installing Tailscale on Windows. Click **Test Connection** to verify status.
+   - **Hermes Agent**: Enter the Hermes URL (default `http://127.0.0.1:9119` or remote Tailnet address) and Auth Token / API Key (automatically injected as Bearer token). Enable **Tailscale Mesh Integration** if needed, and click **Test Connection**.
+3. **Rename & Organize Tabs**: Right-click on any tab header and select **Rename** to customize the label, or configure accounts anytime via Settings (⚙️).
+4. **Translate Messages**: Hover over any chat bubble in WhatsApp or Telegram to display the instant translation button 🌐.
 
 ### 🕹️ Title Bar Controls
 

@@ -1,7 +1,7 @@
-﻿# yaml-language-server: =https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+# yaml-language-server: =https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 
 PackageIdentifier: hidaba.HidaChat
-PackageVersion: 0.5.1
+PackageVersion: 1.0.0
 PackageLocale: en-US
 Publisher: Massimo Balestrieri (hidaba)
 PublisherUrl: https://github.com/hidaba
@@ -11,21 +11,25 @@ PackageUrl: https://github.com/hidaba/HidaChat
 License: Apache-2.0
 LicenseUrl: https://github.com/hidaba/HidaChat/blob/master/LICENSE.txt
 Copyright: Copyright (c) Massimo Balestrieri (hidaba)
-ShortDescription: Portable Windows desktop client (.NET 9 / WPF) with multi-account tabs for WhatsApp and Telegram, built-in message translation, and background preloading.
+ShortDescription: Portable Windows desktop client (.NET 9 / WPF) with multi-account tabs for WhatsApp, Telegram, OpenClaw, and Hermes Agent, message translation, and Tailscale mesh VPN support.
 Description: |-
-  HidaChat is a modern, lightweight, and 100% portable Windows desktop client (.NET 9 / WPF) designed to run multiple WhatsApp Web and Telegram Web accounts simultaneously in organized horizontal tabs.
+  HidaChat is a modern, lightweight, and 100% portable Windows desktop client (.NET 9 / WPF) designed to run multiple WhatsApp Web, Telegram Web, OpenClaw AI Gateway, and Hermes Agent accounts simultaneously in organized horizontal tabs.
   
   Key Features:
-  - Multi-Account & Multi-Platform: Run multiple WhatsApp and Telegram accounts concurrently with fully isolated session sandboxes and profiles.
+  - Multi-Account & Multi-Platform: Run multiple WhatsApp, Telegram, OpenClaw, and Hermes Agent accounts concurrently with fully isolated session sandboxes and profiles.
+  - Tailscale Mesh VPN Integration: Connect securely to remote OpenClaw and Hermes instances over private tailnets via the built-in tsnetd companion daemon without host configuration.
   - Instant Startup & Preloading: The active account loads with top priority while background tabs pre-warm transparently, eliminating switching lag.
   - Built-In Message Translation: Hover over any incoming or outgoing message to translate it instantly, or translate entire chat threads with a single click.
   - 100% Portable (Zero Installation): All session data, settings, and cache remain self-contained inside the local data folder—ideal for USB flash drives.
-  - Native Notifications & Overlay Popups: Rich interactive toast notifications and visual corner popups with platform badges (WhatsApp / Telegram).
-  - Dark & Light Themes: Automatic synchronization with Windows system theme and custom injected styling for both WhatsApp and Telegram.
+  - Native Notifications & Overlay Popups: Rich interactive toast notifications and visual corner popups with platform badges.
+  - Dark & Light Themes: Automatic synchronization with Windows system theme and custom injected styling.
 Moniker: hidachat
 Tags:
   - whatsapp
   - telegram
+  - openclaw
+  - hermes
+  - ai-agents
   - multi-account
   - portable
   - instant-messaging
@@ -34,6 +38,6 @@ Tags:
   - webview2
   - wpf
   - dotnet
-ReleaseNotesUrl: https://github.com/hidaba/HidaChat/releases/tag/v0.5.1
+ReleaseNotesUrl: https://github.com/hidaba/HidaChat/releases/tag/v1.0.0
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

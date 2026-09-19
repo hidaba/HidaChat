@@ -1,5 +1,5 @@
 ---
-title: "Dietro le Quinte di HidaChat: Architettura di un Client Desktop Multi-Account Portabile per WhatsApp e Telegram in .NET 9"
+title: "Dietro le Quinte di HidaChat: Architettura di un Client Desktop Multi-Account Portabile per WhatsApp, Telegram, OpenClaw ed Hermes in .NET 9"
 date: "2026-08-19"
 author: "Massimo Balestrieri"
 category: "Software Engineering & Architecture"
@@ -9,20 +9,22 @@ tags:
   - WebView2
   - WhatsApp
   - Telegram
+  - OpenClaw
+  - Hermes
   - MultiAccount
   - Windows
   - Performance
   - OpenSource
-summary: "Analisi tecnica approfondita sull'ingegnerizzazione di HidaChat: come abbiamo combinato .NET 9, WPF e Microsoft Edge WebView2 per creare un client desktop per WhatsApp e Telegram leggero, privo di Electron, 100% portabile e con traduzione istantanea."
+summary: "Analisi tecnica approfondita sull'ingegnerizzazione di HidaChat: come abbiamo combinato .NET 9, WPF e Microsoft Edge WebView2 per creare un client desktop per WhatsApp, Telegram e agenti IA (OpenClaw, Hermes) leggero, privo di Electron, 100% portabile e con traduzione istantanea."
 cover_image: "https://raw.githubusercontent.com/hidaba/HidaChat/master/images/social_preview.png"
 github_url: "https://github.com/hidaba/HidaChat"
 ---
 
-# Dietro le Quinte di HidaChat: Architettura di un Client Desktop Multi-Account Portabile per WhatsApp e Telegram in .NET 9
+# Dietro le Quinte di HidaChat: Architettura di un Client Desktop Multi-Account Portabile per WhatsApp, Telegram, OpenClaw ed Hermes in .NET 9
 
 ![HidaChat Social Preview](https://raw.githubusercontent.com/hidaba/HidaChat/master/images/social_preview.png)
 
-I moderni strumenti di messaggistica istantanea come **WhatsApp** e **Telegram** sono diventati indispensabili per il lavoro e la vita privata. Tuttavia, chiunque debba gestire contemporaneamente account personali, aziendali o multi-piattaforma su Windows si scontra presto con limiti architetturali evidenti:
+I moderni strumenti di messaggistica istantanea come **WhatsApp** e **Telegram**, uniti ai gateway di agenti IA come **OpenClaw** ed **Hermes Agent**, sono diventati indispensabili per il lavoro e la produttività. Tuttavia, chiunque debba gestire contemporaneamente account personali, aziendali o multi-piattaforma su Windows si scontra presto con limiti architetturali evidenti:
 
 1. **Client ufficiali rigidi**: le app desktop ufficiali non consentono agevolmente l'uso simultaneo di più account con profili separati nella stessa interfaccia.
 2. **La pesantezza di Electron**: la maggior parte dei wrapper alternativi si basa su Electron, istanziando per ogni finestra un intero runtime Node.js + Chromium, con consumi di RAM che superano facilmente i 500MB–1GB.
@@ -54,12 +56,13 @@ graph TD
     A[WPF Modern UI Container & Custom Chrome] --> B[AccountManager & Dispatcher Engine]
     B --> C1[AppAccount: WhatsApp Instance]
     B --> C2[AppAccount: Telegram Instance]
-    B --> C3[AppAccount: Secondary Account]
+    B --> C3[AppAccount: OpenClaw / Hermes Agent]
     C1 --> D1[Isolated WebView2 Profile 1 in data/webview/]
     C2 --> D2[Isolated WebView2 Profile 2 in data/webview/]
     C3 --> D3[Isolated WebView2 Profile 3 in data/webview/]
     C1 -. JS Injection / IPC .-> E1[notification.js & translation.js]
     C2 -. JS Injection / IPC .-> E2[notification.js & translation.js]
+    C3 -. Tailscale Mesh / Bearer Auth .-> E3[tsnetd companion / gateway]
 ```
 
 ### 1. Perché .NET 9 + WebView2 invece di Electron?

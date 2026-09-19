@@ -161,6 +161,15 @@ $zipFileName = [System.IO.Path]::GetFileName($zipPath)
 Set-Content -Path $sha256Path -Value "$fileHash  $zipFileName`r`n" -NoNewline
 Write-Host "Generated SHA-256 Checksum: $fileHash"
 
+# Update winget installer manifest SHA256 if present
+$wingetInstaller = Join-Path $PSScriptRoot "manifests\winget\hidaba.HidaChat.installer.yaml"
+if (Test-Path $wingetInstaller) {
+    $wContent = Get-Content $wingetInstaller -Raw
+    $wContent = $wContent -replace 'InstallerSha256:\s*[A-Fa-f0-9]+', "InstallerSha256: $($fileHash.ToUpper())"
+    Set-Content $wingetInstaller $wContent -NoNewline
+    Write-Host "Updated winget installer manifest SHA-256."
+}
+
 # --- Git Commit & Push ---
 if (-not $SkipGitHub) {
     Write-Host "Committing and pushing source code changes to GitHub..."
