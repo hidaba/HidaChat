@@ -2,7 +2,8 @@ param(
     [ValidateSet("major", "minor", "patch", "none")]
     [string]$Bump = "none",
     [switch]$SkipGitHub,
-    [switch]$Beta
+    [switch]$Beta,
+    [string]$Message = ""
 )
 
 $constantsPath = Join-Path $PSScriptRoot "Constants.vb"
@@ -178,7 +179,32 @@ if (-not $SkipGitHub) {
         git add -A
         $gitStatus = git status --porcelain
         if ($gitStatus) {
-            $commitMsg = "v$newVersion - Release $(if ($isBetaRelease) { 'Beta' } else { 'Stabile' })"
+            $commitMsg = $Message
+            if ([string]::IsNullOrWhiteSpace($commitMsg)) {
+                # Estrae la descrizione concreta della modifica dal CHANGELOG.md invece del solo numero di versione
+                if (Test-Path $changelogPath) {
+                    $clLines = Get-Content $changelogPath
+                    $foundVer = $false
+                    foreach ($line in $clLines) {
+                        if ($line -match "^##\s+\[$baseVersion(-beta)?\]") {
+                            $foundVer = $true
+                            continue
+                        }
+                        if ($foundVer) {
+                            if ($line -match "^##\s+\[") { break }
+                            if ($line -match "^###\s+(.+)") {
+                                $desc = $matches[1].Trim()
+                                $desc = $desc -replace '^(?:Release Stabile|Pre-release\s*/\s*Beta)\s*[—–-]\s*', ''
+                                if ($desc) { $commitMsg = $desc; break }
+                            }
+                        }
+                    }
+                }
+            }
+            if ([string]::IsNullOrWhiteSpace($commitMsg)) {
+                $commitMsg = "Aggiornamenti e miglioramenti alle funzionalità"
+            }
+            Write-Host "Git commit message: $commitMsg"
             git commit -m $commitMsg
             git push origin master
         }
