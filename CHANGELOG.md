@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.1-beta] - 2026-09-19
+## [1.0.1-beta] - 2026-09-20
 
 ### Pre-release / Beta — Hardening Download e Verifica Integrità Fail-Closed Aggiornamenti OTA
 - **Hardening del Download e Verifica Integrità Aggiornamenti OTA (`UpdateChecker.vb`, `Localization.vb`)**:

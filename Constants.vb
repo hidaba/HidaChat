@@ -11,7 +11,7 @@ Public Module Constants
     Public Const AppAuthor As String = "Massimo Balestrieri (hidaba)"
 
     ''' <summary>Data di rilascio della versione corrente.</summary>
-    Public Const AppReleaseDate As String = "2026-09-19"
+    Public Const AppReleaseDate As String = "2026-09-20"
 
     ''' <summary>Licenza software dell'applicazione.</summary>
     Public Const AppLicense As String = "Apache-2.0 License"
