@@ -11,6 +11,9 @@
 [![Total Downloads](https://img.shields.io/github/downloads/hidaba/HidaChat/total)](https://github.com/hidaba/HidaChat/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/hidaba/HidaChat)](https://github.com/hidaba/HidaChat/commits/master)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/HidaChat/build.yml?branch=master)](https://github.com/hidaba/HidaChat/actions)
+[![Piattaforme](https://img.shields.io/badge/Piattaforme-WhatsApp%20%7C%20Telegram%20%7C%20OpenClaw%20%7C%20Hermes-00a884.svg)](#-multi-account--multi-piattaforma-whatsapp-telegram-openclaw-hermes)
+[![Agenti IA](https://img.shields.io/badge/Agenti%20IA-OpenClaw%20%26%20Hermes-FF5722.svg)](#-guida-alla-connessione-degli-account-openclaw-ed-hermes-agent-passo-passo)
+[![Tailscale Mesh](https://img.shields.io/badge/Mesh%20VPN-Tailscale%20tsnet-24292E.svg?logo=tailscale&logoColor=white)](#-guida-alla-connessione-degli-account-openclaw-ed-hermes-agent-passo-passo)
 
 ---
 
@@ -148,6 +151,48 @@ In alternativa, puoi aprire la soluzione `HidaChat.sln` con **Visual Studio 2022
 
 ---
 
+## 🤖 Guida alla Connessione degli Account OpenClaw ed Hermes Agent (Passo-passo)
+
+HidaChat consente di affiancare ai tradizionali sistemi di messaggistica istantanea i gateway e le console web per agenti IA autonomi. Ciascuna scheda opera in una sandbox WebView2 isolata con memoria persistente, zero latenza di commutazione e pre-caricamento immediato in background.
+
+### 🟠 1. OpenClaw (Autonomous AI Agent Gateway & Web UI)
+
+OpenClaw connette HidaChat alle tue istanze di agenti IA autonomi in esecuzione in locale o su server privati.
+
+1. **Aggiunta dell'Account**: Clicca sul pulsante `+` nella barra delle schede in alto e seleziona **OpenClaw** (oppure vai in **Impostazioni (⚙️) ➔ Account ➔ Aggiungi account** e imposta **OpenClaw** nel menu a tendina della piattaforma).
+2. **URL Gateway / Tailscale**:
+   - **Istanza locale**: Mantieni l'indirizzo predefinito `http://127.0.0.1:18789`.
+   - **Istanza remota o su nodo Tailnet**: Inserisci l'indirizzo IP privato Tailscale o l'hostname del server (es. `http://100.x.y.z:18789` o `http://mio-nodo-openclaw:18789`).
+3. **Token di Autenticazione Gateway**:
+   - Inserisci il token segreto impostato nella configurazione del gateway OpenClaw (da `openclaw.json` o parametro da riga di comando `--token`).
+4. **Integrazione Rete Mesh Tailscale (tsnet portatile)**:
+   - **Connessione locale o LAN diretta**: Lascia deselezionata la casella **"Usa nodo Tailscale integrato (tsnet portatile)"**. HidaChat comunicherà direttamente via HTTP standard.
+   - **Rete privata mesh Tailscale**: Se il tuo server OpenClaw si trova su una Tailnet remota privata e non disponi (o non desideri installare) del client Tailscale sul PC Windows host, spunta la casella **"Usa nodo Tailscale integrato (tsnet portatile)"**.
+   - **Proxy Deterministico & Conservazione Identità Dispositivo**: HidaChat avvia in background il companion daemon integrato (`tsnetd.exe`) aprendo una porta proxy locale fissa (`18800+`). Questo fa sì che la coppia di chiavi crittografiche Ed25519 memorizzata in IndexedDB rimanga permanente, azzerando del tutto le continue richieste di riapprovazione del dispositivo (`openclaw devices approve`).
+5. **Verifica & Salvataggio**:
+   - Clicca su **Test Connessione**: un messaggio verde confermerà la corretta raggiungibilità dell'endpoint e la validità del token.
+   - Seleziona la scheda OpenClaw nella finestra principale per iniziare a interagire con il tuo agente.
+
+---
+
+### 🌐 2. Hermes Agent (Nous Research)
+
+Hermes Agent mette a disposizione una dashboard web e console reattiva per i modelli e workflow di agenti Nous Research Hermes.
+
+1. **Aggiunta dell'Account**: Clicca su `+` nella barra delle schede e seleziona **Hermes Agent** (oppure dalle **Impostazioni ➔ Account** seleziona **Hermes Agent**).
+2. **URL Server**:
+   - **Istanza locale**: Predefinito `http://127.0.0.1:9119`.
+   - **Server remoto o Tailnet**: Inserisci l'indirizzo IP o l'hostname di rete (es. `http://100.x.y.z:9119`).
+3. **Token di Autenticazione / API Key**:
+   - Inserisci la tua API Key o Bearer Token dell'istanza Hermes.
+   - **Iniezione Automatica Bearer Token**: Il motore WebView2 di HidaChat inietta in modo trasparente l'header HTTP `Authorization: Bearer <token>` in tutte le richieste verso il server, effettuando il login automatico senza richiedere ulteriori credenziali nella console web.
+4. **Modalità Rete Mesh Tailscale**:
+   - Per server remoti accessibili tramite Tailscale, spunta **"Usa nodo Tailscale integrato"** (assegna la porta deterministica `18900+`).
+5. **Test Connessione**:
+   - Clicca su **Test Connessione** per validare l'accesso, quindi passa alla scheda Hermes per inviare prompt ed eseguire comandi.
+
+---
+
 ## 🗺️ Roadmap e Changelog
 
 Consulta il file [CHANGELOG.md](CHANGELOG.md) per lo storico delle versioni e le ultime novità.
@@ -165,3 +210,10 @@ Consulta il file [CHANGELOG.md](CHANGELOG.md) per lo storico delle versioni e le
 ## 📄 Licenza
 
 Distribuito sotto licenza **Apache 2.0**. Consulta il file [LICENSE.txt](LICENSE.txt) per i dettagli.
+
+---
+
+## 🏷️ Tag di Ricerca e Parole Chiave
+
+`openclaw` · `openclaw-gateway` · `hermes` · `hermes-agent` · `nous-research` · `ai-agents` · `ai-gateway` · `tailscale` · `tsnet` · `mesh-vpn` · `whatsapp-web` · `telegram-web` · `multi-account` · `portable-app` · `dotnet9` · `wpf` · `webview2` · `desktop-client` · `bulk-sender` · `translation` · `windows-desktop`
+

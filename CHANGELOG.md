@@ -11,6 +11,9 @@
   - **Quarantena Automatica File Corrotti (#58)**: In fase di lettura (`ReadSettingsAsync`), qualora il file `settings.json` risulti corrotto, troncato o non deserializzabile, il file compromesso viene archiviato automaticamente come `settings.corrupt-<timestamp>.json` per preservare i dati ai fini diagnostici.
   - **Ripristino Trasparente da Backup (.bak) (#58)**: Il sistema tenta immediatamente il ripristino trasparente dall'ultimo backup valido `settings.json.bak`; se il ripristino ha successo, la sessione viene avviata regolarmente informando l'utente tramite finestra modale.
   - **Avviso Utente Multilingua (#58)**: In caso di fallback ai valori predefiniti o di ripristino da backup, l'utente riceve una notifica esplicita localizzata in tutte e 5 le lingue ufficiali dell'applicazione (`it`, `en`, `fr`, `es`, `de`).
+- **Aggiornamento Documentazione e Tag di Ricerca GitHub (`README.md`, `README.it.md`)**:
+  - **Istruzioni Dettagliate Connessione OpenClaw ed Hermes Agent**: Integrata una guida esaustiva passo-passo sia in `README.md` che in `README.it.md` per la configurazione e connessione degli account OpenClaw ed Hermes Agent, documentando gateway URL, token di sicurezza, autenticazione automatica Bearer token in WebView2, integrazione mesh VPN Tailscale (`tsnet`) con proxy deterministici per la persistenza dell'identità del dispositivo, e validazione con "Test Connessione".
+  - **Tag di Ricerca e Topics Repository GitHub**: Aggiornati i topics ufficiali del repository GitHub (`openclaw`, `hermes`, `hermes-agent`, `ai-agents`, `ai-gateway`, `tailscale`) e aggiunti badge e sezioni dedicate con i tag di ricerca nei README per massimizzare la visibilità e reperibilità su GitHub.
 
 ## [1.0.1-beta] - 2026-09-20
 
