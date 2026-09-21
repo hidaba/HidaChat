@@ -360,31 +360,21 @@
   - Aggiunta e sincronizzazione dei messaggi di diagnostica ed errore dell'aggiornamento nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Medio-Alto | **Sforzo**: Medio
 
-## 58. `settings.json`: scrittura atomica, serializzata, con flush in chiusura
-- **File**: `SettingsController.vb` (`WriteSettingsAsync`, `ReadSettingsAsync`, `FlushAfterDebounceAsync`, campo `_lastFlushTask`), `AccountManager.vb` (`SaveAccountsAsync`), finestra principale (`OnClosing`/chiusura) e `ForceExitForUpdate`
+## ~~58. `settings.json`: scrittura atomica, serializzata, con flush in chiusura~~ ✅
+- **File**: `SettingsController.vb` (`WriteSettingsAsync`, `WriteSettingsInternalAsync`, `ReadSettingsAsync`, `FlushAfterDebounceAsync`, `FlushNowAsync`, campo `_lastFlushTask`, `_ioLock`), `AccountManager.vb` (`SaveAccountsAsync`), `MainWindow.xaml.vb` (`ExitApplication`, `ForceExitForUpdateAsync`, `ForceExitForUpdate`, `MainWindow_Closing`), `Localization.vb`
 - **Problema**:
   - La scrittura non è atomica: un arresto anomalo o interruzione a metà scrittura lascia un file JSON troncato o corrotto;
   - Assenza di meccanismo di lock: `SaveAccountsAsync` e il flush con debounce possono accedere allo stesso file in parallelo (`IOException` silenziata = scrittura persa);
   - `ReadSettingsAsync` sopprime qualsiasi eccezione e restituisce un dizionario vuoto: in caso di corruzione momentanea si perdono le impostazioni e l'intero elenco account;
   - `_lastFlushTask` è dichiarato ma mai assegnato né atteso: le modifiche effettuate meno di 500 ms prima della chiusura dell'app vanno perse.
-- **Fix**:
-  ```vb
-  Private ReadOnly _ioLock As New SemaphoreSlim(1, 1)
-  ' in WriteSettingsAsync, dopo la serializzazione:
-  Await _ioLock.WaitAsync()
-  Try
-      Dim tmp = targetFile & ".tmp"
-      Await File.WriteAllTextAsync(tmp, json)
-      If File.Exists(targetFile) Then
-          File.Replace(tmp, targetFile, targetFile & ".bak")
-      Else
-          File.Move(tmp, targetFile)
-      End If
-  Finally
-      _ioLock.Release()
-  End Try
-  ```
-  In lettura: se il JSON non è valido, rinominare in `settings.corrupt-<timestamp>.json`, tentare il ripristino dal file di backup `.bak`, e solo come ultima risorsa partire da valori di default (notificando l'utente con un avviso esplicito). Aggiungere un metodo sincrono/immediato `FlushNowAsync()` (che annulla il debounce e scrive subito su disco se `_dirty`) da invocare in chiusura finestra e in `ForceExitForUpdate`; utilizzare attivamente `_lastFlushTask` oppure rimuoverlo.
+- **Fix Implementato**:
+  - Introdotto semaforo asincrono `_ioLock As New SemaphoreSlim(1, 1)` in `SettingsController.vb` che serializza rigorosamente tutte le letture e le scritture di `settings.json`, prevenendo conflitti e corruzioni I/O concorrenti;
+  - Scrittura atomica a doppio stadio: salvataggio preventivo su file temporaneo `.tmp`, seguito da sostituzione atomica tramite `File.Replace(tmp, targetFile, targetFile & ".bak")` con rotazione automatica del backup `.bak` (e fallback con `File.Copy` + `File.Move`);
+  - Pulizia deterministica del file `.tmp` nel blocco `Finally` in caso di interruzione o errore;
+  - Tracciamento attivo di `_lastFlushTask` nelle scritture e nel debounce a 500 ms;
+  - Metodo `FlushNowAsync()` che annulla qualsiasi debounce pendente, attende il completamento dell'I/O corrente e scrive subito su disco le impostazioni se `_dirty = True`;
+  - Invocazione sicura di `SaveAccountsAsync()` e `FlushNowAsync()` in chiusura applicazione (`ExitApplication`), prima del riavvio per aggiornamento OTA (`ForceExitForUpdateAsync` / `ForceExitForUpdate`) e nell'evento `MainWindow_Closing`;
+  - Resilienza e auto-recovery in lettura (`ReadSettingsAsync`): in caso di JSON illeggibile o troncato, quarantena automatica del file in `settings.corrupt-<timestamp>.json`, tentato ripristino trasparente dall'ultimo backup `.bak` valido e notifica all'utente con messaggi localizzati in tutte le 5 lingue supportate (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Alto | **Sforzo**: Basso-Medio
 
 ## 59. Pulizia dei profili WebView2 non distruttiva

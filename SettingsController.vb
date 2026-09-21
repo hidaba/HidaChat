@@ -24,6 +24,7 @@ Public Class SettingsController
 
     Private _cachedSettings As Dictionary(Of String, Object) = Nothing
     Private _dirty As Boolean = False
+    Private ReadOnly _ioLock As New SemaphoreSlim(1, 1)
     Private _lastFlushTask As Task = Task.CompletedTask
     Private _flushCts As CancellationTokenSource = Nothing
 
@@ -429,28 +430,152 @@ Public Class SettingsController
         End Get
     End Property
 
-    ''' <summary>Legge il file settings.json dal disco (utilizza la versione in cache se presente).</summary>
+    ''' <summary>Legge il file settings.json dal disco con protezione atomica, validazione JSON e ripristino da backup (.bak) in caso di corruzione.</summary>
     Public Async Function ReadSettingsAsync() As Task(Of Dictionary(Of String, Object))
         If _cachedSettings IsNot Nothing Then Return _cachedSettings
-        If Not File.Exists(SettingsFile) Then
-            _cachedSettings = New Dictionary(Of String, Object)()
-            Return _cachedSettings
-        End If
+
+        Await _ioLock.WaitAsync()
         Try
-            Dim contents = Await File.ReadAllTextAsync(SettingsFile)
-            If String.IsNullOrEmpty(contents) Then
+            If _cachedSettings IsNot Nothing Then Return _cachedSettings
+
+            Dim targetFile = SettingsFile
+            Dim bakFile = targetFile & ".bak"
+
+            If Not File.Exists(targetFile) Then
+                ' Se il file principale non esiste ma esiste il file di backup, tenta il ripristino
+                If File.Exists(bakFile) Then
+                    Try
+                        Dim bakText = Await File.ReadAllTextAsync(bakFile)
+                        If Not String.IsNullOrWhiteSpace(bakText) Then
+                            Dim restoredFromBak = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(bakText)
+                            If restoredFromBak IsNot Nothing AndAlso restoredFromBak.Count > 0 Then
+                                File.Copy(bakFile, targetFile, overwrite:=True)
+                                _cachedSettings = restoredFromBak
+                                Debug.WriteLine("ReadSettingsAsync: file principale assente, ripristinato da backup .bak")
+                                Return _cachedSettings
+                            End If
+                        End If
+                    Catch exBakInit As Exception
+                        Debug.WriteLine($"ReadSettingsAsync: errore ripristino da backup iniziale: {exBakInit.Message}")
+                    End Try
+                End If
+
                 _cachedSettings = New Dictionary(Of String, Object)()
-            Else
-                _cachedSettings = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(contents)
+                Return _cachedSettings
             End If
-        Catch
-            _cachedSettings = New Dictionary(Of String, Object)()
+
+            Dim needsQuarantine = False
+
+            Try
+                Dim contents = Await File.ReadAllTextAsync(targetFile)
+                If String.IsNullOrWhiteSpace(contents) Then
+                    Dim fi As New FileInfo(targetFile)
+                    If fi.Length = 0 Then
+                        needsQuarantine = True
+                    Else
+                        _cachedSettings = New Dictionary(Of String, Object)()
+                        Return _cachedSettings
+                    End If
+                Else
+                    _cachedSettings = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(contents)
+                    If _cachedSettings Is Nothing Then
+                        needsQuarantine = True
+                    Else
+                        Return _cachedSettings
+                    End If
+                End If
+            Catch ex As Exception
+                needsQuarantine = True
+                Debug.WriteLine($"ReadSettingsAsync: JSON non valido o errore lettura in '{targetFile}': {ex.Message}")
+            End Try
+
+            If needsQuarantine Then
+                Dim timeStamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")
+                Dim targetDir = Path.GetDirectoryName(targetFile)
+                Dim corruptPath = Path.Combine(targetDir, $"settings.corrupt-{timeStamp}.json")
+                Try
+                    If File.Exists(targetFile) Then
+                        File.Move(targetFile, corruptPath, overwrite:=True)
+                        Debug.WriteLine($"ReadSettingsAsync: file corrotto archiviato in '{corruptPath}'")
+                    End If
+                Catch exMove As Exception
+                    Debug.WriteLine($"ReadSettingsAsync: impossibile archiviare file corrotto: {exMove.Message}")
+                End Try
+
+                ' Tentativo di ripristino dal file di backup .bak
+                If File.Exists(bakFile) Then
+                    Try
+                        Dim bakContents = Await File.ReadAllTextAsync(bakFile)
+                        If Not String.IsNullOrWhiteSpace(bakContents) Then
+                            Dim restored = JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(bakContents)
+                            If restored IsNot Nothing AndAlso restored.Count > 0 Then
+                                Try
+                                    File.Copy(bakFile, targetFile, overwrite:=True)
+                                Catch
+                                End Try
+                                _cachedSettings = restored
+                                Debug.WriteLine("ReadSettingsAsync: ripristino completato con successo da .bak")
+                                NotifySettingsRecoveredFromBackup(corruptPath)
+                                Return _cachedSettings
+                            End If
+                        End If
+                    Catch exBak As Exception
+                        Debug.WriteLine($"ReadSettingsAsync: anche il file .bak non è utilizzabile: {exBak.Message}")
+                    End Try
+                End If
+
+                ' Fallback estremo a dizionario vuoto con avviso esplicito all'utente
+                _cachedSettings = New Dictionary(Of String, Object)()
+                NotifySettingsCorruptedAndReset(corruptPath)
+                Return _cachedSettings
+            End If
+
+            If _cachedSettings Is Nothing Then _cachedSettings = New Dictionary(Of String, Object)()
+            Return _cachedSettings
+        Finally
+            _ioLock.Release()
         End Try
-        If _cachedSettings Is Nothing Then _cachedSettings = New Dictionary(Of String, Object)()
-        Return _cachedSettings
     End Function
 
-    ''' <summary>Scrive immediatamente il dizionario delle impostazioni su file JSON.</summary>
+    Private Sub NotifySettingsRecoveredFromBackup(corruptPath As String)
+        Try
+            Dim fileName = Path.GetFileName(corruptPath)
+            Application.Current?.Dispatcher?.BeginInvoke(Sub()
+                Try
+                    Dim loc = Localizations
+                    Dim title = If(loc IsNot Nothing, loc.Get("settings_corrupt_recovery_title"), "Ripristino Impostazioni")
+                    Dim msg = If(loc IsNot Nothing,
+                        loc.Get("settings_corrupt_recovered_msg", New Dictionary(Of String, String) From {{"file", fileName}}),
+                        $"Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{fileName}'." & vbCrLf & vbCrLf &
+                        "Le impostazioni e gli account sono stati ripristinati con successo dall'ultimo backup (.bak) disponibile.")
+                    MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Warning)
+                Catch
+                End Try
+            End Sub)
+        Catch
+        End Try
+    End Sub
+
+    Private Sub NotifySettingsCorruptedAndReset(corruptPath As String)
+        Try
+            Dim fileName = Path.GetFileName(corruptPath)
+            Application.Current?.Dispatcher?.BeginInvoke(Sub()
+                Try
+                    Dim loc = Localizations
+                    Dim title = If(loc IsNot Nothing, loc.Get("settings_corrupt_reset_title"), "Errore Configurazione")
+                    Dim msg = If(loc IsNot Nothing,
+                        loc.Get("settings_corrupt_reset_msg", New Dictionary(Of String, String) From {{"file", fileName}}),
+                        $"Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{fileName}'." & vbCrLf & vbCrLf &
+                        "Non è stato possibile recuperare un backup valido: l'applicazione è stata avviata con le impostazioni predefinite.")
+                    MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Error)
+                Catch
+                End Try
+            End Sub)
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>Scrive immediatamente il dizionario delle impostazioni su file JSON in modo atomico e serializzato.</summary>
     Public Async Function WriteSettingsAsync(settings As Dictionary(Of String, Object)) As Task
         _cachedSettings = settings
         _dirty = False
@@ -462,24 +587,57 @@ Public Class SettingsController
             End Try
             _flushCts = Nothing
         End If
+
+        Dim writeTask = WriteSettingsInternalAsync(settings)
+        _lastFlushTask = writeTask
+        Await writeTask
+    End Function
+
+    Private Async Function WriteSettingsInternalAsync(settings As Dictionary(Of String, Object)) As Task
+        Await _ioLock.WaitAsync()
+        Dim targetFile = SettingsFile
+        Dim tmp = targetFile & ".tmp"
+        Dim bak = targetFile & ".bak"
         Try
-            Dim targetFile = SettingsFile
             Dim targetDir = Path.GetDirectoryName(targetFile)
             If Not String.IsNullOrEmpty(targetDir) AndAlso Not Directory.Exists(targetDir) Then
                 Directory.CreateDirectory(targetDir)
             End If
+
             Dim options As New JsonSerializerOptions With {
                 .WriteIndented = True
             }
             Dim contents = JsonSerializer.Serialize(settings, options)
-            Await File.WriteAllTextAsync(targetFile, contents)
+
+            Await File.WriteAllTextAsync(tmp, contents)
+
+            If File.Exists(targetFile) Then
+                Try
+                    File.Replace(tmp, targetFile, bak)
+                Catch exReplace As Exception
+                    Debug.WriteLine($"File.Replace non riuscito, fallback con Copy+Move: {exReplace.Message}")
+                    Try
+                        File.Copy(targetFile, bak, overwrite:=True)
+                    Catch
+                    End Try
+                    File.Move(tmp, targetFile, overwrite:=True)
+                End Try
+            Else
+                File.Move(tmp, targetFile)
+            End If
         Catch ex As Exception
             Debug.WriteLine($"Failed to write settings: {ex.Message}")
+        Finally
+            Try
+                If File.Exists(tmp) Then File.Delete(tmp)
+            Catch
+            End Try
+            _ioLock.Release()
         End Try
     End Function
 
     ''' <summary>Scrittura differita delle impostazioni (debounce di 500ms) per evitare accessi disco troppo frequenti.</summary>
-    Private Async Function FlushAfterDebounceAsync() As Task
+    Private Function FlushAfterDebounceAsync() As Task
         If _flushCts IsNot Nothing Then
             Try
                 _flushCts.Cancel()
@@ -489,14 +647,50 @@ Public Class SettingsController
         End If
         _flushCts = New CancellationTokenSource()
         Dim token = _flushCts.Token
+
+        Dim debounceTask As Task = Task.Run(Async Function() As Task
+            Try
+                Await Task.Delay(500, token)
+            Catch ex As OperationCanceledException
+                Return
+            End Try
+            If _dirty AndAlso _cachedSettings IsNot Nothing Then
+                _dirty = False
+                Await WriteSettingsAsync(_cachedSettings)
+            End If
+        End Function)
+
+        _lastFlushTask = debounceTask
+        Return debounceTask
+    End Function
+
+    ''' <summary>
+    ''' Forza l'immediata scrittura su disco delle impostazioni se ci sono modifiche in sospeso (_dirty), 
+    ''' annullando il debounce ed attendendo il completamento delle operazioni di I/O.
+    ''' </summary>
+    Public Async Function FlushNowAsync() As Task
+        If _flushCts IsNot Nothing Then
+            Try
+                _flushCts.Cancel()
+                _flushCts.Dispose()
+            Catch
+            End Try
+            _flushCts = Nothing
+        End If
+
         Try
-            Await Task.Delay(500, token)
-        Catch ex As OperationCanceledException
-            Return
+            If _lastFlushTask IsNot Nothing Then
+                Await _lastFlushTask
+            End If
+        Catch
         End Try
+
         If _dirty AndAlso _cachedSettings IsNot Nothing Then
             _dirty = False
             Await WriteSettingsAsync(_cachedSettings)
+        Else
+            Await _ioLock.WaitAsync()
+            _ioLock.Release()
         End If
     End Function
 

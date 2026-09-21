@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.2-beta] - 2026-09-21
+
+### Pre-release / Beta — Scrittura Atomica e Serializzata di settings.json con Auto-Recovery da Backup e Flush in Chiusura
+- **Scrittura Atomica e Serializzata delle Impostazioni (`SettingsController.vb`, `AccountManager.vb`)**:
+  - **Semaforo Asincrono `_ioLock` (#58)**: Introdotto un semaforo `SemaphoreSlim(1, 1)` a livello di `SettingsController` per serializzare rigorosamente qualsiasi operazione di lettura e scrittura concorrente su `settings.json`, eliminando le collisioni I/O tra il salvataggio asincrono degli account e il debounce delle impostazioni.
+  - **Scrittura Atomica con File Temporaneo e Backup Automatico (#58)**: La scrittura del JSON avviene ora inizialmente su un file temporaneo (`settings.json.tmp`) e viene poi promossa sul file di destinazione tramite `File.Replace(tmp, targetFile, targetFile & ".bak")` con mantenimento dell'ultimo backup valido `.bak` (e fallback difensivo con copia e spostamento). In caso di errore o interruzione il file temporaneo viene eliminato in modo deterministico nel blocco `Finally`.
+  - **Flush Immediato in Chiusura e Pre-Update (#58)**: Implementato il metodo `FlushNowAsync()` che annulla l'eventuale debounce temporizzato pendente (500 ms) e forza la scrittura immediata su disco delle impostazioni contrassegnate come `_dirty`, attendendo il rilascio del lock; il metodo viene invocato congiuntamente a `SaveAccountsAsync()` alla chiusura della finestra (`MainWindow_Closing`), all'uscita definitiva (`ExitApplication`) e prima del riavvio automatico per aggiornamenti OTA (`ForceExitForUpdateAsync` / `ForceExitForUpdate`).
+- **Resilienza e Auto-Recovery da Corruzione JSON (`SettingsController.vb`, `Localization.vb`)**:
+  - **Quarantena Automatica File Corrotti (#58)**: In fase di lettura (`ReadSettingsAsync`), qualora il file `settings.json` risulti corrotto, troncato o non deserializzabile, il file compromesso viene archiviato automaticamente come `settings.corrupt-<timestamp>.json` per preservare i dati ai fini diagnostici.
+  - **Ripristino Trasparente da Backup (.bak) (#58)**: Il sistema tenta immediatamente il ripristino trasparente dall'ultimo backup valido `settings.json.bak`; se il ripristino ha successo, la sessione viene avviata regolarmente informando l'utente tramite finestra modale.
+  - **Avviso Utente Multilingua (#58)**: In caso di fallback ai valori predefiniti o di ripristino da backup, l'utente riceve una notifica esplicita localizzata in tutte e 5 le lingue ufficiali dell'applicazione (`it`, `en`, `fr`, `es`, `de`).
+
 ## [1.0.1-beta] - 2026-09-20
 
 ### Pre-release / Beta — Hardening Download e Verifica Integrità Fail-Closed Aggiornamenti OTA

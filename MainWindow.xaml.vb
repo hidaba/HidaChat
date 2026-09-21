@@ -273,6 +273,16 @@ Public Class MainWindow
         Next
 
         Try
+            Await _accountManager.SaveAccountsAsync()
+        Catch
+        End Try
+
+        Try
+            Await _settingsController.FlushNowAsync()
+        Catch
+        End Try
+
+        Try
             Await _accountManager.CleanupTransientCachesAsync()
         Catch
         End Try
@@ -294,7 +304,7 @@ Public Class MainWindow
     ''' <summary>
     ''' Forza l'uscita dell'applicazione senza conferma per consentire l'avvio della procedura di aggiornamento automatico.
     ''' </summary>
-    Public Async Sub ForceExitForUpdate()
+    Public Async Function ForceExitForUpdateAsync() As Task
         _allowExit = True
 
         If _dndTimer IsNot Nothing Then
@@ -322,6 +332,16 @@ Public Class MainWindow
         Next
 
         Try
+            Await _accountManager.SaveAccountsAsync()
+        Catch
+        End Try
+
+        Try
+            Await _settingsController.FlushNowAsync()
+        Catch
+        End Try
+
+        Try
             Await _accountManager.CleanupTransientCachesAsync()
         Catch
         End Try
@@ -339,15 +359,29 @@ Public Class MainWindow
 
         ' Rilascia il Mutex dell'istanza singola prima che lo script di aggiornamento avvii il nuovo processo
         Application.ReleaseSingleInstanceMutex()
+    End Function
+
+    Public Sub ForceExitForUpdate()
+        ForceExitForUpdateAsync().GetAwaiter().GetResult()
     End Sub
 
     ''' <summary>
     ''' Intercetta la chiusura della finestra: invece di chiudere l'applicazione la nasconde nella system tray (riduzione a icona).
+    ''' Se l'uscita è autorizzata, assicura il flush atomico delle impostazioni e degli account su disco.
     ''' </summary>
     Private Sub MainWindow_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
         If Not _allowExit Then
             e.Cancel = True
             Me.Hide()
+        Else
+            Try
+                _accountManager.SaveAccountsAsync().GetAwaiter().GetResult()
+            Catch
+            End Try
+            Try
+                _settingsController.FlushNowAsync().GetAwaiter().GetResult()
+            Catch
+            End Try
         End If
     End Sub
 
