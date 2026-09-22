@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.3-beta] - 2026-09-22
+
+### Pre-release / Beta — Pulizia Profili WebView2 Non Distruttiva con Cestino, Eliminazione Differita e Preservazione Sessioni
+- **Validazione Integrità Configurazione e Prevenzione Cancellazioni Involontarie (`SettingsController.vb`, `AccountManager.vb`)**:
+  - **Tracciamento Validità Configurazione `IsLoadedFromValidConfig` (#59)**: Introdotta la proprietà `IsLoadedFromValidConfig` in `SettingsController` per certificare se le impostazioni e gli account sono stati caricati con successo da un file `settings.json` valido o da un relativo backup `.bak`. La procedura di pulizia dei profili non referenziati viene abilitata unicamente in caso di configurazione valida accertata, escludendo a priori qualsiasi cancellazione in presenza di file mancante, corrotto o fallback ai valori di default.
+  - **Auto-Discovery e Ripristino Automatico Profili Esistenti (#59)**: In caso di assenza o rigenerazione del file `settings.json`, `CreateDefaultAccountAsync` esegue una scansione dei profili validi `WV2Profile_*` presenti sul disco a livello principale, ricostruendo l'elenco degli account per tutte le directory trovate anziché limitarsi al primo profilo, prevenendo l'orfanizzazione accidentale di sessioni esistenti.
+- **Isolamento Non Distruttivo nel Cestino ed Eliminazione Differita in Background (`AccountManager.vb`)**:
+  - **Spostamento Sicuro nel Cestino `data/webview/_trash/` (#59)**: Sostituita la cancellazione distruttiva immediata con uno spostamento atomico istantaneo (`Directory.Move`) dei profili non referenziati nella cartella `_trash` con timestamp univoco (`WV2Profile_<id>_<timestamp>`). In caso di incongruenze temporanee di configurazione, i dati di sessione e i token QR rimangono preservati e recuperabili.
+  - **Eliminazione Differita con Retention a 24 Ore (#59)**: La bonifica dello spazio disco per gli elementi nel cestino viene eseguita in modalità differita esclusivamente per le cartelle la cui permanenza supera le 24 ore, mediante tentativi ripetuti con backoff progressivo (`DeleteDirectoryWithRetryAsync`).
+  - **Esecuzione Off-UI-Thread in `Task.Run` (#59)**: L'intera routine di scansione, catalogazione e pulizia dei profili è stata spostata all'interno di `Task.Run` su thread di background, azzerando qualsiasi impatto o freeze sul thread UI e garantendo l'aggancio immediato della scheda attiva all'avvio.
+  - **Rimozione Account Non Bloccante (#59)**: In `RemoveAccountAsync`, l'eliminazione dei dati dell'account rimosso dall'utente sposta prima la cartella nel cestino e delega la cancellazione a un task asincrono differito, consentendo al processo Chromium di rilasciare i file di lock senza bloccare l'interfaccia.
+- **Preservazione Profilo Preesistente su Migrazione Orfani (`AccountManager.vb`, `AppAccounts.vb`)**:
+  - **Rinomina Conservativa in `.bak` (#59)**: Sia in `MigrateOrphanProfile` (`AccountManager.vb`) che in `SetupWebViewInternalAsync` (`AppAccounts.vb`), la presenza di un profilo orfano anonimo (`WV2Profile_`) in concomitanza con una directory di profilo già esistente non causa più l'eliminazione distruttiva di quest'ultima; il profilo esistente viene ora salvaguardato rinominandolo con estensione `.bak` (con timestamp anticollisione), con ripristino automatico difensivo in caso di errore nello spostamento dell'orfano.
+  - **Filtro Cartelle `.bak` nella Pulizia Cache Volatili (#59)**: Escluse le cartelle con estensione `.bak` dalla pulizia periodica `CleanupTransientCachesAsync`.
+
 ## [1.0.2-beta] - 2026-09-21
 
 ### Pre-release / Beta — Scrittura Atomica e Serializzata di settings.json con Auto-Recovery da Backup e Flush in Chiusura

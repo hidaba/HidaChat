@@ -27,6 +27,17 @@ Public Class SettingsController
     Private ReadOnly _ioLock As New SemaphoreSlim(1, 1)
     Private _lastFlushTask As Task = Task.CompletedTask
     Private _flushCts As CancellationTokenSource = Nothing
+    Private _isLoadedFromValidConfig As Boolean = False
+
+    ''' <summary>
+    ''' Indica se le impostazioni correnti sono state caricate con successo da un file di configurazione valido o dal relativo backup (.bak).
+    ''' Restituisce False se è stato effettuato un fallback ai valori predefiniti per assenza o corruzione del file.
+    ''' </summary>
+    Public ReadOnly Property IsLoadedFromValidConfig As Boolean
+        Get
+            Return _isLoadedFromValidConfig
+        End Get
+    End Property
 
     ' --- Impostazioni tema ---
     Private _theme As String = "System"
@@ -451,6 +462,7 @@ Public Class SettingsController
                             If restoredFromBak IsNot Nothing AndAlso restoredFromBak.Count > 0 Then
                                 File.Copy(bakFile, targetFile, overwrite:=True)
                                 _cachedSettings = restoredFromBak
+                                _isLoadedFromValidConfig = True
                                 Debug.WriteLine("ReadSettingsAsync: file principale assente, ripristinato da backup .bak")
                                 Return _cachedSettings
                             End If
@@ -460,6 +472,7 @@ Public Class SettingsController
                     End Try
                 End If
 
+                _isLoadedFromValidConfig = False
                 _cachedSettings = New Dictionary(Of String, Object)()
                 Return _cachedSettings
             End If
@@ -473,6 +486,7 @@ Public Class SettingsController
                     If fi.Length = 0 Then
                         needsQuarantine = True
                     Else
+                        _isLoadedFromValidConfig = False
                         _cachedSettings = New Dictionary(Of String, Object)()
                         Return _cachedSettings
                     End If
@@ -481,6 +495,7 @@ Public Class SettingsController
                     If _cachedSettings Is Nothing Then
                         needsQuarantine = True
                     Else
+                        _isLoadedFromValidConfig = True
                         Return _cachedSettings
                     End If
                 End If
@@ -514,6 +529,7 @@ Public Class SettingsController
                                 Catch
                                 End Try
                                 _cachedSettings = restored
+                                _isLoadedFromValidConfig = True
                                 Debug.WriteLine("ReadSettingsAsync: ripristino completato con successo da .bak")
                                 NotifySettingsRecoveredFromBackup(corruptPath)
                                 Return _cachedSettings
@@ -525,12 +541,16 @@ Public Class SettingsController
                 End If
 
                 ' Fallback estremo a dizionario vuoto con avviso esplicito all'utente
+                _isLoadedFromValidConfig = False
                 _cachedSettings = New Dictionary(Of String, Object)()
                 NotifySettingsCorruptedAndReset(corruptPath)
                 Return _cachedSettings
             End If
 
-            If _cachedSettings Is Nothing Then _cachedSettings = New Dictionary(Of String, Object)()
+            If _cachedSettings Is Nothing Then
+                _isLoadedFromValidConfig = False
+                _cachedSettings = New Dictionary(Of String, Object)()
+            End If
             Return _cachedSettings
         Finally
             _ioLock.Release()

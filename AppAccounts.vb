@@ -709,12 +709,22 @@ Public Class AppAccounts
         Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
         Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
         If Directory.Exists(orphanProfile) Then
+            Dim movedToBak = False
+            Dim bakDir = profileDir & ".bak"
             If Directory.Exists(profileDir) Then
                 Try
-                    Directory.Delete(profileDir, True)
-                    Debug.WriteLine($"SetupWebView: eliminato profilo stale {profileDir}")
+                    If Directory.Exists(bakDir) Then
+                        Dim bakTimestamp = $"{profileDir}.bak_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
+                        Try
+                            Directory.Move(bakDir, bakTimestamp)
+                        Catch
+                        End Try
+                    End If
+                    Directory.Move(profileDir, bakDir)
+                    movedToBak = True
+                    Debug.WriteLine($"SetupWebView: rinominato profilo esistente in backup {profileDir} -> {bakDir}")
                 Catch ex As Exception
-                    Debug.WriteLine($"SetupWebView: errore cancellazione stale: {ex.Message}")
+                    Debug.WriteLine($"SetupWebView: errore rinomina in backup stale: {ex.Message}")
                 End Try
             End If
             Try
@@ -722,6 +732,12 @@ Public Class AppAccounts
                 Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {profileDir}")
             Catch ex As Exception
                 Debug.WriteLine($"SetupWebView: fallito recupero orfano: {ex.Message}")
+                If movedToBak AndAlso Not Directory.Exists(profileDir) AndAlso Directory.Exists(bakDir) Then
+                    Try
+                        Directory.Move(bakDir, profileDir)
+                    Catch
+                    End Try
+                End If
             End Try
         End If
 

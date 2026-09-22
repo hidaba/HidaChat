@@ -377,13 +377,20 @@
   - Resilienza e auto-recovery in lettura (`ReadSettingsAsync`): in caso di JSON illeggibile o troncato, quarantena automatica del file in `settings.corrupt-<timestamp>.json`, tentato ripristino trasparente dall'ultimo backup `.bak` valido e notifica all'utente con messaggi localizzati in tutte le 5 lingue supportate (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Alto | **Sforzo**: Basso-Medio
 
-## 59. Pulizia dei profili WebView2 non distruttiva
-- **File**: `AccountManager.vb` (`CleanupUnusedProfilesAsync`, `MigrateOrphanProfileAsync`, `CreateDefaultAccountAsync`), `AppAccounts.vb` (`SetupWebViewInternalAsync`)
+## ~~59. Pulizia dei profili WebView2 non distruttiva~~ ✅
+- **File**: `AccountManager.vb` (`LoadAccountsAsync`, `CleanupUnusedProfilesAsync`, `MigrateOrphanProfile`, `CreateDefaultAccountAsync`, `RemoveAccountAsync`), `AppAccounts.vb` (`SetupWebViewInternalAsync`), `SettingsController.vb` (`IsLoadedFromValidConfig`, `ReadSettingsAsync`)
 - **Problema**:
   - Catena di perdita irreversibile dati: `settings.json` corrotto/illeggibile → caricamento account predefinito di fallback → riscrittura file → al riavvio successivo `CleanupUnusedProfilesAsync` elimina definitivamente i profili su disco di tutti gli altri account configurati (sessioni perse, QR code da scansionare nuovamente);
   - `CleanupUnusedProfilesAsync` (tramite `DeleteDirectoryWithRetryAsync`) esegue cancellazioni ricorsive sul thread UI all'avvio dell'applicazione per profili Chromium che possono pesare centinaia di MB;
   - `MigrateOrphanProfileAsync` e `SetupWebViewInternalAsync` eliminano direttamente una cartella di profilo valida `WV2Profile_{id}` per sostituirla con quella orfana.
-- **Fix**: Eseguire la pulizia dei profili solo se l'elenco account è stato caricato con successo da un file di configurazione valido (escludendo il fallback di default); spostare i profili non referenziati in `data/webview/_trash/` con eliminazione differita e tentativi con retry (`DeleteDirectoryWithRetryAsync`, vedi #37) anziché invocare `Delete` immediato; spostare l'intera scansione e pulizia in `Task.Run` fuori dal thread UI; per il profilo orfano rinominare l'eventuale profilo esistente in `.bak` anziché cancellarlo preventivamente.
+- **Fix Implementato**:
+  - Tracciamento della validità del file di configurazione con proprietà `IsLoadedFromValidConfig` in `SettingsController.vb`: la pulizia dei profili orfani/non referenziati viene eseguita esclusivamente se l'elenco account è stato caricato con successo da un file JSON integro o dal relativo backup `.bak`, escludendo qualsiasi esecuzione in caso di fallback o corruzione;
+  - Spostamento non distruttivo dei profili non referenziati nella cartella di cestino `data/webview/_trash/` (`Directory.Move` istantanea a livello di filesystem) con timestamp univoco, preservando le sessioni utente in caso di riconfigurazioni accidentali;
+  - Eliminazione differita in background (`Task.Run`) per gli elementi in `_trash/` con retention superiore alle 24 ore mediante tentativi multipli con backoff esponenziale (`DeleteDirectoryWithRetryAsync`);
+  - Spostamento dell'intera routine di scansione e pulizia profili in `Task.Run` fuori dal thread UI, evitando freeze o ritardi nel rendering dell'interfaccia grafica e nell'aggancio immediato della scheda attiva;
+  - Preservazione non distruttiva dei profili esistenti in `MigrateOrphanProfile` (`AccountManager.vb`) e `SetupWebViewInternalAsync` (`AppAccounts.vb`): in presenza di un profilo orfano anonimo (`WV2Profile_`), l'eventuale profilo esistente su disco viene rinominato in `.bak` (con timestamp anticollisione) anziché cancellato preventivamente, con rollback automatico in caso di errore nello spostamento dell'orfano;
+  - Auto-discovery e ricostruzione automatica di tutti i profili esistenti su disco in `CreateDefaultAccountAsync`: in caso di primo avvio o perdita del file di configurazione, vengono rilevate e registrate tutte le cartelle di profilo `WV2Profile_*` presenti a livello principale, evitando che vengano isolate o perse;
+  - Rimozione account non distruttiva e non bloccante in `RemoveAccountAsync`: spostamento preliminare nel cestino `_trash/` e cancellazione differita asincrona in background con backoff per consentire il rilascio dei file di lock da parte del processo Chromium.
 - **Impatto**: Alto | **Sforzo**: Medio
 
 ## 60. Segreti portabili: DPAPI CurrentUser vs portabilità

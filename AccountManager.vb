@@ -125,8 +125,9 @@ Public Class AccountManager
     Public Async Function LoadAccountsAsync() As Task
         Dim settings = Await _settingsController.ReadSettingsAsync()
         
+        Dim isConfigValid = _settingsController.IsLoadedFromValidConfig
         Dim accountsListObj As Object = Nothing
-        If settings.TryGetValue("accounts", accountsListObj) Then
+        If isConfigValid AndAlso settings.TryGetValue("accounts", accountsListObj) Then
             Try
                 Dim accountsJson = accountsListObj.ToString()
                 Dim jsonOptions As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True}
@@ -183,14 +184,17 @@ Public Class AccountManager
                         Debug.WriteLine($"  Account[{i}]: Id='{accountsData(i).Id}', Name='{accountsData(i).Name}', ProxyPort={accountsData(i).LocalProxyPort}, IsActive={accountsData(i).IsActive}")
                     Next
 
-                    Await MigrateOrphanProfileAsync()
+                    MigrateOrphanProfile()
 
                     If needsSave Then
                         Await SaveAccountsAsync(force:=True)
                     End If
 
+                    ' Pulizia non distruttiva dei profili non referenziati eseguita esclusivamente se la configurazione è valida
+                    ' e delegata a un task di background in Task.Run per non bloccare il thread UI all'avvio
                     Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
-                    Await CleanupUnusedProfilesAsync(activeIds)
+                    Dim cleanupTask = CleanupUnusedProfilesAsync(activeIds)
+
                     Await CleanupTransientCachesAsync()
                     
                     _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
@@ -241,9 +245,10 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Verifica la presenza di una cartella di profilo WebView2 orfana (creata senza ID specificato) e la riassocia al primo account.
+    ''' Verifica la presenza di una cartella di profilo WebView2 orfana (creata senza ID specificato) e la riassocia al primo account,
+    ''' preservando in modo non distruttivo il profilo esistente rinominandolo in .bak anziché cancellarlo preventivamente.
     ''' </summary>
-    Private Async Function MigrateOrphanProfileAsync() As Task
+    Private Sub MigrateOrphanProfile()
         Try
             Dim orphanProfile = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
             If Not Directory.Exists(orphanProfile) Then
@@ -255,52 +260,113 @@ Public Class AccountManager
             For Each acc In _accounts
                 Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{acc.Id}")
                 Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
+                Dim movedToBak = False
+                Dim bakDir = profileDir & ".bak"
+
                 If Directory.Exists(profileDir) Then
-                    Dim deleted = Await DeleteDirectoryWithRetryAsync(profileDir)
-                    If Not deleted Then
-                        Debug.WriteLine($"MigrateOrphanProfile: errore cancellazione stale: {profileDir}")
+                    Try
+                        If Directory.Exists(bakDir) Then
+                            Dim bakTimestamp = $"{profileDir}.bak_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
+                            Try
+                                Directory.Move(bakDir, bakTimestamp)
+                            Catch
+                            End Try
+                        End If
+                        Directory.Move(profileDir, bakDir)
+                        movedToBak = True
+                        Debug.WriteLine($"MigrateOrphanProfile: rinominato profilo esistente in backup: {profileDir} -> {bakDir}")
+                    Catch exBak As Exception
+                        Debug.WriteLine($"MigrateOrphanProfile: errore rinomina in backup: {exBak.Message}")
                         Continue For
-                    End If
+                    End Try
                 End If
 
                 Try
                     Directory.Move(orphanProfile, profileDir)
                     Debug.WriteLine($"MigrateOrphanProfile: rinominato {orphanProfile} -> {profileDir}")
                 Catch ex As Exception
-                    Debug.WriteLine($"MigrateOrphanProfile: errore rinomina: {ex.Message}")
+                    Debug.WriteLine($"MigrateOrphanProfile: errore rinomina orfano: {ex.Message}")
+                    If movedToBak AndAlso Not Directory.Exists(profileDir) AndAlso Directory.Exists(bakDir) Then
+                        Try
+                            Directory.Move(bakDir, profileDir)
+                        Catch
+                        End Try
+                    End If
                 End Try
                 Exit For
             Next
         Catch ex As Exception
             Debug.WriteLine($"MigrateOrphanProfile error: {ex.Message}")
         End Try
-    End Function
+    End Sub
 
     ''' <summary>
-    ''' Rimuove eventuali profili WebView2 non più associati ad alcun account attivo.
+    ''' Rimuove in modo non distruttivo eventuali profili WebView2 non più associati ad alcun account attivo:
+    ''' sposta le cartelle non referenziate nel cestino (data/webview/_trash/) e procede all'eliminazione differita
+    ''' con tentativi di retry, eseguendo l'intera scansione in Task.Run fuori dal thread UI per non rallentare l'avvio.
     ''' </summary>
-    Private Async Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
-        Try
-            Dim sharedDir = AppAccounts.SharedDataDirectory
-            If Not Directory.Exists(sharedDir) Then
-                Return
-            End If
+    Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
+        Return Task.Run(Async Function()
+            Try
+                Dim sharedDir = AppAccounts.SharedDataDirectory
+                If Not Directory.Exists(sharedDir) Then Return
 
-            Dim activeSet As New HashSet(Of String)(If(activeIds, New List(Of String)()), StringComparer.OrdinalIgnoreCase)
+                Dim trashDir = Path.Combine(sharedDir, "_trash")
+                Dim activeSet As New HashSet(Of String)(If(activeIds, New List(Of String)()), StringComparer.OrdinalIgnoreCase)
 
-            For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
-                Dim dirName = Path.GetFileName(profileDir)
-                If dirName.StartsWith("WV2Profile_") Then
-                    Dim profileId = dirName.Substring("WV2Profile_".Length)
-                    If Not String.IsNullOrEmpty(profileId) AndAlso Not activeSet.Contains(profileId) Then
-                        Debug.WriteLine($"CleanupUnusedProfiles: eliminazione profilo orfano {profileDir}")
-                        Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=5)
+                ' 1. Identifica e sposta i profili non referenziati nel cestino (_trash/)
+                For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
+                    Dim dirName = Path.GetFileName(profileDir)
+                    ' Esclude il profilo orfano generico non tipizzato (gestito da MigrateOrphanProfileAsync) e i backup
+                    If dirName.Equals("WV2Profile_", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.Contains(".bak_") Then
+                        Continue For
                     End If
+
+                    If dirName.StartsWith("WV2Profile_") Then
+                        Dim profileId = dirName.Substring("WV2Profile_".Length)
+                        If Not String.IsNullOrEmpty(profileId) AndAlso Not activeSet.Contains(profileId) Then
+                            Try
+                                If Not Directory.Exists(trashDir) Then
+                                    Directory.CreateDirectory(trashDir)
+                                End If
+
+                                Dim timeStamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")
+                                Dim trashDest = Path.Combine(trashDir, $"{dirName}_{timeStamp}")
+                                If Directory.Exists(trashDest) Then
+                                    trashDest = $"{trashDest}_{Guid.NewGuid().ToString("N").Substring(0, 4)}"
+                                End If
+
+                                Directory.Move(profileDir, trashDest)
+                                Debug.WriteLine($"CleanupUnusedProfiles: spostato profilo non referenziato in cestino: {profileDir} -> {trashDest}")
+                            Catch exMove As Exception
+                                Debug.WriteLine($"CleanupUnusedProfiles: errore spostamento in cestino di '{profileDir}': {exMove.Message}")
+                            End Try
+                        End If
+                    End If
+                Next
+
+                ' 2. Eliminazione differita degli elementi scaduti nel cestino (_trash/)
+                If Directory.Exists(trashDir) Then
+                    Dim now = DateTime.UtcNow
+                    For Each trashItem In Directory.EnumerateDirectories(trashDir)
+                        Try
+                            Dim dirInfo As New DirectoryInfo(trashItem)
+                            ' Se l'elemento nel cestino ha più di 24 ore, procede all'eliminazione differita con retry
+                            If (now - dirInfo.LastWriteTimeUtc) > TimeSpan.FromHours(24) Then
+                                Debug.WriteLine($"CleanupUnusedProfiles: eliminazione differita elemento scaduto nel cestino '{trashItem}'")
+                                Await DeleteDirectoryWithRetryAsync(trashItem, maxAttempts:=5)
+                            End If
+                        Catch exTrash As Exception
+                            Debug.WriteLine($"CleanupUnusedProfiles: errore eliminazione differita per '{trashItem}': {exTrash.Message}")
+                        End Try
+                    Next
                 End If
-            Next
-        Catch ex As Exception
-            Debug.WriteLine($"CleanupUnusedProfilesAsync error: {ex.Message}")
-        End Try
+            Catch ex As Exception
+                Debug.WriteLine($"CleanupUnusedProfilesAsync error: {ex.Message}")
+            End Try
+        End Function)
     End Function
 
     ''' <summary>
@@ -314,6 +380,10 @@ Public Class AccountManager
                 If Not Directory.Exists(sharedDir) Then Return
 
                 For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
+                    Dim dirName = Path.GetFileName(profileDir)
+                    If dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse dirName.Contains(".bak_") Then
+                        Continue For
+                    End If
                     AppAccounts.CleanTransientCacheFolders(profileDir, purgeDiskAndCodeCache:=purgeDiskAndCodeCache)
                 Next
             Catch ex As Exception
@@ -323,53 +393,68 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Crea l'account predefinito ("Account 1") quando non è presente alcuna configurazione precedente.
+    ''' Crea l'account predefinito o ricostruisce gli account da eventuali cartelle di profilo esistenti su disco
+    ''' quando non è presente alcuna configurazione precedente, prevenendo la perdita di profili preesistenti.
     ''' </summary>
     Private Async Function CreateDefaultAccountAsync() As Task
-        Debug.WriteLine("CreateDefaultAccount: nessun account caricato, creo default")
-        Dim existingId As String = Nothing
+        Debug.WriteLine("CreateDefaultAccount: nessun account caricato, inizio fallback non distruttivo")
+        Dim restoredAccounts As New List(Of AppAccounts)()
 
         Try
             Dim sharedDir = AppAccounts.SharedDataDirectory
             Debug.WriteLine($"CreateDefaultAccount: sharedDir={sharedDir}, exists={Directory.Exists(sharedDir)}")
             If Directory.Exists(sharedDir) Then
+                ' 1. Se è presente un profilo orfano anonimo (WV2Profile_), lo assegna a un nuovo id
                 Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
                 If Directory.Exists(orphanProfile) Then
-                    existingId = AppAccounts.GenerateId()
-                    Dim newDir = Path.Combine(sharedDir, $"WV2Profile_{existingId}")
+                    Dim newOrphanId = AppAccounts.GenerateId()
+                    Dim targetDir = Path.Combine(sharedDir, $"WV2Profile_{newOrphanId}")
                     Try
-                        Directory.Move(orphanProfile, newDir)
-                    Catch
+                        Directory.Move(orphanProfile, targetDir)
+                        Debug.WriteLine($"CreateDefaultAccount: spostato orfano anonimo {orphanProfile} -> {targetDir}")
+                    Catch ex As Exception
+                        Debug.WriteLine($"CreateDefaultAccount: errore spostamento orfano: {ex.Message}")
                     End Try
                 End If
 
-                If String.IsNullOrEmpty(existingId) Then
-                    Dim firstMatchingDir = Directory.EnumerateDirectories(sharedDir, "WV2Profile_account_*", SearchOption.AllDirectories).FirstOrDefault()
-                    If Not String.IsNullOrEmpty(firstMatchingDir) Then
-                        Dim dirName = Path.GetFileName(firstMatchingDir)
-                        existingId = dirName.Substring("WV2Profile_".Length)
+                ' 2. Scansione non ricorsiva delle cartelle di profilo valide esistenti a livello principale (escludendo cestino e backup)
+                Dim existingDirs = Directory.EnumerateDirectories(sharedDir, "WV2Profile_*", SearchOption.TopDirectoryOnly)
+                Dim index = 1
+                For Each pDir In existingDirs
+                    Dim dirName = Path.GetFileName(pDir)
+                    If dirName.Equals("WV2Profile_", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.Contains(".bak_") Then
+                        Continue For
                     End If
-                End If
 
+                    Dim pId = dirName.Substring("WV2Profile_".Length)
+                    If Not String.IsNullOrEmpty(pId) Then
+                        Dim accName = $"Account {index}"
+                        Dim isFirst = (index = 1)
+                        restoredAccounts.Add(New AppAccounts(pId, accName, isFirst))
+                        index += 1
+                        If index > MaxAccounts Then Exit For
+                    End If
+                Next
             End If
         Catch ex As Exception
             Debug.WriteLine($"Error searching existing profile dirs: {ex.Message}")
         End Try
 
-        Dim accountId = If(Not String.IsNullOrEmpty(existingId), existingId, AppAccounts.GenerateId())
-        Dim defaultAccount As New AppAccounts(accountId, "Account 1", True)
-
-        Dim dir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
-        Dim orphanDir = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
-        If Not Directory.Exists(dir) AndAlso Directory.Exists(orphanDir) Then
-            Try
-                Directory.Move(orphanDir, dir)
-            Catch
-            End Try
+        ' Se non è stato possibile recuperare alcun profilo esistente su disco, crea un account predefinito ex-novo
+        If restoredAccounts.Count = 0 Then
+            Dim accountId = AppAccounts.GenerateId()
+            Dim defaultAccount As New AppAccounts(accountId, "Account 1", True)
+            restoredAccounts.Add(defaultAccount)
         End If
-        
-        _accounts = New ObservableCollection(Of AppAccounts) From {defaultAccount}
-        _currentAccount = defaultAccount
+
+        _accounts = New ObservableCollection(Of AppAccounts)(restoredAccounts)
+        _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
+        If _currentAccount Is Nothing AndAlso _accounts.Count > 0 Then
+            _currentAccount = _accounts.First()
+            _currentAccount.IsActive = True
+        End If
         _isDirty = True
         
         Await SaveAccountsAsync(force:=True)
@@ -484,11 +569,23 @@ Public Class AccountManager
         End Try
 
         Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
-        Dim deleted = Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=10)
-        If deleted Then
-            Debug.WriteLine($"Deleted profile folder for: {accountId}")
-        Else
-            Debug.WriteLine($"Warning: Failed to delete profile directory '{profileDir}' after retries")
+        If Directory.Exists(profileDir) Then
+            Dim trashDir = Path.Combine(AppAccounts.SharedDataDirectory, "_trash")
+            Try
+                If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
+                Dim trashDest = Path.Combine(trashDir, $"WV2Profile_{accountId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}")
+                Directory.Move(profileDir, trashDest)
+                Debug.WriteLine($"RemoveAccountAsync: profilo spostato in cestino: {profileDir} -> {trashDest}")
+                Dim deleteBgTask = Task.Run(Async Function()
+                    Await Task.Delay(2000)
+                    Await DeleteDirectoryWithRetryAsync(trashDest, maxAttempts:=10)
+                End Function)
+            Catch ex As Exception
+                Debug.WriteLine($"RemoveAccountAsync: fallback a cancellazione differita diretta: {ex.Message}")
+                Dim fallbackDeleteTask = Task.Run(Async Function()
+                    Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=10)
+                End Function)
+            End Try
         End If
 
         Await SaveAccountsAsync()
