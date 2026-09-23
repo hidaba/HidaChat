@@ -469,8 +469,8 @@
   - Con controllo forzato dall'utente (`force = True`), un eventuale errore di rete, mancata risposta delle API GitHub o rate limit non mostra alcun feedback visivo (registrato unicamente con `Debug.WriteLine`);
   - `IsNewerVersion` confronta i suffissi di pre-release come stringhe ordinali (`String.Compare`): la versione "beta10" risulta antecedente a "beta2";
   - La logica di parsing JSON dei dati di release è duplicata quasi per intero nei due rami di `FetchGitHubReleaseInfoAsync`;
-  - La cartella temporanea `%TEMP%\HidaChat_Update` non viene rimossa al termine della procedura di estrazione ed aggiornamento.
-- **Fix**: Introdurre le chiavi corrispondenti nei dizionari di `Localization.vb` e richiamarle tramite `Localizations.Get(...)` per tutte le lingue supportate; mostrare un dialogo informativo di errore quando `force = True`; implementare il parsing numerico dei suffissi di pre-release (o comparatore SemVer); unificare l'estrazione dati della release in una funzione condivisa `ParseRelease(JsonElement)`; pianificare l'eliminazione della cartella temporanea al primo avvio successivo; adottare un sistema di logging su file anziché limitarsi a `Debug.WriteLine`.
+  - La cartella temporanea `%TEMP%\HidaChat_Update` non veniva rimossa al termine della procedura di estrazione ed aggiornamento, causando lock I/O nelle sessioni successive (risolto con percorsi univoci di sessione e bonifica in `update.bat`).
+- **Fix**: Introdurre le chiavi corrispondenti nei dizionari di `Localization.vb` e richiamarle tramite `Localizations.Get(...)` per tutte le lingue supportate; mostrare un dialogo informativo di errore quando `force = True`; implementare il parsing numerico dei suffissi di pre-release (o comparatore SemVer); unificare l'estrazione dati della release in una funzione condivisa `ParseRelease(JsonElement)`; adottare un sistema di logging su file anziché limitarsi a `Debug.WriteLine`.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
 ## 68. Piattaforme: da stringhe a modello tipizzato

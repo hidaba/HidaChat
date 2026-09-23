@@ -15,6 +15,10 @@
   - **Rimozione Tooltip Hardcoded**: Eliminato il tooltip statico residuo `Aggiungi account (max 3)` dal pulsante `BtnAddAccount` in `MainWindow.xaml`.
   - **Tooltip Dinamico Contestuale**: Il pulsante `+` sulla barra delle schede mostra ora tooltip contestuali e localizzati in base allo stato (`add_account`, `accounts_downgrade_blocked` o `max_accounts_reached`), supportando la visualizzazione anche su controllo disabilitato tramite `ToolTipService.ShowOnDisabled="True"`.
   - **Localizzazione Completa in 5 Lingue**: Aggiunte e sincronizzate le nuove chiavi `max_accounts_downgrade_notice` e `accounts_downgrade_blocked` nei dizionari di tutte e 5 le lingue supportate dall'applicazione (`Localization.vb`: IT, EN, FR, ES, DE).
+- **Risoluzione Lock Cartella Temporanea e Bonifica File Aggiornamenti OTA (`UpdateChecker.vb`) (#67)**:
+  - **Percorsi Temporanei Univoci di Sessione**: Sostituito il percorso fisso `%TEMP%\HidaChat_Update` con percorsi isolati univoci per sessione (`HidaChat_Update_<timestamp>_<guid>`), risolvendo definitivamente l'errore `The process cannot access the file ... because it is being used by another process` in caso di lock residui o verifiche antivirus.
+  - **Posizionamento Esterno di `update.bat`**: Collocato lo script batch direttamente in `%TEMP%` anziché all'interno della cartella dei file estratti da copiare, prevenendo la copia di `update.bat` nella cartella di installazione ed evitando il lock della directory sorgente da parte del processo `cmd.exe`.
+  - **Bonifica Deterministica e Pulizia Preventiva**: Inserito `cd /d "%TEMP%"` prima della rimozione della cartella estratta (`rmdir /s /q`) e dell'archivio `.zip` (`del /f /q`); aggiunta la chiusura preventiva di eventuali istanze `tsnetd.exe`; implementata una procedura asincrona di bonifica preventiva di file e directory temporanee residue di vecchi aggiornamenti con gestione pulita nel blocco `Finally`.
 
 ## [1.0.4-beta] - 2026-09-22
 

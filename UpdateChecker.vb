@@ -431,8 +431,37 @@ Public Class UpdateChecker
             Return
         End If
 
-        Dim tempZipPath = Path.Combine(Path.GetTempPath(), "HidaChat_Update.zip")
-        Dim tempDir = Path.Combine(Path.GetTempPath(), "HidaChat_Update")
+        Dim updateSessionId = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") & "_" & Guid.NewGuid().ToString("N").Substring(0, 8)
+        Dim tempZipPath = Path.Combine(Path.GetTempPath(), $"HidaChat_Update_{updateSessionId}.zip")
+        Dim tempDir = Path.Combine(Path.GetTempPath(), $"HidaChat_Update_{updateSessionId}")
+        Dim batchPath = Path.Combine(Path.GetTempPath(), $"hidachat_update_{updateSessionId}.bat")
+        Dim updateLaunched As Boolean = False
+
+        ' Pulizia asincrona preventiva e non bloccante di eventuali residui di aggiornamenti precedenti
+        Dim cleanupBgTask = Task.Run(Sub()
+            Try
+                Dim tempPath = Path.GetTempPath()
+                For Each dirPath In Directory.EnumerateDirectories(tempPath, "HidaChat_Update*")
+                    Try
+                        Directory.Delete(dirPath, True)
+                    Catch
+                    End Try
+                Next
+                For Each filePath In Directory.EnumerateFiles(tempPath, "HidaChat_Update*.zip")
+                    Try
+                        System.IO.File.Delete(filePath)
+                    Catch
+                    End Try
+                Next
+                For Each batchFilePath In Directory.EnumerateFiles(tempPath, "hidachat_update_*.bat")
+                    Try
+                        System.IO.File.Delete(batchFilePath)
+                    Catch
+                    End Try
+                Next
+            Catch
+            End Try
+        End Sub)
 
         Try
             If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
@@ -498,8 +527,14 @@ Public Class UpdateChecker
                 Debug.WriteLine($"Update integrity verified successfully with SHA-256: {computedSha256}")
             End If
 
-            ' 4. Estrai l'archivio temporaneo
-            If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
+            ' 4. Estrai l'archivio temporaneo in una cartella di sessione univoca
+            If Directory.Exists(tempDir) Then
+                Try
+                    Directory.Delete(tempDir, True)
+                Catch
+                    tempDir = Path.Combine(Path.GetTempPath(), $"HidaChat_Update_{updateSessionId}_{Guid.NewGuid():N}")
+                End Try
+            End If
             Directory.CreateDirectory(tempDir)
             ZipFile.ExtractToDirectory(tempZipPath, tempDir, True)
 
@@ -534,9 +569,8 @@ Public Class UpdateChecker
 
             ' NOTA PUNTO 57: WriteLocalVersionMarker rimosso da qui! Il marker viene scritto esclusivamente dallo script batch DOPO robocopy con successo.
 
-            ' 5. Crea ed esegui lo script batch di sostituzione file
+            ' 5. Crea ed esegui lo script batch di sostituzione file (posizionato fuori da sourceDir per non essere copiato da robocopy)
             Dim logFile = Path.Combine(installDir, ".update_log.txt")
-            Dim batchPath = Path.Combine(tempDir, "update.bat")
             Dim sbBatch As New System.Text.StringBuilder()
 
             sbBatch.AppendLine("@echo off")
@@ -553,6 +587,7 @@ Public Class UpdateChecker
             sbBatch.AppendLine("if %RETRY% GEQ 5 (")
             sbBatch.AppendLine("    echo [%date% %time%] Timeout dopo 10 secondi, forzo chiusura del processo... >> %LOG%")
             sbBatch.AppendLine("    taskkill /f /im HidaChat.exe /t >nul 2>&1")
+            sbBatch.AppendLine("    taskkill /f /im tsnetd.exe /t >nul 2>&1")
             sbBatch.AppendLine("    timeout /t 1 /nobreak > nul")
             sbBatch.AppendLine("    goto continue")
             sbBatch.AppendLine(")")
@@ -569,7 +604,9 @@ Public Class UpdateChecker
             sbBatch.AppendLine(")")
             sbBatch.AppendLine($"echo v{latestVersion}>""{installDir}\.app_version""")
             sbBatch.AppendLine("echo [%date% %time%] Version marker written >> %LOG%")
-            sbBatch.AppendLine($"if exist ""{tempZipPath}"" del /f /q ""{tempZipPath}""")
+            sbBatch.AppendLine("cd /d ""%TEMP%""")
+            sbBatch.AppendLine($"if exist ""{tempDir}"" rmdir /s /q ""{tempDir}"" >> %LOG% 2>&1")
+            sbBatch.AppendLine($"if exist ""{tempZipPath}"" del /f /q ""{tempZipPath}"" >> %LOG% 2>&1")
             sbBatch.AppendLine("echo [%date% %time%] Launching app... >> %LOG%")
             sbBatch.AppendLine($"start """" ""{installDir}\HidaChat.exe""")
             sbBatch.AppendLine("echo [%date% %time%] Done >> %LOG%")
@@ -604,6 +641,7 @@ Public Class UpdateChecker
                 .FileName = batchPath,
                 .UseShellExecute = True
             })
+            updateLaunched = True
 
             If Application.Current IsNot Nothing Then
                 If Application.Current.Dispatcher.CheckAccess() Then
@@ -636,10 +674,20 @@ Public Class UpdateChecker
                 Catch
                 End Try
             End If
-            Try
-                If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
-            Catch
-            End Try
+            If Not updateLaunched Then
+                Try
+                    If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
+                Catch
+                End Try
+                Try
+                    If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
+                Catch
+                End Try
+                Try
+                    If File.Exists(batchPath) Then File.Delete(batchPath)
+                Catch
+                End Try
+            End If
         End Try
     End Function
 
