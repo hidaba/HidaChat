@@ -700,16 +700,16 @@ Public Class SettingsController
 
         Try
             If _lastFlushTask IsNot Nothing Then
-                Await _lastFlushTask
+                Await _lastFlushTask.ConfigureAwait(False)
             End If
         Catch
         End Try
 
         If _dirty AndAlso _cachedSettings IsNot Nothing Then
             _dirty = False
-            Await WriteSettingsAsync(_cachedSettings)
+            Await WriteSettingsAsync(_cachedSettings).ConfigureAwait(False)
         Else
-            Await _ioLock.WaitAsync()
+            Await _ioLock.WaitAsync().ConfigureAwait(False)
             _ioLock.Release()
         End If
     End Function

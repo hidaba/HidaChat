@@ -276,7 +276,7 @@
                     </ItemsControl>
 
                     <!-- Add Account Button -->
-                    <Button x:Name="BtnAddAccount" Content="+" Click="BtnAddAccount_Click" ToolTip="Aggiungi account (max 3)" Style="{StaticResource AddAccountTabButtonStyle}" Margin="4,0,0,0"/>
+                    <Button x:Name="BtnAddAccount" Content="+" Click="BtnAddAccount_Click" ToolTipService.ShowOnDisabled="True" Style="{StaticResource AddAccountTabButtonStyle}" Margin="4,0,0,0"/>
                 </StackPanel>
             </Border>
 

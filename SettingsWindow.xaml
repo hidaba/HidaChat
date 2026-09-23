@@ -303,6 +303,14 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
+                    <!-- Downgrade Notice Banner -->
+                    <Border x:Name="BorderDowngradeNotice" Background="#33ffb300" BorderBrush="#ffb300" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚠️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="TxtDowngradeNotice" TextWrapping="Wrap" Foreground="#ffe082" FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
                     <Grid Margin="0,0,0,15">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -312,9 +320,14 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock x:Name="LabelMaxAccounts" Text="Max accounts:" Foreground="#aebac1" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
                             <ComboBox x:Name="ComboMaxAccounts" Width="75" SelectionChanged="ComboMaxAccounts_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                                <ComboBoxItem Content="2" Tag="2"/>
                                 <ComboBoxItem Content="3" Tag="3"/>
+                                <ComboBoxItem Content="4" Tag="4"/>
                                 <ComboBoxItem Content="5" Tag="5"/>
+                                <ComboBoxItem Content="6" Tag="6"/>
+                                <ComboBoxItem Content="7" Tag="7"/>
                                 <ComboBoxItem Content="8" Tag="8"/>
+                                <ComboBoxItem Content="9" Tag="9"/>
                                 <ComboBoxItem Content="10" Tag="10"/>
                             </ComboBox>
                         </StackPanel>

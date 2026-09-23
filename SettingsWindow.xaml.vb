@@ -107,6 +107,9 @@ Public Class SettingsWindow
             End If
             UpdateTsnetUI()
             AddHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
+            If _accountManager IsNot Nothing Then
+                AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+            End If
 
             _isInitializing = False
 
@@ -122,6 +125,24 @@ Public Class SettingsWindow
         End Try
     End Sub
 
+    Private Sub SettingsWindow_Closed(sender As Object, e As EventArgs) Handles Me.Closed
+        RemoveHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
+        If _accountManager IsNot Nothing Then
+            RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+        End If
+    End Sub
+
+    Private Sub OnAccountManagerPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+        If String.IsNullOrEmpty(e?.PropertyName) OrElse 
+           e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse 
+           e.PropertyName = NameOf(AccountManager.MaxAccounts) OrElse 
+           e.PropertyName = NameOf(AccountManager.HasExcessAccounts) OrElse 
+           e.PropertyName = NameOf(AccountManager.ExcessAccountsCount) OrElse 
+           e.PropertyName = NameOf(AccountManager.Accounts) Then
+            UpdateAccountsUIState()
+        End If
+    End Sub
+
     Private Sub TitleBar_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
         If e.ChangedButton = MouseButton.Left Then
             Me.DragMove()
@@ -129,7 +150,6 @@ Public Class SettingsWindow
     End Sub
 
     Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
-        RemoveHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
         Me.Close()
     End Sub
 
@@ -451,7 +471,14 @@ Public Class SettingsWindow
     Private Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)
         If Not _accountManager.CanAddAccount Then
             Dim loc = _settingsController.Localizations
-            MessageBox.Show(loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}}), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
+            If _accountManager.HasExcessAccounts Then
+                MessageBox.Show(loc.Get("accounts_downgrade_blocked", New Dictionary(Of String, String) From {
+                    {"count", _accountManager.Accounts.Count.ToString()},
+                    {"max", _accountManager.MaxAccounts.ToString()}
+                }), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Warning)
+            Else
+                MessageBox.Show(loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}}), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
+            End If
             Return
         End If
 
@@ -501,7 +528,6 @@ Public Class SettingsWindow
             Dim maxVal As Integer
             If Integer.TryParse(item.Tag.ToString(), maxVal) Then
                 Await _settingsController.SaveMaxAccountsAsync(maxVal)
-                _accountManager.NotifyPropertyChanged(NameOf(AccountManager.CanAddAccount))
                 UpdateAccountsUIState()
             End If
         End If
@@ -519,7 +545,7 @@ Public Class SettingsWindow
     End Function
 
     ''' <summary>
-    ''' Aggiorna lo stato del conteggio account e del pulsante aggiungi nelle impostazioni.
+    ''' Aggiorna lo stato del conteggio account, banner di downgrade e pulsante aggiungi nelle impostazioni.
     ''' </summary>
     Private Sub UpdateAccountsUIState()
         Dim loc = _settingsController.Localizations
@@ -532,6 +558,17 @@ Public Class SettingsWindow
         If BtnAddAccountSettings IsNot Nothing Then
             BtnAddAccountSettings.IsEnabled = _accountManager.CanAddAccount
             BtnAddAccountSettings.Content = loc.Get("add_account")
+        End If
+        If BorderDowngradeNotice IsNot Nothing AndAlso TxtDowngradeNotice IsNot Nothing Then
+            If _accountManager.HasExcessAccounts Then
+                BorderDowngradeNotice.Visibility = Visibility.Visible
+                TxtDowngradeNotice.Text = loc.Get("max_accounts_downgrade_notice", New Dictionary(Of String, String) From {
+                    {"count", _accountManager.Accounts.Count.ToString()},
+                    {"max", _accountManager.MaxAccounts.ToString()}
+                })
+            Else
+                BorderDowngradeNotice.Visibility = Visibility.Collapsed
+            End If
         End If
     End Sub
 
@@ -750,6 +787,14 @@ Public Class SettingsWindow
         End If
         If TxtCustomCss IsNot Nothing Then
             TxtCustomCss.Foreground = BrushCache.GetBrush(If(isDark, "#25d366", "#008069"))
+        End If
+
+        If BorderDowngradeNotice IsNot Nothing Then
+            BorderDowngradeNotice.Background = BrushCache.GetBrush(If(isDark, "#33ffb300", "#fff8e1"))
+            BorderDowngradeNotice.BorderBrush = BrushCache.GetBrush(If(isDark, "#ffb300", "#ffa000"))
+        End If
+        If TxtDowngradeNotice IsNot Nothing Then
+            TxtDowngradeNotice.Foreground = BrushCache.GetBrush(If(isDark, "#ffe082", "#b78103"))
         End If
 
         StyleAccountItems(isDark)

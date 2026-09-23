@@ -387,6 +387,19 @@ Public Class UpdateChecker
 
         If result <> MessageBoxResult.Yes Then Return
 
+        If Application.Current IsNot Nothing Then
+            Try
+                If Application.Current.Dispatcher.CheckAccess() Then
+                    System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait
+                Else
+                    Application.Current.Dispatcher.Invoke(Sub()
+                        System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait
+                    End Sub)
+                End If
+            Catch
+            End Try
+        End If
+
         ' 1. Verifica dell'impronta crittografica SHA-256 (Fail-Closed)
         Dim expectedHash = releaseInfo.ExpectedSha256
 
@@ -565,21 +578,42 @@ Public Class UpdateChecker
             File.WriteAllText(batchPath, sbBatch.ToString())
 
             ' Rilascia le risorse e chiudi i controlli WebView2 prima di lanciare lo script di aggiornamento
-            Application.Current.Dispatcher.Invoke(Sub()
-                Dim mainWin = TryCast(Application.Current.MainWindow, MainWindow)
-                If mainWin IsNot Nothing Then
-                    mainWin.ForceExitForUpdate()
+            Dim mainWin As MainWindow = Nothing
+            If Application.Current IsNot Nothing Then
+                If Application.Current.Dispatcher.CheckAccess() Then
+                    mainWin = TryCast(Application.Current.MainWindow, MainWindow)
+                Else
+                    Application.Current.Dispatcher.Invoke(Sub()
+                        mainWin = TryCast(Application.Current.MainWindow, MainWindow)
+                    End Sub)
                 End If
-            End Sub)
+            End If
+
+            If mainWin IsNot Nothing Then
+                If Application.Current.Dispatcher.CheckAccess() Then
+                    Await mainWin.ForceExitForUpdateAsync()
+                Else
+                    Dim op = Application.Current.Dispatcher.InvokeAsync(Async Function()
+                        Await mainWin.ForceExitForUpdateAsync()
+                    End Function)
+                    Await op.Task.Unwrap()
+                End If
+            End If
 
             Process.Start(New ProcessStartInfo With {
                 .FileName = batchPath,
                 .UseShellExecute = True
             })
 
-            Application.Current.Dispatcher.Invoke(Sub()
-                Application.Current.Shutdown()
-            End Sub)
+            If Application.Current IsNot Nothing Then
+                If Application.Current.Dispatcher.CheckAccess() Then
+                    Application.Current.Shutdown()
+                Else
+                    Application.Current.Dispatcher.Invoke(Sub()
+                        Application.Current.Shutdown()
+                    End Sub)
+                End If
+            End If
 
         Catch ex As Exception
             Debug.WriteLine($"Update execution failed: {ex.Message}")
@@ -590,6 +624,18 @@ Public Class UpdateChecker
                 MessageBoxImage.Error
             )
         Finally
+            If Application.Current IsNot Nothing Then
+                Try
+                    If Application.Current.Dispatcher.CheckAccess() Then
+                        System.Windows.Input.Mouse.OverrideCursor = Nothing
+                    Else
+                        Application.Current.Dispatcher.Invoke(Sub()
+                            System.Windows.Input.Mouse.OverrideCursor = Nothing
+                        End Sub)
+                    End If
+                Catch
+                End Try
+            End If
             Try
                 If File.Exists(tempZipPath) Then File.Delete(tempZipPath)
             Catch

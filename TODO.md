@@ -452,11 +452,14 @@
 - **Fix**: Calcolare e memorizzare il percorso una sola volta all'avvio (tramite `Lazy(Of String)` o durante `LoadSettingsAsync`) e spostare la migrazione iniziale da radice a `data/` all'interno di una procedura di inizializzazione dedicata.
 - **Impatto**: Basso | **Sforzo**: Basso
 
-## 66. Limite massimo account: sincronizzazione e policy di downgrade
-- **File**: `AccountManager.vb` (`MaxAccounts`, `CanAddAccount`, `AddAccountAsync`), `SettingsController.vb` (`MaxAccounts`), `SettingsWindow.xaml.vb`
-- **Problema**: In origine `AccountManager.MaxAccounts` era definito come costante rigida a 3. La proprietà è già stata resa dinamica in funzione di `SettingsController.MaxAccounts` (range 2–10) ed è già integrata nei controlli di `CanAddAccount` e `AddAccountAsync`. Manca tuttavia l'ascolto automatico di `_settingsController.PropertyChanged` all'interno di `AccountManager` per notificare le modifiche a `CanAddAccount` indipendentemente dalla UI di `SettingsWindow`, nonché una policy formale nel caso in cui l'utente imposti un limite inferiore al numero di account già configurati.
-- **Fix**: Sottoscrivere l'evento `PropertyChanged` di `SettingsController` nel costruttore di `AccountManager` per sollevare automaticamente le notifiche per `MaxAccounts` e `CanAddAccount`; definire la policy per il downgrade del limite (es. mantenimento non distruttivo degli account eccedenti con blocco delle nuove aggiunte e messaggio esplicativo nelle Impostazioni).
-*(Risolto in parte: `MaxAccounts` dinamico e controlli di aggiunta già implementati; mancano sincronizzazione eventi centralizzata e gestione downgrade)*
+## ~~66. Limite massimo account: sincronizzazione e policy di downgrade~~ ✅
+- **File**: `AccountManager.vb` (`MaxAccounts`, `CanAddAccount`, `HasExcessAccounts`, `ExcessAccountsCount`, `AddAccountAsync`, `IDisposable`), `SettingsController.vb` (`MaxAccounts`), `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `Localization.vb`
+- **Problema**: In origine `AccountManager.MaxAccounts` era definito come costante rigida a 3. La proprietà era stata resa dinamica in funzione di `SettingsController.MaxAccounts` (range 2–10) ed era integrata nei controlli di `CanAddAccount` e `AddAccountAsync`. Mancava tuttavia l'ascolto automatico di `_settingsController.PropertyChanged` all'interno di `AccountManager` per notificare le modifiche a `CanAddAccount` e `MaxAccounts` indipendentemente dalla UI di `SettingsWindow`, nonché una policy formale nel caso in cui l'utente imposti un limite inferiore al numero di account già configurati.
+- **Fix Implementato**:
+  - Sottoscrizione centralizzata dell'evento `PropertyChanged` di `SettingsController` nel costruttore di `AccountManager` per notificare automaticamente le modifiche a `MaxAccounts`, `CanAddAccount`, `HasExcessAccounts` ed `ExcessAccountsCount`; implementazione dell'interfaccia `IDisposable` in `AccountManager` per rilasciare pulitamente i listener;
+  - Policy formale di downgrade non distruttivo: qualora il limite `MaxAccounts` venga abbassato al di sotto degli account configurati, gli account esistenti vengono interamente preservati e restano funzionanti, mentre viene bloccata l'aggiunta di ulteriori account e mostrato un banner esplicativo con avviso nelle Impostazioni (`BorderDowngradeNotice`);
+  - Rimozione del tooltip statico hardcoded "(max 3)" dal pulsante `BtnAddAccount` in `MainWindow.xaml` e sincronizzazione dinamica di tooltip, stato abilitato/disabilitato e blocco aggiunta sia in `MainWindow` che in `SettingsWindow`;
+  - Aggiunta e sincronizzazione delle chiavi di downgrade (`max_accounts_downgrade_notice`, `accounts_downgrade_blocked`) nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Medio | **Sforzo**: Basso
 
 ## 67. UpdateChecker: UX, localizzazione, confronto versioni, duplicazioni

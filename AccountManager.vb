@@ -10,7 +10,7 @@ Imports System.Runtime.CompilerServices
 ''' il caricamento/salvataggio delle preferenze su file JSON e la pulizia delle cartelle di profilo.
 ''' </summary>
 Public Class AccountManager
-    Implements INotifyPropertyChanged
+    Implements INotifyPropertyChanged, IDisposable
 
     Public Const DefaultMaxAccounts As Integer = 5
     Public Const AbsoluteMaxAccounts As Integer = 10
@@ -38,10 +38,31 @@ Public Class AccountManager
 
     ''' <summary>
     ''' Indica se è possibile aggiungere un nuovo account (limite massimo configurato non ancora raggiunto).
+    ''' In caso di downgrade, l'aggiunta di ulteriori account è bloccata finché il totale non scende sotto MaxAccounts.
     ''' </summary>
     Public ReadOnly Property CanAddAccount As Boolean
         Get
             Return _accounts IsNot Nothing AndAlso _accounts.Count < MaxAccounts
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Indica se il numero di account attualmente configurati supera il limite massimo impostato (stato di downgrade).
+    ''' In caso di downgrade, gli account esistenti vengono preservati senza perdite, ma è bloccata l'aggiunta di ulteriori account.
+    ''' </summary>
+    Public ReadOnly Property HasExcessAccounts As Boolean
+        Get
+            Return _accounts IsNot Nothing AndAlso _accounts.Count > MaxAccounts
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Numero di account configurati che eccedono il limite massimo attualmente impostato.
+    ''' </summary>
+    Public ReadOnly Property ExcessAccountsCount As Integer
+        Get
+            If _accounts Is Nothing Then Return 0
+            Return Math.Max(0, _accounts.Count - MaxAccounts)
         End Get
     End Property
 
@@ -59,6 +80,8 @@ Public Class AccountManager
             _isDirty = True
             NotifyPropertyChanged()
             NotifyPropertyChanged(NameOf(CanAddAccount))
+            NotifyPropertyChanged(NameOf(HasExcessAccounts))
+            NotifyPropertyChanged(NameOf(ExcessAccountsCount))
         End Set
     End Property
 
@@ -116,6 +139,21 @@ Public Class AccountManager
 
     Public Sub New(settingsController As SettingsController)
         Me._settingsController = settingsController
+        If _settingsController IsNot Nothing Then
+            AddHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Sincronizza lo stato di AccountManager quando cambiano le impostazioni pertinenti (es. MaxAccounts).
+    ''' </summary>
+    Private Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
+        If String.IsNullOrEmpty(e?.PropertyName) OrElse e.PropertyName = NameOf(SettingsController.MaxAccounts) Then
+            NotifyPropertyChanged(NameOf(MaxAccounts))
+            NotifyPropertyChanged(NameOf(CanAddAccount))
+            NotifyPropertyChanged(NameOf(HasExcessAccounts))
+            NotifyPropertyChanged(NameOf(ExcessAccountsCount))
+        End If
     End Sub
 
     ''' <summary>
@@ -206,6 +244,9 @@ Public Class AccountManager
                     _isDirty = False
                     NotifyPropertyChanged(NameOf(Accounts))
                     NotifyPropertyChanged(NameOf(CurrentAccount))
+                    NotifyPropertyChanged(NameOf(CanAddAccount))
+                    NotifyPropertyChanged(NameOf(HasExcessAccounts))
+                    NotifyPropertyChanged(NameOf(ExcessAccountsCount))
                     Return
                 End If
             Catch ex As Exception
@@ -462,6 +503,9 @@ Public Class AccountManager
         
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
+        NotifyPropertyChanged(NameOf(CanAddAccount))
+        NotifyPropertyChanged(NameOf(HasExcessAccounts))
+        NotifyPropertyChanged(NameOf(ExcessAccountsCount))
     End Function
 
     ''' <summary>
@@ -483,8 +527,8 @@ Public Class AccountManager
     ''' Aggiunge un nuovo account specificando facoltativamente il nome e la piattaforma (WhatsApp o Telegram).
     ''' </summary>
     Public Async Function AddAccountAsync(Optional name As String = Nothing, Optional platform As String = "WhatsApp") As Task(Of Boolean)
-        If _accounts.Count >= MaxAccounts Then
-            Debug.WriteLine($"AddAccountAsync: impossibile aggiungere l'account, limite massimo ({MaxAccounts}) raggiunto.")
+        If Not CanAddAccount Then
+            Debug.WriteLine($"AddAccountAsync: impossibile aggiungere l'account, limite massimo ({MaxAccounts}) raggiunto o superato ({_accounts.Count}).")
             Return False
         End If
 
@@ -531,6 +575,8 @@ Public Class AccountManager
         
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CanAddAccount))
+        NotifyPropertyChanged(NameOf(HasExcessAccounts))
+        NotifyPropertyChanged(NameOf(ExcessAccountsCount))
         Return True
     End Function
 
@@ -560,6 +606,8 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
         NotifyPropertyChanged(NameOf(CanAddAccount))
+        NotifyPropertyChanged(NameOf(HasExcessAccounts))
+        NotifyPropertyChanged(NameOf(ExcessAccountsCount))
 
         Try
             ' Invocazione esplicita IDisposable sul WebView e listener
@@ -641,6 +689,24 @@ Public Class AccountManager
             HasAnyNotification = True
         Else
             HasAnyNotification = _accounts.Any(Function(a) a.HasNotification)
+        End If
+    End Sub
+
+    Private _disposed As Boolean = False
+
+    Public Sub Dispose() Implements IDisposable.Dispose
+        Dispose(True)
+        GC.SuppressFinalize(Me)
+    End Sub
+
+    Protected Overridable Sub Dispose(disposing As Boolean)
+        If Not _disposed Then
+            If disposing Then
+                If _settingsController IsNot Nothing Then
+                    RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+                End If
+            End If
+            _disposed = True
         End If
     End Sub
 End Class

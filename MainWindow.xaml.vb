@@ -258,7 +258,7 @@ Public Class MainWindow
 
         For Each acc In _accountManager.Accounts
             Try
-                Await acc.ClearBrowsingCacheAsync()
+                Await Task.WhenAny(acc.ClearBrowsingCacheAsync(), Task.Delay(2000))
             Catch
             End Try
         Next
@@ -288,7 +288,7 @@ Public Class MainWindow
         End Try
 
         Try
-            Await TsnetManager.Instance.ShutdownAsync()
+            Await Task.WhenAny(TsnetManager.Instance.ShutdownAsync(), Task.Delay(2000))
         Catch
         End Try
 
@@ -317,7 +317,7 @@ Public Class MainWindow
 
         For Each acc In _accountManager.Accounts
             Try
-                Await acc.ClearBrowsingCacheAsync()
+                Await Task.WhenAny(acc.ClearBrowsingCacheAsync(), Task.Delay(2000))
             Catch
             End Try
         Next
@@ -347,7 +347,7 @@ Public Class MainWindow
         End Try
 
         Try
-            Await TsnetManager.Instance.ShutdownAsync()
+            Await Task.WhenAny(TsnetManager.Instance.ShutdownAsync(), Task.Delay(2000))
         Catch
         End Try
 
@@ -362,7 +362,14 @@ Public Class MainWindow
     End Function
 
     Public Sub ForceExitForUpdate()
-        ForceExitForUpdateAsync().GetAwaiter().GetResult()
+        If Dispatcher.CheckAccess() Then
+            Dim frame As New System.Windows.Threading.DispatcherFrame()
+            Dim t = ForceExitForUpdateAsync()
+            t.ContinueWith(Sub(prev) frame.Continue = False)
+            System.Windows.Threading.Dispatcher.PushFrame(frame)
+        Else
+            ForceExitForUpdateAsync().GetAwaiter().GetResult()
+        End If
     End Sub
 
     ''' <summary>
@@ -375,11 +382,16 @@ Public Class MainWindow
             Me.Hide()
         Else
             Try
-                _accountManager.SaveAccountsAsync().GetAwaiter().GetResult()
-            Catch
-            End Try
-            Try
-                _settingsController.FlushNowAsync().GetAwaiter().GetResult()
+                Dim frame As New System.Windows.Threading.DispatcherFrame()
+                Dim saveTask = Task.WhenAll(_accountManager.SaveAccountsAsync(), _settingsController.FlushNowAsync())
+                saveTask.ContinueWith(Sub(prev) frame.Continue = False)
+                Dim timeoutTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(3)}
+                AddHandler timeoutTimer.Tick, Sub()
+                    timeoutTimer.Stop()
+                    frame.Continue = False
+                End Sub
+                timeoutTimer.Start()
+                System.Windows.Threading.Dispatcher.PushFrame(frame)
             Catch
             End Try
         End If
@@ -877,7 +889,20 @@ Public Class MainWindow
         If BtnAddAccount IsNot Nothing Then
             Dim canAdd = _accountManager.CanAddAccount
             BtnAddAccount.IsEnabled = canAdd
-            BtnAddAccount.Visibility = If(canAdd, Visibility.Visible, Visibility.Collapsed)
+            BtnAddAccount.Visibility = Visibility.Visible
+            Dim loc = _settingsController.Localizations
+            If canAdd Then
+                BtnAddAccount.ToolTip = loc.Get("add_account")
+            ElseIf _accountManager.HasExcessAccounts Then
+                BtnAddAccount.ToolTip = loc.Get("accounts_downgrade_blocked", New Dictionary(Of String, String) From {
+                    {"count", _accountManager.Accounts.Count.ToString()},
+                    {"max", _accountManager.MaxAccounts.ToString()}
+                })
+            Else
+                BtnAddAccount.ToolTip = loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {
+                    {"max", _accountManager.MaxAccounts.ToString()}
+                })
+            End If
         End If
     End Sub
 
@@ -886,13 +911,21 @@ Public Class MainWindow
     ''' </summary>
     Private Sub BtnAddAccount_Click(sender As Object, e As RoutedEventArgs)
         Try
+            Dim loc = _settingsController.Localizations
             If Not _accountManager.CanAddAccount Then
-                Dim msg = _settingsController.Localizations.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}})
-                MessageBox.Show(msg, "Limiti Account", MessageBoxButton.OK, MessageBoxImage.Information)
+                Dim msg As String
+                If _accountManager.HasExcessAccounts Then
+                    msg = loc.Get("accounts_downgrade_blocked", New Dictionary(Of String, String) From {
+                        {"count", _accountManager.Accounts.Count.ToString()},
+                        {"max", _accountManager.MaxAccounts.ToString()}
+                    })
+                Else
+                    msg = loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}})
+                End If
+                MessageBox.Show(msg, loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
                 Return
             End If
 
-            Dim loc = _settingsController.Localizations
             Dim menu As New ContextMenu()
             
             Dim itemWhatsApp As New MenuItem With {
@@ -962,6 +995,7 @@ Public Class MainWindow
         ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
             UpdateOnlineIndicator()
             UpdateDndState()
+            UpdateAddAccountButtonState()
         ElseIf e.PropertyName = NameOf(SettingsController.IsDndEnabled) OrElse e.PropertyName = NameOf(SettingsController.DndUntil) OrElse e.PropertyName = NameOf(SettingsController.DndDurationMode) OrElse e.PropertyName = NameOf(SettingsController.IsDndActive) Then
             UpdateDndState()
         End If
@@ -970,7 +1004,11 @@ Public Class MainWindow
     Private Sub OnAccountManagerPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
         If e.PropertyName = NameOf(AccountManager.HasAnyNotification) Then
             UpdateTrayIconImage()
-        ElseIf e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse e.PropertyName = NameOf(AccountManager.Accounts) Then
+        ElseIf e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse 
+               e.PropertyName = NameOf(AccountManager.MaxAccounts) OrElse 
+               e.PropertyName = NameOf(AccountManager.HasExcessAccounts) OrElse 
+               e.PropertyName = NameOf(AccountManager.ExcessAccountsCount) OrElse 
+               e.PropertyName = NameOf(AccountManager.Accounts) Then
             UpdateAddAccountButtonState()
             HookAccountEvents()
             UpdateOnlineIndicator()

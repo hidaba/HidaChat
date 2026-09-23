@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.0.5-beta] - 2026-09-23
+
+### Pre-release / Beta — Sincronizzazione Eventi MaxAccounts e Policy di Downgrade Non Distruttiva
+- **Sincronizzazione Centralizzata Eventi Limite Account (`AccountManager.vb`, `SettingsController.vb`) (#66)**:
+  - **Ascolto Automatico `PropertyChanged`**: `AccountManager` sottoscrive direttamente nel costruttore l'evento `PropertyChanged` di `SettingsController`, notificando in modo automatico e centralizzato le proprietà `MaxAccounts`, `CanAddAccount`, `HasExcessAccounts` ed `ExcessAccountsCount` ogni volta che il limite viene modificato dall'utente nelle Impostazioni.
+  - **Disiscrizione Pulita e Ciclo di Vita**: Implementata l'interfaccia `IDisposable` in `AccountManager` con rilascio controllato dell'handler `OnSettingsPropertyChanged`, prevenendo memory leak e riferimenti orfani.
+- **Policy di Downgrade Non Distruttiva degli Account Configurati (`AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`) (#66)**:
+  - **Preservazione Integrale Sessioni Eccedenti**: Qualora l'utente riduca il valore `MaxAccounts` al di sotto del numero di account attualmente registrati, tutti gli account esistenti rimangono perfettamente attivi, navigabili e funzionanti senza alcuna cancellazione di dati o profili su disco.
+  - **Blocco Conservativo Aggiunte**: L'aggiunta di ulteriori account viene inibita (`CanAddAccount = False`) sia da interfaccia grafica che dal metodo asincrono `AddAccountAsync` fino a quando il numero totale di account non rientra strettamente sotto il nuovo limite impostato.
+  - **Banner di Avviso Downgrade nelle Impostazioni**: Introdotto un banner contestuale visivo (`BorderDowngradeNotice` con testo `TxtDowngradeNotice`) nella sezione "Gestione Account" di `SettingsWindow.xaml`, che segnala il numero di account eccedenti rispetto al limite impostato spiegando la natura conservativa della policy; il banner adotta stili e colori dedicati coerenti con il tema scuro/chiaro (`ApplyTheme`).
+  - **Estensione Selettore Limite (2–10)**: Esteso il menu a tendina `ComboMaxAccounts` in `SettingsWindow.xaml` per supportare qualsiasi limite consentito nel range 2–10 (in precedenza limitato a soli quattro scaglioni discreti).
+- **Miglioramento UX, Tooltip Dinamici e Localizzazione Multilingua (`MainWindow.xaml`, `MainWindow.xaml.vb`, `Localization.vb`) (#66)**:
+  - **Rimozione Tooltip Hardcoded**: Eliminato il tooltip statico residuo `Aggiungi account (max 3)` dal pulsante `BtnAddAccount` in `MainWindow.xaml`.
+  - **Tooltip Dinamico Contestuale**: Il pulsante `+` sulla barra delle schede mostra ora tooltip contestuali e localizzati in base allo stato (`add_account`, `accounts_downgrade_blocked` o `max_accounts_reached`), supportando la visualizzazione anche su controllo disabilitato tramite `ToolTipService.ShowOnDisabled="True"`.
+  - **Localizzazione Completa in 5 Lingue**: Aggiunte e sincronizzate le nuove chiavi `max_accounts_downgrade_notice` e `accounts_downgrade_blocked` nei dizionari di tutte e 5 le lingue supportate dall'applicazione (`Localization.vb`: IT, EN, FR, ES, DE).
+
+## [1.0.4-beta] - 2026-09-22
+
+### Pre-release / Beta — Risoluzione Deadlock Aggiornamento OTA e Chiusura Non Bloccante
+- **Risoluzione Deadlock Bloccante Aggiornamenti OTA (`UpdateChecker.vb`, `MainWindow.xaml.vb`)**:
+  - **Eliminazione Attesa Sincrona `.GetAwaiter().GetResult()`**: Risolto il blocco completo dell'applicazione che si verificava all'avvio della procedura di aggiornamento: `ForceExitForUpdate()` invocava in modo sincrono bloccante sul Dispatcher UI la funzione asincrona `ForceExitForUpdateAsync()`, causando un deadlock irreversibile con le chiamate COM asincrone di WebView2 (`ClearBrowsingDataAsync`), le quali necessitano del message pump attivo della finestra WPF per completare la notifica di ritorno. Di conseguenza `update.bat` non veniva mai eseguito e il programma rimaneva congelato senza avviare la copia dei file.
+  - **Chiusura Completamente Asincrona e Non Bloccante**: In `UpdateChecker.vb`, la procedura di pre-aggiornamento invoca e attende ora direttamente `Await mainWin.ForceExitForUpdateAsync()` con continuazione asincrona nativa senza mai congelare il thread UI.
+  - **DispatcherFrame con Pompa Messaggi per Chiamate Sincrone**: In `ForceExitForUpdate()` e nell'evento `MainWindow_Closing`, le attese bloccanti sono state sostituite con `DispatcherFrame` e timer di fallback a 3 secondi, consentendo al message loop di continuare l'elaborazione dei messaggi Windows senza blocchi indefiniti.
+  - **Timeout Protettivi di Sicurezza (2s) su WebView2 e Daemon Companion**: Incapsulate le chiamate `ClearBrowsingCacheAsync()` e `TsnetManager.Instance.ShutdownAsync()` all'interno di `Task.WhenAny(..., Task.Delay(2000))` sia in `ExitApplication` che in `ForceExitForUpdateAsync`, impedendo a eventuali controlli WebView2 orfani o processi Chromium di bloccare la chiusura dell'applicazione.
+  - **Feedback Visivo Durante il Download**: Impostato il cursore di attesa (`Cursors.Wait`) alla conferma dell'aggiornamento con ripristino deterministico nel blocco `Finally`, fornendo immediato riscontro all'utente durante il download e l'estrazione dell'archivio.
+  - **Ottimizzazione `FlushNowAsync` (`SettingsController.vb`)**: Aggiunto `.ConfigureAwait(False)` sui task interni e sul semaforo I/O `_ioLock` per prevenire qualsiasi legame con il SynchronizationContext del thread UI.
+
 ## [1.0.3-beta] - 2026-09-22
 
 ### Pre-release / Beta — Pulizia Profili WebView2 Non Distruttiva con Cestino, Eliminazione Differita e Preservazione Sessioni
