@@ -614,7 +614,15 @@ Public Class UpdateChecker
 
             File.WriteAllText(batchPath, sbBatch.ToString())
 
-            ' Rilascia le risorse e chiudi i controlli WebView2 prima di lanciare lo script di aggiornamento
+            ' 1. Avvia lo script batch PRIMA di chiudere l'applicazione
+            ' In questo modo il processo di aggiornamento è attivo e autonomo, monitorando l'uscita di HidaChat
+            Process.Start(New ProcessStartInfo With {
+                .FileName = batchPath,
+                .UseShellExecute = True
+            })
+            updateLaunched = True
+
+            ' 2. Salva lo stato dell'applicazione e rilascia le risorse (impostazioni e account)
             Dim mainWin As MainWindow = Nothing
             If Application.Current IsNot Nothing Then
                 If Application.Current.Dispatcher.CheckAccess() Then
@@ -627,31 +635,21 @@ Public Class UpdateChecker
             End If
 
             If mainWin IsNot Nothing Then
-                If Application.Current.Dispatcher.CheckAccess() Then
-                    Await mainWin.ForceExitForUpdateAsync()
-                Else
-                    Dim op = Application.Current.Dispatcher.InvokeAsync(Async Function()
+                Try
+                    If Application.Current.Dispatcher.CheckAccess() Then
                         Await mainWin.ForceExitForUpdateAsync()
-                    End Function)
-                    Await op.Task.Unwrap()
-                End If
+                    Else
+                        Dim op = Application.Current.Dispatcher.InvokeAsync(Async Function()
+                            Await mainWin.ForceExitForUpdateAsync()
+                        End Function)
+                        Await op.Task.Unwrap()
+                    End If
+                Catch
+                End Try
             End If
 
-            Process.Start(New ProcessStartInfo With {
-                .FileName = batchPath,
-                .UseShellExecute = True
-            })
-            updateLaunched = True
-
-            If Application.Current IsNot Nothing Then
-                If Application.Current.Dispatcher.CheckAccess() Then
-                    Application.Current.Shutdown()
-                Else
-                    Application.Current.Dispatcher.Invoke(Sub()
-                        Application.Current.Shutdown()
-                    End Sub)
-                End If
-            End If
+            ' 3. Termina immediatamente il processo corrente per consentire a robocopy di procedere senza attendere il timeout di taskkill
+            Environment.Exit(0)
 
         Catch ex As Exception
             Debug.WriteLine($"Update execution failed: {ex.Message}")

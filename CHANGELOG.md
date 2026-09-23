@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.6-beta] - 2026-09-23
+
+### Pre-release / Beta — Risoluzione Blocco Aggiornamento OTA e Avvio Immediato Script Batch
+- **Avvio Preventivo ed Esecuzione Autonoma dell'Updater (`UpdateChecker.vb`)**:
+  - **Inversione Sequenza di Uscita**: Lo script batch di aggiornamento (`hidachat_update_*.bat`) viene avviato tramite `Process.Start` prima di avviare la procedura di chiusura di HidaChat, rendendo il processo di update completamente autonomo ed immune da eventuali freeze o rallentamenti dell'interfaccia.
+  - **Uscita Rapida e Deterministica `Environment.Exit(0)`**: Dopo il salvataggio atomico di impostazioni e account e il rilascio del Mutex di singola istanza, il processo termina istantaneamente con `Environment.Exit(0)`, rilasciando tutti i lock sui binari e consentendo a `robocopy` di eseguire la sostituzione dei file senza attendere timeout forzati.
+- **Ottimizzazione e Resilienza Chiusura Pre-Update (`MainWindow.xaml.vb`)**:
+  - **Eliminazione Attese Inutili o a Rischio Deadlock**: Rimosse le chiamate lente o suscettibili di deadlock COM (`ClearBrowsingCacheAsync` di WebView2, `CleanupTransientCachesAsync` e `TsnetManager.Instance.ShutdownAsync`) da `ForceExitForUpdateAsync`, delegando la bonifica dei processi a `update.bat` e concentrando la routine di uscita unicamente sulla persistenza atomica dei dati utente (`SaveAccountsAsync`, `FlushNowAsync`).
+  - **Timer di Sicurezza su `ForceExitForUpdate`**: Aggiunto un timer di fallback a 3 secondi su `DispatcherFrame` per impedire blocchi indeterminati della pompa messaggi durante le chiamate sincrone di chiusura.
+
 ## [1.0.5-beta] - 2026-09-23
 
 ### Pre-release / Beta — Sincronizzazione Eventi MaxAccounts e Policy di Downgrade Non Distruttiva

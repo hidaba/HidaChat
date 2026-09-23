@@ -315,39 +315,8 @@ Public Class MainWindow
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
 
-        For Each acc In _accountManager.Accounts
-            Try
-                Await Task.WhenAny(acc.ClearBrowsingCacheAsync(), Task.Delay(2000))
-            Catch
-            End Try
-        Next
-
-        For Each acc In _accountManager.Accounts
-            Try
-                RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
-                RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
-                acc.Dispose()
-            Catch
-            End Try
-        Next
-
         Try
-            Await _accountManager.SaveAccountsAsync()
-        Catch
-        End Try
-
-        Try
-            Await _settingsController.FlushNowAsync()
-        Catch
-        End Try
-
-        Try
-            Await _accountManager.CleanupTransientCachesAsync()
-        Catch
-        End Try
-
-        Try
-            Await Task.WhenAny(TsnetManager.Instance.ShutdownAsync(), Task.Delay(2000))
+            Await Task.WhenAll(_accountManager.SaveAccountsAsync(), _settingsController.FlushNowAsync())
         Catch
         End Try
 
@@ -366,6 +335,12 @@ Public Class MainWindow
             Dim frame As New System.Windows.Threading.DispatcherFrame()
             Dim t = ForceExitForUpdateAsync()
             t.ContinueWith(Sub(prev) frame.Continue = False)
+            Dim timeoutTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(3)}
+            AddHandler timeoutTimer.Tick, Sub()
+                timeoutTimer.Stop()
+                frame.Continue = False
+            End Sub
+            timeoutTimer.Start()
             System.Windows.Threading.Dispatcher.PushFrame(frame)
         Else
             ForceExitForUpdateAsync().GetAwaiter().GetResult()
