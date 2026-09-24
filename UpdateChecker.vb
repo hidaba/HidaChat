@@ -20,6 +20,7 @@ Public Class UpdateChecker
     Private Shared ReadOnly _downloadClient As New HttpClient() With {
         .Timeout = System.Threading.Timeout.InfiniteTimeSpan
     }
+    Private Shared ReadOnly _logLock As New Object()
 
     Shared Sub New()
         _httpClient.Timeout = TimeSpan.FromSeconds(15)
@@ -28,6 +29,62 @@ Public Class UpdateChecker
 
         _downloadClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("HidaChat-App", Constants.AppVersion))
     End Sub
+
+    ''' <summary>
+    ''' Registra un messaggio di log su Debug e sul file portabile 'data/updates.log'.
+    ''' </summary>
+    Private Shared Sub Log(message As String)
+        Dim logLine = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}"
+        Debug.WriteLine(logLine)
+        Try
+            Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
+            If Not Directory.Exists(dataDir) Then
+                Directory.CreateDirectory(dataDir)
+            End If
+            Dim logFile = Path.Combine(dataDir, "updates.log")
+            SyncLock _logLock
+                Dim fi As New FileInfo(logFile)
+                If fi.Exists AndAlso fi.Length > 1024 * 1024 Then
+                    Dim oldLog = Path.Combine(dataDir, "updates.log.old")
+                    If File.Exists(oldLog) Then File.Delete(oldLog)
+                    File.Move(logFile, oldLog)
+                End If
+                File.AppendAllText(logFile, logLine & Environment.NewLine)
+            End SyncLock
+        Catch
+            ' Fail-silent per prevenire eccezioni I/O nel logging
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Mostra un MessageBox sincronizzandosi in modo sicuro con il Dispatcher UI.
+    ''' </summary>
+    Private Shared Sub ShowMessageBox(message As String, caption As String, button As MessageBoxButton, image As MessageBoxImage)
+        If Application.Current IsNot Nothing AndAlso Application.Current.Dispatcher IsNot Nothing Then
+            If Application.Current.Dispatcher.CheckAccess() Then
+                MessageBox.Show(message, caption, button, image)
+            Else
+                Application.Current.Dispatcher.Invoke(Sub() MessageBox.Show(message, caption, button, image))
+            End If
+        Else
+            MessageBox.Show(message, caption, button, image)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Mostra una finestra di conferma MessageBox e ne restituisce il risultato sincronizzandosi con il Dispatcher UI.
+    ''' </summary>
+    Private Shared Function ShowMessageBoxConfirm(message As String, caption As String, button As MessageBoxButton, image As MessageBoxImage) As MessageBoxResult
+        If Application.Current IsNot Nothing AndAlso Application.Current.Dispatcher IsNot Nothing Then
+            If Application.Current.Dispatcher.CheckAccess() Then
+                Return MessageBox.Show(message, caption, button, image)
+            Else
+                Return Application.Current.Dispatcher.Invoke(Function() MessageBox.Show(message, caption, button, image))
+            End If
+        Else
+            Return MessageBox.Show(message, caption, button, image)
+        End If
+    End Function
 
     ''' <summary>
     ''' Rimuove il prefisso 'v' e gli spazi vuoti da una stringa di versione (es. "v1.2.0" -> "1.2.0").
@@ -42,10 +99,53 @@ Public Class UpdateChecker
     End Function
 
     ''' <summary>
-    ''' Confronta la versione remota con la versione corrente e restituisce true se la versione remota è più recente.
-    ''' Gestisce correttamente la separazione tra parti numeriche e suffissi di pre-release (es. "0.2.4-beta" vs "0.2.3").
+    ''' Confronta due identificatori o suffissi di pre-release (es. "beta2" vs "beta10", "beta.1" vs "beta.2", "rc1" vs "beta2")
+    ''' secondo le specifiche SemVer, gestendo il parsing numerico dei singoli token.
     ''' </summary>
-    Private Shared Function IsNewerVersion(remote As String, current As String) As Boolean
+    Friend Shared Function ComparePrerelease(preA As String, preB As String) As Integer
+        If String.Equals(preA, preB, StringComparison.OrdinalIgnoreCase) Then Return 0
+        If String.IsNullOrEmpty(preA) AndAlso Not String.IsNullOrEmpty(preB) Then Return 1
+        If Not String.IsNullOrEmpty(preA) AndAlso String.IsNullOrEmpty(preB) Then Return -1
+
+        Dim matchesA = Regex.Matches(preA, "\d+|[^\d\.\-_+]+")
+        Dim matchesB = Regex.Matches(preB, "\d+|[^\d\.\-_+]+")
+
+        Dim count = Math.Min(matchesA.Count, matchesB.Count)
+        For i As Integer = 0 To count - 1
+            Dim tokenA = matchesA(i).Value
+            Dim tokenB = matchesB(i).Value
+
+            Dim valA As Long
+            Dim valB As Long
+            Dim isNumA = Long.TryParse(tokenA, valA)
+            Dim isNumB = Long.TryParse(tokenB, valB)
+
+            If isNumA AndAlso isNumB Then
+                If valA <> valB Then
+                    Return valA.CompareTo(valB)
+                End If
+            ElseIf isNumA AndAlso Not isNumB Then
+                ' In SemVer un identificatore numerico ha precedenza inferiore a un identificatore alfabetico
+                Return -1
+            ElseIf Not isNumA AndAlso isNumB Then
+                Return 1
+            Else
+                Dim cmp = String.Compare(tokenA, tokenB, StringComparison.OrdinalIgnoreCase)
+                If cmp <> 0 Then
+                    Return cmp
+                End If
+            End If
+        Next
+
+        ' Se tutti i token comuni sono identici, la versione con più token ha precedenza maggiore (es. "beta.1" > "beta")
+        Return matchesA.Count.CompareTo(matchesB.Count)
+    End Function
+
+    ''' <summary>
+    ''' Confronta la versione remota con la versione corrente e restituisce true se la versione remota è più recente.
+    ''' Gestisce correttamente la separazione tra parti numeriche e suffissi di pre-release (es. "0.2.4-beta" vs "0.2.3", "beta10" vs "beta2").
+    ''' </summary>
+    Public Shared Function IsNewerVersion(remote As String, current As String) As Boolean
         Dim cleanRemote = CleanVersionString(remote)
         Dim cleanCurrent = CleanVersionString(current)
 
@@ -94,9 +194,9 @@ Public Class UpdateChecker
             Return False
         End If
 
-        ' 3. Se entrambe hanno prerelease, confronta alfanumericamente i suffissi (es. "beta2" > "beta1")
+        ' 3. Se entrambe hanno prerelease, confronta i suffissi con semantica SemVer numerica (es. "beta10" > "beta2")
         If Not String.IsNullOrEmpty(remotePre) AndAlso Not String.IsNullOrEmpty(currentPre) Then
-            Return String.Compare(remotePre, currentPre, StringComparison.OrdinalIgnoreCase) > 0
+            Return ComparePrerelease(remotePre, currentPre) > 0
         End If
 
         Return False
@@ -117,9 +217,10 @@ Public Class UpdateChecker
         _hasChecked = True
 
         Dim installDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName)
+        Dim loc = settings?.Localizations
 
         If Not force AndAlso Not settings.CheckForUpdates Then
-            Debug.WriteLine("Update check on launch is disabled by user.")
+            Log("Update check on launch is disabled by user.")
             Return
         End If
 
@@ -130,40 +231,62 @@ Public Class UpdateChecker
                 Dim remoteVersion = releaseInfo.Version
                 Dim downloadUrl = releaseInfo.DownloadUrl
 
-                Debug.WriteLine($"GitHub Release check: Current={Constants.AppVersion}, Remote={remoteVersion}")
+                Log($"GitHub Release check: Current={Constants.AppVersion}, Remote={remoteVersion}")
 
                 If IsNewerVersion(remoteVersion, Constants.AppVersion) Then
                     If Not String.IsNullOrEmpty(downloadUrl) Then
                         Await PerformUpdateFromGitHubAsync(releaseInfo, installDir, settings)
                         Return
                     Else
-                        Debug.WriteLine("GitHub release found but no ZIP asset attached.")
+                        Log("GitHub release found but no ZIP asset attached.")
+                        If force Then
+                            Dim noAssetMsg = If(loc IsNot Nothing,
+                                loc.Get("update_no_asset"),
+                                "Nessun pacchetto di aggiornamento valido allegato alla versione remota.")
+                            Dim noAssetTitle = If(loc IsNot Nothing, loc.Get("update_check_failed_title"), "Verifica Aggiornamenti")
+                            ShowMessageBox(noAssetMsg, noAssetTitle, MessageBoxButton.OK, MessageBoxImage.Warning)
+                        End If
+                        Return
                     End If
                 ElseIf CleanVersionString(remoteVersion).Equals(CleanVersionString(Constants.AppVersion), StringComparison.OrdinalIgnoreCase) Then
                     If force Then
-                        MessageBox.Show(
-                            "Hai già la versione più recente (v" & Constants.AppVersion & ")!",
-                            "Aggiornato",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information
-                        )
+                        Dim msg = If(loc IsNot Nothing,
+                            loc.Get("update_already_latest", New Dictionary(Of String, String) From {{"version", Constants.AppVersion}}),
+                            $"Hai già la versione più recente (v{Constants.AppVersion})!")
+                        Dim title = If(loc IsNot Nothing, loc.Get("update_already_latest_title"), "Aggiornato")
+                        ShowMessageBox(msg, title, MessageBoxButton.OK, MessageBoxImage.Information)
                     End If
                     Return
                 Else
                     If force Then
-                        MessageBox.Show(
-                            "La versione remota (v" & remoteVersion & ") è precedente o uguale a quella corrente (v" & Constants.AppVersion & ").",
-                            "Aggiornamento",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information
-                        )
+                        Dim msg = If(loc IsNot Nothing,
+                            loc.Get("update_no_new_version", New Dictionary(Of String, String) From {{"remote", remoteVersion}, {"current", Constants.AppVersion}}),
+                            $"La versione remota (v{remoteVersion}) è precedente o uguale a quella corrente (v{Constants.AppVersion}).")
+                        Dim title = If(loc IsNot Nothing, loc.Get("update_no_new_version_title"), "Aggiornamento")
+                        ShowMessageBox(msg, title, MessageBoxButton.OK, MessageBoxImage.Information)
                     End If
                     Return
+                End If
+            Else
+                Log("GitHub release info could not be fetched or endpoint unreachable.")
+                If force Then
+                    Dim failMsg = If(loc IsNot Nothing,
+                        loc.Get("update_check_failed_network"),
+                        "Impossibile verificare la presenza di aggiornamenti. Verifica la connessione Internet o riprova più tardi.")
+                    Dim failTitle = If(loc IsNot Nothing, loc.Get("update_check_failed_title"), "Verifica Aggiornamenti")
+                    ShowMessageBox(failMsg, failTitle, MessageBoxButton.OK, MessageBoxImage.Warning)
                 End If
             End If
 
         Catch ex As Exception
-            Debug.WriteLine($"GitHub update check error: {ex.Message}")
+            Log($"GitHub update check error: {ex.Message}")
+            If force Then
+                Dim failMsg = If(loc IsNot Nothing,
+                    loc.Get("update_check_failed", New Dictionary(Of String, String) From {{"error", ex.Message}}),
+                    "Errore durante la verifica degli aggiornamenti:" & vbCrLf & vbCrLf & ex.Message)
+                Dim failTitle = If(loc IsNot Nothing, loc.Get("update_check_failed_title"), "Verifica Aggiornamenti")
+                ShowMessageBox(failMsg, failTitle, MessageBoxButton.OK, MessageBoxImage.Warning)
+            End If
         End Try
     End Function
 
@@ -250,6 +373,70 @@ Public Class UpdateChecker
     End Function
 
     ''' <summary>
+    ''' Estrae in modo centralizzato e sicuro i metadati di una release (versione, note, url zip e checksum sha256)
+    ''' da un nodo JsonElement proveniente dalle API GitHub Releases.
+    ''' </summary>
+    Private Shared Function ParseRelease(rel As JsonElement) As ReleaseInfo
+        Try
+            Dim prop As JsonElement = Nothing
+            Dim tagName As String = String.Empty
+            If rel.TryGetProperty("tag_name", prop) AndAlso prop.ValueKind = JsonValueKind.String Then
+                tagName = prop.GetString()
+            End If
+            Dim cleanVer = CleanVersionString(tagName)
+
+            Dim notes As String = String.Empty
+            If rel.TryGetProperty("body", prop) AndAlso prop.ValueKind = JsonValueKind.String Then
+                notes = prop.GetString()
+            End If
+
+            Dim zipUrl As String = String.Empty
+            Dim zipName As String = String.Empty
+            Dim sha256Url As String = String.Empty
+
+            If rel.TryGetProperty("assets", prop) AndAlso prop.ValueKind = JsonValueKind.Array Then
+                For Each asset In prop.EnumerateArray()
+                    Dim assetProp As JsonElement = Nothing
+                    Dim name As String = String.Empty
+                    Dim assetUrl As String = String.Empty
+
+                    If asset.TryGetProperty("name", assetProp) AndAlso assetProp.ValueKind = JsonValueKind.String Then
+                        name = assetProp.GetString()
+                    End If
+
+                    If asset.TryGetProperty("browser_download_url", assetProp) AndAlso assetProp.ValueKind = JsonValueKind.String Then
+                        assetUrl = assetProp.GetString()
+                    End If
+
+                    If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
+                        zipUrl = assetUrl
+                        zipName = name
+                    ElseIf name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase) OrElse
+                           name.EndsWith(".sha256sum", StringComparison.OrdinalIgnoreCase) OrElse
+                           name.Equals("SHA256SUMS", StringComparison.OrdinalIgnoreCase) OrElse
+                           name.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) OrElse
+                           name.Equals("checksums.txt", StringComparison.OrdinalIgnoreCase) Then
+                        sha256Url = assetUrl
+                    End If
+                Next
+            End If
+
+            Dim expectedHash = ExtractSha256FromText(notes, zipName)
+            Return New ReleaseInfo With {
+                .Version = cleanVer,
+                .DownloadUrl = zipUrl,
+                .ZipFileName = zipName,
+                .Sha256Url = sha256Url,
+                .ExpectedSha256 = expectedHash,
+                .Notes = notes
+            }
+        Catch ex As Exception
+            Log($"Error parsing release JSON: {ex.Message}")
+            Return Nothing
+        End Try
+    End Function
+
+    ''' <summary>
     ''' Recupera le informazioni sull'ultima release pubblicata su GitHub interpellando le API REST.
     ''' </summary>
     Private Shared Async Function FetchGitHubReleaseInfoAsync(useBeta As Boolean) As Task(Of ReleaseInfo)
@@ -257,7 +444,7 @@ Public Class UpdateChecker
         
         Dim response = Await _httpClient.GetAsync(apiUrl)
         If Not response.IsSuccessStatusCode Then
-            Debug.WriteLine($"GitHub API response code: {response.StatusCode}")
+            Log($"GitHub API response code: {response.StatusCode} ({response.ReasonPhrase})")
             Return Nothing
         End If
 
@@ -268,79 +455,21 @@ Public Class UpdateChecker
             ' Se canale beta, l'endpoint restituisce un array di release ordinale per data
             If root.ValueKind = JsonValueKind.Array Then
                 For Each rel In root.EnumerateArray()
-                    Dim tagName = If(rel.TryGetProperty("tag_name", Nothing), rel.GetProperty("tag_name").GetString(), "")
-                    Dim cleanVer = CleanVersionString(tagName)
-                    Dim notes = If(rel.TryGetProperty("body", Nothing), rel.GetProperty("body").GetString(), "")
-                    Dim zipUrl As String = String.Empty
-                    Dim zipName As String = String.Empty
-                    Dim sha256Url As String = String.Empty
-
-                    If rel.TryGetProperty("assets", Nothing) Then
-                        For Each asset In rel.GetProperty("assets").EnumerateArray()
-                            Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
-                            Dim assetUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
-
-                            If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
-                                zipUrl = assetUrl
-                                zipName = name
-                            ElseIf name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase) OrElse
-                                   name.EndsWith(".sha256sum", StringComparison.OrdinalIgnoreCase) OrElse
-                                   name.Equals("SHA256SUMS", StringComparison.OrdinalIgnoreCase) OrElse
-                                   name.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) OrElse
-                                   name.Equals("checksums.txt", StringComparison.OrdinalIgnoreCase) Then
-                                sha256Url = assetUrl
-                            End If
-                        Next
-                    End If
-
-                    If Not String.IsNullOrEmpty(zipUrl) Then
-                        Dim expectedHash = ExtractSha256FromText(notes, zipName)
-                        Return New ReleaseInfo With {
-                            .Version = cleanVer,
-                            .DownloadUrl = zipUrl,
-                            .ZipFileName = zipName,
-                            .Sha256Url = sha256Url,
-                            .ExpectedSha256 = expectedHash,
-                            .Notes = notes
-                        }
+                    Dim info = ParseRelease(rel)
+                    If info IsNot Nothing AndAlso Not String.IsNullOrEmpty(info.DownloadUrl) Then
+                        Return info
                     End If
                 Next
                 Return Nothing
-            Else
-                Dim tagName = If(root.TryGetProperty("tag_name", Nothing), root.GetProperty("tag_name").GetString(), "")
-                Dim cleanVer = CleanVersionString(tagName)
-                Dim notes = If(root.TryGetProperty("body", Nothing), root.GetProperty("body").GetString(), "")
-                Dim zipUrl As String = String.Empty
-                Dim zipName As String = String.Empty
-                Dim sha256Url As String = String.Empty
-
-                If root.TryGetProperty("assets", Nothing) Then
-                    For Each asset In root.GetProperty("assets").EnumerateArray()
-                        Dim name = If(asset.TryGetProperty("name", Nothing), asset.GetProperty("name").GetString(), "")
-                        Dim assetUrl = If(asset.TryGetProperty("browser_download_url", Nothing), asset.GetProperty("browser_download_url").GetString(), "")
-
-                        If name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) Then
-                            zipUrl = assetUrl
-                            zipName = name
-                        ElseIf name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase) OrElse
-                               name.EndsWith(".sha256sum", StringComparison.OrdinalIgnoreCase) OrElse
-                               name.Equals("SHA256SUMS", StringComparison.OrdinalIgnoreCase) OrElse
-                               name.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) OrElse
-                               name.Equals("checksums.txt", StringComparison.OrdinalIgnoreCase) Then
-                            sha256Url = assetUrl
-                        End If
-                    Next
+            ElseIf root.ValueKind = JsonValueKind.Object Then
+                Dim info = ParseRelease(root)
+                If info IsNot Nothing AndAlso Not String.IsNullOrEmpty(info.DownloadUrl) Then
+                    Return info
                 End If
-
-                Dim expectedHash = ExtractSha256FromText(notes, zipName)
-                Return New ReleaseInfo With {
-                    .Version = cleanVer,
-                    .DownloadUrl = zipUrl,
-                    .ZipFileName = zipName,
-                    .Sha256Url = sha256Url,
-                    .ExpectedSha256 = expectedHash,
-                    .Notes = notes
-                }
+                Return Nothing
+            Else
+                Log($"Unexpected GitHub API response structure: {root.ValueKind}")
+                Return Nothing
             End If
         End Using
     End Function
@@ -373,14 +502,18 @@ Public Class UpdateChecker
                 "Versione disponibile: v" & latestVersion)
             Dim permTitle = If(loc IsNot Nothing, loc.Get("update_insufficient_permissions_title"), "Permessi insufficienti")
 
-            MessageBox.Show(permMsg, permTitle, MessageBoxButton.OK, MessageBoxImage.Warning)
+            ShowMessageBox(permMsg, permTitle, MessageBoxButton.OK, MessageBoxImage.Warning)
             Return
         End Try
 
-        Dim result = MessageBox.Show(
+        Dim promptMsg = If(loc IsNot Nothing,
+            loc.Get("update_available_prompt", New Dictionary(Of String, String) From {{"version", latestVersion}}),
             $"È disponibile una nuova versione di HidaChat (v{latestVersion})!" & vbCrLf & vbCrLf &
-            "Desideri scaricare ed installare l'aggiornamento ora?",
-            "Aggiornamento Disponibile",
+            "Desideri scaricare ed installare l'aggiornamento ora?")
+        Dim promptTitle = If(loc IsNot Nothing, loc.Get("update_available_title"), "Aggiornamento Disponibile")
+        Dim result = ShowMessageBoxConfirm(
+            promptMsg,
+            promptTitle,
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
         )
@@ -406,23 +539,23 @@ Public Class UpdateChecker
         ' Se non presente nelle note di rilascio, prova a scaricare il file di checksum allegato agli asset
         If String.IsNullOrEmpty(expectedHash) AndAlso Not String.IsNullOrEmpty(releaseInfo.Sha256Url) Then
             Try
-                Debug.WriteLine($"Downloading SHA-256 checksum file from: {releaseInfo.Sha256Url}")
+                Log($"Downloading SHA-256 checksum file from: {releaseInfo.Sha256Url}")
                 Dim checksumContent = Await _httpClient.GetStringAsync(releaseInfo.Sha256Url)
                 expectedHash = ExtractSha256FromText(checksumContent, releaseInfo.ZipFileName)
             Catch ex As Exception
-                Debug.WriteLine($"Could not download or parse checksum asset: {ex.Message}")
+                Log($"Could not download or parse checksum asset: {ex.Message}")
             End Try
         End If
 
         ' FAIL-CLOSED: Se non è presente alcun checksum SHA-256 verificabile, blocca tassativamente l'aggiornamento
         If String.IsNullOrEmpty(expectedHash) Then
-            Debug.WriteLine("Security fail-closed: no valid SHA-256 checksum found for this release.")
+            Log("Security fail-closed: no valid SHA-256 checksum found for this release.")
             Dim missingChecksumMsg = If(loc IsNot Nothing,
                 loc.Get("update_missing_checksum"),
                 "Impossibile verificare l'integrità dell'aggiornamento." & vbCrLf & vbCrLf &
                 "Nessun checksum crittografico SHA-256 valido è stato fornito con questa versione su GitHub." & vbCrLf & vbCrLf &
                 "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.")
-            MessageBox.Show(
+            ShowMessageBox(
                 missingChecksumMsg,
                 If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
                 MessageBoxButton.OK,
@@ -470,7 +603,7 @@ Public Class UpdateChecker
 
         Try
             ' 2. Scarica lo ZIP da GitHub tramite streaming su disco con timeout esteso a 10 minuti (Punto 56)
-            Debug.WriteLine($"Downloading update zip (streaming) from: {downloadUrl}")
+            Log($"Downloading update zip (streaming) from: {downloadUrl}")
             Using cts As New CancellationTokenSource(TimeSpan.FromMinutes(10))
                 Dim ct = cts.Token
                 Using resp = Await _downloadClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct)
@@ -482,11 +615,11 @@ Public Class UpdateChecker
                 End Using
             End Using
         Catch ex As Exception
-            Debug.WriteLine($"Download failed or timed out: {ex.Message}")
+            Log($"Download failed or timed out: {ex.Message}")
             Dim dlErrMsg = If(loc IsNot Nothing,
                 loc.Get("update_download_error", New Dictionary(Of String, String) From {{"error", ex.Message}}),
                 "Download dell'aggiornamento non riuscito o timeout superato:" & vbCrLf & vbCrLf & ex.Message)
-            MessageBox.Show(
+            ShowMessageBox(
                 dlErrMsg,
                 If(loc IsNot Nothing, loc.Get("update_download_error_title"), "Errore Download Aggiornamento"),
                 MessageBoxButton.OK,
@@ -505,10 +638,10 @@ Public Class UpdateChecker
             Using fs = File.OpenRead(tempZipPath)
                 computedSha256 = Await ComputeSha256Async(fs)
             End Using
-            Debug.WriteLine($"Downloaded update file SHA-256: {computedSha256}")
+            Log($"Downloaded update file SHA-256: {computedSha256}")
 
             If Not String.Equals(computedSha256, expectedHash, StringComparison.OrdinalIgnoreCase) Then
-                Debug.WriteLine($"SHA-256 mismatch! Computed: {computedSha256}, Expected: {expectedHash}")
+                Log($"SHA-256 mismatch! Computed: {computedSha256}, Expected: {expectedHash}")
                 Dim mismatchMsg = If(loc IsNot Nothing,
                     loc.Get("update_checksum_mismatch", New Dictionary(Of String, String) From {{"computed", computedSha256}, {"expected", expectedHash}}),
                     "Verifica di integrità fallita!" & vbCrLf & vbCrLf &
@@ -516,7 +649,7 @@ Public Class UpdateChecker
                     $"Hash calcolato: {computedSha256}" & vbCrLf &
                     $"Hash atteso:    {expectedHash}" & vbCrLf & vbCrLf &
                     "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.")
-                MessageBox.Show(
+                ShowMessageBox(
                     mismatchMsg,
                     If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
                     MessageBoxButton.OK,
@@ -524,7 +657,7 @@ Public Class UpdateChecker
                 )
                 Return
             Else
-                Debug.WriteLine($"Update integrity verified successfully with SHA-256: {computedSha256}")
+                Log($"Update integrity verified successfully with SHA-256: {computedSha256}")
             End If
 
             ' 4. Estrai l'archivio temporaneo in una cartella di sessione univoca
@@ -547,14 +680,14 @@ Public Class UpdateChecker
                 ' 4b. Verifica firma digitale Authenticode se presente sull'eseguibile (Punto 57)
                 Dim auth = VerifyAuthenticodeSignature(exeInTemp(0))
                 If auth.HasSignature Then
-                    Debug.WriteLine($"Authenticode signature detected: Valid={auth.IsValid}, Signer={auth.SignerName}")
+                    Log($"Authenticode signature detected: Valid={auth.IsValid}, Signer={auth.SignerName}")
                     If Not auth.IsValid Then
-                        Debug.WriteLine("Security abort: Authenticode signature is present but INVALID.")
+                        Log("Security abort: Authenticode signature is present but INVALID.")
                         Dim sigErrMsg = If(loc IsNot Nothing,
                             loc.Get("update_signature_invalid"),
                             "Verifica della firma digitale fallita sull'eseguibile di aggiornamento." & vbCrLf & vbCrLf &
                             "L'installazione è stata interrotta per garantire la sicurezza del sistema.")
-                        MessageBox.Show(
+                        ShowMessageBox(
                             sigErrMsg,
                             If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
                             MessageBoxButton.OK,
@@ -563,7 +696,7 @@ Public Class UpdateChecker
                         Return
                     End If
                 Else
-                    Debug.WriteLine("Authenticode signature not present on update binary (verified via SHA-256).")
+                    Log("Authenticode signature not present on update binary (verified via SHA-256).")
                 End If
             End If
 
@@ -652,10 +785,14 @@ Public Class UpdateChecker
             Environment.Exit(0)
 
         Catch ex As Exception
-            Debug.WriteLine($"Update execution failed: {ex.Message}")
-            MessageBox.Show(
-                "Errore durante l'installazione dell'aggiornamento: " & ex.Message,
-                "Errore Aggiornamento",
+            Log($"Update execution failed: {ex.Message}")
+            Dim installErrMsg = If(loc IsNot Nothing,
+                loc.Get("update_install_error", New Dictionary(Of String, String) From {{"error", ex.Message}}),
+                "Errore durante l'installazione dell'aggiornamento: " & ex.Message)
+            Dim installErrTitle = If(loc IsNot Nothing, loc.Get("update_install_error_title"), "Errore Aggiornamento")
+            ShowMessageBox(
+                installErrMsg,
+                installErrTitle,
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
             )
@@ -689,14 +826,12 @@ Public Class UpdateChecker
         End Try
     End Function
 
-
-
     Private Shared Sub WriteLocalVersionMarker(installDir As String, version As String)
         Try
             Dim markerPath = Path.Combine(installDir, ".app_version")
             File.WriteAllText(markerPath, version.Trim())
         Catch ex As Exception
-            Debug.WriteLine($"Failed to write local version marker: {ex.Message}")
+            Log($"Failed to write local version marker: {ex.Message}")
         End Try
     End Sub
 End Class

@@ -462,15 +462,20 @@
   - Aggiunta e sincronizzazione delle chiavi di downgrade (`max_accounts_downgrade_notice`, `accounts_downgrade_blocked`) nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 67. UpdateChecker: UX, localizzazione, confronto versioni, duplicazioni
-- **File**: `UpdateChecker.vb` (`CheckForUpdatesAsync`, `PerformUpdateFromGitHubAsync`, `FetchGitHubReleaseInfoAsync`, `IsNewerVersion`)
+## ~~67. UpdateChecker: UX, localizzazione, confronto versioni, duplicazioni~~ ✅
+- **File**: `UpdateChecker.vb` (`CheckForUpdatesAsync`, `PerformUpdateFromGitHubAsync`, `FetchGitHubReleaseInfoAsync`, `ParseRelease`, `IsNewerVersion`, `ComparePrerelease`, `Log`), `Localization.vb`
 - **Problema**:
-  - Le finestre di dialogo `MessageBox` sono cablate in lingua italiana in un'applicazione localizzata in 5 lingue;
-  - Con controllo forzato dall'utente (`force = True`), un eventuale errore di rete, mancata risposta delle API GitHub o rate limit non mostra alcun feedback visivo (registrato unicamente con `Debug.WriteLine`);
-  - `IsNewerVersion` confronta i suffissi di pre-release come stringhe ordinali (`String.Compare`): la versione "beta10" risulta antecedente a "beta2";
-  - La logica di parsing JSON dei dati di release è duplicata quasi per intero nei due rami di `FetchGitHubReleaseInfoAsync`;
+  - Le finestre di dialogo `MessageBox` erano cablate in lingua italiana in un'applicazione localizzata in 5 lingue;
+  - Con controllo forzato dall'utente (`force = True`), un eventuale errore di rete, mancata risposta delle API GitHub o rate limit non mostrava alcun feedback visivo (registrato unicamente con `Debug.WriteLine`);
+  - `IsNewerVersion` confrontava i suffissi di pre-release come stringhe ordinali (`String.Compare`): la versione "beta10" risultava antecedente a "beta2";
+  - La logica di parsing JSON dei dati di release era duplicata quasi per intero nei due rami di `FetchGitHubReleaseInfoAsync`;
   - La cartella temporanea `%TEMP%\HidaChat_Update` non veniva rimossa al termine della procedura di estrazione ed aggiornamento, causando lock I/O nelle sessioni successive (risolto con percorsi univoci di sessione e bonifica in `update.bat`).
-- **Fix**: Introdurre le chiavi corrispondenti nei dizionari di `Localization.vb` e richiamarle tramite `Localizations.Get(...)` per tutte le lingue supportate; mostrare un dialogo informativo di errore quando `force = True`; implementare il parsing numerico dei suffissi di pre-release (o comparatore SemVer); unificare l'estrazione dati della release in una funzione condivisa `ParseRelease(JsonElement)`; adottare un sistema di logging su file anziché limitarsi a `Debug.WriteLine`.
+- **Fix Implementato**:
+  - Aggiunte e sincronizzate 12 nuove chiavi di localizzazione per i messaggi e i titoli dei dialoghi di aggiornamento (`update_already_latest`, `update_already_latest_title`, `update_no_new_version`, `update_no_new_version_title`, `update_available_prompt`, `update_available_title`, `update_install_error`, `update_install_error_title`, `update_check_failed`, `update_check_failed_network`, `update_check_failed_title`, `update_no_asset`) nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: EN, IT, FR, ES, DE);
+  - Implementato feedback visivo informativo tramite finestre di dialogo localizzate quando l'utente forza il controllo aggiornamenti (`force = True`) in caso di endpoint non raggiungibile, errori HTTP/rate limiting o eccezioni di rete;
+  - Implementata la funzione `ComparePrerelease` con tokenizzazione numerica SemVer (`\d+|[^\d\.\-_+]+`) per consentire il confronto numerico corretto dei suffissi di pre-release (es. "beta10" > "beta2");
+  - Unificata ed isolata l'estrazione dei metadati di release nella funzione helper condivisa e robusta `ParseRelease(JsonElement)`, eliminando la duplicazione del codice tra canale beta e canale stabile;
+  - Implementato un sistema di tracciamento e logging portabile thread-safe su file `data/updates.log` (con rotazione automatica al superamento di 1 MB), sostituendo le invocazioni dirette di `Debug.WriteLine`.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
 ## 68. Piattaforme: da stringhe a modello tipizzato

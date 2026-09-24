@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.7-beta] - 2026-09-24
+
+### Pre-release / Beta — UpdateChecker: UX, Localizzazione Multilingua, SemVer Prerelease e Logging Portabile
+- **Localizzazione Completa dei Dialoghi di Aggiornamento (`UpdateChecker.vb`, `Localization.vb`) (#67)**:
+  - **Traduzione Integrale delle Finestre di Dialogo**: Eliminate tutte le stringhe `MessageBox` hardcoded in italiano. Introdotti e sincronizzati 12 nuovi identificatori di testo nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: EN, IT, FR, ES, DE) per versione già aggiornata (`update_already_latest`, `update_already_latest_title`), versione remota non più recente (`update_no_new_version`, `update_no_new_version_title`), prompt di conferma installazione (`update_available_prompt`, `update_available_title`), errori di installazione (`update_install_error`, `update_install_error_title`), verifiche non riuscite (`update_check_failed`, `update_check_failed_network`, `update_check_failed_title`) e assenza di asset zip (`update_no_asset`).
+  - **Invocazione Thread-Safe su Dispatcher UI**: Implementati gli helper `ShowMessageBox` e `ShowMessageBoxConfirm` per sincronizzare in modo trasparente l'apertura dei messaggi visivi con il thread UI dell'applicazione WPF indipendentemente dal contesto del thread chiamante.
+- **Feedback Visivo nel Controllo Manuale Forzato (`UpdateChecker.vb`) (#67)**:
+  - Quando l'utente richiede la verifica manuale degli aggiornamenti (`force = True`), l'eventuale mancata risposta delle API di GitHub, assenza di connessione, rate limiting o eccezione di rete mostra una finestra informativa chiara e localizzata anziché rimanere silente.
+- **Confronto Numerico SemVer dei Suffissi di Pre-Release (`UpdateChecker.vb`) (#67)**:
+  - **Funzione `ComparePrerelease`**: Implementata una procedura di analisi e confronto naturale dei suffissi di pre-release con tokenizzazione su identificatori numerici e alfabetici (`\d+|[^\d\.\-_+]+`).
+  - **Risoluzione Bug Ordinamento Alfabetico**: Risolto il problema per cui versioni come "beta10" venivano considerate antecedenti a "beta2" a causa del confronto ordinale standard delle stringhe (`String.Compare`).
+- **Unificazione Parsing Metadati Release GitHub (`UpdateChecker.vb`) (#67)**:
+  - **Funzione Condivisa `ParseRelease(JsonElement)`**: Accorpata l'estrazione dei metadati di release (tag, note, asset ZIP e checksum crittografici SHA-256) in un unico metodo robusto e protetto contro null o elementi mancanti, eliminando la duplicazione del codice tra la scansione delle release del canale beta e l'interrogazione dell'endpoint stabile.
+- **Sistema di Logging Portabile su File (`UpdateChecker.vb`) (#67)**:
+  - Sostituite tutte le chiamate `Debug.WriteLine` del modulo di aggiornamento con il metodo centralizzato `Log(message)`, che scrive in modo thread-safe (`SyncLock`) su file `data/updates.log` nella directory dell'applicazione, nel pieno rispetto dei vincoli di portabilità al 100%.
+  - Integrata la rotazione automatica del log (archiviazione in `updates.log.old`) al superamento della dimensione di 1 MB per evitare accumuli incontrollati su disco.
+
 ## [1.0.6-beta] - 2026-09-23
 
 ### Pre-release / Beta — Risoluzione Blocco Aggiornamento OTA e Avvio Immediato Script Batch
