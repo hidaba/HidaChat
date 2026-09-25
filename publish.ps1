@@ -219,6 +219,18 @@ if (-not $SkipGitHub) {
     $tagName = "v$newVersion"
     $title = "HidaChat v$newVersion"
     
+    # Extract current version section from CHANGELOG.md for release notes (GitHub limit: 125,000 chars)
+    $releaseNotesPath = Join-Path $PSScriptRoot "bin\Release\release_notes.md"
+    $clContent = Get-Content $changelogPath -Raw
+    $versionSectionRegex = "(?s)## \[$baseVersion(-beta)?\](.*?)(?=\r?\n## \[|\z)"
+    $sectionMatch = [regex]::Match($clContent, $versionSectionRegex)
+    if ($sectionMatch.Success) {
+        $releaseNotes = "## [$newVersion]" + $sectionMatch.Groups[2].Value.TrimEnd()
+    } else {
+        $releaseNotes = ($clContent -split "`r?`n" | Select-Object -First 50) -join "`r`n"
+    }
+    Set-Content -Path $releaseNotesPath -Value $releaseNotes -Encoding UTF8
+
     # Check if release tag already exists
     $existingRelease = gh release view $tagName --repo hidaba/HidaChat 2>$null
     if ($existingRelease) {
@@ -227,9 +239,9 @@ if (-not $SkipGitHub) {
     } else {
         Write-Host "Creating new GitHub Release $tagName..."
         if ($isBetaRelease) {
-            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $changelogPath --prerelease
+            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $releaseNotesPath --prerelease
         } else {
-            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $changelogPath
+            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $releaseNotesPath
         }
     }
 }
