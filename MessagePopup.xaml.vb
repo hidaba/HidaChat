@@ -1,13 +1,25 @@
+Imports System.Runtime.InteropServices
+Imports System.Windows.Interop
 Imports System.Windows.Threading
 
 ''' <summary>
 ''' Finestra di popup personalizzata (notifica Toast in stile overlay) che compare in basso a destra 
-''' allo schermo al ricevimento di un nuovo messaggio WhatsApp.
+''' allo schermo al ricevimento di un nuovo messaggio.
 ''' </summary>
 Public Class MessagePopup
     Private ReadOnly _accountId As String
     Private _closeTimer As DispatcherTimer
     Private Shared ReadOnly _activePopups As New List(Of WeakReference(Of MessagePopup))()
+
+    Private Const HWND_TOPMOST As Integer = -1
+    Private Const SWP_NOSIZE As UInteger = &H1
+    Private Const SWP_NOMOVE As UInteger = &H2
+    Private Const SWP_NOACTIVATE As UInteger = &H10
+    Private Const SWP_SHOWWINDOW As UInteger = &H40
+
+    <DllImport("user32.dll", SetLastError:=True)>
+    Private Shared Function SetWindowPos(hWnd As IntPtr, hWndInsertAfter As IntPtr, X As Integer, Y As Integer, cx As Integer, cy As Integer, uFlags As UInteger) As Boolean
+    End Function
 
     Public Sub New(accountId As String, title As String, body As String, Optional platform As String = "WhatsApp")
         InitializeComponent()
@@ -65,6 +77,13 @@ Public Class MessagePopup
         _activePopups.Add(New WeakReference(Of MessagePopup)(Me))
         PositionNewPopup()
 
+        Try
+            Dim handle = New WindowInteropHelper(Me).Handle
+            SetWindowPos(handle, New IntPtr(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE Or SWP_NOACTIVATE Or SWP_SHOWWINDOW)
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to set topmost on popup: {ex.Message}")
+        End Try
+
         _closeTimer = New DispatcherTimer()
         _closeTimer.Interval = TimeSpan.FromSeconds(5)
         AddHandler _closeTimer.Tick, Sub()
@@ -72,6 +91,14 @@ Public Class MessagePopup
             ClosePopup()
         End Sub
         _closeTimer.Start()
+    End Sub
+
+    Private Sub MessagePopup_MouseEnter(sender As Object, e As MouseEventArgs) Handles Me.MouseEnter
+        _closeTimer?.Stop()
+    End Sub
+
+    Private Sub MessagePopup_MouseLeave(sender As Object, e As MouseEventArgs) Handles Me.MouseLeave
+        _closeTimer?.Start()
     End Sub
 
     ''' <summary>

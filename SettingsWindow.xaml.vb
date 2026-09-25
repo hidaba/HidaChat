@@ -824,6 +824,22 @@ Public Class SettingsWindow
                 txt.Foreground = BrushCache.GetBrush(tbFg)
                 txt.BorderBrush = BrushCache.GetBrush("#00a884")
             Next
+
+            Dim comboFg = If(isDark, "#8696a0", "#54656f")
+            Dim comboBg = If(isDark, "#2a3942", "#ffffff")
+            Dim delBg = If(isDark, "#2a3942", "#ffffff")
+
+            For Each cmb In FindVisualChildren(Of ComboBox)(AccountsList)
+                cmb.Foreground = BrushCache.GetBrush(comboFg)
+                cmb.Background = BrushCache.GetBrush(comboBg)
+            Next
+
+            For Each btn In FindVisualChildren(Of Button)(AccountsList)
+                If btn.Content?.ToString() = "Delete" Then
+                    btn.Foreground = BrushCache.GetBrush("#ea0038")
+                    btn.Background = BrushCache.GetBrush(delBg)
+                End If
+            Next
         End Sub), DispatcherPriority.Background)
     End Sub
 

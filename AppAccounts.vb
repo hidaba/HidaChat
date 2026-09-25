@@ -577,6 +577,7 @@ Public Class AppAccounts
     Public ReadOnly Property ActiveNotificationIds As New HashSet(Of String)()
 
     Private Shared ReadOnly MaxActiveNotificationIds As Integer = 500
+    Private _lastNotificationTime As DateTime = DateTime.MinValue
 
     ''' <summary>Evento sollevato quando il processo WebView2 crasha e richiede una rigenerazione completa del controllo.</summary>
     Public Event ProcessFailedRecoveryRequested As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
@@ -791,6 +792,15 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
 
+            Try
+                If WebView.CoreWebView2.Profile IsNot Nothing Then
+                    Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.whatsapp.com", CoreWebView2PermissionState.Allow)
+                    Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.telegram.org", CoreWebView2PermissionState.Allow)
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"Profile.SetPermissionStateAsync warning: {ex.Message}")
+            End Try
+
             Dim initScript = NotificationJsScripts.GetNotificationOverrideJS(BridgeToken)
             If IsTelegram Then
                 initScript &= vbCrLf & ThemeJsScripts.TelegramInitJS
@@ -812,11 +822,17 @@ Public Class AppAccounts
             AddHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
 
             _newWindowRequestedHandler = Sub(sender, e)
-                e.Handled = True
                 Try
                     Dim uriStr = e.Uri
+                    ' Consenti dialoghi web, popup script, OAuth e window.open dinamici
+                    If String.IsNullOrWhiteSpace(uriStr) OrElse uriStr.Equals("about:blank", StringComparison.OrdinalIgnoreCase) Then
+                        e.Handled = False
+                        Return
+                    End If
+
                     If uriStr.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
                         If IsTelegram Then
+                            e.Handled = True
                             Dim target = ResolveTelegramUrl(uriStr)
                             WebView.CoreWebView2.Navigate(target)
                             Return
@@ -828,25 +844,31 @@ Public Class AppAccounts
                     If IsOpenClaw OrElse IsHermes Then
                         Dim baseUri As Uri = Nothing
                         If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) AndAlso String.Equals(uri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) Then
+                            e.Handled = True
                             WebView.CoreWebView2.Navigate(uriStr)
                             Return
                         End If
                     ElseIf IsWhatsApp AndAlso (host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com")) Then
+                        e.Handled = True
                         WebView.CoreWebView2.Navigate(uriStr)
                         Return
                     ElseIf IsTelegram AndAlso (host = "web.telegram.org" OrElse host = "telegram.org" OrElse host.EndsWith(".telegram.org")) Then
+                        e.Handled = True
                         WebView.CoreWebView2.Navigate(uriStr)
                         Return
                     ElseIf IsTelegram AndAlso (host = "t.me" OrElse host.EndsWith(".t.me") OrElse host = "telegram.me" OrElse host.EndsWith(".telegram.me")) Then
+                        e.Handled = True
                         Dim target = ResolveTelegramUrl(uriStr)
                         WebView.CoreWebView2.Navigate(target)
                         Return
                     End If
 
+                    e.Handled = True
                     System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(uriStr) With {
                         .UseShellExecute = True
                     })
                 Catch
+                    e.Handled = False
                 End Try
             End Sub
             AddHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
@@ -1141,10 +1163,14 @@ Public Class AppAccounts
                 Debug.WriteLine($"Failed to show toast notification: {ex.Message}")
             End Try
 
+            _lastNotificationTime = DateTime.UtcNow
+            Dim popupTitle = If(Not String.IsNullOrWhiteSpace(title), title, If(Not String.IsNullOrWhiteSpace(Name), Name, Platform))
+            Dim popupBody = If(Not String.IsNullOrWhiteSpace(body), body, "Nuovo messaggio ricevuto")
+
             If settings.ShowMessagePopup Then
                 Try
                     Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
-                        Dim popup As New MessagePopup(Id, title, body, Platform)
+                        Dim popup As New MessagePopup(Id, popupTitle, popupBody, Platform)
                         popup.Show()
                     End Sub)
                 Catch ex As Exception
@@ -1169,9 +1195,64 @@ Public Class AppAccounts
                 End If
             End If
             System.Diagnostics.Trace.WriteLine($"[UNREAD_COUNT_CHANGED] account={Id} ({Name}), count={count}")
+            Dim prevCount = Me.UnreadCount
             Me.UnreadCount = count
             HasNotification = (count > 0 OrElse ActiveNotificationIds.Count > 0)
             onNotificationChanged?.Invoke(Id, HasNotification)
+
+            Dim latestChatTitle As String = ""
+            Dim chatTitleNode As JsonElement = Nothing
+            If root.TryGetProperty("latestChatTitle", chatTitleNode) AndAlso chatTitleNode.ValueKind = JsonValueKind.String Then
+                latestChatTitle = chatTitleNode.GetString().Trim()
+            End If
+
+            Dim latestMessageText As String = ""
+            Dim msgTextNode As JsonElement = Nothing
+            If root.TryGetProperty("latestMessageText", msgTextNode) AndAlso msgTextNode.ValueKind = JsonValueKind.String Then
+                latestMessageText = msgTextNode.GetString().Trim()
+            End If
+
+            Dim isNewMessage As Boolean = False
+            Dim newMsgNode As JsonElement = Nothing
+            If root.TryGetProperty("isNewMessage", newMsgNode) AndAlso (newMsgNode.ValueKind = JsonValueKind.True OrElse newMsgNode.ValueKind = JsonValueKind.False) Then
+                isNewMessage = newMsgNode.GetBoolean()
+            Else
+                isNewMessage = (count > prevCount)
+            End If
+
+            ' Se è arrivato un nuovo messaggio e non è arrivata una notifica NOTIFICATION_RECEIVED recente
+            If isNewMessage AndAlso Not settings.IsDndActive Then
+                If (DateTime.UtcNow - _lastNotificationTime).TotalSeconds > 2.0 Then
+                    _lastNotificationTime = DateTime.UtcNow
+                    
+                    Dim notifTitle = If(Not String.IsNullOrWhiteSpace(latestChatTitle), latestChatTitle, If(Not String.IsNullOrWhiteSpace(Name), Name, Platform))
+                    Dim notifBody = If(Not String.IsNullOrWhiteSpace(latestMessageText), latestMessageText, If(count = 1, "Nuovo messaggio ricevuto", $"{count} messaggi non letti"))
+                    
+                    ' Invia notifica Toast Windows se non in DND
+                    Try
+                        Dim builder As New ToastContentBuilder()
+                        builder.AddText(notifTitle)
+                        builder.AddText(notifBody)
+                        builder.AddArgument("accountId", Id)
+                        builder.AddArgument("notificationId", "unread_" + DateTime.UtcNow.Ticks.ToString())
+                        builder.Show()
+                    Catch ex As Exception
+                        Debug.WriteLine($"Failed to show toast notification for unread change: {ex.Message}")
+                    End Try
+
+                    ' Invia popup grafico
+                    If settings.ShowMessagePopup Then
+                        Try
+                            Application.Current?.Dispatcher.BeginInvoke(Sub()
+                                Dim popup As New MessagePopup(Id, notifTitle, notifBody, Platform)
+                                popup.Show()
+                            End Sub)
+                        Catch ex As Exception
+                            Debug.WriteLine($"Failed to show unread change popup: {ex.Message}")
+                        End Try
+                    End If
+                End If
+            End If
 
             If IsTelegram Then
                 Try

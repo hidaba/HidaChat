@@ -178,6 +178,8 @@
   function scanTelegramUnreadCount() {
     let count = 0;
     const debugItems = [];
+    let latestChatTitle = '';
+    let latestMessageText = '';
     try {
       // 1. Badge chat Telegram Web (Web A, Web K, Web Z)
       const tgChatSelectors = [
@@ -209,12 +211,20 @@
           const digits = rawText.replace(/[^\d]/g, '');
           const isExplicitUnread = el.classList.contains('unread') || el.classList.contains('Badge') || el.classList.contains('dialog-subtitle-badge') || (el.getAttribute('class') || '').includes('unread');
 
-          // Nome chat per il report di debug
+          // Nome chat e anteprima messaggio
           let chatTitle = '';
+          let messagePreview = '';
           try {
             const titleEl = container.querySelector('.peer-title, .title, .dialog-title, .user-title, h3, .name, [class*="title"]');
             if (titleEl) chatTitle = titleEl.textContent.trim();
+            const prevEl = container.querySelector('.dialog-subtitle, .subtitle, .last-message, .dialog-subtitle-message, [class*="subtitle"], [class*="message"]');
+            if (prevEl) messagePreview = prevEl.textContent.trim();
           } catch(e) {}
+
+          if (!latestChatTitle && chatTitle) {
+            latestChatTitle = chatTitle;
+            latestMessageText = messagePreview;
+          }
 
           if (digits) {
             const n = parseInt(digits, 10);
@@ -291,11 +301,13 @@
         }
       }
     } catch(e) {}
-    return { count: count, items: debugItems };
+    return { count: count, items: debugItems, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
   }
 
-  function scanWhatsAppUnreadCount() {
+  function scanWhatsAppUnread() {
     let count = 0;
+    let latestChatTitle = '';
+    let latestMessageText = '';
     try {
       const waSelectors = [
         '[data-testid="unread-count"]', '[data-testid="icon-unread-count"]',
@@ -325,10 +337,27 @@
           } else {
             count += 1;
           }
+
+          if (!latestChatTitle) {
+            const container = el.closest('[data-testid="cell-frame-container"], [role="row"], [role="listitem"], div._ak72, div._ak7l, div[tabindex="-1"]') || (el.parentElement ? el.parentElement.parentElement : null);
+            if (container) {
+              const titleEl = container.querySelector('[data-testid="cell-frame-title"] span, span[title][dir="auto"], span[title], span[dir="auto"]');
+              if (titleEl) {
+                latestChatTitle = (titleEl.getAttribute('title') || titleEl.textContent || '').trim();
+              }
+              const secEl = container.querySelector('[data-testid="cell-frame-secondary"] span[title], [data-testid="cell-frame-secondary"] span, [data-testid="last-msg-status"] + span');
+              if (secEl) {
+                const secText = (secEl.getAttribute('title') || secEl.textContent || '').trim();
+                if (secText && secText !== latestChatTitle) {
+                  latestMessageText = secText;
+                }
+              }
+            }
+          }
         });
       }
     } catch(e) {}
-    return count;
+    return { count: count, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
   }
 
   function checkAndNotifyUnreadCount() {
@@ -340,12 +369,26 @@
 
     let domCount = 0;
     let debugItems = [];
+    let latestChatTitle = '';
+    let latestMessageText = '';
     if (isTelegram) {
       const tgRes = scanTelegramUnreadCount();
       domCount = tgRes.count;
       debugItems = tgRes.items;
+      latestChatTitle = tgRes.latestChatTitle || '';
+      latestMessageText = tgRes.latestMessageText || '';
     } else {
-      domCount = scanWhatsAppUnreadCount();
+      const waRes = scanWhatsAppUnread();
+      domCount = waRes.count;
+      latestChatTitle = waRes.latestChatTitle || '';
+      latestMessageText = waRes.latestMessageText || '';
+    }
+
+    if (!latestChatTitle && titleMatch) {
+      const cleanedTitle = title.replace(/[\(\[]\d+\+?[\)\]]/, '').trim();
+      if (cleanedTitle && cleanedTitle.toLowerCase() !== 'whatsapp' && cleanedTitle.toLowerCase() !== 'telegram') {
+        latestChatTitle = cleanedTitle;
+      }
     }
 
     // Preferisci il massimo tra il conteggio estratto dal titolo, i badge del DOM e la Badging API
@@ -353,6 +396,7 @@
     const now = Date.now();
 
     if (effectiveCount !== lastReportedUnreadCount || (effectiveCount > 0 && (now - lastHeartbeatTime > 3000))) {
+      const isNewMessage = (lastReportedUnreadCount >= 0 && effectiveCount > lastReportedUnreadCount);
       lastReportedUnreadCount = effectiveCount;
       lastHeartbeatTime = now;
       try {
@@ -366,6 +410,9 @@
             domCount: domCount,
             appBadgeCount: appBadgeCount,
             titleCount: titleCount,
+            latestChatTitle: latestChatTitle,
+            latestMessageText: latestMessageText,
+            isNewMessage: isNewMessage,
             debugItems: debugItems,
             bridgeToken: __bridgeToken
           });

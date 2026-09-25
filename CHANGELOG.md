@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.8-beta] - 2026-09-25
+
+### Pre-release / Beta — Ripristino e Consegna Popup per Account in Background, Notifiche Overlay, Colore Menu Tipo Account e Stile Tasto Elimina
+- **Risoluzione Mancata Visualizzazione Popup per Account in Background (`Scripts/notification.js`, `AppAccounts.vb`)**:
+  - **Emissione Popup e Toast su Ricezione Messaggi in Background**: Risolto il problema per cui i popup di notifica venivano mostrati solo per l'account attualmente attivo/visualizzato in primo piano (es. popup Telegram visibile ma nessun popup ricevuto se WhatsApp era posizionato in secondo piano). Quando un account in background rileva nuovi messaggi non letti, viene ora generato sia il popup overlay grafico `MessagePopup` che la notifica Toast nativa di Windows.
+  - **Estrazione Dati Chat e Testo Messaggio da DOM e Titolo (`notification.js`)**: Potenziata la scansione sia per WhatsApp Web che per Telegram Web: il listener estrae dal DOM il nome del contatto/gruppo (`latestChatTitle`) e l'anteprima del testo del messaggio (`latestMessageText`), inoltrandoli all'host WPF per mostrare popup ricchi di contesto anche quando la web app non invoca le API di notifica native del browser mentre la scheda è inattiva o nascosta.
+  - **Autorizzazione Permanente Permessi Notifiche a Livello Profilo WebView2 (`AppAccounts.vb`)**: In `SetupWebViewInternalAsync`, aggiunta la registrazione esplicita dei permessi di notifica su `CoreWebView2.Profile.SetPermissionStateAsync` con stato `Allow` per le origini `https://web.whatsapp.com` e `https://web.telegram.org`, impedendo al motore Chromium di bloccare le notifiche o i Service Worker in schede inattive o non visibili.
+- **Affidabilità e Usabilità Overlay Finestra Popup (`MessagePopup.xaml.vb`, `AppAccounts.vb`)**:
+  - **Priorità Z-Order Nativa HWND_TOPMOST**: Introdotta l'invocazione Win32 `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE)` all'apertura del popup per garantire che la finestra overlay appaia sempre al di sopra di qualsiasi finestra attiva senza sottrarre il focus, evitando che rimanga nascosta dietro la finestra principale di HidaChat o altre applicazioni.
+  - **Pausa Timer su MouseHover**: Aggiunti gestori `MouseEnter` e `MouseLeave` per mettere in pausa il timer di auto-chiusura (5s) quando l'utente posiziona il cursore sul popup, permettendone la lettura agevole o il click senza che scompaia prematuramente.
+  - **Sblocco Apertura Finestre e Dialoghi Popup Web (`AppAccounts.vb`)**: In `_newWindowRequestedHandler`, rimosso il blocco incondizionato `e.Handled = True` per URI vuoti o `about:blank`, ripristinando la corretta apertura di finestre di dialogo script, popup dinamici e finestre di autenticazione OAuth generate da `window.open`.
+- **Miglioramento Leggibilità Menu Selezione Tipo Account nelle Impostazioni (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Stile Dedicato `AccountPlatformComboBoxStyle`**: Introdotto uno stile specifico per il selettore piattaforma negli account con colore del testo impostato su grigio scuro `#8696a0` (lo stesso utilizzato per le altre etichette come "Server URL / Tailscale") per garantire un contrasto ottimale e prevenire che il testo si confonda con lo sfondo.
+  - **Sincronizzazione Dinamica Tema Chiaro/Scuro (`StyleAccountItems`)**: La routine di tematizzazione adatta dinamicamente il colore del carattere dei dropdown piattaforma (`#8696a0` in tema scuro, `#54656f` in tema chiaro) e i relativi sfondi.
+- **Evidenziazione Visiva Tasto Elimina Account con Carattere Rosso (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Stile Ridisegnato `DeleteBtnStyle`**: Il pulsante "Delete" dell'account adotta ora il carattere rosso acceso (`Foreground="#ea0038"`) con sfondo scuro coordinato `#2a3942` e bordo sottile, evidenziando chiaramente l'azione distruttiva; su passaggio del mouse (hover) viene attivato un feedback visivo con sfondo sfumato `#381e24`, bordo rosso ed evidenziazione testo `#ff4d4d`.
+
 ## [1.0.7-beta] - 2026-09-24
 
 ### Pre-release / Beta — UpdateChecker: UX, Localizzazione Multilingua, SemVer Prerelease e Logging Portabile

@@ -102,22 +102,53 @@
                 </Setter>
             </Style>
 
+            <Style x:Key="AccountPlatformComboBoxStyle" TargetType="ComboBox">
+                <Setter Property="Background" Value="#2a3942"/>
+                <Setter Property="Foreground" Value="#8696a0"/>
+                <Setter Property="BorderBrush" Value="#222e35"/>
+                <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="ItemContainerStyle">
+                    <Setter.Value>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="Background" Value="#2a3942"/>
+                            <Setter Property="Foreground" Value="#8696a0"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="6,4"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#00a884"/>
+                                    <Setter Property="Foreground" Value="#ffffff"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#374955"/>
+                                    <Setter Property="Foreground" Value="#e9edef"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <Style x:Key="DeleteBtnStyle" TargetType="Button">
-                <Setter Property="Background" Value="#ea0038"/>
-                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="Background" Value="#2a3942"/>
+                <Setter Property="Foreground" Value="#ea0038"/>
+                <Setter Property="BorderBrush" Value="#3d2026"/>
+                <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="Padding" Value="12,6"/>
-                <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Focusable" Value="False"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#c3002f"/>
+                                    <Setter Property="Background" Value="#381e24"/>
+                                    <Setter Property="BorderBrush" Value="#ea0038"/>
+                                    <Setter Property="Foreground" Value="#ff4d4d"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -247,12 +278,13 @@
                                                       SelectedValue="{Binding Platform, Mode=TwoWay}"
                                                       SelectionChanged="ComboAccountPlatform_SelectionChanged"
                                                       Tag="{Binding Id}"
-                                                      Style="{StaticResource CustomComboBoxStyle}"
+                                                      Style="{StaticResource AccountPlatformComboBoxStyle}"
+                                                      Foreground="#8696a0"
                                                       VerticalAlignment="Center" Margin="0,0,10,0">
-                                                <ComboBoxItem Content="WhatsApp" Tag="WhatsApp"/>
-                                                <ComboBoxItem Content="Telegram" Tag="Telegram"/>
-                                                <ComboBoxItem Content="OpenClaw" Tag="OpenClaw"/>
-                                                <ComboBoxItem Content="Hermes Agent" Tag="Hermes"/>
+                                                <ComboBoxItem Content="WhatsApp" Tag="WhatsApp" Foreground="#8696a0"/>
+                                                <ComboBoxItem Content="Telegram" Tag="Telegram" Foreground="#8696a0"/>
+                                                <ComboBoxItem Content="OpenClaw" Tag="OpenClaw" Foreground="#8696a0"/>
+                                                <ComboBoxItem Content="Hermes Agent" Tag="Hermes" Foreground="#8696a0"/>
                                             </ComboBox>
 
                                             <!-- Delete Account Button -->
