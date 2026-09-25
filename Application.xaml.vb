@@ -82,6 +82,22 @@ Class Application
     End Sub
 
     ''' <summary>
+    ''' Invocato quando l'utente disconnette la sessione o Windows viene arrestato/riavviato (WM_QUERYENDSESSION / WM_ENDSESSION).
+    ''' Consente la persistenza e la chiusura ordinata di WebView2 senza far bloccare lo shutdown dal cancel di MainWindow.
+    ''' </summary>
+    Protected Overrides Sub OnSessionEnding(e As SessionEndingCancelEventArgs)
+        Try
+            Dim mainWin = TryCast(MainWindow, MainWindow)
+            If mainWin IsNot Nothing Then
+                mainWin.PrepareForShutdown()
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"OnSessionEnding error: {ex.Message}")
+        End Try
+        MyBase.OnSessionEnding(e)
+    End Sub
+
+    ''' <summary>
     ''' Invocato alla chiusura dell'applicazione. Rilascia e rimuove il Mutex dell'istanza singola.
     ''' </summary>
     Protected Overrides Sub OnExit(e As ExitEventArgs)

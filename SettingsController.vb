@@ -217,6 +217,25 @@ Public Class SettingsController
         End Set
     End Property
 
+    Private _suppressNetworkDriveWarning As Boolean = False
+    ''' <summary>Indica se l'utente ha scelto di sopprimere l'avviso relativo all'esecuzione da unità di rete.</summary>
+    Public Property SuppressNetworkDriveWarning As Boolean
+        Get
+            Return _suppressNetworkDriveWarning
+        End Get
+        Set(value As Boolean)
+            If _suppressNetworkDriveWarning <> value Then
+                _suppressNetworkDriveWarning = value
+                NotifyPropertyChanged()
+                If _cachedSettings IsNot Nothing Then
+                    _cachedSettings("suppressNetworkDriveWarning") = value
+                    _dirty = True
+                    Dim ignore = FlushAfterDebounceAsync()
+                End If
+            End If
+        End Set
+    End Property
+
     ' --- Correttore Ortografico (TODO #44) ---
     Private _enableSpellcheck As Boolean = True
     ''' <summary>Indica se abilitare il correttore ortografico nativo WebView2/Chromium.</summary>
@@ -740,6 +759,7 @@ Public Class SettingsController
         _showMessagePopup = GetBoolSetting(settings, "showMessagePopup", True)
         _enableCustomCss = GetBoolSetting(settings, "enableCustomCss", False)
         _enableSpellcheck = GetBoolSetting(settings, "enableSpellcheck", True)
+        _suppressNetworkDriveWarning = GetBoolSetting(settings, "suppressNetworkDriveWarning", False)
 
         _isDndEnabled = GetBoolSetting(settings, "isDndEnabled", False)
         If settings.ContainsKey("dndDurationMode") AndAlso settings("dndDurationMode") IsNot Nothing Then

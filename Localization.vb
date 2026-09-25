@@ -598,6 +598,8 @@ Public Class AppLocalizations
         {"settings_corrupt_recovered_msg", "The 'settings.json' configuration file was corrupted and has been archived as '{file}'." & vbCrLf & vbCrLf & "Settings and accounts have been successfully restored from the last available backup (.bak)."},
         {"settings_corrupt_reset_title", "Configuration Error"},
         {"settings_corrupt_reset_msg", "The 'settings.json' configuration file was corrupted and has been archived as '{file}'." & vbCrLf & vbCrLf & "A valid backup could not be recovered: the application has started with default settings."},
+        {"network_drive_warning_title", "Network Drive Warning"},
+        {"network_drive_warning_msg", "HidaChat is running from a network drive ({path})." & vbCrLf & vbCrLf & "Warning: Microsoft WebView2 does not support storing browser profiles on network drives or SMB shares. This frequently causes WhatsApp Web to lose its session or disconnect on restart." & vbCrLf & vbCrLf & "It is strongly recommended to run HidaChat from a local drive (e.g. C:\HidaChat)."},
         {"close", "Close"}
     }
 
@@ -714,6 +716,8 @@ Public Class AppLocalizations
         {"settings_corrupt_recovered_msg", "Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{file}'." & vbCrLf & vbCrLf & "Le impostazioni e gli account sono stati ripristinati con successo dall'ultimo backup (.bak) disponibile."},
         {"settings_corrupt_reset_title", "Errore Configurazione"},
         {"settings_corrupt_reset_msg", "Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{file}'." & vbCrLf & vbCrLf & "Non è stato possibile recuperare un backup valido: l'applicazione è stata avviata con le impostazioni predefinite."},
+        {"network_drive_warning_title", "Avviso Unità di Rete"},
+        {"network_drive_warning_msg", "HidaChat è in esecuzione da un'unità di rete ({path})." & vbCrLf & vbCrLf & "Attenzione: Microsoft WebView2 non supporta l'archiviazione dei profili browser su unità di rete o condivisioni SMB. Questo causa frequentemente la disconnessione o la perdita della sessione di WhatsApp ad ogni riavvio." & vbCrLf & vbCrLf & "Si raccomanda di eseguire HidaChat da un disco locale (es. C:\HidaChat)."},
         {"close", "Chiudi"}
     }
 
@@ -830,6 +834,8 @@ Public Class AppLocalizations
         {"settings_corrupt_recovered_msg", "Le fichier de configuration 'settings.json' était corrompu et a été archivé sous '{file}'." & vbCrLf & vbCrLf & "Les paramètres et les comptes ont été restaurés avec succès à partir de la dernière sauvegarde (.bak) disponible."},
         {"settings_corrupt_reset_title", "Erreur de Configuration"},
         {"settings_corrupt_reset_msg", "Le fichier de configuration 'settings.json' était corrompu et a été archivé sous '{file}'." & vbCrLf & vbCrLf & "Une sauvegarde valide n'a pas pu être récupérée : l'application a démarré avec les paramètres par défaut."},
+        {"network_drive_warning_title", "Avertissement Lecteur Réseau"},
+        {"network_drive_warning_msg", "HidaChat s'exécute à partir d'un lecteur réseau ({path})." & vbCrLf & vbCrLf & "Attention : Microsoft WebView2 ne prend pas en charge le stockage des profils de navigation sur des partages réseau ou SMB. Cela entraîne fréquemment la perte de session ou la déconnexion de WhatsApp Web au redémarrage." & vbCrLf & vbCrLf & "Il est fortement recommandé d'exécuter HidaChat depuis un disque local (ex. C:\HidaChat)."},
         {"close", "Fermer"}
     }
 
@@ -946,6 +952,8 @@ Public Class AppLocalizations
         {"settings_corrupt_recovered_msg", "El archivo de configuración 'settings.json' estaba dañado y se ha archivado como '{file}'." & vbCrLf & vbCrLf & "La configuración y las cuentas se han restaurado con éxito desde la última copia de seguridad (.bak) disponible."},
         {"settings_corrupt_reset_title", "Error de Configuración"},
         {"settings_corrupt_reset_msg", "El archivo de configuración 'settings.json' estaba dañado y se ha archivado como '{file}'." & vbCrLf & vbCrLf & "No se pudo recuperar una copia de seguridad válida: la aplicación se ha iniciado con los ajustes predeterminados."},
+        {"network_drive_warning_title", "Aviso de Unidad de Red"},
+        {"network_drive_warning_msg", "HidaChat se está ejecutando desde una unidad de red ({path})." & vbCrLf & vbCrLf & "Advertencia: Microsoft WebView2 no admite el almacenamiento de perfiles de navegación en unidades de red o recursos compartidos SMB. Esto provoca con frecuencia que WhatsApp Web pierda la sesión o se desconecte al reiniciar." & vbCrLf & vbCrLf & "Se recomienda encarecidamente ejecutar HidaChat desde un disco local (ej. C:\HidaChat)."},
         {"close", "Cerrar"}
     }
 
@@ -1062,6 +1070,8 @@ Public Class AppLocalizations
         {"settings_corrupt_recovered_msg", "Die Konfigurationsdatei 'settings.json' war beschädigt und wurde als '{file}' archiviert." & vbCrLf & vbCrLf & "Einstellungen und Konten wurden erfolgreich aus der letzten verfügbaren Sicherung (.bak) wiederhergestellt."},
         {"settings_corrupt_reset_title", "Konfigurationsfehler"},
         {"settings_corrupt_reset_msg", "Die Konfigurationsdatei 'settings.json' war beschädigt und wurde als '{file}' archiviert." & vbCrLf & vbCrLf & "Eine gültige Sicherung konnte nicht wiederhergestellt werden: Die Anwendung wurde mit Standardeinstellungen gestartet."},
+        {"network_drive_warning_title", "Netzlaufwerk-Warnung"},
+        {"network_drive_warning_msg", "HidaChat wird von einem Netzlaufwerk ausgeführt ({path})." & vbCrLf & vbCrLf & "Warnung: Microsoft WebView2 unterstützt das Speichern von Browserprofilen auf Netzlaufwerken oder SMB-Freigaben nicht. Dies führt häufig dazu, dass WhatsApp Web beim Neustart die Sitzung verliert oder getrennt wird." & vbCrLf & vbCrLf & "Es wird dringend empfohlen, HidaChat von einem lokalen Laufwerk auszuführen (z. B. C:\HidaChat)."},
         {"close", "Schließen"}
     }
 

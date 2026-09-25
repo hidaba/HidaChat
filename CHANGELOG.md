@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.9-beta] - 2026-09-25
+
+### Pre-release / Beta — Persistenza Sessione WhatsApp allo Spegnimento Windows e Rilevamento Unità di Rete
+- **Chiusura Ordinata allo Spegnimento Windows e Rilascio WebView2 (`Application.xaml.vb`, `MainWindow.xaml.vb`)**:
+  - **Intercettazione Arresto/Riavvio Sistema (`OnSessionEnding`)**: Implementato l'override `OnSessionEnding` in `Application.xaml.vb` per catturare tempestivamente la notifica di chiusura sessione di Windows (`WM_QUERYENDSESSION` / `WM_ENDSESSION`), evitando che l'evento `Closing` di `MainWindow` cancelli lo shutdown con `e.Cancel = True` causando la terminazione forzata (kill) del processo da parte del sistema operativo.
+  - **Procedura Centralizzata `PrepareForShutdown()`**: Creata una procedura sincrona e coordinata in `MainWindow.xaml.vb` che salva forzatamente le impostazioni e gli account ed esegue il rilascio controllato (`acc.Dispose()`) di tutte le istanze WebView2; in questo modo i database IndexedDB/LevelDB e SQLite di Chromium scaricano le transazioni e rilasciano i lock su disco prima della chiusura, prevenendo la corruzione e la perdita della sessione di WhatsApp Web al successivo riavvio del PC.
+  - **Unificazione Chiusura Applicazione**: Riconfigurata `ExitApplication()` e `MainWindow_Closing` per delegare l'intera sequenza di pulizia a `PrepareForShutdown()`, eliminando chiamate ridondanti a `ClearBrowsingCacheAsync` che potevano rallentare l'uscita.
+- **Rilevamento Esecuzione su Unità di Rete e Avviso Esplicativo (`MainWindow.xaml.vb`, `SettingsController.vb`, `Localization.vb`)**:
+  - **Verifica Automatica del Percorso (`CheckNetworkDriveWarning`)**: Aggiunto un controllo all'avvio per rilevare se l'applicazione è in esecuzione da un'unità di rete (SMB/CIFS, drive mappati come `Y:\` o percorsi UNC `\\server\share`).
+  - **Avviso Informativo Localizzato**: Qualora l'applicazione risieda su rete, viene mostrato un avviso chiaro che spiega che Microsoft WebView2 non supporta l'archiviazione dei profili su dischi di rete (con conseguente perdita sistematica della sessione di WhatsApp dovuta all'instabilità dei lock LevelDB su SMB) e raccomanda di copiare ed eseguire l'applicazione da un disco locale (es. `C:\HidaChat`).
+  - **Soppressione Avviso Ripetuto**: Aggiunta la proprietà `suppressNetworkDriveWarning` memorizzata in `settings.json` per evitare la riproposizione dell'avviso a ogni avvio dopo la prima visualizzazione.
+  - **Sincronizzazione Completa Multilingua**: Aggiornati contestualmente tutti i 5 dizionari in `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) con le nuove stringhe di avviso `network_drive_warning_title` e `network_drive_warning_msg`.
+
 ## [1.0.8-beta] - 2026-09-25
 
 ### Pre-release / Beta — Ripristino e Consegna Popup per Account in Background, Notifiche Overlay, Colore Menu Tipo Account e Stile Tasto Elimina

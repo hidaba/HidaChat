@@ -5,7 +5,7 @@ Imports System.IO
 ''' </summary>
 Public Module Constants
     ''' <summary>Versione corrente dell'applicazione.</summary>
-    Public Const AppVersion As String = "1.0.8-beta"
+    Public Const AppVersion As String = "1.0.9-beta"
 
     ''' <summary>Autore principale dell'applicazione.</summary>
     Public Const AppAuthor As String = "Massimo Balestrieri (hidaba)"

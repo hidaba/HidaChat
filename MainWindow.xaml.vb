@@ -174,6 +174,7 @@ Public Class MainWindow
         UpdateDndState()
 
         UpdateOnlineIndicator()
+        CheckNetworkDriveWarning()
         VersionText.Text = "v" & Constants.AppVersion
     End Sub
 
@@ -243,9 +244,62 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Esegue la chiusura definitiva dell'applicazione liberando tutte le risorse allocati e rimuovendo i listener.
+    ''' Verifica se l'applicazione è in esecuzione su un'unità di rete o percorso UNC e mostra un avviso esplicativo.
     ''' </summary>
-    Private Async Sub ExitApplication()
+    Private Sub CheckNetworkDriveWarning()
+        Try
+            If _settingsController.SuppressNetworkDriveWarning Then Return
+
+            Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+            If String.IsNullOrWhiteSpace(baseDir) Then Return
+
+            Dim isNetwork = False
+            Dim root = Path.GetPathRoot(baseDir)
+            If Not String.IsNullOrEmpty(root) Then
+                If root.StartsWith("\\") Then
+                    isNetwork = True
+                Else
+                    Try
+                        Dim dInfo As New DriveInfo(root)
+                        If dInfo.DriveType = DriveType.Network Then
+                            isNetwork = True
+                        End If
+                    Catch
+                    End Try
+                End If
+            End If
+
+            If isNetwork Then
+                Dim loc = _settingsController.Localizations
+                Dim title = If(loc IsNot Nothing, loc.Get("network_drive_warning_title"), "Network Drive Warning")
+                Dim msg = If(loc IsNot Nothing,
+                    loc.Get("network_drive_warning_msg", New Dictionary(Of String, String) From {{"path", baseDir}}),
+                    $"HidaChat is running from a network drive ({baseDir})." & vbCrLf & vbCrLf &
+                    "Warning: Microsoft WebView2 does not support storing browser profiles on network drives or SMB shares. This frequently causes WhatsApp Web to lose its session or disconnect on restart." & vbCrLf & vbCrLf &
+                    "It is strongly recommended to run HidaChat from a local drive (e.g. C:\HidaChat).")
+
+                MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Warning)
+                _settingsController.SuppressNetworkDriveWarning = True
+                Dim ignoreTask = _settingsController.FlushNowAsync()
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"CheckNetworkDriveWarning error: {ex.Message}")
+        End Try
+    End Sub
+
+    Private _isShuttingDown As Boolean = False
+    Private ReadOnly _shutdownLock As New Object()
+
+    ''' <summary>
+    ''' Esegue la chiusura definitiva e coordinata dell'applicazione: disattivazione timer,
+    ''' salvataggio atomico di account e impostazioni, chiusura e rilascio di WebView2 e companion processes.
+    ''' </summary>
+    Public Sub PrepareForShutdown()
+        SyncLock _shutdownLock
+            If _isShuttingDown Then Return
+            _isShuttingDown = True
+        End SyncLock
+
         _allowExit = True
 
         If _dndTimer IsNot Nothing Then
@@ -253,15 +307,25 @@ Public Class MainWindow
             _dndTimer = Nothing
         End If
 
-        RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
-        RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+        Try
+            RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+            RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+        Catch
+        End Try
 
-        For Each acc In _accountManager.Accounts
-            Try
-                Await Task.WhenAny(acc.ClearBrowsingCacheAsync(), Task.Delay(2000))
-            Catch
-            End Try
-        Next
+        Try
+            Dim frame As New System.Windows.Threading.DispatcherFrame()
+            Dim saveTask = Task.WhenAll(_accountManager.SaveAccountsAsync(force:=True), _settingsController.FlushNowAsync())
+            saveTask.ContinueWith(Sub(prev) frame.Continue = False)
+            Dim timeoutTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(3)}
+            AddHandler timeoutTimer.Tick, Sub()
+                timeoutTimer.Stop()
+                frame.Continue = False
+            End Sub
+            timeoutTimer.Start()
+            System.Windows.Threading.Dispatcher.PushFrame(frame)
+        Catch
+        End Try
 
         For Each acc In _accountManager.Accounts
             Try
@@ -273,31 +337,50 @@ Public Class MainWindow
         Next
 
         Try
-            Await _accountManager.SaveAccountsAsync()
+            Dim frameClean As New System.Windows.Threading.DispatcherFrame()
+            Dim cleanTask = _accountManager.CleanupTransientCachesAsync()
+            cleanTask.ContinueWith(Sub(prev) frameClean.Continue = False)
+            Dim cleanTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
+            AddHandler cleanTimeout.Tick, Sub()
+                cleanTimeout.Stop()
+                frameClean.Continue = False
+            End Sub
+            cleanTimeout.Start()
+            System.Windows.Threading.Dispatcher.PushFrame(frameClean)
         Catch
         End Try
 
         Try
-            Await _settingsController.FlushNowAsync()
-        Catch
-        End Try
-
-        Try
-            Await _accountManager.CleanupTransientCachesAsync()
-        Catch
-        End Try
-
-        Try
-            Await Task.WhenAny(TsnetManager.Instance.ShutdownAsync(), Task.Delay(2000))
+            Dim frameTs As New System.Windows.Threading.DispatcherFrame()
+            Dim tsTask = TsnetManager.Instance.ShutdownAsync()
+            tsTask.ContinueWith(Sub(prev) frameTs.Continue = False)
+            Dim tsTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
+            AddHandler tsTimeout.Tick, Sub()
+                tsTimeout.Stop()
+                frameTs.Continue = False
+            End Sub
+            tsTimeout.Start()
+            System.Windows.Threading.Dispatcher.PushFrame(frameTs)
         Catch
         End Try
 
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
+            _trayIcon = Nothing
         End If
-        ' Disinstalla i listener per le notifiche toast
-        ToastNotificationManagerCompat.Uninstall()
+
+        Try
+            ToastNotificationManagerCompat.Uninstall()
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Esegue la chiusura definitiva dell'applicazione liberando tutte le risorse allocate e rimuovendo i listener.
+    ''' </summary>
+    Private Sub ExitApplication()
+        PrepareForShutdown()
         Application.Current.Shutdown()
     End Sub
 
@@ -349,26 +432,14 @@ Public Class MainWindow
 
     ''' <summary>
     ''' Intercetta la chiusura della finestra: invece di chiudere l'applicazione la nasconde nella system tray (riduzione a icona).
-    ''' Se l'uscita è autorizzata, assicura il flush atomico delle impostazioni e degli account su disco.
+    ''' Se l'uscita è autorizzata, assicura il rilascio ordinato di risorse e salvataggio su disco.
     ''' </summary>
     Private Sub MainWindow_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
         If Not _allowExit Then
             e.Cancel = True
             Me.Hide()
         Else
-            Try
-                Dim frame As New System.Windows.Threading.DispatcherFrame()
-                Dim saveTask = Task.WhenAll(_accountManager.SaveAccountsAsync(), _settingsController.FlushNowAsync())
-                saveTask.ContinueWith(Sub(prev) frame.Continue = False)
-                Dim timeoutTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(3)}
-                AddHandler timeoutTimer.Tick, Sub()
-                    timeoutTimer.Stop()
-                    frame.Continue = False
-                End Sub
-                timeoutTimer.Start()
-                System.Windows.Threading.Dispatcher.PushFrame(frame)
-            Catch
-            End Try
+            PrepareForShutdown()
         End If
     End Sub
 

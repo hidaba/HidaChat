@@ -495,3 +495,18 @@
 - **Problema**: Il file README raccomanda di non eseguire la stessa istanza portabile contemporaneamente da postazioni differenti (rischio concreto di lock file e corruzione del profilo WebView2), ma l'applicazione non adotta alcun meccanismo di prevenzione a livello di filesystem. Inoltre, l'indicazione "Zero Installation" contrasta con la necessità del runtime .NET 9 per le pubblicazioni standard framework-dependent.
 - **Fix**: Creare all'avvio un file di lock `data/.lock` (registrando hostname, ID processo e timestamp) con rilascio controllato all'uscita e segnalazione bloccante all'utente se la cartella risulta già utilizzata da un'altra macchina o processo; valutare la compilazione in formato self-contained (gestendo il conseguente aumento dimensionale dello ZIP, vedi #56) oppure armonizzare il testo del README esplicitando il requisito del runtime .NET 9.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+---
+
+# GESTIONE CACHE & MEMORIA CHROMIUM (WEBVIEW2)
+
+## 71. Limitazione della cache Chromium via AdditionalBrowserArguments (`--disk-cache-size`)
+- **File**: `AppAccounts.vb` (`SetupWebViewInternalAsync` / creazione environment WebView2)
+- **Descrizione**: Limitare la cache Chromium via `AdditionalBrowserArguments` in fase di creazione dell'environment WebView2, con lo switch standard `--disk-cache-size=<bytes>` (va verificato che non sia tra quelli filtrati internamente da WebView2 — non lo è per `--user-data-dir`, che è esplicitamente bloccato dalla documentazione Microsoft, ma `--disk-cache-size` è uno switch "innocuo" tipicamente lasciato passare).
+- **Impatto**: Medio | **Sforzo**: Basso
+
+## 72. Pulizia cache "preservando il login" (Smart Cache Cleanup)
+- **File**: `AccountManager.vb`, `AppAccounts.vb`, `SettingsController.vb` / `SettingsWindow.xaml`
+- **Descrizione**: Implementare la pulizia cache "preservando il login" (cancellare `Cache`, `Code Cache`, `GPUCache`, lasciando intatti `Local Storage`, `IndexedDB`, `Network\Cookies` e i dati di sessione).
+- **Impatto**: Medio | **Sforzo**: Basso-Medio
+
