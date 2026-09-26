@@ -2,6 +2,7 @@ Imports System.IO
 Imports System.ComponentModel
 Imports System.Text.Json.Serialization
 Imports System.Windows.Media
+Imports System.Security.Cryptography
 Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.Wpf
 Imports Microsoft.Toolkit.Uwp.Notifications
@@ -16,9 +17,6 @@ Public Class AppAccounts
     Implements IDisposable
 
     Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
-
-    Private Shared ReadOnly _randLock As New Object()
-    Private Shared ReadOnly _rand As New Random()
 
     ''' <summary>Identificativo univoco dell'account (es. account_1680000000000).</summary>
     <JsonPropertyName("id")>
@@ -669,13 +667,11 @@ Public Class AppAccounts
         Return "account_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
     End Function
 
-    ''' <summary>Genera un token casuale di sicurezza per la validazione della comunicazione IPC.</summary>
+    ''' <summary>Genera un token crittograficamente sicuro (CSPRNG) a 128 bit per la validazione della comunicazione IPC (#62).</summary>
     Private Shared Function GenerateBridgeToken() As String
-        Dim val As Integer
-        SyncLock _randLock
-            val = _rand.Next(100000, 999999)
-        End SyncLock
-        Return "bt_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & "_" & val
+        Dim randomBytes(15) As Byte
+        RandomNumberGenerator.Fill(randomBytes)
+        Return "bt_" & Convert.ToHexString(randomBytes).ToLowerInvariant()
     End Function
 
     Public Sub New()
@@ -773,7 +769,11 @@ Public Class AppAccounts
             _isCrashed = False
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
+#If DEBUG Then
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
+#Else
+            WebView.CoreWebView2.Settings.AreDevToolsEnabled = False
+#End If
             WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
             WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
             
@@ -809,14 +809,29 @@ Public Class AppAccounts
 
             _navigationStartingHandler = Sub(sender, e)
                 If String.IsNullOrEmpty(e.Uri) Then Return
+                If e.Uri.StartsWith("about:blank", StringComparison.OrdinalIgnoreCase) Then Return
+
                 If e.Uri.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
                     e.Cancel = True
                     Dim target = ResolveTelegramUrl(e.Uri)
                     WebView.CoreWebView2.Navigate(target)
+                    Return
                 ElseIf IsTelegram AndAlso (e.Uri.StartsWith("https://t.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("http://t.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("https://telegram.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("http://telegram.me/", StringComparison.OrdinalIgnoreCase)) Then
                     e.Cancel = True
                     Dim target = ResolveTelegramUrl(e.Uri)
                     WebView.CoreWebView2.Navigate(target)
+                    Return
+                End If
+
+                ' Validazione schema URI su navigazione (#61)
+                Dim navUri As Uri = Nothing
+                If Uri.TryCreate(e.Uri, UriKind.Absolute, navUri) Then
+                    Dim allowedNavSchemes As String() = {Uri.UriSchemeHttp, Uri.UriSchemeHttps, "data", "blob", "about"}
+                    If Not allowedNavSchemes.Contains(navUri.Scheme.ToLowerInvariant()) Then
+                        e.Cancel = True
+                        Debug.WriteLine($"[Security] Blocked unsafe navigation scheme: {navUri.Scheme} for URI: {e.Uri}")
+                        Return
+                    End If
                 End If
             End Sub
             AddHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
@@ -839,8 +854,21 @@ Public Class AppAccounts
                         End If
                     End If
 
-                    Dim uri = New Uri(uriStr)
-                    Dim host = uri.Host.ToLower()
+                    Dim uri As Uri = Nothing
+                    If Not Uri.TryCreate(uriStr, UriKind.Absolute, uri) Then
+                        e.Handled = True
+                        Return
+                    End If
+
+                    ' Se è un deep link Telegram verso canale/chat (#41)
+                    If IsTelegram AndAlso (uri.Host.Equals("t.me", StringComparison.OrdinalIgnoreCase) OrElse uri.Host.EndsWith(".t.me", StringComparison.OrdinalIgnoreCase) OrElse uri.Host.Equals("telegram.me", StringComparison.OrdinalIgnoreCase) OrElse uri.Host.EndsWith(".telegram.me", StringComparison.OrdinalIgnoreCase)) Then
+                        e.Handled = True
+                        Dim target = ResolveTelegramUrl(uriStr)
+                        WebView.CoreWebView2.Navigate(target)
+                        Return
+                    End If
+
+                    ' Per OpenClaw o Hermes, consenti navigazione interna solo per lo stesso host
                     If IsOpenClaw OrElse IsHermes Then
                         Dim baseUri As Uri = Nothing
                         If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) AndAlso String.Equals(uri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) Then
@@ -848,33 +876,28 @@ Public Class AppAccounts
                             WebView.CoreWebView2.Navigate(uriStr)
                             Return
                         End If
-                    ElseIf IsWhatsApp AndAlso (host = "web.whatsapp.com" OrElse host = "whatsapp.com" OrElse host.EndsWith(".whatsapp.com")) Then
-                        e.Handled = True
-                        WebView.CoreWebView2.Navigate(uriStr)
-                        Return
-                    ElseIf IsTelegram AndAlso (host = "web.telegram.org" OrElse host = "telegram.org" OrElse host.EndsWith(".telegram.org")) Then
-                        e.Handled = True
-                        WebView.CoreWebView2.Navigate(uriStr)
-                        Return
-                    ElseIf IsTelegram AndAlso (host = "t.me" OrElse host.EndsWith(".t.me") OrElse host = "telegram.me" OrElse host.EndsWith(".telegram.me")) Then
-                        e.Handled = True
-                        Dim target = ResolveTelegramUrl(uriStr)
-                        WebView.CoreWebView2.Navigate(target)
-                        Return
                     End If
 
+                    ' Qualsiasi altro link esterno o target="_blank" (inclusi link whatsapp.com/faq o esterni in chat)
+                    ' viene aperto nel browser predefinito di sistema previa validazione rigorosa dello schema URI (#61)
                     e.Handled = True
-                    System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(uriStr) With {
-                        .UseShellExecute = True
-                    })
-                Catch
+                    Dim allowedSchemes As String() = {Uri.UriSchemeHttp, Uri.UriSchemeHttps, Uri.UriSchemeMailto}
+                    If allowedSchemes.Contains(uri.Scheme.ToLowerInvariant()) Then
+                        System.Diagnostics.Process.Start(New System.Diagnostics.ProcessStartInfo(uriStr) With {
+                            .UseShellExecute = True
+                        })
+                    Else
+                        Debug.WriteLine($"[Security] Blocked unsafe URI scheme in NewWindowRequested: {uri.Scheme} for '{uriStr}'")
+                    End If
+                Catch ex As Exception
+                    Debug.WriteLine($"Error in _newWindowRequestedHandler: {ex.Message}")
                     e.Handled = False
                 End Try
             End Sub
             AddHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
 
             _webMessageReceivedHandler = Async Sub(sender, e)
-                Await HandleWebMessageAsync(e.WebMessageAsJson, settings, onNotificationChanged)
+                Await HandleWebMessageAsync(e.WebMessageAsJson, e.Source, settings, onNotificationChanged)
             End Sub
             AddHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
 
@@ -1064,11 +1087,47 @@ Public Class AppAccounts
     End Sub
 
     ''' <summary>
-    ''' Gestisce i messaggi IPC JSON inviati dalla WebView2 tramite `window.chrome.webview.postMessage`.
-    ''' Verifica la validità del token prima dell'elaborazione.
+    ''' Valida se l'origine URI specificata (e.Source) corrisponde alla piattaforma o host autorizzato per questo account (#62).
     ''' </summary>
-    Private Async Function HandleWebMessageAsync(messageJson As String, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
-        Debug.WriteLine($"[WebMessageReceived] accountId={Id}, RAW JSON: {messageJson}")
+    Public Function IsAuthorizedOrigin(sourceUri As String) As Boolean
+        If String.IsNullOrWhiteSpace(sourceUri) Then Return False
+
+        Dim uri As Uri = Nothing
+        If Not Uri.TryCreate(sourceUri, UriKind.Absolute, uri) Then Return False
+
+        Dim host = uri.Host.ToLowerInvariant()
+
+        If IsTelegram Then
+            Return host = "web.telegram.org" OrElse host.EndsWith(".telegram.org")
+        ElseIf IsOpenClaw OrElse IsHermes Then
+            ' Per OpenClaw o Hermes, l'origine autorizzata è l'host del ServerUrl configurato oppure localhost / 127.0.0.1 se via tsnet
+            If host = "127.0.0.1" OrElse host = "localhost" Then Return True
+            If Not String.IsNullOrWhiteSpace(ServerUrl) Then
+                Dim baseUri As Uri = Nothing
+                If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) Then
+                    Return String.Equals(host, baseUri.Host, StringComparison.OrdinalIgnoreCase)
+                End If
+            End If
+            Return False
+        Else
+            ' WhatsApp (default)
+            Return host = "web.whatsapp.com" OrElse host.EndsWith(".whatsapp.com")
+        End If
+    End Function
+
+    ''' <summary>
+    ''' Gestisce i messaggi IPC JSON inviati dalla WebView2 tramite `window.chrome.webview.postMessage`.
+    ''' Verifica la validità dell'origine del mittente e del token crittografico prima dell'elaborazione (#62).
+    ''' </summary>
+    Private Async Function HandleWebMessageAsync(messageJson As String, sourceUri As String, settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
+        Debug.WriteLine($"[WebMessageReceived] accountId={Id}, source={sourceUri}, RAW JSON: {messageJson}")
+
+        ' Validazione rigorosa dell'origine di provenienza del messaggio IPC (#62)
+        If Not IsAuthorizedOrigin(sourceUri) Then
+            Debug.WriteLine($"[WebMessageReceived] Unauthorized source origin '{sourceUri}' for account {Id}, message dropped.")
+            Return
+        End If
+
         Try
             Using doc As JsonDocument = JsonDocument.Parse(messageJson)
                 Dim root = doc.RootElement

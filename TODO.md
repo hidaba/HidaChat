@@ -407,23 +407,22 @@
 
 # REVISIONE CODICE — SICUREZZA WEBVIEW
 
-## 61. NewWindowRequested: ShellExecute su qualsiasi schema URI
-- **File**: `AppAccounts.vb` (`_newWindowRequestedHandler`)
+## ~~61. NewWindowRequested: ShellExecute su qualsiasi schema URI~~ ✅
+- **File**: `AppAccounts.vb` (`_newWindowRequestedHandler`, `_navigationStartingHandler`)
 - **Problema**: Per qualsiasi URL che non appartiene agli host noti della piattaforma corrente, l'handler invoca `Process.Start(..., UseShellExecute = True)` senza validare lo schema dell'URI: link con schemi pericolosi o non controllati (`file:`, `ms-msdt:`, protocol handler registrati a livello di sistema) vengono eseguiti arbitrariamente. Inoltre, i link con attributo `target="_blank"` appartenenti alla stessa origine navigano l'istanza WebView corrente sovrascrivendo la sessione di chat aperta.
-- **Fix**: Applicare una allow-list rigorosa degli schemi prima dell'apertura esterna (es. solo `http`, `https`, `mailto`); estendere la medesima validazione a `NavigationStarting` (i deep link Telegram `tg://` restano gestiti dalla traduzione interna verso Web K/A, vedi #41):
-  ```vb
-  Dim allowed = {Uri.UriSchemeHttp, Uri.UriSchemeHttps, Uri.UriSchemeMailto}
-  If allowed.Contains(uri.Scheme) Then
-      Process.Start(New ProcessStartInfo(e.Uri) With {.UseShellExecute = True})
-  End If
-  ```
-  Aprire nel browser predefinito di sistema anche i link `target="_blank"` della medesima origine per evitare la perdita della vista di chat principale all'interno della WebView2.
+- **Fix Implementato**:
+  - Applicata una allow-list rigorosa degli schemi prima dell'apertura esterna (`http`, `https`, `mailto`), bloccando l'esecuzione arbitraria di protocol handler di sistema o schemi non autorizzati;
+  - Estesa la validazione dello schema URI a `NavigationStarting`, consentendo solo schemi web standard (`http`, `https`, `data`, `blob`, `about`) e gestendo internamente i deep link Telegram (`tg://` e `t.me`);
+  - Apertura nel browser predefinito di sistema di tutti i link `target="_blank"` o esterni per preservare integra la vista principale della sessione di chat all'interno della WebView2.
 - **Impatto**: Alto | **Sforzo**: Basso
 
-## 62. Bridge IPC: token da CSPRNG e validazione dell'origine
-- **File**: `AppAccounts.vb` (`GenerateBridgeToken`, `HandleWebMessageAsync`, `SetupWebViewInternalAsync`)
+## ~~62. Bridge IPC: token da CSPRNG e validazione dell'origine~~ ✅
+- **File**: `AppAccounts.vb` (`GenerateBridgeToken`, `HandleWebMessageAsync`, `IsAuthorizedOrigin`, `SetupWebViewInternalAsync`)
 - **Problema**: Il token di sicurezza del bridge IPC viene generato combinando un timestamp Unix con `System.Random` (pseudo-casuale non crittografico, teoricamente prevedibile); l'handler `WebMessageReceived` / `HandleWebMessageAsync` valida il token ma non controlla l'origine (`e.Source`) del mittente del messaggio; la proprietà `AreDevToolsEnabled` viene impostata a `True` in modo incondizionato anche in ambienti di produzione.
-- **Fix**: Generare il token IPC tramite CSPRNG crittograficamente sicuro (`Convert.ToHexString(RandomNumberGenerator.GetBytes(16))`); in `WebMessageReceived` verificare preventivamente che l'URI di provenienza `e.Source` corrisponda all'host autorizzato per la specifica piattaforma dell'account; abilitare i DevTools (`AreDevToolsEnabled`) esclusivamente nelle build di Debug o tramite opzione diagnostica avanzata nelle Impostazioni.
+- **Fix Implementato**:
+  - Generazione del token IPC di sicurezza della WebView tramite CSPRNG a 128 bit (`RandomNumberGenerator.Fill(randomBytes)`);
+  - Validazione rigorosa dell'origine di provenienza del messaggio (`e.Source`) tramite la funzione dedicata `IsAuthorizedOrigin` prima del parsing e dell'elaborazione del payload IPC (`web.whatsapp.com` per WhatsApp, `web.telegram.org` per Telegram, host di `ServerUrl` o `127.0.0.1` per OpenClaw ed Hermes);
+  - Disabilitazione dei DevTools (`AreDevToolsEnabled = False`) nelle build di produzione Release (abilitati unicamente sotto compilazione `#If DEBUG`).
 - **Impatto**: Medio | **Sforzo**: Basso
 
 ## 63. Async Sub senza gestione errori e Task non attesi nel bridge

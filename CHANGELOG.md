@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.10-beta] - 2026-09-26
+
+### Pre-release / Beta — Hardening Sicurezza WebView: Allow-list Schemi URI, Token IPC da CSPRNG e Validazione Origine
+- **Protezione Schemi URI e Gestione Finestre Esterne (`AppAccounts.vb`) (#61)**:
+  - **Allow-List Schemi URI in `NewWindowRequested`**: Applicata una allow-list rigorosa (`http`, `https`, `mailto`) prima dell'invocazione di `Process.Start` con `UseShellExecute = True`. I link con schemi pericolosi, protocol handler di sistema o non gestiti (`file:`, `ms-msdt:`, ecc.) vengono bloccati e registrati nei log di diagnostica.
+  - **Validazione Schemi in `NavigationStarting`**: Estesa la verifica preventiva a `NavigationStarting`, consentendo unicamente schemi web sicuri (`http`, `https`, `data`, `blob`, `about`) e preservando la gestione interna dei deep link Telegram (`tg://` e domini `t.me`).
+  - **Apertura Browser Esterno per Link `target="_blank"`**: Tutti i link aperti con `target="_blank"` vengono instradati al browser predefinito di sistema invece di sovrascrivere la navigazione interna della WebView2, preservando la sessione e la vista di chat principale.
+- **Rafforzamento Sicurezza Bridge IPC e Origine Mittente (`AppAccounts.vb`) (#62)**:
+  - **Generazione Token Bridge tramite CSPRNG a 128 bit**: Sostituita la precedente generazione pseudo-casuale basata su `System.Random` e timestamp con un generatore crittograficamente sicuro (`RandomNumberGenerator.Fill(randomBytes)`), producendo token a 128 bit imprevedibili.
+  - **Validazione Rigorosa dell'Origine `e.Source` (`IsAuthorizedOrigin`)**: Aggiunta la verifica preventiva dell'origine del mittente in `HandleWebMessageAsync`: i messaggi IPC vengono elaborati solo se provenienti dall'host autorizzato della piattaforma configurata (`web.whatsapp.com` per WhatsApp, `web.telegram.org` per Telegram, host del server configurato o proxy locale `127.0.0.1` per OpenClaw ed Hermes).
+  - **Disabilitazione DevTools in Release**: Configurato `AreDevToolsEnabled = False` nelle build di produzione Release, abilitando gli strumenti di sviluppo Chromium esclusivamente nelle compilazioni Debug (`#If DEBUG`).
+
 ## [1.0.9-beta] - 2026-09-25
 
 ### Pre-release / Beta — Persistenza Sessione WhatsApp allo Spegnimento Windows e Rilevamento Unità di Rete
