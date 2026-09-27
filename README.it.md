@@ -7,10 +7,11 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
-[![Download Release](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=Download%20Windows)](https://github.com/hidaba/HidaChat/releases/latest)
-[![Total Downloads](https://img.shields.io/github/downloads/hidaba/HidaChat/total)](https://github.com/hidaba/HidaChat/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/hidaba/HidaChat)](https://github.com/hidaba/HidaChat/commits/master)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/HidaChat/build.yml?branch=master)](https://github.com/hidaba/HidaChat/actions)
+[![Release Stabile](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=Release%20Stabile)](https://github.com/hidaba/HidaChat/releases/latest)
+[![Ultima Beta](https://img.shields.io/github/v/release/hidaba/HidaChat?include_prereleases&color=orange&label=Ultima%20Beta)](https://github.com/hidaba/HidaChat/releases)
+[![Download Totali](https://img.shields.io/github/downloads/hidaba/HidaChat/total)](https://github.com/hidaba/HidaChat/releases)
+[![Ultimo Commit](https://img.shields.io/github/last-commit/hidaba/HidaChat)](https://github.com/hidaba/HidaChat/commits/master)
+[![Stato Build](https://img.shields.io/github/actions/workflow/status/hidaba/HidaChat/build.yml?branch=master)](https://github.com/hidaba/HidaChat/actions)
 [![Piattaforme](https://img.shields.io/badge/Piattaforme-WhatsApp%20%7C%20Telegram%20%7C%20OpenClaw%20%7C%20Hermes-00a884.svg)](#-multi-account--multi-piattaforma-whatsapp-telegram-openclaw-hermes)
 [![Agenti IA](https://img.shields.io/badge/Agenti%20IA-OpenClaw%20%26%20Hermes-FF5722.svg)](#-guida-alla-connessione-degli-account-openclaw-ed-hermes-agent-passo-passo)
 [![Tailscale Mesh](https://img.shields.io/badge/Mesh%20VPN-Tailscale%20tsnet-24292E.svg?logo=tailscale&logoColor=white)](#-guida-alla-connessione-degli-account-openclaw-ed-hermes-agent-passo-passo)
@@ -39,9 +40,15 @@ winget install hidaba.HidaChat
 ```
 
 ### Opzione 2: Archivio Portatile ZIP (Nessuna installazione)
-Scarica l'ultima versione portatile pronta all'uso per Windows (archivio ZIP):
-- ⬇️ **[Scarica l'ultima versione compilata (GitHub Releases)](https://github.com/hidaba/HidaChat/releases/latest)**
-- 📂 Estrai l'archivio ZIP in qualsiasi cartella (locale o chiavetta USB) ed avvia `HidaChat.exe`.
+Scegli tra la **Versione Stabile** (testata, consigliata per l'uso quotidiano) e l'**Ultima Versione Beta** (anteprima delle ultime novità, miglioramenti e correzioni):
+
+| Canale | Versione Corrente | Stato | Link per Scaricare |
+|---|---|:---:|:---:|
+| 🟢 **Release Stabile** | [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=)](https://github.com/hidaba/HidaChat/releases/latest) | `Consigliata` | ⬇️ **[Scarica ZIP Versione Stabile](https://github.com/hidaba/HidaChat/releases/latest)** |
+| 🟠 **Ultima Versione Beta** | [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/hidaba/HidaChat?include_prereleases&color=orange&label=)](https://github.com/hidaba/HidaChat/releases) | `Anteprima` | ⬇️ **[Scarica ZIP Ultima Beta](https://github.com/hidaba/HidaChat/releases)** |
+
+- 📂 **Avvio rapido**: Estrai l'archivio ZIP in qualsiasi cartella (locale o chiavetta USB) ed avvia `HidaChat.exe`.
+- 🔄 **Aggiornamenti automatici (OTA)**: HidaChat include il controllo e l'aggiornamento automatico integrato. Puoi attivare o disattivare la ricezione delle versioni Beta in qualsiasi momento dalle **Impostazioni** (`Ctrl+,`).
 
 > ⚠️ **Nota Importante sulla Portabilità**: Non eseguire HidaChat contemporaneamente da più computer che accedono alla stessa cartella di rete condivisa: potrebbe corrompere le sessioni WebView2 e le impostazioni. HidaChat è progettato per essere utilizzato da un solo PC alla volta.
 

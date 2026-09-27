@@ -7,7 +7,8 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
-[![Download Release](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=Download%20Windows)](https://github.com/hidaba/HidaChat/releases/latest)
+[![Download Stable](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=Download%20Stable)](https://github.com/hidaba/HidaChat/releases/latest)
+[![Download Latest Beta](https://img.shields.io/github/v/release/hidaba/HidaChat?include_prereleases&color=orange&label=Latest%20Beta)](https://github.com/hidaba/HidaChat/releases)
 [![Total Downloads](https://img.shields.io/github/downloads/hidaba/HidaChat/total)](https://github.com/hidaba/HidaChat/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/hidaba/HidaChat)](https://github.com/hidaba/HidaChat/commits/master)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/hidaba/HidaChat/build.yml?branch=master)](https://github.com/hidaba/HidaChat/actions)
@@ -39,9 +40,15 @@ winget install hidaba.HidaChat
 ```
 
 ### Option 2: Portable ZIP (No Installation)
-Get the latest ready-to-use portable release for Windows (ZIP archive):
-- ⬇️ **[Download Latest Portable Release (GitHub Releases)](https://github.com/hidaba/HidaChat/releases/latest)**
-- 📂 Extract the ZIP file anywhere (Local Drive or USB Flash Drive) and launch `HidaChat.exe`.
+Choose between the **Stable Release** (tested, recommended for daily use) and the **Latest Beta** (preview of the newest features, bug fixes, and improvements):
+
+| Channel | Version | Status | Download Link |
+|---|---|:---:|:---:|
+| 🟢 **Stable Release** | [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hidaba/HidaChat?color=green&label=)](https://github.com/hidaba/HidaChat/releases/latest) | `Recommended` | ⬇️ **[Download Stable ZIP](https://github.com/hidaba/HidaChat/releases/latest)** |
+| 🟠 **Latest Beta** | [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/hidaba/HidaChat?include_prereleases&color=orange&label=)](https://github.com/hidaba/HidaChat/releases) | `Preview` | ⬇️ **[Download Latest Beta ZIP](https://github.com/hidaba/HidaChat/releases)** |
+
+- 📂 **Quick start**: Extract the ZIP file anywhere (Local Drive or USB Flash Drive) and launch `HidaChat.exe`.
+- 🔄 **Automatic updates (OTA)**: HidaChat includes a built-in auto-updater. You can enable or disable the Beta channel at any time in **Settings** (`Ctrl+,`).
 
 > ⚠️ **Important Portability Note**: Do not run HidaChat simultaneously from multiple computers accessing the same shared network folder. HidaChat is designed to be used by one PC at a time to prevent WebView2 profile lock conflicts.
 
