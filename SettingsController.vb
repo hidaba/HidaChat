@@ -328,7 +328,7 @@ Public Class SettingsController
             Return _dndUntil
         End Get
         Set(value As Nullable(Of DateTime))
-            If _dndUntil <> value Then
+            If Not Nullable.Equals(_dndUntil, value) Then
                 _dndUntil = value
                 NotifyPropertyChanged()
                 NotifyPropertyChanged(NameOf(IsDndActive))
@@ -937,45 +937,40 @@ Public Class SettingsController
         Dim ignore = FlushAfterDebounceAsync()
     End Function
 
-    ''' <summary>Imposta e persiste la modalità Non Disturbare con la durata specificata (TODO #47).</summary>
+    ''' <summary>Imposta e persiste la modalità Non Disturbare con la durata specificata (TODO #47, #64).</summary>
     Public Async Function SetDndModeAsync(mode As String) As Task
         Dim normMode = If(String.IsNullOrWhiteSpace(mode), "off", mode.ToLowerInvariant())
         Select Case normMode
             Case "30m"
-                _isDndEnabled = True
-                _dndUntil = DateTime.UtcNow.AddMinutes(30)
-                _dndDurationMode = "30m"
+                IsDndEnabled = True
+                DndUntil = DateTime.UtcNow.AddMinutes(30)
+                DndDurationMode = "30m"
             Case "1h"
-                _isDndEnabled = True
-                _dndUntil = DateTime.UtcNow.AddHours(1)
-                _dndDurationMode = "1h"
+                IsDndEnabled = True
+                DndUntil = DateTime.UtcNow.AddHours(1)
+                DndDurationMode = "1h"
             Case "2h"
-                _isDndEnabled = True
-                _dndUntil = DateTime.UtcNow.AddHours(2)
-                _dndDurationMode = "2h"
+                IsDndEnabled = True
+                DndUntil = DateTime.UtcNow.AddHours(2)
+                DndDurationMode = "2h"
             Case "8h"
-                _isDndEnabled = True
-                _dndUntil = DateTime.UtcNow.AddHours(8)
-                _dndDurationMode = "8h"
+                IsDndEnabled = True
+                DndUntil = DateTime.UtcNow.AddHours(8)
+                DndDurationMode = "8h"
             Case "indefinite"
-                _isDndEnabled = True
-                _dndUntil = Nothing
-                _dndDurationMode = "indefinite"
+                IsDndEnabled = True
+                DndUntil = Nothing
+                DndDurationMode = "indefinite"
             Case Else
-                _isDndEnabled = False
-                _dndUntil = Nothing
-                _dndDurationMode = "off"
+                IsDndEnabled = False
+                DndUntil = Nothing
+                DndDurationMode = "off"
         End Select
 
-        NotifyPropertyChanged(NameOf(IsDndEnabled))
-        NotifyPropertyChanged(NameOf(DndUntil))
-        NotifyPropertyChanged(NameOf(DndDurationMode))
-        NotifyPropertyChanged(NameOf(IsDndActive))
-
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
-        _cachedSettings("isDndEnabled") = _isDndEnabled
-        _cachedSettings("dndUntil") = If(_dndUntil.HasValue, _dndUntil.Value.ToString("o"), Nothing)
-        _cachedSettings("dndDurationMode") = _dndDurationMode
+        _cachedSettings("isDndEnabled") = IsDndEnabled
+        _cachedSettings("dndUntil") = If(DndUntil.HasValue, DndUntil.Value.ToString("o"), Nothing)
+        _cachedSettings("dndDurationMode") = DndDurationMode
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

@@ -1,16 +1,25 @@
 Imports System.Diagnostics
+Imports System.IO
 Imports System.Threading
+Imports System.Threading.Tasks
+Imports System.Windows.Threading
 
 ''' <summary>
 ''' Gestisce il ciclo di vita dell'applicazione WPF e garantisce l'esecuzione in istanza singola tramite Mutex e verifica dei processi attivi.
 ''' </summary>
 Class Application
     Private Shared _mutex As Mutex
+    Private Shared ReadOnly _logLock As New Object()
 
     ''' <summary>
     ''' Invocato all'avvio dell'applicazione. Inizializza il Mutex per impedire l'esecuzione di più istanze contemporanee.
     ''' </summary>
     Protected Overrides Sub OnStartup(e As StartupEventArgs)
+        ' Registrazione listener globali per eccezioni non gestite (TODO #63)
+        AddHandler Me.DispatcherUnhandledException, AddressOf OnDispatcherUnhandledException
+        AddHandler TaskScheduler.UnobservedTaskException, AddressOf OnUnobservedTaskException
+        AddHandler AppDomain.CurrentDomain.UnhandledException, AddressOf OnAppDomainUnhandledException
+
         Dim createdNew As Boolean = False
         _mutex = New Mutex(True, "Local\HidaChat_SingleInstance_Mutex", createdNew)
 
@@ -95,6 +104,65 @@ Class Application
             Debug.WriteLine($"OnSessionEnding error: {ex.Message}")
         End Try
         MyBase.OnSessionEnding(e)
+    End Sub
+
+    Private Sub OnDispatcherUnhandledException(sender As Object, e As DispatcherUnhandledExceptionEventArgs)
+        LogUnhandledException("DispatcherUnhandledException", e.Exception)
+        ' Evita il crash istantaneo dell'applicazione per eccezioni non critiche a livello di UI
+        e.Handled = True
+    End Sub
+
+    Private Sub OnUnobservedTaskException(sender As Object, e As UnobservedTaskExceptionEventArgs)
+        LogUnhandledException("TaskScheduler.UnobservedTaskException", e.Exception)
+        ' Marca l'eccezione come osservata per impedire l'escalation a crash di processo
+        e.SetObserved()
+    End Sub
+
+    Private Sub OnAppDomainUnhandledException(sender As Object, e As UnhandledExceptionEventArgs)
+        Dim ex = TryCast(e.ExceptionObject, Exception)
+        LogUnhandledException($"AppDomain.UnhandledException (IsTerminating={e.IsTerminating})", ex)
+    End Sub
+
+    ''' <summary>
+    ''' Registra un'eccezione non gestita sul file di log portabile 'data/logs/app_errors.log' (TODO #63).
+    ''' </summary>
+    Public Shared Sub LogUnhandledException(source As String, ex As Exception)
+        Try
+            Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+            Dim logsDir = Path.Combine(baseDir, "data", "logs")
+            If Not Directory.Exists(logsDir) Then
+                Directory.CreateDirectory(logsDir)
+            End If
+
+            Dim logFile = Path.Combine(logsDir, "app_errors.log")
+            Dim sb As New System.Text.StringBuilder()
+            sb.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{source}]")
+            If ex IsNot Nothing Then
+                sb.AppendLine($"Tipo: {ex.GetType().FullName}")
+                sb.AppendLine($"Messaggio: {ex.Message}")
+                sb.AppendLine($"StackTrace: {ex.StackTrace}")
+                If ex.InnerException IsNot Nothing Then
+                    sb.AppendLine($"InnerException: {ex.InnerException.GetType().FullName}: {ex.InnerException.Message}")
+                    sb.AppendLine($"InnerStackTrace: {ex.InnerException.StackTrace}")
+                End If
+            Else
+                sb.AppendLine("Dettagli eccezione non disponibili.")
+            End If
+            sb.AppendLine(New String("-"c, 60))
+
+            SyncLock _logLock
+                Dim fi As New FileInfo(logFile)
+                If fi.Exists AndAlso fi.Length > 1024 * 1024 Then
+                    Dim oldFile = Path.Combine(logsDir, "app_errors.log.old")
+                    If File.Exists(oldFile) Then File.Delete(oldFile)
+                    File.Move(logFile, oldFile)
+                End If
+                File.AppendAllText(logFile, sb.ToString())
+            End SyncLock
+            Debug.WriteLine($"[CRITICAL] {source}: {ex?.Message}")
+        Catch
+            ' Fail-safe
+        End Try
     End Sub
 
     ''' <summary>

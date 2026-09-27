@@ -121,61 +121,67 @@ Public Class MainWindow
     ''' inizializzazione degli account, applicazione tema, configurazione tray icon e controllo aggiornamenti.
     ''' </summary>
     Private Async Sub MainWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
-        ' 1. Carica le impostazioni utente dal file JSON
-        Await _settingsController.LoadSettingsAsync()
-        
-        ' 2. Verifica che il runtime Microsoft Edge WebView2 sia installato nel sistema
-        If Not CheckWebView2Installed() Then
-            MessageBox.Show(
-                "Il runtime WebView2 non è installato." & vbCrLf & vbCrLf &
-                "Scaricalo da: https://developer.microsoft.com/microsoft-edge/webview2/" & vbCrLf & vbCrLf &
-                "Oppure esegui lo script di installazione: .\install_webview2.bat",
-                "WebView2 mancante",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
-            )
-            Application.Current.Shutdown()
-            Return
-        End If
+        Try
+            ' 1. Carica le impostazioni utente dal file JSON
+            Await _settingsController.LoadSettingsAsync()
+            
+            ' 2. Verifica che il runtime Microsoft Edge WebView2 sia installato nel sistema
+            If Not CheckWebView2Installed() Then
+                MessageBox.Show(
+                    "Il runtime WebView2 non è installato." & vbCrLf & vbCrLf &
+                    "Scaricalo da: https://developer.microsoft.com/microsoft-edge/webview2/" & vbCrLf & vbCrLf &
+                    "Oppure esegui lo script di installazione: .\install_webview2.bat",
+                    "WebView2 mancante",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                )
+                Application.Current.Shutdown()
+                Return
+            End If
 
-        ' 3. Inizializza l'AccountManager ed effettua il caricamento degli account
-        Await _accountManager.LoadAccountsAsync()
-        
-        ' 4. Applica il tema WPF (Scuro/Chiaro) in base alle impostazioni caricate
-        Await ApplyWpfThemeAsync()
-        
-        ' 5. Configura l'icona nell'area di notifica (System Tray)
-        ConfigureSystemTray()
-        
-        ' 6. Collega l'elenco account alla barra delle schede orizzontale
-        AccountsList.ItemsSource = _accountManager.Accounts
-        UpdateAddAccountButtonState()
-        HookAccountEvents()
-        
-        ' 7. Istanzia e configura i controlli WebView2 per gli account
-        PopulateWebViews()
-        
-        ' 8. Registra i listener per i cambiamenti di proprietà nelle impostazioni e negli account
-        AddHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
-        AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
-        
-        ' 9. Configura il routing dei click sulle notifiche Toast di Windows
-        ConfigureToastNotifications()
-        
-        ' 10. Verifica in background la disponibilità di aggiornamenti all'avvio
-        Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
-        
-        ' 11. Configura il timer di scadenza per la modalità Non Disturbare (TODO #47)
-        _dndTimer = New System.Windows.Threading.DispatcherTimer With {
-            .Interval = TimeSpan.FromSeconds(5)
-        }
-        AddHandler _dndTimer.Tick, AddressOf CheckDndExpiry
-        _dndTimer.Start()
-        UpdateDndState()
+            ' 3. Inizializza l'AccountManager ed effettua il caricamento degli account
+            Await _accountManager.LoadAccountsAsync()
+            
+            ' 4. Applica il tema WPF (Scuro/Chiaro) in base alle impostazioni caricate
+            Await ApplyWpfThemeAsync()
+            
+            ' 5. Configura l'icona nell'area di notifica (System Tray)
+            ConfigureSystemTray()
+            
+            ' 6. Collega l'elenco account alla barra delle schede orizzontale
+            AccountsList.ItemsSource = _accountManager.Accounts
+            UpdateAddAccountButtonState()
+            HookAccountEvents()
+            
+            ' 7. Istanzia e configura i controlli WebView2 per gli account
+            PopulateWebViews()
+            
+            ' 8. Registra i listener per i cambiamenti di proprietà nelle impostazioni e negli account
+            AddHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+            AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+            
+            ' 9. Configura il routing dei click sulle notifiche Toast di Windows
+            ConfigureToastNotifications()
+            
+            ' 10. Verifica in background la disponibilità di aggiornamenti all'avvio
+            Dim ignore = UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager)
+            
+            ' 11. Configura il timer di scadenza per la modalità Non Disturbare (TODO #47)
+            _dndTimer = New System.Windows.Threading.DispatcherTimer With {
+                .Interval = TimeSpan.FromSeconds(5)
+            }
+            AddHandler _dndTimer.Tick, AddressOf CheckDndExpiry
+            _dndTimer.Start()
+            UpdateDndState()
 
-        UpdateOnlineIndicator()
-        CheckNetworkDriveWarning()
-        VersionText.Text = "v" & Constants.AppVersion
+            UpdateOnlineIndicator()
+            CheckNetworkDriveWarning()
+            VersionText.Text = "v" & Constants.AppVersion
+        Catch ex As Exception
+            Debug.WriteLine($"MainWindow_Loaded error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.MainWindow_Loaded", ex)
+            MessageBox.Show("Errore durante l'avvio dell'applicazione: " & ex.Message, "HidaChat", MessageBoxButton.OK, MessageBoxImage.Error)
+        End Try
     End Sub
 
     ''' <summary>
@@ -541,34 +547,39 @@ Public Class MainWindow
     ''' e pre-carica in background tutti gli altri account mantenendoli attivi e connessi.
     ''' </summary>
     Private Async Sub PopulateWebViews()
-        WebViewsGrid.Children.Clear()
+        Try
+            WebViewsGrid.Children.Clear()
 
-        ' 1. Individua l'account attivo/selezionato all'avvio
-        Dim activeAccount = _accountManager.CurrentAccount
-        If activeAccount Is Nothing AndAlso _accountManager.Accounts.Count > 0 Then
-            activeAccount = _accountManager.Accounts.FirstOrDefault(Function(a) a.IsActive)
-            If activeAccount Is Nothing Then
-                activeAccount = _accountManager.Accounts.First()
-                activeAccount.IsActive = True
+            ' 1. Individua l'account attivo/selezionato all'avvio
+            Dim activeAccount = _accountManager.CurrentAccount
+            If activeAccount Is Nothing AndAlso _accountManager.Accounts.Count > 0 Then
+                activeAccount = _accountManager.Accounts.FirstOrDefault(Function(a) a.IsActive)
+                If activeAccount Is Nothing Then
+                    activeAccount = _accountManager.Accounts.First()
+                    activeAccount.IsActive = True
+                End If
+                _accountManager.CurrentAccount = activeAccount
             End If
-            _accountManager.CurrentAccount = activeAccount
-        End If
 
-        ' 2. Carica e mostra con massima priorità l'account selezionato
-        If activeAccount IsNot Nothing Then
-            Await EnsureWebViewAsync(activeAccount)
-            If activeAccount.WebView IsNot Nothing Then
-                activeAccount.WebView.Margin = New Thickness(0)
-                Panel.SetZIndex(activeAccount.WebView, 10)
-                activeAccount.WebView.Focus()
+            ' 2. Carica e mostra con massima priorità l'account selezionato
+            If activeAccount IsNot Nothing Then
+                Await EnsureWebViewAsync(activeAccount)
+                If activeAccount.WebView IsNot Nothing Then
+                    activeAccount.WebView.Margin = New Thickness(0)
+                    Panel.SetZIndex(activeAccount.WebView, 10)
+                    activeAccount.WebView.Focus()
+                End If
             End If
-        End If
 
-        ' 3. Pre-carica in background tutti gli altri account configurati in modo scaglionato
-        Dim otherAccounts = _accountManager.Accounts.Where(Function(a) activeAccount Is Nothing OrElse a.Id <> activeAccount.Id).ToList()
-        If otherAccounts.Count > 0 Then
-            PreloadOtherAccountsAsync(otherAccounts)
-        End If
+            ' 3. Pre-carica in background tutti gli altri account configurati in modo scaglionato
+            Dim otherAccounts = _accountManager.Accounts.Where(Function(a) activeAccount Is Nothing OrElse a.Id <> activeAccount.Id).ToList()
+            If otherAccounts.Count > 0 Then
+                PreloadOtherAccountsAsync(otherAccounts)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"PopulateWebViews error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.PopulateWebViews", ex)
+        End Try
     End Sub
 
     ''' <summary>
@@ -687,11 +698,16 @@ Public Class MainWindow
     ''' Gestisce l'evento di richiesta Auto-Recovery sollevato dall'account a seguito di un crash irreversibile del browser WebView2.
     ''' </summary>
     Private Async Sub OnAccountProcessFailedRecoveryRequested(sender As Object, e As Microsoft.Web.WebView2.Core.CoreWebView2ProcessFailedEventArgs)
-        Dim acc = TryCast(sender, AppAccounts)
-        If acc IsNot Nothing Then
-            Debug.WriteLine($"[MainWindow] Received ProcessFailed recovery request for account {acc.Id} ({acc.Name}) - Kind: {e.ProcessFailedKind}")
-            Await RecreateAccountWebViewAsync(acc)
-        End If
+        Try
+            Dim acc = TryCast(sender, AppAccounts)
+            If acc IsNot Nothing Then
+                Debug.WriteLine($"[MainWindow] Received ProcessFailed recovery request for account {acc.Id} ({acc.Name}) - Kind: {e.ProcessFailedKind}")
+                Await RecreateAccountWebViewAsync(acc)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"[MainWindow] Error in OnAccountProcessFailedRecoveryRequested: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.OnAccountProcessFailedRecoveryRequested", ex)
+        End Try
     End Sub
 
     Private Sub OnAccountNotificationChanged(accountId As String, hasNotification As Boolean)
@@ -740,15 +756,20 @@ Public Class MainWindow
     ''' Consente la rinomina rapida dell'account dal menu contestuale della scheda.
     ''' </summary>
     Private Async Sub AccountTabRename_Click(sender As Object, e As RoutedEventArgs)
-        Dim menuItem = CType(sender, MenuItem)
-        Dim contextMenu = CType(menuItem.Parent, ContextMenu)
-        Dim btn = CType(contextMenu.PlacementTarget, Button)
-        Dim acc = CType(btn.DataContext, AppAccounts)
+        Try
+            Dim menuItem = CType(sender, MenuItem)
+            Dim contextMenu = CType(menuItem.Parent, ContextMenu)
+            Dim btn = CType(contextMenu.PlacementTarget, Button)
+            Dim acc = CType(btn.DataContext, AppAccounts)
 
-        Dim newName = Microsoft.VisualBasic.Interaction.InputBox("Enter new name:", "Rename Account", acc.Name)
-        If Not String.IsNullOrWhiteSpace(newName) Then
-            Await _accountManager.UpdateAccountNameAsync(acc.Id, newName.Trim())
-        End If
+            Dim newName = Microsoft.VisualBasic.Interaction.InputBox("Enter new name:", "Rename Account", acc.Name)
+            If Not String.IsNullOrWhiteSpace(newName) Then
+                Await _accountManager.UpdateAccountNameAsync(acc.Id, newName.Trim())
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTabRename_Click error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.AccountTabRename_Click", ex)
+        End Try
     End Sub
 
     ''' <summary>
@@ -978,28 +999,48 @@ Public Class MainWindow
                 .Header = loc.Get("add_whatsapp_account")
             }
             AddHandler itemWhatsApp.Click, Async Sub()
-                Await AddAccountWithPlatformAsync("WhatsApp")
+                Try
+                    Await AddAccountWithPlatformAsync("WhatsApp")
+                Catch ex As Exception
+                    Debug.WriteLine($"Error adding WhatsApp account: {ex.Message}")
+                    Application.LogUnhandledException("MainWindow.AddWhatsAppAccount", ex)
+                End Try
             End Sub
 
             Dim itemTelegram As New MenuItem With {
                 .Header = loc.Get("add_telegram_account")
             }
             AddHandler itemTelegram.Click, Async Sub()
-                Await AddAccountWithPlatformAsync("Telegram")
+                Try
+                    Await AddAccountWithPlatformAsync("Telegram")
+                Catch ex As Exception
+                    Debug.WriteLine($"Error adding Telegram account: {ex.Message}")
+                    Application.LogUnhandledException("MainWindow.AddTelegramAccount", ex)
+                End Try
             End Sub
 
             Dim itemOpenClaw As New MenuItem With {
                 .Header = loc.Get("add_openclaw_account")
             }
             AddHandler itemOpenClaw.Click, Async Sub()
-                Await AddAccountWithPlatformAsync("OpenClaw")
+                Try
+                    Await AddAccountWithPlatformAsync("OpenClaw")
+                Catch ex As Exception
+                    Debug.WriteLine($"Error adding OpenClaw account: {ex.Message}")
+                    Application.LogUnhandledException("MainWindow.AddOpenClawAccount", ex)
+                End Try
             End Sub
 
             Dim itemHermes As New MenuItem With {
                 .Header = loc.Get("add_hermes_account")
             }
             AddHandler itemHermes.Click, Async Sub()
-                Await AddAccountWithPlatformAsync("Hermes")
+                Try
+                    Await AddAccountWithPlatformAsync("Hermes")
+                Catch ex As Exception
+                    Debug.WriteLine($"Error adding Hermes account: {ex.Message}")
+                    Application.LogUnhandledException("MainWindow.AddHermesAccount", ex)
+                End Try
             End Sub
 
             menu.Items.Add(itemWhatsApp)
@@ -1032,19 +1073,24 @@ Public Class MainWindow
     End Function
 
     Private Async Sub OnSettingsPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
-        If e.PropertyName = NameOf(SettingsController.Theme) Then
-            Await ApplyWpfThemeAsync()
-        ElseIf e.PropertyName = NameOf(SettingsController.EnableCustomCss) OrElse e.PropertyName = NameOf(SettingsController.CustomCss) Then
-            For Each acc In _accountManager.Accounts
-                Await acc.ApplyCustomCssAsync(_settingsController.CustomCss, _settingsController.EnableCustomCss)
-            Next
-        ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
-            UpdateOnlineIndicator()
-            UpdateDndState()
-            UpdateAddAccountButtonState()
-        ElseIf e.PropertyName = NameOf(SettingsController.IsDndEnabled) OrElse e.PropertyName = NameOf(SettingsController.DndUntil) OrElse e.PropertyName = NameOf(SettingsController.DndDurationMode) OrElse e.PropertyName = NameOf(SettingsController.IsDndActive) Then
-            UpdateDndState()
-        End If
+        Try
+            If e.PropertyName = NameOf(SettingsController.Theme) Then
+                Await ApplyWpfThemeAsync()
+            ElseIf e.PropertyName = NameOf(SettingsController.EnableCustomCss) OrElse e.PropertyName = NameOf(SettingsController.CustomCss) Then
+                For Each acc In _accountManager.Accounts
+                    Await acc.ApplyCustomCssAsync(_settingsController.CustomCss, _settingsController.EnableCustomCss)
+                Next
+            ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
+                UpdateOnlineIndicator()
+                UpdateDndState()
+                UpdateAddAccountButtonState()
+            ElseIf e.PropertyName = NameOf(SettingsController.IsDndEnabled) OrElse e.PropertyName = NameOf(SettingsController.DndUntil) OrElse e.PropertyName = NameOf(SettingsController.DndDurationMode) OrElse e.PropertyName = NameOf(SettingsController.IsDndActive) Then
+                UpdateDndState()
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"OnSettingsPropertyChanged error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.OnSettingsPropertyChanged", ex)
+        End Try
     End Sub
 
     Private Sub OnAccountManagerPropertyChanged(sender As Object, e As PropertyChangedEventArgs)

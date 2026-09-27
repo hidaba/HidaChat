@@ -425,20 +425,27 @@
   - Disabilitazione dei DevTools (`AreDevToolsEnabled = False`) nelle build di produzione Release (abilitati unicamente sotto compilazione `#If DEBUG`).
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 63. Async Sub senza gestione errori e Task non attesi nel bridge
-- **File**: `AppAccounts.vb` (`_navigationCompletedHandler`, `HandleTranslationMessageAsync`, `Dispose`), `Application.xaml.vb`
+## ~~63. Async Sub senza gestione errori e Task non attesi nel bridge~~ ✅
+- **File**: `AppAccounts.vb` (`_navigationCompletedHandler`, `_webMessageReceivedHandler`, `HandleTranslationMessageAsync`, `SafeExecuteScriptAsync`, `Dispose`), `Application.xaml.vb` (`OnStartup`, `OnDispatcherUnhandledException`, `OnUnobservedTaskException`, `OnAppDomainUnhandledException`, `LogUnhandledException`), `MainWindow.xaml.vb`
 - **Problema**:
-  - `_navigationCompletedHandler` è dichiarato come `Async Sub` privo di blocco `Try/Catch`: eventuali chiamate ad `ExecuteScriptAsync` su una WebView disposta o durante un'interruzione di navigazione sollevano eccezioni in contesto `async void`, con conseguente crash fatale dell'applicazione;
-  - `Await WebView.Dispatcher.InvokeAsync(Async Function() ...)` attende esclusivamente il completamento della `DispatcherOperation` esterna: il `Task` restituito dalla lambda asincrona interna non viene atteso e le sue eccezioni rimangono inosservate (unobserved exceptions);
-  - Il metodo `Dispose` assegna `WebView = Nothing`: eventuali continuazioni asincrone ancora in corso (es. traduzioni batch o messaggi IPC in elaborazione) incorrono in `NullReferenceException`;
-  - In `Application.xaml.vb` non sono configurati listener globali per le eccezioni non gestite.
-- **Fix**: Introdurre blocchi `Try/Catch` e guardie difensive `If WebView?.CoreWebView2 Is Nothing Then Return` in tutti gli handler asincroni; rimuovere `Dispatcher.InvokeAsync` quando il codice è già in esecuzione sul thread UI oppure attendere esplicitamente il `Task` interno (`Await Await ...InvokeAsync(...)`); proteggere le continuazioni post-disposizione; registrare in `Application.xaml.vb` gli eventi `DispatcherUnhandledException`, `TaskScheduler.UnobservedTaskException` e `AppDomain.UnhandledException` con scrittura dei dettagli su file di diagnostica in `data/logs/`.
+  - `_navigationCompletedHandler` e `_webMessageReceivedHandler` erano dichiarati come `Async Sub` privi di blocco `Try/Catch`: eventuali chiamate ad `ExecuteScriptAsync` su una WebView disposta o durante un'interruzione di navigazione sollevavano eccezioni in contesto `async void`, con conseguente crash fatale dell'applicazione;
+  - `Await WebView.Dispatcher.InvokeAsync(Async Function() ...)` attendeva esclusivamente il completamento della `DispatcherOperation` esterna: il `Task` restituito dalla lambda asincrona interna non veniva atteso e le sue eccezioni rimanevano inosservate (unobserved exceptions);
+  - Il metodo `Dispose` assegnava `WebView = Nothing`: eventuali continuazioni asincrone ancora in corso (es. traduzioni batch o messaggi IPC in elaborazione) incorrevano in `NullReferenceException`;
+  - In `Application.xaml.vb` non erano configurati listener globali per le eccezioni non gestite.
+- **Fix Implementato**:
+  - Introdotti blocchi `Try/Catch` e guardie difensive `If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return` in tutti gli handler asincroni di `AppAccounts.vb`;
+  - Introdotto metodo helper `SafeExecuteScriptAsync` che verifica il thread di appartenenza, attende il `Task` interno unwrappato via `.Task.Unwrap()` qualora sia necessario il Dispatcher e previene accessi post-disposizione;
+  - Aggiunto flag e proprietà `IsDisposed` su `AppAccounts`, con salvataggio di un riferimento locale `wv` in `Dispose()` prima di azzerare la proprietà `WebView`;
+  - Registrati in `Application.xaml.vb` gli eventi `DispatcherUnhandledException` (con `e.Handled = True`), `TaskScheduler.UnobservedTaskException` (con `e.SetObserved()`) e `AppDomain.UnhandledException` con logging thread-safe su file portabile `data/logs/app_errors.log` (con rotazione automatica a 1 MB);
+  - Protetti con `Try/Catch` e logging globale tutti gli eventi asincroni `Async Sub` anche in `MainWindow.xaml.vb` (`MainWindow_Loaded`, `PopulateWebViews`, `OnAccountProcessFailedRecoveryRequested`, `AccountTabRename_Click`, `OnSettingsPropertyChanged`, aggiunta account).
 - **Impatto**: Alto | **Sforzo**: Basso
 
-## 64. DndUntil: confronto Nullable in VB.NET
-- **File**: `SettingsController.vb` (`DndUntil`, `SetDndModeAsync`, `LoadSettingsAsync`)
-- **Problema**: L'istruzione `If _dndUntil <> value Then` con tipo `Nullable(Of DateTime)` adotta la logica a tre valori di VB.NET: il confronto con `Nothing` restituisce `Nothing` (valutato come `False` nelle condizioni `If`), impedendo al setter di salvare il nuovo valore quando uno dei due operandi è `Nothing`. Il difetto è attualmente mascherato dal fatto che `SetDndModeAsync` e `LoadSettingsAsync` assegnano direttamente la variabile di campo privata `_dndUntil`.
-- **Fix**: Sostituire il controllo con `If Not Nullable.Equals(_dndUntil, value) Then ...` e far transitare tutte le mutazioni di stato attraverso il setter pubblico della proprietà per garantire l'invio corretto degli eventi `PropertyChanged`.
+## ~~64. DndUntil: confronto Nullable in VB.NET~~ ✅
+- **File**: `SettingsController.vb` (`DndUntil`, `SetDndModeAsync`)
+- **Problema**: L'istruzione `If _dndUntil <> value Then` con tipo `Nullable(Of DateTime)` adotta la logica a tre valori di VB.NET: il confronto con `Nothing` restituisce `Nothing` (valutato come `False` nelle condizioni `If`), impedendo al setter di salvare il nuovo valore quando uno dei due operandi è `Nothing`. Il difetto era precedentemente mascherato dal fatto che `SetDndModeAsync` e `LoadSettingsAsync` assegnavano direttamente la variabile di campo privata `_dndUntil`.
+- **Fix Implementato**:
+  - Sostituito il confronto nel setter pubblico di `DndUntil` con `If Not Nullable.Equals(_dndUntil, value) Then ...`;
+  - Riconfigurato `SetDndModeAsync` per mutare lo stato passando sempre attraverso i setter pubblici delle proprietà (`IsDndEnabled`, `DndUntil`, `DndDurationMode`), garantendo la corretta e sincrona emissione degli eventi `PropertyChanged` e `IsDndActive`.
 - **Impatto**: Basso | **Sforzo**: Basso
 
 ---

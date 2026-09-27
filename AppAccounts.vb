@@ -592,6 +592,15 @@ Public Class AppAccounts
         End Set
     End Property
 
+    Private _isDisposed As Boolean = False
+    ''' <summary>Indica se l'istanza o le sue risorse WebView2 sono state disposte (#63).</summary>
+    <JsonIgnore>
+    Public ReadOnly Property IsDisposed As Boolean
+        Get
+            Return _isDisposed
+        End Get
+    End Property
+
     ' Event Handlers fortemente tipizzati per WebView2 (evita memory leak)
     Private _permissionRequestedHandler As EventHandler(Of CoreWebView2PermissionRequestedEventArgs)
     Private _newWindowRequestedHandler As EventHandler(Of CoreWebView2NewWindowRequestedEventArgs)
@@ -702,6 +711,7 @@ Public Class AppAccounts
 
     Private Async Function SetupWebViewInternalAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
+        _isDisposed = False
 
         Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
         Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
@@ -897,57 +907,79 @@ Public Class AppAccounts
             AddHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
 
             _webMessageReceivedHandler = Async Sub(sender, e)
-                Await HandleWebMessageAsync(e.WebMessageAsJson, e.Source, settings, onNotificationChanged)
+                Try
+                    If _isDisposed OrElse WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
+                    Await HandleWebMessageAsync(e.WebMessageAsJson, e.Source, settings, onNotificationChanged)
+                Catch ex As Exception
+                    Debug.WriteLine($"Error in _webMessageReceivedHandler for account {Id}: {ex.Message}")
+                    Application.LogUnhandledException($"AppAccounts._webMessageReceivedHandler (account={Id})", ex)
+                End Try
             End Sub
             AddHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
 
             _navigationCompletedHandler = Async Sub(sender, e)
-                If e.IsSuccess Then
-                    If Not IsOpenClaw AndAlso Not IsHermes Then
-                        ' Iniezione di sicurezza/fallback di notification.js se non precedentemente caricato
-                        Try
-                            Await WebView.CoreWebView2.ExecuteScriptAsync(NotificationJsScripts.GetNotificationOverrideJS(BridgeToken))
-                        Catch
-                        End Try
+                Try
+                    If _isDisposed OrElse WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
 
-                        Dim brightnessDark = settings.IsDarkThemeEffective
+                    If e.IsSuccess Then
+                        If Not IsOpenClaw AndAlso Not IsHermes Then
+                            ' Iniezione di sicurezza/fallback di notification.js se non precedentemente caricato
+                            Try
+                                If WebView?.CoreWebView2 IsNot Nothing Then
+                                    Await WebView.CoreWebView2.ExecuteScriptAsync(NotificationJsScripts.GetNotificationOverrideJS(BridgeToken))
+                                End If
+                            Catch exScript As Exception
+                                Debug.WriteLine($"Error injecting notification script for account {Id}: {exScript.Message}")
+                            End Try
 
-                        If IsTelegram Then
-                            If brightnessDark Then
-                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramDarkModeJS)
+                            If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return
+
+                            Dim brightnessDark = settings.IsDarkThemeEffective
+
+                            If IsTelegram Then
+                                If brightnessDark Then
+                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramDarkModeJS)
+                                Else
+                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramLightModeJS)
+                                End If
                             Else
-                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramLightModeJS)
+                                If brightnessDark Then
+                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
+                                Else
+                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+                                End If
                             End If
-                        Else
-                            If brightnessDark Then
-                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
-                            Else
-                                Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
+
+                            If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return
+
+                            Dim translatedLangName = "English"
+                            Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
+                            If langItem IsNot Nothing Then
+                                translatedLangName = langItem.Name
                             End If
+
+                            Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
+                            
+                            Dim translationScript = TranslationJsScripts.GetTranslationJS(
+                                BridgeToken,
+                                settings.Language,
+                                translatedLangName,
+                                tooltipLabel,
+                                settings.TranslateMessageButton,
+                                settings.FullPageTranslation
+                            )
+                            Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
                         End If
 
-                        Dim translatedLangName = "English"
-                        Dim langItem = settings.SupportedLanguages.FirstOrDefault(Function(l) l.Code = settings.Language)
-                        If langItem IsNot Nothing Then
-                            translatedLangName = langItem.Name
-                        End If
+                        If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return
 
-                        Dim tooltipLabel = settings.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
-                        
-                        Dim translationScript = TranslationJsScripts.GetTranslationJS(
-                            BridgeToken,
-                            settings.Language,
-                            translatedLangName,
-                            tooltipLabel,
-                            settings.TranslateMessageButton,
-                            settings.FullPageTranslation
-                        )
-                        Await WebView.CoreWebView2.ExecuteScriptAsync(translationScript)
+                        ' Iniezione CSS personalizzato utente (TODO #43)
+                        Await ApplyCustomCssAsync(settings.CustomCss, settings.EnableCustomCss)
                     End If
-
-                    ' Iniezione CSS personalizzato utente (TODO #43)
-                    Await ApplyCustomCssAsync(settings.CustomCss, settings.EnableCustomCss)
-                End If
+                Catch ex As Exception
+                    Debug.WriteLine($"Error in _navigationCompletedHandler for account {Id}: {ex.Message}")
+                    Application.LogUnhandledException($"AppAccounts._navigationCompletedHandler (account={Id})", ex)
+                End Try
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
@@ -1480,17 +1512,9 @@ Public Class AppAccounts
             End Try
 
             If success Then
-                Await WebView.Dispatcher.InvokeAsync(Async Function()
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, {partsJson}, true); }}"
-                    )
-                End Function)
+                Await SafeExecuteScriptAsync($"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, {partsJson}, true); }}")
             Else
-                Await WebView.Dispatcher.InvokeAsync(Async Function()
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, [], false); }}"
-                    )
-                End Function)
+                Await SafeExecuteScriptAsync($"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, [], false); }}")
             End If
         Else
             Dim success As Boolean = False
@@ -1524,20 +1548,42 @@ Public Class AppAccounts
             End Try
 
             If success Then
-                Await WebView.Dispatcher.InvokeAsync(Async Function()
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {jsonResult}, true); }}"
-                    )
-                End Function)
+                Await SafeExecuteScriptAsync($"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {jsonResult}, true); }}")
             Else
                 Dim emptyJson = JsonSerializer.Serialize(String.Empty)
-                Await WebView.Dispatcher.InvokeAsync(Async Function()
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(
-                        $"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {emptyJson}, false); }}"
-                    )
-                End Function)
+                Await SafeExecuteScriptAsync($"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {emptyJson}, false); }}")
             End If
         End If
+    End Function
+
+    ''' <summary>
+    ''' Esegue uno script JavaScript all'interno della WebView2 garantendo l'esecuzione sicura sul thread Dispatcher,
+    ''' attendendo correttamente i Task asincroni e prevenendo NullReferenceException e crash da oggetti già rilasciati (#63).
+    ''' </summary>
+    Private Async Function SafeExecuteScriptAsync(script As String) As Task
+        If _isDisposed Then Return
+        Dim wv = WebView
+        If wv Is Nothing Then Return
+
+        Try
+            If wv.Dispatcher IsNot Nothing AndAlso Not wv.Dispatcher.CheckAccess() Then
+                Await wv.Dispatcher.InvokeAsync(Async Function() As Task
+                    Try
+                        If Not _isDisposed AndAlso wv.CoreWebView2 IsNot Nothing Then
+                            Await wv.CoreWebView2.ExecuteScriptAsync(script)
+                        End If
+                    Catch ex As Exception
+                        Debug.WriteLine($"SafeExecuteScriptAsync dispatch error for account {Id}: {ex.Message}")
+                    End Try
+                End Function).Task.Unwrap()
+            Else
+                If Not _isDisposed AndAlso wv.CoreWebView2 IsNot Nothing Then
+                    Await wv.CoreWebView2.ExecuteScriptAsync(script)
+                End If
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"SafeExecuteScriptAsync error for account {Id}: {ex.Message}")
+        End Try
     End Function
 
     ''' <summary>
@@ -1599,36 +1645,40 @@ Public Class AppAccounts
     ''' Rimuove tutti gli event handler registrati sulla WebView2 e libera le risorse allocate.
     ''' </summary>
     Public Sub Dispose() Implements IDisposable.Dispose
+        If _isDisposed Then Return
+        _isDisposed = True
+
         Try
-            If WebView IsNot Nothing Then
-                If WebView.CoreWebView2 IsNot Nothing Then
+            Dim wv = WebView
+            If wv IsNot Nothing Then
+                If wv.CoreWebView2 IsNot Nothing Then
                     Try
                         If _processFailedHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.ProcessFailed, _processFailedHandler
+                            RemoveHandler wv.CoreWebView2.ProcessFailed, _processFailedHandler
                             _processFailedHandler = Nothing
                         End If
                         If _permissionRequestedHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
+                            RemoveHandler wv.CoreWebView2.PermissionRequested, _permissionRequestedHandler
                             _permissionRequestedHandler = Nothing
                         End If
                         If _newWindowRequestedHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
+                            RemoveHandler wv.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler
                             _newWindowRequestedHandler = Nothing
                         End If
                         If _navigationStartingHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.NavigationStarting, _navigationStartingHandler
+                            RemoveHandler wv.CoreWebView2.NavigationStarting, _navigationStartingHandler
                             _navigationStartingHandler = Nothing
                         End If
                         If _webMessageReceivedHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
+                            RemoveHandler wv.CoreWebView2.WebMessageReceived, _webMessageReceivedHandler
                             _webMessageReceivedHandler = Nothing
                         End If
                         If _navigationCompletedHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
+                            RemoveHandler wv.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
                             _navigationCompletedHandler = Nothing
                         End If
                         If _webResourceRequestedHandler IsNot Nothing Then
-                            RemoveHandler WebView.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
+                            RemoveHandler wv.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
                             _webResourceRequestedHandler = Nothing
                         End If
                     Catch
@@ -1642,10 +1692,10 @@ Public Class AppAccounts
                 Task.Run(Function() TsnetManager.Instance.RemoveRouteAsync(accId))
             End If
 
-            If WebView IsNot Nothing Then
-                Dim parentGrid = TryCast(WebView.Parent, System.Windows.Controls.Grid)
-                parentGrid?.Children.Remove(WebView)
-                WebView.Dispose()
+            If wv IsNot Nothing Then
+                Dim parentGrid = TryCast(wv.Parent, System.Windows.Controls.Grid)
+                parentGrid?.Children.Remove(wv)
+                wv.Dispose()
                 WebView = Nothing
             End If
 

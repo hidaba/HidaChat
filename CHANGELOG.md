@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.11-beta] - 2026-09-27
+
+### Pre-release / Beta — Resilienza Handler Asincroni Bridge WebView2, Logging Globale Eccezioni e Correzione Nullable DndUntil
+- **Gestione Errori Asincroni e Hardening del Bridge IPC (`AppAccounts.vb`, `MainWindow.xaml.vb`) (#63)**:
+  - **Protezione Completa `Async Sub` con Try/Catch**: Aggiunta la gestione delle eccezioni con blocchi `Try/Catch` e logging su file nei gestori di eventi asincroni `_navigationCompletedHandler` e `_webMessageReceivedHandler` di WebView2, evitando che eccezioni non osservate o interruzioni improvvise di navigazione causino il crash istantaneo dell'applicazione.
+  - **Invocazione Asincrona e Attesa Deterministica Task (`SafeExecuteScriptAsync`)**: Eliminata l'invocazione di `WebView.Dispatcher.InvokeAsync(Async Function() ...)` senza attesa del task interno. Introdotto il metodo helper `SafeExecuteScriptAsync` che esegue lo script direttamente se sul thread UI oppure effettua l'unwrapping e l'attesa completa (`.Task.Unwrap()`), prevenendo eccezioni inosservate (unobserved task exceptions) nelle comunicazioni di traduzione singole e batch.
+  - **Protezione Stato e Continuazioni Post-Disposizione (`IsDisposed`)**: Introdotto il flag e la proprietà pubblica `IsDisposed` su `AppAccounts`; salvataggio di un riferimento locale `wv` in `Dispose()` prima di azzerare la proprietà `WebView` e guardie difensive `If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return` prima e dopo ogni chiamata asincrona.
+  - **Hardening Eventi Asincroni UI (`MainWindow.xaml.vb`)**: Protetti con `Try/Catch` e logging diagnostico tutti i gestori asincroni della finestra principale (`MainWindow_Loaded`, `PopulateWebViews`, `OnAccountProcessFailedRecoveryRequested`, `AccountTabRename_Click`, `OnSettingsPropertyChanged` e l'aggiunta di account da menu).
+- **Sistema di Logging Globale per Eccezioni Non Gestite (`Application.xaml.vb`) (#63)**:
+  - **Intercettazione Centralizzata**: Registrati in `Application.xaml.vb` gli eventi `DispatcherUnhandledException` (con soppressione controllata dei crash UI via `e.Handled = True`), `TaskScheduler.UnobservedTaskException` (con `e.SetObserved()`) e `AppDomain.CurrentDomain.UnhandledException`.
+  - **Tracciamento Thread-Safe Portabile (`data/logs/app_errors.log`)**: Implementato il metodo `LogUnhandledException` che registra timestamp, tipologia eccezione, messaggio e stack trace su file portabile all'interno della cartella dati dell'applicazione, con rotazione automatica al superamento di 1 MB (`app_errors.log.old`).
+- **Correzione Valutazione Nullable in Modalità Non Disturbare (`SettingsController.vb`) (#64)**:
+  - **Confronto Corretto `Nullable.Equals`**: Sostituito l'operatore `<>` con `Not Nullable.Equals(_dndUntil, value)` nel setter della proprietà `DndUntil` per eliminare l'anomalia della logica a tre valori di VB.NET quando uno degli operandi è `Nothing`.
+  - **Transito Deterministico sui Setter Pubblici**: Riconfigurata `SetDndModeAsync` per mutare lo stato passando sempre attraverso i setter pubblici delle proprietà (`IsDndEnabled`, `DndUntil`, `DndDurationMode`), garantendo la corretta e sincrona notifica degli eventi `PropertyChanged` e l'aggiornamento affidabile dello stato `IsDndActive`.
+
 ## [1.0.10-beta] - 2026-09-26
 
 ### Pre-release / Beta — Hardening Sicurezza WebView: Allow-list Schemi URI, Token IPC da CSPRNG e Validazione Origine
