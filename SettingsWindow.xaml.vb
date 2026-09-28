@@ -93,7 +93,11 @@ Public Class SettingsWindow
                 ComboMaxAccounts.SelectedIndex = 1
             End If
 
+            ' 4f. Imposta lo stato della Checkbox Staging Drive di Rete (TODO #73)
+            ChkEnableNetworkStaging.IsChecked = _settingsController.EnableNetworkProfileStaging
+
             ' 5. Collega l'elenco degli account
+
             AccountsList.ItemsSource = _accountManager.Accounts
 
             ' 6. Applica il tema cromatico corrente
@@ -596,6 +600,15 @@ Public Class SettingsWindow
         Await _settingsController.SaveSettingAsync("useBetaChannel", chk.IsChecked.Value)
     End Sub
 
+    Private Async Sub ChkEnableNetworkStaging_Changed(sender As Object, e As RoutedEventArgs)
+        If _isInitializing Then Return
+        Dim chk = CType(sender, CheckBox)
+        Dim enabled = chk.IsChecked.GetValueOrDefault(True)
+        _settingsController.EnableNetworkProfileStaging = enabled
+        Await _settingsController.SaveSettingAsync("enableNetworkProfileStaging", enabled)
+    End Sub
+
+
     ' --- Gestori eventi Custom CSS (TODO #43) ---
     Private Async Sub ChkEnableCustomCss_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
@@ -728,7 +741,17 @@ Public Class SettingsWindow
         LabelSpellcheckLanguage.Text = loc.Get("spellchecker_language")
         CbiSpellAuto.Content = loc.Get("spellchecker_lang_auto")
         TxtSpellcheckHint.Text = loc.Get("spellchecker_restart_hint")
+        If SectionNetworkStaging IsNot Nothing Then
+            SectionNetworkStaging.Text = loc.Get("network_drive_section")
+        End If
+        If ChkEnableNetworkStaging IsNot Nothing Then
+            ChkEnableNetworkStaging.Content = loc.Get("enable_network_profile_staging")
+        End If
+        If TxtNetworkStagingHint IsNot Nothing Then
+            TxtNetworkStagingHint.Text = loc.Get("enable_network_profile_staging_hint")
+        End If
         SectionUpdates.Text = loc.Get("updates")
+
         ChkUseBetaChannel.Content = loc.Get("use_beta_channel")
         SectionDevTools.Text = loc.Get("devtools")
         BtnDebugTab.Content = loc.Get("debug_active_tab")

@@ -404,6 +404,26 @@ Public Class AccountManager
                         End Try
                     Next
                 End If
+
+                ' 3. Pulizia staging locale non referenziato
+                If NetworkProfileSync.IsRunningOnNetwork Then
+                    Dim stagingBase = NetworkProfileSync.LocalStagingBaseDirectory
+                    If Directory.Exists(stagingBase) Then
+                        For Each localProfileDir In Directory.EnumerateDirectories(stagingBase, "WV2Profile_*")
+                            Dim dirName = Path.GetFileName(localProfileDir)
+                            If dirName.StartsWith("WV2Profile_") Then
+                                Dim profileId = dirName.Substring("WV2Profile_".Length)
+                                If Not String.IsNullOrEmpty(profileId) AndAlso Not activeSet.Contains(profileId) Then
+                                    Try
+                                        Directory.Delete(localProfileDir, recursive:=True)
+                                        Debug.WriteLine($"CleanupUnusedProfiles: eliminato staging locale orfano {localProfileDir}")
+                                    Catch
+                                    End Try
+                                End If
+                            End If
+                        Next
+                    End If
+                End If
             Catch ex As Exception
                 Debug.WriteLine($"CleanupUnusedProfilesAsync error: {ex.Message}")
             End Try
@@ -418,20 +438,52 @@ Public Class AccountManager
         Await Task.Run(Sub()
             Try
                 Dim sharedDir = AppAccounts.SharedDataDirectory
-                If Not Directory.Exists(sharedDir) Then Return
+                If Directory.Exists(sharedDir) Then
+                    For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
+                        Dim dirName = Path.GetFileName(profileDir)
+                        If dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse dirName.Contains(".bak_") Then
+                            Continue For
+                        End If
+                        AppAccounts.CleanTransientCacheFolders(profileDir, purgeDiskAndCodeCache:=purgeDiskAndCodeCache)
+                    Next
+                End If
 
-                For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
-                    Dim dirName = Path.GetFileName(profileDir)
-                    If dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse dirName.Contains(".bak_") Then
-                        Continue For
+                ' Pulizia cache anche nello staging locale se attivo
+                If NetworkProfileSync.IsRunningOnNetwork Then
+                    Dim stagingBase = NetworkProfileSync.LocalStagingBaseDirectory
+                    If Directory.Exists(stagingBase) Then
+                        For Each localProfileDir In Directory.EnumerateDirectories(stagingBase, "WV2Profile_*")
+                            AppAccounts.CleanTransientCacheFolders(localProfileDir, purgeDiskAndCodeCache:=purgeDiskAndCodeCache)
+                        Next
                     End If
-                    AppAccounts.CleanTransientCacheFolders(profileDir, purgeDiskAndCodeCache:=purgeDiskAndCodeCache)
-                Next
+                End If
             Catch ex As Exception
                 Debug.WriteLine($"CleanupTransientCachesAsync error: {ex.Message}")
             End Try
         End Sub)
     End Function
+
+    ''' <summary>
+    ''' Sincronizza tutti i profili locali verso la cartella master su disco di rete e rilascia i lock (TODO #73).
+    ''' </summary>
+    Public Async Function SyncAllProfilesToNetworkAsync() As Task
+        If Not NetworkProfileSync.IsRunningOnNetwork Then Return
+        Try
+            Debug.WriteLine("[NetworkProfileSync] Inizio sincronizzazione di chiusura di tutti i profili su share di rete...")
+            For Each acc In _accounts
+                Try
+                    Await NetworkProfileSync.SyncLocalStagingToMasterAsync(acc.Id)
+                    NetworkProfileSync.ReleaseSessionLock(acc.Id)
+                Catch exAcc As Exception
+                    Debug.WriteLine($"[NetworkProfileSync] Errore sync account {acc.Id}: {exAcc.Message}")
+                End Try
+            Next
+            Debug.WriteLine("[NetworkProfileSync] Sincronizzazione di tutti i profili completata.")
+        Catch ex As Exception
+            Debug.WriteLine($"SyncAllProfilesToNetworkAsync error: {ex.Message}")
+        End Try
+    End Function
+
 
     ''' <summary>
     ''' Crea l'account predefinito o ricostruisce gli account da eventuali cartelle di profilo esistenti su disco
@@ -636,7 +688,12 @@ Public Class AccountManager
             End Try
         End If
 
+        If NetworkProfileSync.IsRunningOnNetwork Then
+            NetworkProfileSync.CleanLocalStaging(accountId)
+        End If
+
         Await SaveAccountsAsync()
+
     End Function
 
     ''' <summary>

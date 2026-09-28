@@ -713,48 +713,69 @@ Public Class AppAccounts
         If WebView Is Nothing Then Return
         _isDisposed = False
 
-        Dim profileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
+        Dim masterProfileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
         Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
         If Directory.Exists(orphanProfile) Then
             Dim movedToBak = False
-            Dim bakDir = profileDir & ".bak"
-            If Directory.Exists(profileDir) Then
+            Dim bakDir = masterProfileDir & ".bak"
+            If Directory.Exists(masterProfileDir) Then
                 Try
                     If Directory.Exists(bakDir) Then
-                        Dim bakTimestamp = $"{profileDir}.bak_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
+                        Dim bakTimestamp = $"{masterProfileDir}.bak_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
                         Try
                             Directory.Move(bakDir, bakTimestamp)
                         Catch
                         End Try
                     End If
-                    Directory.Move(profileDir, bakDir)
+                    Directory.Move(masterProfileDir, bakDir)
                     movedToBak = True
-                    Debug.WriteLine($"SetupWebView: rinominato profilo esistente in backup {profileDir} -> {bakDir}")
+                    Debug.WriteLine($"SetupWebView: rinominato profilo esistente in backup {masterProfileDir} -> {bakDir}")
                 Catch ex As Exception
                     Debug.WriteLine($"SetupWebView: errore rinomina in backup stale: {ex.Message}")
                 End Try
             End If
             Try
-                Directory.Move(orphanProfile, profileDir)
-                Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {profileDir}")
+                Directory.Move(orphanProfile, masterProfileDir)
+                Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {masterProfileDir}")
             Catch ex As Exception
                 Debug.WriteLine($"SetupWebView: fallito recupero orfano: {ex.Message}")
-                If movedToBak AndAlso Not Directory.Exists(profileDir) AndAlso Directory.Exists(bakDir) Then
+                If movedToBak AndAlso Not Directory.Exists(masterProfileDir) AndAlso Directory.Exists(bakDir) Then
                     Try
-                        Directory.Move(bakDir, profileDir)
+                        Directory.Move(bakDir, masterProfileDir)
                     Catch
                     End Try
                 End If
             End Try
         End If
 
-        If Not Directory.Exists(profileDir) Then
-            Directory.CreateDirectory(profileDir)
-            Debug.WriteLine($"SetupWebView: creato nuovo profilo {profileDir}")
+        If Not Directory.Exists(masterProfileDir) Then
+            Directory.CreateDirectory(masterProfileDir)
+            Debug.WriteLine($"SetupWebView: creato nuovo profilo master {masterProfileDir}")
+        End If
+
+        Dim profileDir = masterProfileDir
+
+        Dim isUsingLocalStaging = NetworkProfileSync.IsRunningOnNetwork AndAlso (settings Is Nothing OrElse settings.EnableNetworkProfileStaging)
+        If isUsingLocalStaging Then
+            profileDir = NetworkProfileSync.GetLocalStagingProfileDir(Id)
+            If Not Directory.Exists(profileDir) Then
+                Directory.CreateDirectory(profileDir)
+            End If
+            Debug.WriteLine($"[NetworkProfileSync] Account '{Id}' in local staging: {profileDir}")
+
+            ' Sincronizza lo stato master dal disco di rete allo staging locale prima di agganciare WebView2
+            Await NetworkProfileSync.SyncMasterToLocalStagingAsync(Id)
+
+            ' Verifica eventuale lock multi-PC
+            Dim conflictMachine = NetworkProfileSync.AcquireSessionLock(Id)
+            If Not String.IsNullOrEmpty(conflictMachine) Then
+                Debug.WriteLine($"[NetworkProfileSync] Attenzione: account {Id} in uso da {conflictMachine}")
+            End If
         End If
 
         ' Pulizia preventiva delle cartelle di cache volatile prima di agganciare il processo WebView2
         CleanTransientCacheFolders(profileDir)
+
 
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
@@ -1698,6 +1719,12 @@ Public Class AppAccounts
                 wv.Dispose()
                 WebView = Nothing
             End If
+
+            If NetworkProfileSync.IsRunningOnNetwork Then
+                Dim accId = Id
+                NetworkProfileSync.ReleaseSessionLock(accId)
+            End If
+
 
             _initTask = Nothing
             _isCrashed = False

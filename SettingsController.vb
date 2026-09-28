@@ -236,6 +236,26 @@ Public Class SettingsController
         End Set
     End Property
 
+    Private _enableNetworkProfileStaging As Boolean = True
+    ''' <summary>Indica se abilitare lo staging locale delle sessioni WebView2 quando l'applicazione risiede su drive di rete (TODO #73).</summary>
+    Public Property EnableNetworkProfileStaging As Boolean
+        Get
+            Return _enableNetworkProfileStaging
+        End Get
+        Set(value As Boolean)
+            If _enableNetworkProfileStaging <> value Then
+                _enableNetworkProfileStaging = value
+                NotifyPropertyChanged()
+                If _cachedSettings IsNot Nothing Then
+                    _cachedSettings("enableNetworkProfileStaging") = value
+                    _dirty = True
+                    Dim ignore = FlushAfterDebounceAsync()
+                End If
+            End If
+        End Set
+    End Property
+
+
     ' --- Correttore Ortografico (TODO #44) ---
     Private _enableSpellcheck As Boolean = True
     ''' <summary>Indica se abilitare il correttore ortografico nativo WebView2/Chromium.</summary>
@@ -760,6 +780,7 @@ Public Class SettingsController
         _enableCustomCss = GetBoolSetting(settings, "enableCustomCss", False)
         _enableSpellcheck = GetBoolSetting(settings, "enableSpellcheck", True)
         _suppressNetworkDriveWarning = GetBoolSetting(settings, "suppressNetworkDriveWarning", False)
+        _enableNetworkProfileStaging = GetBoolSetting(settings, "enableNetworkProfileStaging", True)
 
         _isDndEnabled = GetBoolSetting(settings, "isDndEnabled", False)
         If settings.ContainsKey("dndDurationMode") AndAlso settings("dndDurationMode") IsNot Nothing Then

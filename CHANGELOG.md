@@ -1,6 +1,24 @@
 # Changelog
 
+## [1.0.12-beta] - 2026-09-28
+
+### Pre-release / Beta — Supporto Drive di Rete (SMB/UNC) con Local Staging & Sync Sessioni WebView2 e Rilevamento Conflitti Multi-PC
+- **Supporto Drive di Rete tramite Staging Locale e Sincronizzazione Sessioni (`NetworkProfileSync.vb`, `AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`) (#73)**:
+  - **Risoluzione Perdita Sessione WhatsApp su Share SMB/UNC**: Risolto il problema strutturale di Chromium/WebView2 per cui, eseguendo l'applicazione da percorsi di rete o drive mappati (es. `Z:\` o `\\server\share`), i motori LevelDB e SQLite perdevano i file lock o subivano conflitti `STATUS_FILE_LOCK_CONFLICT`, causando al riavvio la cancellazione automatica dei database `IndexedDB` e il reset di WhatsApp Web alla schermata del codice QR.
+  - **Local Staging Trasparente all'Avvio (`SyncMasterToLocalStagingAsync`)**: All'inizializzazione dell'account, se l'applicazione risiede su un percorso di rete, i dati essenziali di sessione (`IndexedDB`, `Local Storage`, `Network/Cookies`, preferenze) vengono sincronizzati dal master di rete nella cartella locale veloce `%LOCALAPPDATA%\HidaChat\NetworkProfiles\{AccountId}`.
+  - **Esclusione Intelligente delle Cache Volatili**: Durante la sincronizzazione vengono filtrate ed escluse le directory di cache pesante non necessarie (`Cache`, `Code Cache`, `GPUCache`, `DawnGraphiteCache`, `ShaderCache`, `Crashpad`), consentendo trasferimenti ultra-rapidi (pochi megabyte) e riducendo al minimo il consumo di banda e tempi di attesa.
+  - **Inizializzazione Locale Nativa WebView2**: `CoreWebView2Environment` viene puntato alla directory di staging locale, garantendo semantiche di lock POSIX/NTFS native, assenza totale di corruzioni e massima fluidità I/O.
+  - **Sincronizzazione di Ritorno Atomica allo Spegnimento (`SyncLocalStagingToMasterAsync`, `SyncAllProfilesToNetworkAsync`)**: In fase di chiusura coordinata (`PrepareForShutdown` e `ForceExitForUpdateAsync`), dopo il rilascio controllato dei processi browser, tutti i profili locali vengono riversati tramite mirror incrementale sulla cartella master portabile `data/webview/{AccountId}` sulla share di rete, garantendo la portabilità al 100% dell'applicazione.
+- **Rilevamento Conflitti Multi-PC con Session Lock (`NetworkProfileSync.vb`) (#70, #73)**:
+  - **Lock Attivo di Macchina (`.active_session`)**: Introdotto un meccanismo leggero di session lock che traccia nome computer, utente, PID e timestamp UTC nella cartella profilo master.
+  - **Segnalazione Conflitti Concorrenti**: Se un altro computer ha aperto lo stesso profilo negli ultimi 3 minuti, viene rilevato il conflitto e registrato un avviso per prevenire sovrascritture concorrenti.
+- **Configurazione e Interfaccia Utente Multilingua (`SettingsWindow.xaml`, `SettingsController.vb`, `Localization.vb`)**:
+  - **Nuova Sezione "Unità di Rete" nelle Impostazioni**: Aggiunta la checkbox "Abilita staging locale per dischi di rete" (attiva per impostazione predefinita) per gestire la funzione e consentire il fallback in caso di esigenze specifiche.
+  - **Messaggio di Rilevamento Unità di Rete Aggiornato**: Sostituito l'allarme di errore precedente con un avviso informativo che conferma l'avvenuta attivazione dello staging locale a protezione delle sessioni.
+  - **Sincronizzazione Completa dei 5 Dizionari**: Aggiornati contestualmente tutti i dizionari di lingua in `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) con le nuove chiavi `enable_network_profile_staging`, `enable_network_profile_staging_hint`, `network_drive_staging_info`, `network_drive_section`, `network_drive_session_conflict`.
+
 ## [1.0.11-beta] - 2026-09-27
+
 
 ### Pre-release / Beta — Resilienza Handler Asincroni Bridge WebView2, Logging Globale Eccezioni e Correzione Nullable DndUntil
 - **Gestione Errori Asincroni e Hardening del Bridge IPC (`AppAccounts.vb`, `MainWindow.xaml.vb`) (#63)**:

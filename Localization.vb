@@ -600,8 +600,14 @@ Public Class AppLocalizations
         {"settings_corrupt_reset_msg", "The 'settings.json' configuration file was corrupted and has been archived as '{file}'." & vbCrLf & vbCrLf & "A valid backup could not be recovered: the application has started with default settings."},
         {"network_drive_warning_title", "Network Drive Warning"},
         {"network_drive_warning_msg", "HidaChat is running from a network drive ({path})." & vbCrLf & vbCrLf & "Warning: Microsoft WebView2 does not support storing browser profiles on network drives or SMB shares. This frequently causes WhatsApp Web to lose its session or disconnect on restart." & vbCrLf & vbCrLf & "It is strongly recommended to run HidaChat from a local drive (e.g. C:\HidaChat)."},
+        {"network_drive_staging_info", "HidaChat is running from a network drive ({path})." & vbCrLf & vbCrLf & "Local Session Staging is ACTIVE: your chat sessions and login data are handled on local disk and synchronized to the network share on exit to prevent WebView2 session loss."},
+        {"network_drive_section", "Network Drives"},
+        {"enable_network_profile_staging", "Enable local staging for network drives"},
+        {"enable_network_profile_staging_hint", "Improves session stability and prevents WhatsApp disconnection when running from network shares (SMB/UNC)."},
+        {"network_drive_session_conflict", "Warning: Account '{name}' appears to be active on another computer ({machine}). Simultaneous usage may cause disconnects."},
         {"close", "Close"}
     }
+
 
     ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Italiana.</summary>
     Public Shared ReadOnly ItStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
@@ -718,8 +724,14 @@ Public Class AppLocalizations
         {"settings_corrupt_reset_msg", "Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{file}'." & vbCrLf & vbCrLf & "Non è stato possibile recuperare un backup valido: l'applicazione è stata avviata con le impostazioni predefinite."},
         {"network_drive_warning_title", "Avviso Unità di Rete"},
         {"network_drive_warning_msg", "HidaChat è in esecuzione da un'unità di rete ({path})." & vbCrLf & vbCrLf & "Attenzione: Microsoft WebView2 non supporta l'archiviazione dei profili browser su unità di rete o condivisioni SMB. Questo causa frequentemente la disconnessione o la perdita della sessione di WhatsApp ad ogni riavvio." & vbCrLf & vbCrLf & "Si raccomanda di eseguire HidaChat da un disco locale (es. C:\HidaChat)."},
+        {"network_drive_staging_info", "HidaChat è in esecuzione su un'unità di rete ({path})." & vbCrLf & vbCrLf & "Lo Staging Locale delle Sessioni è ATTIVO: le credenziali e i database vengono gestiti localmente e risincronizzati automaticamente sulla cartella di rete alla chiusura per prevenire disconnessioni di WebView2."},
+        {"network_drive_section", "Unità di Rete"},
+        {"enable_network_profile_staging", "Abilita staging locale per dischi di rete"},
+        {"enable_network_profile_staging_hint", "Migliora la stabilità e previene la perdita della sessione WhatsApp quando l'app risiede su cartelle di rete (SMB/UNC)."},
+        {"network_drive_session_conflict", "Attenzione: L'account '{name}' risulta già attivo su un altro computer ({machine}). L'uso simultaneo può causare disconnessioni."},
         {"close", "Chiudi"}
     }
+
 
     ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Francese.</summary>
     Public Shared ReadOnly FrStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
@@ -836,8 +848,14 @@ Public Class AppLocalizations
         {"settings_corrupt_reset_msg", "Le fichier de configuration 'settings.json' était corrompu et a été archivé sous '{file}'." & vbCrLf & vbCrLf & "Une sauvegarde valide n'a pas pu être récupérée : l'application a démarré avec les paramètres par défaut."},
         {"network_drive_warning_title", "Avertissement Lecteur Réseau"},
         {"network_drive_warning_msg", "HidaChat s'exécute à partir d'un lecteur réseau ({path})." & vbCrLf & vbCrLf & "Attention : Microsoft WebView2 ne prend pas en charge le stockage des profils de navigation sur des partages réseau ou SMB. Cela entraîne fréquemment la perte de session ou la déconnexion de WhatsApp Web au redémarrage." & vbCrLf & vbCrLf & "Il est fortement recommandé d'exécuter HidaChat depuis un disque local (ex. C:\HidaChat)."},
+        {"network_drive_staging_info", "HidaChat s'exécute depuis un lecteur réseau ({path})." & vbCrLf & vbCrLf & "Le relais local des sessions est ACTIF : les données de session sont traitées localement et synchronisées sur le partage réseau à la fermeture pour éviter la perte de session WebView2."},
+        {"network_drive_section", "Lecteurs Réseau"},
+        {"enable_network_profile_staging", "Activer le relais local pour les lecteurs réseau"},
+        {"enable_network_profile_staging_hint", "Améliore la stabilité et évite la déconnexion de WhatsApp lors de l'exécution sur un partage réseau (SMB/UNC)."},
+        {"network_drive_session_conflict", "Attention : Le compte '{name}' semble actif sur un autre ordinateur ({machine}). L'utilisation simultanée peut entraîner des déconnexions."},
         {"close", "Fermer"}
     }
+
 
     ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Spagnola.</summary>
     Public Shared ReadOnly EsStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
@@ -954,8 +972,14 @@ Public Class AppLocalizations
         {"settings_corrupt_reset_msg", "El archivo de configuración 'settings.json' estaba dañado y se ha archivado como '{file}'." & vbCrLf & vbCrLf & "No se pudo recuperar una copia de seguridad válida: la aplicación se ha iniciado con los ajustes predeterminados."},
         {"network_drive_warning_title", "Aviso de Unidad de Red"},
         {"network_drive_warning_msg", "HidaChat se está ejecutando desde una unidad de red ({path})." & vbCrLf & vbCrLf & "Advertencia: Microsoft WebView2 no admite el almacenamiento de perfiles de navegación en unidades de red o recursos compartidos SMB. Esto provoca con frecuencia que WhatsApp Web pierda la sesión o se desconecte al reiniciar." & vbCrLf & vbCrLf & "Se recomienda encarecidamente ejecutar HidaChat desde un disco local (ej. C:\HidaChat)."},
+        {"network_drive_staging_info", "HidaChat se está ejecutando desde una unidad de red ({path})." & vbCrLf & vbCrLf & "El almacenamiento local de sesiones está ACTIVO: los datos de sesión se gestionan localmente y se sincronizan en la red al salir para evitar la pérdida de sesión de WebView2."},
+        {"network_drive_section", "Unidades de Red"},
+        {"enable_network_profile_staging", "Habilitar almacenamiento local para unidades de red"},
+        {"enable_network_profile_staging_hint", "Mejora la estabilidad y evita que WhatsApp cierre la sesión al ejecutarse desde recursos de red (SMB/UNC)."},
+        {"network_drive_session_conflict", "Advertencia: La cuenta '{name}' parece estar activa en otro equipo ({machine}). El uso simultáneo puede provocar desconexiones."},
         {"close", "Cerrar"}
     }
+
 
     ''' <summary>Dizionario di localizzazione nativa per l'interfaccia in lingua Tedesca.</summary>
     Public Shared ReadOnly DeStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
@@ -1072,8 +1096,14 @@ Public Class AppLocalizations
         {"settings_corrupt_reset_msg", "Die Konfigurationsdatei 'settings.json' war beschädigt und wurde als '{file}' archiviert." & vbCrLf & vbCrLf & "Eine gültige Sicherung konnte nicht wiederhergestellt werden: Die Anwendung wurde mit Standardeinstellungen gestartet."},
         {"network_drive_warning_title", "Netzlaufwerk-Warnung"},
         {"network_drive_warning_msg", "HidaChat wird von einem Netzlaufwerk ausgeführt ({path})." & vbCrLf & vbCrLf & "Warnung: Microsoft WebView2 unterstützt das Speichern von Browserprofilen auf Netzlaufwerken oder SMB-Freigaben nicht. Dies führt häufig dazu, dass WhatsApp Web beim Neustart die Sitzung verliert oder getrennt wird." & vbCrLf & vbCrLf & "Es wird dringend empfohlen, HidaChat von einem lokalen Laufwerk auszuführen (z. B. C:\HidaChat)."},
+        {"network_drive_staging_info", "HidaChat wird von einem Netzlaufwerk ausgeführt ({path})." & vbCrLf & vbCrLf & "Lokales Sitzungs-Staging ist AKTIV: Sitzungsdaten werden lokal verarbeitet und beim Beenden mit der Netzwerkfreigabe synchronisiert, um WebView2-Sitzungsverluste zu verhindern."},
+        {"network_drive_section", "Netzlaufwerke"},
+        {"enable_network_profile_staging", "Lokales Staging für Netzlaufwerke aktivieren"},
+        {"enable_network_profile_staging_hint", "Verbessert die Sitzungsstabilität und verhindert das Abmelden von WhatsApp bei Ausführung über Netzwerkfreigaben (SMB/UNC)."},
+        {"network_drive_session_conflict", "Warnung: Konto '{name}' scheint auf einem anderen Computer ({machine}) aktiv zu sein. Die gleichzeitige Nutzung kann zu Abmeldungen führen."},
         {"close", "Schließen"}
     }
+
 
     ''' <summary>
     ''' Restituisce la stringa localizzata per la chiave fornita, applicando eventuali argomenti di formattazione.
