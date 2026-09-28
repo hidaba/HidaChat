@@ -453,9 +453,15 @@
                     </Grid>
                     <TextBlock x:Name="TxtSpellcheckHint" Text="Changes will apply when reloading tabs or restarting HidaChat." Foreground="#8696a0" FontSize="11" FontStyle="Italic" Margin="0,0,0,15"/>
 
+                    <!-- NETWORK DRIVE SESSION STAGING (TODO #73) -->
+                    <TextBlock x:Name="SectionNetworkStaging" Text="Network Drives" Style="{StaticResource SectionHeaderStyle}"/>
+                    <CheckBox x:Name="ChkEnableNetworkStaging" Content="Enable local staging for network drives" Checked="ChkEnableNetworkStaging_Changed" Unchecked="ChkEnableNetworkStaging_Changed" Margin="0,5,0,4" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <TextBlock x:Name="TxtNetworkStagingHint" Text="Improves session stability and prevents WhatsApp disconnection when running from network shares (SMB/UNC)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,15"/>
+
                     <!-- UPDATES SECTION -->
                     <TextBlock x:Name="SectionUpdates" Text="Updates" Style="{StaticResource SectionHeaderStyle}"/>
                     <CheckBox x:Name="ChkUseBetaChannel" Content="Use beta update channel" Checked="ChkUseBetaChannel_Changed" Unchecked="ChkUseBetaChannel_Changed" Margin="0,5,0,10" Style="{StaticResource CustomCheckBoxStyle}"/>
+
 
                     <!-- DEVELOPER TOOLS & CACHE -->
                     <TextBlock x:Name="SectionDevTools" Text="DevTools" Style="{StaticResource SectionHeaderStyle}"/>

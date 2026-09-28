@@ -516,14 +516,17 @@
 - **Descrizione**: Implementare la pulizia cache "preservando il login" (cancellare `Cache`, `Code Cache`, `GPUCache`, lasciando intatti `Local Storage`, `IndexedDB`, `Network\Cookies` e i dati di sessione).
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
-## 73. Supporto Drive di Rete tramite Local Staging & Sync delle Sessioni (Network Drive Session Persistence)
-- **File**: `AppAccounts.vb`, `AccountManager.vb`, `Application.xaml.vb`
+## ~~73. Supporto Drive di Rete tramite Local Staging & Sync delle Sessioni (Network Drive Session Persistence)~~ ✅
+- **File**: `NetworkProfileSync.vb`, `AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`, `SettingsController.vb`, `SettingsWindow.xaml`
 - **Problema**: Eseguendo l'applicazione portabile direttamente da una cartella o unità di rete (condivisione SMB/CIFS, percorsi UNC `\\server\share` o drive mappati `Z:\`), la sessione di WhatsApp Web viene frequentemente persa o resettata alla schermata del QR code al riavvio dell'applicazione. La causa è architetturale di Chromium/WebView2: il motore LevelDB e SQLite (impiegati da WhatsApp Web tramite IndexedDB per memorizzare chiavi crittografiche, session token e messaggi) richiedono semantiche di lock POSIX/NTFS locali. Su filesystem SMB di rete si verificano ritardi o conflitti di lock (`STATUS_FILE_LOCK_CONFLICT`) che portano Chromium a marcare i database come corrotti o inaccessibili al riavvio, innescandone la cancellazione/reset automatico.
-- **Fix**:
-  1. *Rilevamento drive di rete*: All'avvio dell'account/environment, rilevare se `AppDomain.CurrentDomain.BaseDirectory` risiede su percorso UNC (`\\...`) o unità di rete (`DriveInfo.DriveType = DriveType.Network`).
-  2. *Local Staging trasparente*: Se l'app risiede su percorso di rete, copiare/sincronizzare la directory del profilo essenziale (`IndexedDB`, `Local Storage`, `Network/Cookies`) in un'area di staging locale temporanea e veloce sulla macchina host (es. `%LOCALAPPDATA%\HidaChat\NetworkProfiles\{AccountId}` o `%TEMP%\HidaChat_LocalProfile_{AccountId}`).
-  3. *Esecuzione WebView2 in locale*: Inizializzare `CoreWebView2Environment` puntando alla cartella di staging locale, garantendo locking nativo e velocità I/O senza conflitti SMB.
-  4. *Sincronizzazione di ritorno (Flush on Shutdown / Periodic)*: Alla chiusura dell'app (`PrepareForShutdown` / `AccountManager.DisposeAsync`) o periodicamente in background, effettuare il sync incrementale o atomico dei dati di sessione aggiornati verso la cartella `data/webview/{AccountId}` sulla share di rete, preservando la portabilità al 100%.
-- **Impatto**: Alto (fondamentale per scenari aziendali/multiuso con app su cartelle condivise) | **Sforzo**: Medio-Alto
+- **Implementazione**:
+  1. *Rilevamento drive di rete*: `NetworkProfileSync.IsRunningOnNetwork` rileva percorsi UNC e unità di rete mappate SMB (`DriveType.Network`).
+  2. *Local Staging trasparente*: `NetworkProfileSync.SyncMasterToLocalStagingAsync` sincronizza all'avvio solo i dati essenziali (`IndexedDB`, `Local Storage`, `Network/Cookies`, preferenze) nella directory locale `%LOCALAPPDATA%\HidaChat\NetworkProfiles\{AccountId}`, escludendo le cartelle di cache volatile (`Cache`, `Code Cache`, `GPUCache`, `Crashpad`) per trasferimenti ultra-rapidi.
+  3. *Esecuzione WebView2 in locale*: `CoreWebView2Environment` viene inizializzato sulla cartella locale garantendo velocità nativa e lock locali senza conflitti SMB.
+  4. *Sincronizzazione di ritorno atomica*: Alla chiusura in `PrepareForShutdown` o prima degli aggiornamenti in `ForceExitForUpdateAsync`, `SyncAllProfilesToNetworkAsync` esegue il mirror incrementale dei profili aggiornati verso `data/webview/{AccountId}` sulla share di rete.
+  5. *Lock multi-PC*: `AcquireSessionLock` rileva se l'account è già aperto su un altro computer avvisando l'utente.
+  6. *Opzione nelle Impostazioni*: Checkbox dedicata e stringhe sincronizzate in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+- **Impatto**: Alto | **Sforzo**: Medio-Alto
+
 
 

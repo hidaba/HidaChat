@@ -250,7 +250,7 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
-    ''' Verifica se l'applicazione è in esecuzione su un'unità di rete o percorso UNC e mostra un avviso esplicativo.
+    ''' Verifica se l'applicazione è in esecuzione su un'unità di rete o percorso UNC e mostra un avviso esplicativo (TODO #73).
     ''' </summary>
     Private Sub CheckNetworkDriveWarning()
         Try
@@ -259,32 +259,30 @@ Public Class MainWindow
             Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
             If String.IsNullOrWhiteSpace(baseDir) Then Return
 
-            Dim isNetwork = False
-            Dim root = Path.GetPathRoot(baseDir)
-            If Not String.IsNullOrEmpty(root) Then
-                If root.StartsWith("\\") Then
-                    isNetwork = True
-                Else
-                    Try
-                        Dim dInfo As New DriveInfo(root)
-                        If dInfo.DriveType = DriveType.Network Then
-                            isNetwork = True
-                        End If
-                    Catch
-                    End Try
-                End If
-            End If
+            Dim isNetwork = NetworkProfileSync.IsRunningOnNetwork
 
             If isNetwork Then
                 Dim loc = _settingsController.Localizations
-                Dim title = If(loc IsNot Nothing, loc.Get("network_drive_warning_title"), "Network Drive Warning")
-                Dim msg = If(loc IsNot Nothing,
-                    loc.Get("network_drive_warning_msg", New Dictionary(Of String, String) From {{"path", baseDir}}),
-                    $"HidaChat is running from a network drive ({baseDir})." & vbCrLf & vbCrLf &
-                    "Warning: Microsoft WebView2 does not support storing browser profiles on network drives or SMB shares. This frequently causes WhatsApp Web to lose its session or disconnect on restart." & vbCrLf & vbCrLf &
-                    "It is strongly recommended to run HidaChat from a local drive (e.g. C:\HidaChat).")
+                Dim title = If(loc IsNot Nothing, loc.Get("network_drive_warning_title"), "Network Drive Detected")
 
-                MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Warning)
+                Dim msg As String
+                Dim icon As MessageBoxImage
+                If _settingsController.EnableNetworkProfileStaging Then
+                    icon = MessageBoxImage.Information
+                    msg = If(loc IsNot Nothing,
+                        loc.Get("network_drive_staging_info", New Dictionary(Of String, String) From {{"path", baseDir}}),
+                        $"HidaChat is running from a network drive ({baseDir})." & vbCrLf & vbCrLf &
+                        "Local Session Staging is ACTIVE: your chat sessions and login data are handled on local disk and synchronized to the network share on exit to prevent WebView2 session loss.")
+                Else
+                    icon = MessageBoxImage.Warning
+                    msg = If(loc IsNot Nothing,
+                        loc.Get("network_drive_warning_msg", New Dictionary(Of String, String) From {{"path", baseDir}}),
+                        $"HidaChat is running from a network drive ({baseDir})." & vbCrLf & vbCrLf &
+                        "Warning: Microsoft WebView2 does not support storing browser profiles on network drives or SMB shares. This frequently causes WhatsApp Web to lose its session or disconnect on restart." & vbCrLf & vbCrLf &
+                        "It is strongly recommended to run HidaChat from a local drive (e.g. C:\HidaChat).")
+                End If
+
+                MessageBox.Show(msg, title, MessageBoxButton.OK, icon)
                 _settingsController.SuppressNetworkDriveWarning = True
                 Dim ignoreTask = _settingsController.FlushNowAsync()
             End If
@@ -292,6 +290,7 @@ Public Class MainWindow
             Debug.WriteLine($"CheckNetworkDriveWarning error: {ex.Message}")
         End Try
     End Sub
+
 
     Private _isShuttingDown As Boolean = False
     Private ReadOnly _shutdownLock As New Object()
@@ -341,6 +340,26 @@ Public Class MainWindow
             Catch
             End Try
         Next
+
+        ' Sincronizzazione atomica di ritorno su cartella di rete dei profili locali (TODO #73)
+        If NetworkProfileSync.IsRunningOnNetwork AndAlso _settingsController.EnableNetworkProfileStaging Then
+            Try
+                System.Threading.Thread.Sleep(300)
+                Dim frameSync As New System.Windows.Threading.DispatcherFrame()
+                Dim syncTask = _accountManager.SyncAllProfilesToNetworkAsync()
+                syncTask.ContinueWith(Sub(prev) frameSync.Continue = False)
+                Dim syncTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(10)}
+                AddHandler syncTimeout.Tick, Sub()
+                    syncTimeout.Stop()
+                    frameSync.Continue = False
+                End Sub
+                syncTimeout.Start()
+                System.Windows.Threading.Dispatcher.PushFrame(frameSync)
+            Catch exSync As Exception
+                Debug.WriteLine($"PrepareForShutdown network sync error: {exSync.Message}")
+            End Try
+        End If
+
 
         Try
             Dim frameClean As New System.Windows.Threading.DispatcherFrame()
@@ -408,6 +427,21 @@ Public Class MainWindow
             Await Task.WhenAll(_accountManager.SaveAccountsAsync(), _settingsController.FlushNowAsync())
         Catch
         End Try
+
+        For Each acc In _accountManager.Accounts
+            Try
+                acc.Dispose()
+            Catch
+            End Try
+        Next
+
+        If NetworkProfileSync.IsRunningOnNetwork AndAlso _settingsController.EnableNetworkProfileStaging Then
+            Try
+                Await _accountManager.SyncAllProfilesToNetworkAsync()
+            Catch
+            End Try
+        End If
+
 
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
