@@ -1,6 +1,30 @@
 # Changelog
 
+## [1.1.0] - 2026-09-30
+
+### Release Stabile — Supporto Drive di Rete (SMB/UNC), Staging & Sync Sessioni WebView2, Hardening Asincrono e Logging Centralizzato
+- **Supporto Completo Drive di Rete (SMB/UNC) con Staging Locale Trasparente (#73)**:
+  - **Persistenza Affidabile della Sessione WhatsApp Web**: Risolto definitivamente il problema di perdita delle sessioni e reset al codice QR quando l'applicazione viene eseguita da percorsi di rete o drive mappati (SMB/CIFS, `\\server\share`, `Z:\`).
+  - **Local Staging Automatico all'Avvio**: I database di sessione (`IndexedDB`, `Local Storage`, `Network/Cookies`, preferenze) vengono trasferiti ed eseguiti dalla memoria locale veloce `%LOCALAPPDATA%\HidaChat\NetworkProfiles\{AccountId}`, eliminando le anomalie di lock `STATUS_FILE_LOCK_CONFLICT` di LevelDB e SQLite.
+  - **Filtro Intelligente Cache Volatili**: Escluse dal trasferimento le directory di cache pesante (`Cache`, `Code Cache`, `GPUCache`, `DawnGraphiteCache`, `ShaderCache`, `Crashpad`), garantendo trasferimenti ultra-rapidi (pochi megabyte) e avvii istantanei.
+  - **Sincronizzazione Atomica di Ritorno su Share di Rete**: Alla chiusura controllata dell'applicazione (`PrepareForShutdown` e `ForceExitForUpdateAsync`), tutti i profili locali aggiornati vengono risincronizzati tramite mirror incrementale sulla cartella master portabile `data/webview/{AccountId}` sulla share di rete.
+  - **Rilevamento Conflitti Multi-PC (#70, #73)**: Meccanismo di session lock leggero (`.active_session`) con rilevamento di accessi concorrenti da postazioni multiple sulla medesima cartella di rete.
+  - **Impostazione e UI Multilingua**: Nuova sezione "Unità di Rete" nelle Impostazioni con switch dedicato e allineamento sincrono di tutti i 5 dizionari di lingua (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Hardening Bridge IPC, Resilienza Asincrona e Gestione Eccezioni (#63)**:
+  - **Protezione Completa `Async Sub` con Try/Catch**: Schermati tutti i gestori eventi asincroni del bridge WebView2 e della UI contro eccezioni non osservate e interruzioni di rete.
+  - **Attesa Deterministica con `SafeExecuteScriptAsync`**: Esecuzione e unwrapping asincrono affidabile dei task JavaScript senza unobserved task exceptions.
+  - **Logging Centralizzato su File Portabile (`data/logs/app_errors.log`)**: Tracciamento thread-safe con rotazione automatica (1 MB) per `DispatcherUnhandledException`, `TaskScheduler.UnobservedTaskException` e `AppDomain.CurrentDomain.UnhandledException`.
+- **Correzione Modalità Non Disturbare (Focus Mode) (#64)**:
+  - Sostituito l'operatore di confronto con `Nullable.Equals` nella proprietà `DndUntil`, garantendo la transizione pulita dello stato DND e la corretta notifica UI.
+- **Hardening Sicurezza WebView e Token IPC (#61, #62)**:
+  - Allow-list rigorosa per schemi URI esterni (`http`, `https`, `mailto`), navigazione in browser di sistema per link con `target="_blank"`.
+  - Token di autenticazione bridge IPC generati tramite CSPRNG crittografico a 128 bit (`RandomNumberGenerator`) e validazione dell'origine del mittente (`IsAuthorizedOrigin`).
+- **Persistenza Sessione allo Spegnimento Windows e Perfezionamenti Notifiche**:
+  - Intercettazione `OnSessionEnding` (`WM_QUERYENDSESSION`) con salvataggio coordinato e rilascio ordinato dei processi WebView2 prima del termine della sessione.
+  - Popup di notifica e Toast abilitati anche per gli account in background con supporto hover mouse, z-order `HWND_TOPMOST` e stili grafici ottimizzati.
+
 ## [1.0.12-beta] - 2026-09-28
+
 
 ### Pre-release / Beta — Supporto Drive di Rete (SMB/UNC) con Local Staging & Sync Sessioni WebView2 e Rilevamento Conflitti Multi-PC
 - **Supporto Drive di Rete tramite Staging Locale e Sincronizzazione Sessioni (`NetworkProfileSync.vb`, `AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`) (#73)**:
