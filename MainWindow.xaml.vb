@@ -344,11 +344,11 @@ Public Class MainWindow
         ' Sincronizzazione atomica di ritorno su cartella di rete dei profili locali (TODO #73)
         If NetworkProfileSync.IsRunningOnNetwork AndAlso _settingsController.EnableNetworkProfileStaging Then
             Try
-                System.Threading.Thread.Sleep(300)
+                System.Threading.Thread.Sleep(600)
                 Dim frameSync As New System.Windows.Threading.DispatcherFrame()
                 Dim syncTask = _accountManager.SyncAllProfilesToNetworkAsync()
                 syncTask.ContinueWith(Sub(prev) frameSync.Continue = False)
-                Dim syncTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(10)}
+                Dim syncTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(30)}
                 AddHandler syncTimeout.Tick, Sub()
                     syncTimeout.Stop()
                     frameSync.Continue = False

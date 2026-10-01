@@ -136,8 +136,9 @@ Public Class NetworkProfileSync
     ''' <summary>
     ''' Sincronizza una cartella sorgente verso una cartella di destinazione in modo incrementale.
     ''' Se isMirror è True, elimina dalla destinazione i file non più presenti nella sorgente (utile alla chiusura per LevelDB compact).
+    ''' Se onlyIfSourceNewer è True, non sovrascrive mai file di destinazione che risultano più recenti della sorgente.
     ''' </summary>
-    Public Shared Async Function SyncDirectoryAsync(sourceDir As String, targetDir As String, isMirror As Boolean) As Task(Of Boolean)
+    Public Shared Async Function SyncDirectoryAsync(sourceDir As String, targetDir As String, isMirror As Boolean, Optional onlyIfSourceNewer As Boolean = False) As Task(Of Boolean)
         If String.IsNullOrWhiteSpace(sourceDir) OrElse Not Directory.Exists(sourceDir) Then Return False
 
         Return Await Task.Run(Function() As Boolean
@@ -168,11 +169,14 @@ Public Class NetworkProfileSync
                             Dim dstInfo As New FileInfo(dstFile)
                             If srcInfo.Length = dstInfo.Length AndAlso Math.Abs((srcInfo.LastWriteTimeUtc - dstInfo.LastWriteTimeUtc).TotalSeconds) < 2 Then
                                 needCopy = False
+                            ElseIf onlyIfSourceNewer AndAlso srcInfo.LastWriteTimeUtc <= dstInfo.LastWriteTimeUtc Then
+                                ' Non sovrascrivere mai file di destinazione più recenti con file sorgente obsoleti
+                                needCopy = False
                             End If
                         End If
 
                         If needCopy Then
-                            CopyFileWithRetry(srcFile, dstFile, maxRetries:=3)
+                            CopyFileWithRetry(srcFile, dstFile, maxRetries:=6)
                         End If
                     Catch exFile As Exception
                         Debug.WriteLine($"[NetworkProfileSync] SyncDirectory file copy warning ({srcFile}): {exFile.Message}")
@@ -229,7 +233,13 @@ Public Class NetworkProfileSync
                     Debug.WriteLine($"[NetworkProfileSync] CopyFileWithRetry failed after {maxRetries} attempts for '{sourceFile}': {ex.Message}")
                     Exit For
                 End If
-                System.Threading.Thread.Sleep(100 * attempt)
+                System.Threading.Thread.Sleep(150 * attempt)
+            Catch ex As UnauthorizedAccessException
+                If attempt = maxRetries Then
+                    Debug.WriteLine($"[NetworkProfileSync] CopyFileWithRetry access denied after {maxRetries} attempts for '{sourceFile}': {ex.Message}")
+                    Exit For
+                End If
+                System.Threading.Thread.Sleep(150 * attempt)
             Catch ex As Exception
                 Debug.WriteLine($"[NetworkProfileSync] CopyFileWithRetry unexpected error for '{sourceFile}': {ex.Message}")
                 Exit For
@@ -239,6 +249,7 @@ Public Class NetworkProfileSync
 
     ''' <summary>
     ''' Sincronizza il profilo master dal drive di rete allo staging locale prima dell'avvio di WebView2.
+    ''' Protegge la sessione locale se già esistente, evitando sovrascritture da master obsoleto.
     ''' </summary>
     Public Shared Async Function SyncMasterToLocalStagingAsync(accountId As String) As Task(Of Boolean)
         Dim masterDir = GetMasterProfileDir(accountId)
@@ -249,9 +260,14 @@ Public Class NetworkProfileSync
             Return False
         End If
 
-        Debug.WriteLine($"[NetworkProfileSync] Sincronizzazione Master -> Staging per account {accountId}...")
+        ' Se la cartella di staging locale esiste già e contiene sessione (IndexedDB o Preferences),
+        ' applica onlyIfSourceNewer:=True per non sovrascrivere mai file locali recenti con vecchi file di rete.
+        Dim stagingHasSession = Directory.Exists(Path.Combine(stagingDir, "EBWebView\Default\IndexedDB")) OrElse
+                                File.Exists(Path.Combine(stagingDir, "EBWebView\Default\Preferences"))
+
+        Debug.WriteLine($"[NetworkProfileSync] Sincronizzazione protetta Master -> Staging per account {accountId} (stagingHasSession={stagingHasSession})...")
         Dim sw = Stopwatch.StartNew()
-        Dim result = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False)
+        Dim result = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=stagingHasSession)
         sw.Stop()
         Debug.WriteLine($"[NetworkProfileSync] Completata sincronizzazione Master -> Staging per {accountId} in {sw.ElapsedMilliseconds} ms (Esito: {result})")
         Return result

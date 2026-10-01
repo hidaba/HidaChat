@@ -481,12 +481,18 @@
     }
   }
 
+  let isThrottled = false;
   function scheduleAllChecks() {
     if (updateDebounceTimer) clearTimeout(updateDebounceTimer);
+    // Se la pagina è nascosta (minimizzata o in background), aumenta il debounce a 2500ms
+    const delay = (typeof document !== 'undefined' && document.hidden) ? 2500 : 350;
     updateDebounceTimer = setTimeout(function() {
       checkAndNotifyUnreadCount();
-      checkAndNotifyOnlineStatus();
-    }, 250);
+      // Scansiona lo stato online del contatto solo se la pagina è visibile in primo piano
+      if (typeof document !== 'undefined' && !document.hidden) {
+        checkAndNotifyOnlineStatus();
+      }
+    }, delay);
   }
 
   function initMonitoring() {
@@ -520,16 +526,50 @@
       headObserver.observe(document.head, { subtree: true, characterData: true, childList: true });
     }
 
+    // Osservatore DOM leggero per chat list: evita subtree: true con attributeFilter su tutto il body
+    // che sovraccarica il thread JS durante le sincronizzazioni di rete o il riavvio dopo sleep
     if (document.body) {
-      const bodyObserver = new MutationObserver(scheduleAllChecks);
-      bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-label', 'href'] });
+      const bodyObserver = new MutationObserver(function() {
+        // Se nascosto, elabora solo una volta ogni 3 secondi
+        if (typeof document !== 'undefined' && document.hidden) {
+          if (isThrottled) return;
+          isThrottled = true;
+          setTimeout(function() { isThrottled = false; }, 3000);
+        }
+        scheduleAllChecks();
+      });
+
+      // Se disponibile il pannello chat laterale (#pane-side per WhatsApp), osserva selettivamente
+      const chatPanel = document.querySelector('#pane-side, [data-testid="chat-list"], .chatlist');
+      if (chatPanel) {
+        bodyObserver.observe(chatPanel, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label', 'class'] });
+      } else {
+        // Fallback su body solo per inserimento/rimozione nodi (senza catturare ogni attributo CSS di ogni elemento)
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
+      }
     }
 
-    // Polling periodico continuo per notifiche e stato online
-    setInterval(function() {
+    // Polling periodico adattivo: 2s in primo piano, 12s in background per evitare congelamenti notturni
+    let pollInterval = 2000;
+    function runAdaptivePoll() {
+      const isHidden = (typeof document !== 'undefined' && document.hidden);
       checkAndNotifyUnreadCount();
-      checkAndNotifyOnlineStatus();
-    }, 1500);
+      if (!isHidden) {
+        checkAndNotifyOnlineStatus();
+      }
+      pollInterval = isHidden ? 12000 : 2500;
+      setTimeout(runAdaptivePoll, pollInterval);
+    }
+    setTimeout(runAdaptivePoll, pollInterval);
+
+    // Ripresa immediata al cambio di visibilità della finestra (quando l'utente sblocca il PC o apre la finestra)
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+          scheduleAllChecks();
+        }
+      });
+    }
 
     checkAndNotifyUnreadCount();
     checkAndNotifyOnlineStatus();

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.1-beta] - 2026-10-01
+
+### Pre-release / Beta — Risoluzione Errore Sessione Notturna WhatsApp Web, Protezione Local Staging e Throttling Background
+- **Protezione Anti-Sovrascrittura Local Staging (`NetworkProfileSync.vb`)**:
+  - **Sincronizzazione Unidirezionale Protetta (`onlyIfSourceNewer`)**: Risolto il bug critico per cui, all'avvio dell'applicazione o in fase di recovery, `SyncMasterToLocalStagingAsync` sovrascriveva incondizionatamente la cartella di sessione locale recente in `%LOCALAPPDATA%` con i file obsoleti del drive di rete `Y:\`, distruggendo la coerenza del database LevelDB (`CURRENT`, log e manifest non allineati).
+  - **Priorità Dati Locali Recenti**: Se la cartella di staging locale esiste già e contiene una sessione attiva, nessun file di destinazione viene più sovrascritto se la sorgente sul disco di rete risulta uguale o antecedente (`LastWriteTimeUtc`).
+  - **Resilienza I/O e Riprova Lock (`CopyFileWithRetry`)**: Aumentato il numero di tentativi a 6 con ritardi incrementali (150ms per tentativo) e gestione dedicata delle eccezioni `UnauthorizedAccessException` per file momentaneamente bloccati dal motore browser.
+- **Risoluzione Watchdog Timeout Notturno WhatsApp Web (`Scripts/notification.js`)**:
+  - **Throttling Intelligente in Background (`document.hidden`)**: Risolto il blocco di WhatsApp Web e il conseguente popup modale *"Qualcosa non ha funzionato"* dovuto all'evento di crash watchdog `unresponsiveness-events-v2` registrato al ripristino dalla sospensione del PC o dopo lunghe ore di inattività notturna.
+  - **Polling Adattivo**: Il ciclo di scansione passa automaticamente da 2 secondi in primo piano a 12 secondi quando l'applicazione è in background o minimizzata, sospendendo completamente l'ispezione dello stato online (`scanOnlineStatus`) a finestra non visibile.
+  - **Alleggerimento Osservatore DOM**: Eliminato il listener ricorsivo `subtree: true` con `attributes: true` sull'intero `document.body` che catturava migliaia di mutazioni CSS durante le sincronizzazioni messaggi; introdotto l'ascolto mirato sul pannello chat laterale (`#pane-side`) con limitazione temporale di 3 secondi in stato hidden.
+  - **Risveglio Istantaneo su `visibilitychange`**: Quando l'utente sblocca il PC o porta la finestra in primo piano, il controllo di non letti e stato online viene riattivato istantaneamente.
+- **Rafforzamento Chiusura Coordinata e Rilascio Risorse (`MainWindow.xaml.vb`)**:
+  - **Estensione Timeout Sync a 30s**: Portato a 30 secondi il timer di sicurezza per la sincronizzazione mirror di ritorno verso le cartelle di rete (`SyncAllProfilesToNetworkAsync`), garantendo che condivisioni SMB su NAS o Wi-Fi completino il trasferimento senza troncature di file.
+  - **Attesa Rilascio Lock WebView2**: Aggiunta una pausa controllata (600ms) dopo il `Dispose()` degli account prima di avviare la copia verso il master, consentendo ai processi `msedgewebview2.exe` di scaricare i buffer su disco e liberare i file lock.
+
 ## [1.1.0] - 2026-09-30
 
 ### Release Stabile — Supporto Drive di Rete (SMB/UNC), Staging & Sync Sessioni WebView2, Hardening Asincrono e Logging Centralizzato
