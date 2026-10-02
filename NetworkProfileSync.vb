@@ -260,23 +260,30 @@ Public Class NetworkProfileSync
             Return False
         End If
 
-        ' Se la cartella di staging locale esiste già e contiene sessione (IndexedDB o Preferences),
-        ' applica onlyIfSourceNewer:=True per non sovrascrivere mai file locali recenti con vecchi file di rete.
-        Dim stagingHasSession = Directory.Exists(Path.Combine(stagingDir, "EBWebView\Default\IndexedDB")) OrElse
+        ' Se la cartella di staging locale esiste già e contiene una sessione attiva (IndexedDB o Preferences),
+        ' non scaricare dal master di rete per prevenire la sovrascrittura con file obsoleti o conflitti LevelDB.
+        Dim stagingHasSession = (Directory.Exists(Path.Combine(stagingDir, "EBWebView\Default\IndexedDB")) AndAlso
+                                 Directory.EnumerateFiles(Path.Combine(stagingDir, "EBWebView\Default\IndexedDB"), "*", SearchOption.AllDirectories).Any()) OrElse
                                 File.Exists(Path.Combine(stagingDir, "EBWebView\Default\Preferences"))
 
-        Debug.WriteLine($"[NetworkProfileSync] Sincronizzazione protetta Master -> Staging per account {accountId} (stagingHasSession={stagingHasSession})...")
+        If stagingHasSession Then
+            Debug.WriteLine($"[NetworkProfileSync] Sessione locale attiva già presente in staging per account {accountId}. Salto download da master per proteggere la sessione da sovrascritture.")
+            Return True
+        End If
+
+        Debug.WriteLine($"[NetworkProfileSync] Download iniziale Master -> Staging per account {accountId}...")
         Dim sw = Stopwatch.StartNew()
-        Dim result = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=stagingHasSession)
+        Dim result = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=False)
         sw.Stop()
-        Debug.WriteLine($"[NetworkProfileSync] Completata sincronizzazione Master -> Staging per {accountId} in {sw.ElapsedMilliseconds} ms (Esito: {result})")
+        Debug.WriteLine($"[NetworkProfileSync] Completato download Master -> Staging per {accountId} in {sw.ElapsedMilliseconds} ms (Esito: {result})")
         Return result
     End Function
 
     ''' <summary>
     ''' Sincronizza il profilo aggiornato dallo staging locale al master su drive di rete alla chiusura dell'applicazione o periodicamente.
+    ''' Se isPeriodic è True, non elimina file dal master (isMirror:=False) per evitare rimozioni premature mentre il browser è attivo.
     ''' </summary>
-    Public Shared Async Function SyncLocalStagingToMasterAsync(accountId As String) As Task(Of Boolean)
+    Public Shared Async Function SyncLocalStagingToMasterAsync(accountId As String, Optional isPeriodic As Boolean = False) As Task(Of Boolean)
         Dim stagingDir = GetLocalStagingProfileDir(accountId)
         Dim masterDir = GetMasterProfileDir(accountId)
 
@@ -284,9 +291,9 @@ Public Class NetworkProfileSync
             Return False
         End If
 
-        Debug.WriteLine($"[NetworkProfileSync] Sincronizzazione Staging -> Master per account {accountId}...")
+        Debug.WriteLine($"[NetworkProfileSync] Sincronizzazione Staging -> Master per account {accountId} (isPeriodic={isPeriodic})...")
         Dim sw = Stopwatch.StartNew()
-        Dim result = Await SyncDirectoryAsync(stagingDir, masterDir, isMirror:=True)
+        Dim result = Await SyncDirectoryAsync(stagingDir, masterDir, isMirror:=(Not isPeriodic))
         sw.Stop()
         Debug.WriteLine($"[NetworkProfileSync] Completata sincronizzazione Staging -> Master per {accountId} in {sw.ElapsedMilliseconds} ms (Esito: {result})")
         Return result

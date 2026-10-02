@@ -526,38 +526,30 @@
       headObserver.observe(document.head, { subtree: true, characterData: true, childList: true });
     }
 
-    // Osservatore DOM leggero per chat list: evita subtree: true con attributeFilter su tutto il body
-    // che sovraccarica il thread JS durante le sincronizzazioni di rete o il riavvio dopo sleep
-    if (document.body) {
-      const bodyObserver = new MutationObserver(function() {
-        // Se nascosto, elabora solo una volta ogni 3 secondi
-        if (typeof document !== 'undefined' && document.hidden) {
-          if (isThrottled) return;
-          isThrottled = true;
-          setTimeout(function() { isThrottled = false; }, 3000);
-        }
-        scheduleAllChecks();
-      });
-
-      // Se disponibile il pannello chat laterale (#pane-side per WhatsApp), osserva selettivamente
+    // Osservatore DOM mirato: aggancia esclusivamente il container chat (#pane-side per WhatsApp)
+    // una volta presente, evitando categoricamente l'osservazione ricorsiva su tutto document.body
+    let chatPanelObserverAttached = false;
+    function tryAttachChatPanelObserver() {
+      if (chatPanelObserverAttached) return;
       const chatPanel = document.querySelector('#pane-side, [data-testid="chat-list"], .chatlist');
       if (chatPanel) {
-        bodyObserver.observe(chatPanel, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label', 'class'] });
-      } else {
-        // Fallback su body solo per inserimento/rimozione nodi (senza catturare ogni attributo CSS di ogni elemento)
-        bodyObserver.observe(document.body, { childList: true, subtree: true });
+        const chatObserver = new MutationObserver(scheduleAllChecks);
+        chatObserver.observe(chatPanel, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label', 'class'] });
+        chatPanelObserverAttached = true;
       }
     }
+    tryAttachChatPanelObserver();
 
-    // Polling periodico adattivo: 2s in primo piano, 12s in background per evitare congelamenti notturni
-    let pollInterval = 2000;
+    // Polling periodico adattivo: 3.5s in primo piano, 25s in background per azzerare il carico notturno
+    let pollInterval = 3500;
     function runAdaptivePoll() {
       const isHidden = (typeof document !== 'undefined' && document.hidden);
+      tryAttachChatPanelObserver();
       checkAndNotifyUnreadCount();
       if (!isHidden) {
         checkAndNotifyOnlineStatus();
       }
-      pollInterval = isHidden ? 12000 : 2500;
+      pollInterval = isHidden ? 25000 : 3500;
       setTimeout(runAdaptivePoll, pollInterval);
     }
     setTimeout(runAdaptivePoll, pollInterval);

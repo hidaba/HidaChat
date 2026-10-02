@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.2-beta] - 2026-10-02
+
+### Pre-release / Beta — Risoluzione Definitiva Perdita Sessione WhatsApp Web, Timer Sincronizzazione Periodica e Ottimizzazione Memoria Background
+- **Protezione Integrale Sessione Staging Locale (`NetworkProfileSync.vb`)**:
+  - **Salto Download se Sessione Attiva Presente**: Modificato `SyncMasterToLocalStagingAsync` affinché, se nello staging locale `%LOCALAPPDATA%` è già presente una sessione (`IndexedDB` popolato o file `Preferences`), il download dalla cartella master su share di rete `Y:\` venga completamente saltato. Questo previene qualsiasi iniezione di vecchi file SST/log di LevelDB e azzera il rischio di corruzione storage durante avvii o recovery automatiche.
+  - **Sincronizzazione Periodica Sicura (`SyncLocalStagingToMasterAsync`)**: Aggiunto il parametro `isPeriodic` che disattiva la pulizia mirror durante le sincronizzazioni a caldo, proteggendo i file in corso di scrittura mentre il browser è attivo.
+- **Risoluzione Memoria e Watchdog Timeout Notturno WhatsApp Web (`AppAccounts.vb`)**:
+  - **Rimozione Flag Forzatura Background**: Eliminati i parametri `--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows` e `--disable-renderer-backgrounding` che mantenevano i 4 processi WebView2 attivi come se fossero in primo piano a 60 FPS 24/7, esaurendo le page table (Memory Management 1a/3f) e causando il congelamento del thread principale JS con scatto del watchdog interno `unresponsiveness-events-v2`.
+  - **Rimozione Limiti Cache Restrittivi**: Rimossi `--disk-cache-size` e `--media-cache-size` ridotti che causavano continuo thrashing I/O, consentendo a Chromium di gestire normalmente il ciclo di vita e la garbage collection V8 durante la notte.
+- **Alleggerimento Radicale Monitoraggio DOM e Notifiche (`Scripts/notification.js`)**:
+  - **Eliminazione Observer su `document.body`**: Rimosso completamente l'ascolto su tutto il corpo del documento. Introdotto l'aggancio selettivo e differito esclusivamente sul pannello chat laterale `#pane-side` non appena viene generato nel DOM.
+  - **Polling a Basso Impatto**: Polling esteso a 25 secondi quando la finestra è in background/nascosta, con disattivazione totale della scansione `scanOnlineStatus`.
+- **Sincronizzazione Periodica Continua su Drive di Rete (`MainWindow.xaml.vb`, `AccountManager.vb`)**:
+  - **Timer Periodico 10 Minuti**: Introdotto `_periodicNetworkSyncTimer` che esegue `SyncAllProfilesToNetworkAsync(isPeriodic:=True)` ogni 10 minuti in background. Anche se l'applicazione resta aperta per giorni o settimane senza venire mai chiusa, i dati sul drive di rete `Y:\` rimangono costantemente aggiornati e protetti da eventuali interruzioni improvvise o disconnessioni di rete.
+
 ## [1.1.1-beta] - 2026-10-01
 
 ### Pre-release / Beta — Risoluzione Errore Sessione Notturna WhatsApp Web, Protezione Local Staging e Throttling Background

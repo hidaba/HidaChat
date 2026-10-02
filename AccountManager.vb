@@ -464,16 +464,18 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Sincronizza tutti i profili locali verso la cartella master su disco di rete e rilascia i lock (TODO #73).
+    ''' Sincronizza tutti i profili locali verso la cartella master su disco di rete e, se non periodico, rilascia i lock (TODO #73).
     ''' </summary>
-    Public Async Function SyncAllProfilesToNetworkAsync() As Task
+    Public Async Function SyncAllProfilesToNetworkAsync(Optional isPeriodic As Boolean = False) As Task
         If Not NetworkProfileSync.IsRunningOnNetwork Then Return
         Try
-            Debug.WriteLine("[NetworkProfileSync] Inizio sincronizzazione di chiusura di tutti i profili su share di rete...")
+            Debug.WriteLine($"[NetworkProfileSync] Inizio sincronizzazione profili su share di rete (isPeriodic={isPeriodic})...")
             For Each acc In _accounts
                 Try
-                    Await NetworkProfileSync.SyncLocalStagingToMasterAsync(acc.Id)
-                    NetworkProfileSync.ReleaseSessionLock(acc.Id)
+                    Await NetworkProfileSync.SyncLocalStagingToMasterAsync(acc.Id, isPeriodic:=isPeriodic)
+                    If Not isPeriodic Then
+                        NetworkProfileSync.ReleaseSessionLock(acc.Id)
+                    End If
                 Catch exAcc As Exception
                     Debug.WriteLine($"[NetworkProfileSync] Errore sync account {acc.Id}: {exAcc.Message}")
                 End Try

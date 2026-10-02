@@ -17,6 +17,7 @@ Public Class MainWindow
     Private _allowExit As Boolean = False
     Private _defaultShadowEffect As Effect
     Private _dndTimer As System.Windows.Threading.DispatcherTimer
+    Private _periodicNetworkSyncTimer As System.Windows.Threading.DispatcherTimer
 
     Public Sub New()
         InitializeComponent()
@@ -174,6 +175,19 @@ Public Class MainWindow
             _dndTimer.Start()
             UpdateDndState()
 
+            ' 12. Configura il timer di sincronizzazione periodica verso il drive di rete (TODO #73)
+            If NetworkProfileSync.IsRunningOnNetwork Then
+                _periodicNetworkSyncTimer = New System.Windows.Threading.DispatcherTimer With {
+                    .Interval = TimeSpan.FromMinutes(10)
+                }
+                AddHandler _periodicNetworkSyncTimer.Tick, Async Sub()
+                    If _settingsController.EnableNetworkProfileStaging Then
+                        Await _accountManager.SyncAllProfilesToNetworkAsync(isPeriodic:=True)
+                    End If
+                End Sub
+                _periodicNetworkSyncTimer.Start()
+            End If
+
             UpdateOnlineIndicator()
             CheckNetworkDriveWarning()
             VersionText.Text = "v" & Constants.AppVersion
@@ -312,6 +326,11 @@ Public Class MainWindow
             _dndTimer = Nothing
         End If
 
+        If _periodicNetworkSyncTimer IsNot Nothing Then
+            _periodicNetworkSyncTimer.Stop()
+            _periodicNetworkSyncTimer = Nothing
+        End If
+
         Try
             RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
             RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
@@ -418,6 +437,11 @@ Public Class MainWindow
         If _dndTimer IsNot Nothing Then
             _dndTimer.Stop()
             _dndTimer = Nothing
+        End If
+
+        If _periodicNetworkSyncTimer IsNot Nothing Then
+            _periodicNetworkSyncTimer.Stop()
+            _periodicNetworkSyncTimer = Nothing
         End If
 
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged

@@ -784,7 +784,7 @@ Public Class AppAccounts
                 options.Language = effectiveLang
             End If
 
-            Dim browserArgs = "--disk-cache-size=104857600 --media-cache-size=52428800 --disable-gpu-shader-disk-cache --disable-component-update --disable-domain-reliability --no-crash-upload --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
+            Dim browserArgs = "--disable-component-update --disable-domain-reliability --no-crash-upload"
             Dim disabledFeatures As New List(Of String) From {"Translate", "MediaRouter"}
             If settings.EnableSpellcheck Then
                 browserArgs &= $" --enable-features=Spellcheck --lang={effectiveLang}"
