@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.1.4-beta] - 2026-10-04
+
+### Pre-release / Beta — Risoluzione Causa Radice Perdita Sessione WhatsApp: Blocco Auto-Distruzione IndexedDB, Risoluzione ERROR_SHARING_VIOLATION LevelDB e Ottimizzazione Sync SMB
+- **Protezione Assoluta da Auto-Distruzione IndexedDB (`Scripts/notification.js`)**:
+  - **Blocco Cancellazione Database di Sessione**: Intercettata a livello W3C `window.indexedDB.deleteDatabase` per impedire agli handler di errore interni di WhatsApp Web (`t.reset()` scattato in caso di temporanei errori di I/O o caduta WebSocket) di distruggere le banche dati crittografiche (`signal-storage`, `wawc_db_enc`, `wawc`, `model-storage`, `worker-storage`, ecc.).
+  - **Emulazione IDBOpenDBRequest Conforme**: La richiesta di cancellazione dei database protetti viene reindirizzata in modo trasparente su un database dummy fittizio, restituendo un `IDBOpenDBRequest` valido con `onsuccess`. In questo modo l'applicazione client non va in crash ma le chiavi crittografiche e la registrazione del dispositivo sul disco rimangono intatte, consentendo il ripristino immediato della sessione senza richiesta di scansione codice QR.
+- **Risoluzione `ERROR_SHARING_VIOLATION` (0x20) e Storage-Error LevelDB (`NetworkProfileSync.vb`)**:
+  - **Abilitazione `FileShare.Delete`**: Aggiunto il flag `FileShare.Delete` (`FileShare.ReadWrite Or FileShare.Delete`) all'apertura dei file in `CopyFileWithRetry`. In Windows, l'omissione di `FileShare.Delete` impediva a Chromium LevelDB di eliminare o rinominare i file SST (`.ldb`) e i log (`.log`) durante la compattazione in background mentre il processo di copia era in lettura, generando l'errore `ERROR_SHARING_VIOLATION (32)` e il conseguente `AbortError (storage-error) / QuotaExceededError` in WhatsApp Web.
+- **Ottimizzazione Prestazioni e Concorrenza Sincronizzazione Rete SMB (`NetworkProfileSync.vb`, `MainWindow.xaml.vb`)**:
+  - **Pre-Indicizzazione File Remoti in Bulk**: Risolto il collo di bottiglia che causava sync di oltre 20 minuti su condivisioni di rete SMB. `SyncDirectoryAsync` ora indicizza preliminarmente i file della cartella di destinazione in un dizionario in memoria, eliminando migliaia di chiamate RPC di rete (`File.Exists` e query metadati `FileInfo`) individuali.
+  - **Controllo di Concorrenza Atomico (`SemaphoreSlim`)**: Integrato un semaforo thread-safe a livello di classe `_syncLock` in `NetworkProfileSync.vb` per garantire che sincronizzazioni periodiche o di chiusura non possano mai sovrapporsi o collidere sugli stessi file.
+  - **Reentrancy Guard nel Timer Periodico (`MainWindow.xaml.vb`)**: Aggiunto `_isPeriodicNetworkSyncRunning` sul tick di `_periodicNetworkSyncTimer` per ignorare nuovi tick se la sincronizzazione precedente è ancora in corso.
+  - **Pulizia Mirror Controllata dei File Orfani**: Durante la sincronizzazione periodica a caldo, se la dimensione del master supera il doppio dello staging locale sano (> 2 MB), viene attivata una rimozione mirror sicura per eliminare le centinaia di file SST orfani scartati da Chromium, evitando il continuo rigonfiamento del profilo su drive di rete.
+
+## [1.1.3-beta] - 2026-10-03
+
+### Pre-release / Beta — Diagnostica Profonda WhatsApp Web, Snapshot Last-Known-Good e Protezione Collasso Storage
+- **Sistema di Logging Centralizzato Portabile (`AppLogger.vb`)**:
+  - **Cartella Log Portabile (`data/logs/`)**: Introdotta l'architettura di logging thread-safe all'interno della cartella portabile dell'applicazione, con rotazione automatica dei file al superamento dei 5 MB.
+  - **Tracciamento WhatsApp Web (`whatsapp.log` e `whatsapp_errors.log`)**: Registrazione continua di tutti gli eventi del ciclo di vita della pagina WhatsApp, inclusi errori HTTP 4xx/5xx, chiusure e codici WebSocket, tentativi di cancellazione database e popup modali.
+  - **Tracciamento Sincronizzazione Rete (`sync.log`)**: Registrazione dettagliata delle operazioni di trasferimento tra staging locale (%LOCALAPPDATA%) e master su drive di rete (Y:\), con verifica dimensionale in KB prima e dopo ogni sync.
+- **Strumentazione Telemetrica In-Page JavaScript (`Scripts/notification.js`)**:
+  - **Rilevamento Modali e Popup di Errore**: Scanner automatico di dialoghi contenenti "disconnesso", "logged out", "qualcosa è andato storto", "usa qui" o "sessione scaduta", con estrazione istantanea di testo, pulsanti e HTML serializzato verso il log host.
+  - **Intercettazione `console.error` e `console.warn`**: Inoltro in tempo reale verso `AppLogger` di tutti gli errori e avvertimenti critici generati dal codice client di WhatsApp Web.
+  - **Monitoraggio WebSocket (`wss://web.whatsapp.com/ws/chat`)**: Cattura di ogni evento `open`, `error` e `close` (con codice numerico, motivo testuale e flag `wasClean`).
+  - **Intercettazione `indexedDB.deleteDatabase`**: Cattura dello stack trace completo di qualsiasi script che tenti di eliminare il database locale di sessione (`wawc`).
+  - **Gestione Errori Globali**: Cattura di `window.onerror`, `unhandledrejection`, cambi di visibilità (`visibilitychange`) e disconnessioni di rete (`online`/`offline`).
+- **Snapshot Sessione Last-Known-Good e Protezione Collasso Storage (`NetworkProfileSync.vb`)**:
+  - **Snapshot Automatico Protetto (`WV2Profile_{id}_Snapshot`)**: Creazione e aggiornamento continuo di uno snapshot congelato della sessione quando il database locale supera i 2 MB (sessione autenticata e funzionante).
+  - **Blocco Cancellazione Distruttiva Master**: Se nello staging locale il database subisce un collasso imprevisto (< 500 KB) mentre il master su rete possiede una sessione sana (> 2 MB), la rimozione mirror viene tassativamente bloccata e viene emesso un allarme di sicurezza.
+  - **Ripristino Resiliente all'Avvio**: Risolto il difetto che saltava il download da master anche in presenza di sessioni incomplete o danneggiate in staging; se lo staging è compromesso o vuoto, il profilo viene ripristinato automaticamente dal master o dallo snapshot Last-Known-Good.
+- **Stabilità Processo e WebSockets in Background (`AppAccounts.vb`)**:
+  - **Prevenzione Sospensione Keepalive**: Reintrodotti `--disable-background-timer-throttling` e `--disable-backgrounding-occluded-windows` per evitare che Chromium congeli i timer dei ping WebSocket notturni, mentre il basso carico della CPU rimane garantito dal debounce e dal polling leggero a 25s di `notification.js`.
+  - **Abilitazione DevTools e Ispezione Risposte**: DevTools attivi e ascolto degli eventi `WebResourceResponseReceived` e `ProcessFailed` per la diagnostica completa.
+
 ## [1.1.2-beta] - 2026-10-02
 
 ### Pre-release / Beta — Risoluzione Definitiva Perdita Sessione WhatsApp Web, Timer Sincronizzazione Periodica e Ottimizzazione Memoria Background

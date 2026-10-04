@@ -361,7 +361,8 @@ Public Class AccountManager
                     ' Esclude il profilo orfano generico non tipizzato (gestito da MigrateOrphanProfileAsync) e i backup
                     If dirName.Equals("WV2Profile_", StringComparison.OrdinalIgnoreCase) OrElse
                        dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse
-                       dirName.Contains(".bak_") Then
+                       dirName.Contains(".bak_") OrElse
+                       dirName.EndsWith("_Snapshot", StringComparison.OrdinalIgnoreCase) Then
                         Continue For
                     End If
 
@@ -519,7 +520,8 @@ Public Class AccountManager
                     Dim dirName = Path.GetFileName(pDir)
                     If dirName.Equals("WV2Profile_", StringComparison.OrdinalIgnoreCase) OrElse
                        dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse
-                       dirName.Contains(".bak_") Then
+                       dirName.Contains(".bak_") OrElse
+                       dirName.EndsWith("_Snapshot", StringComparison.OrdinalIgnoreCase) Then
                         Continue For
                     End If
 

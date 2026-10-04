@@ -784,7 +784,7 @@ Public Class AppAccounts
                 options.Language = effectiveLang
             End If
 
-            Dim browserArgs = "--disable-component-update --disable-domain-reliability --no-crash-upload"
+            Dim browserArgs = "--disable-component-update --disable-domain-reliability --no-crash-upload --disable-background-timer-throttling --disable-backgrounding-occluded-windows"
             Dim disabledFeatures As New List(Of String) From {"Translate", "MediaRouter"}
             If settings.EnableSpellcheck Then
                 browserArgs &= $" --enable-features=Spellcheck --lang={effectiveLang}"
@@ -800,11 +800,7 @@ Public Class AppAccounts
             _isCrashed = False
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
-#If DEBUG Then
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
-#Else
-            WebView.CoreWebView2.Settings.AreDevToolsEnabled = False
-#End If
             WebView.CoreWebView2.Settings.IsGeneralAutofillEnabled = True
             WebView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = False
             
@@ -814,6 +810,18 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.ProcessFailed, _processFailedHandler
             
+            ' Monitoraggio diagnostico risposte HTTP per intercettare disconnessioni API o errori 4xx/5xx
+            AddHandler WebView.CoreWebView2.WebResourceResponseReceived, Sub(sender, respArgs)
+                Try
+                    Dim status = respArgs.Response.StatusCode
+                    Dim uri = respArgs.Request.Uri
+                    If status >= 400 Then
+                        AppLogger.LogWhatsApp($"[{Id}] HTTP {status} su {uri}")
+                    End If
+                Catch
+                End Try
+            End Sub
+
             ' Salvataggio riferimenti handler per poterli rimuovere in Dispose()
             _permissionRequestedHandler = Sub(sender, e)
                 If e.PermissionKind = CoreWebView2PermissionKind.Notifications Then
@@ -942,6 +950,8 @@ Public Class AppAccounts
                 Try
                     If _isDisposed OrElse WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
 
+                    AppLogger.LogApp($"[NavigationCompleted] Account {Id} ({Name}) - IsSuccess={e.IsSuccess}, WebErrorStatus={e.WebErrorStatus}, Uri={WebView?.Source}")
+
                     If e.IsSuccess Then
                         If Not IsOpenClaw AndAlso Not IsHermes Then
                             ' Iniezione di sicurezza/fallback di notification.js se non precedentemente caricato
@@ -1038,7 +1048,10 @@ Public Class AppAccounts
     ''' </summary>
     Private Sub HandleProcessFailed(e As CoreWebView2ProcessFailedEventArgs)
         Try
-            Debug.WriteLine($"[ProcessFailed] Account {Id} ({Name}) - Kind: {e.ProcessFailedKind}, Reason: {e.Reason}, ExitCode: {e.ExitCode}, Description: {e.ProcessDescription}")
+            Dim crashMsg = $"[ProcessFailed] Account {Id} ({Name}) - Kind: {e.ProcessFailedKind}, Reason: {e.Reason}, ExitCode: {e.ExitCode}, Description: {e.ProcessDescription}"
+            Debug.WriteLine(crashMsg)
+            AppLogger.LogApp(crashMsg)
+            AppLogger.Log("whatsapp_errors.log", "PROCESS_CRASH", crashMsg)
             
             ' Se crasha unicamente il processo di rendering (tab), un rapido reload è sufficiente per ripristinarlo
             If e.ProcessFailedKind = CoreWebView2ProcessFailedKind.RenderProcessExited Then
@@ -1205,12 +1218,43 @@ Public Class AppAccounts
                     Await HandleNotificationMessageAsync(root, settings, onNotificationChanged)
                 ElseIf channel = "TranslationChannel" Then
                     Await HandleTranslationMessageAsync(root)
+                ElseIf channel = "DiagnosticChannel" Then
+                    HandleDiagnosticMessage(root)
                 End If
             End Using
         Catch ex As Exception
             Debug.WriteLine($"Error handling web message: {ex.Message}")
         End Try
     End Function
+
+    ''' <summary>
+    ''' Elabora i messaggi diagnostici provenienti dagli script JavaScript iniettati nella WebView2.
+    ''' </summary>
+    Private Sub HandleDiagnosticMessage(root As JsonElement)
+        Try
+            Dim subType = ""
+            Dim typeNode As JsonElement = Nothing
+            If root.TryGetProperty("type", typeNode) AndAlso typeNode.ValueKind = JsonValueKind.String Then
+                subType = typeNode.GetString()
+            End If
+
+            Dim detailsNode As JsonElement = Nothing
+            root.TryGetProperty("details", detailsNode)
+            Dim detailsText = If(detailsNode.ValueKind <> JsonValueKind.Undefined, detailsNode.ToString(), "")
+
+            AppLogger.LogWhatsApp($"[{Id}] [{subType}] {detailsText}")
+
+            If subType = "POPUP_ERROR_DETECTED" Then
+                AppLogger.Log("whatsapp_errors.log", "POPUP_ERROR", $"[ACCOUNT: {Id} - {Name}] ERRORE DIALOG WHATSAPP: {detailsText}")
+            ElseIf subType = "INDEXEDDB_DELETE_ATTEMPT" Then
+                AppLogger.Log("whatsapp_errors.log", "INDEXEDDB_DELETE", $"[ACCOUNT: {Id} - {Name}] TENTATIVO CANCELLAZIONE DATABASE: {detailsText}")
+            ElseIf subType = "WS_CLOSE" Then
+                AppLogger.LogWhatsApp($"[ACCOUNT: {Id} - {Name}] WebSocket Chiuso: {detailsText}")
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"HandleDiagnosticMessage error: {ex.Message}")
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Gestisce la ricezione o chiusura delle notifiche dai messaggi IPC e attiva le notifiche Toast o Popup della UI.

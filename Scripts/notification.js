@@ -6,6 +6,198 @@
 
   const activeCustomNotifications = {};
 
+  // --- CANALE DIAGNOSTICA AVANZATA (TODO #73) ---
+  function sendDiagnostic(subType, details) {
+    try {
+      if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+        window.chrome.webview.postMessage({
+          channel: 'DiagnosticChannel',
+          type: subType,
+          details: details,
+          bridgeToken: __bridgeToken
+        });
+      }
+    } catch(e) {}
+  }
+
+  // Intercettazione errori JS non gestiti e Promise rejections
+  try {
+    window.addEventListener('error', function(ev) {
+      try {
+        sendDiagnostic('WINDOW_ERROR', {
+          message: ev.message || 'Unknown error',
+          filename: ev.filename || '',
+          lineno: ev.lineno || 0,
+          colno: ev.colno || 0,
+          stack: ev.error && ev.error.stack ? String(ev.error.stack).substring(0, 2000) : ''
+        });
+      } catch(e) {}
+    });
+
+    window.addEventListener('unhandledrejection', function(ev) {
+      try {
+        const reason = ev.reason;
+        const msg = reason ? (reason.message || String(reason)) : 'Unknown rejection';
+        const stack = reason && reason.stack ? String(reason.stack).substring(0, 2000) : '';
+        sendDiagnostic('UNHANDLED_REJECTION', { message: msg, stack: stack });
+      } catch(e) {}
+    });
+
+    window.addEventListener('online', function() { sendDiagnostic('NET_ONLINE', { timestamp: Date.now() }); });
+    window.addEventListener('offline', function() { sendDiagnostic('NET_OFFLINE', { timestamp: Date.now() }); });
+  } catch(e) {}
+
+  // Intercettazione console.error e console.warn
+  try {
+    const origConsoleError = console.error.bind(console);
+    const origConsoleWarn = console.warn.bind(console);
+    console.error = function() {
+      try {
+        const argsStr = Array.from(arguments).map(a => {
+          if (a instanceof Error) return a.message + '\n' + a.stack;
+          if (typeof a === 'object') {
+            try { return JSON.stringify(a); } catch(e) { return String(a); }
+          }
+          return String(a);
+        }).join(' ');
+        sendDiagnostic('CONSOLE_ERROR', { message: argsStr.substring(0, 2000) });
+      } catch(e) {}
+      return origConsoleError.apply(console, arguments);
+    };
+
+    console.warn = function() {
+      try {
+        const argsStr = Array.from(arguments).map(a => {
+          if (typeof a === 'object') {
+            try { return JSON.stringify(a); } catch(e) { return String(a); }
+          }
+          return String(a);
+        }).join(' ');
+        if (argsStr.includes('IndexedDB') || argsStr.includes('socket') || argsStr.includes('disconnect') ||
+            argsStr.includes('auth') || argsStr.includes('storage') || argsStr.includes('wawc') ||
+            argsStr.includes('LevelDB') || argsStr.includes('close') || argsStr.includes('terminat')) {
+          sendDiagnostic('CONSOLE_WARN', { message: argsStr.substring(0, 2000) });
+        }
+      } catch(e) {}
+      return origConsoleWarn.apply(console, arguments);
+    };
+  } catch(e) {}
+
+  // Intercettazione WebSocket per WhatsApp / Telegram
+  try {
+    if (typeof window.WebSocket === 'function') {
+      const OrigWebSocket = window.WebSocket;
+      window.WebSocket = function(url, protocols) {
+        const ws = protocols !== undefined ? new OrigWebSocket(url, protocols) : new OrigWebSocket(url);
+        try {
+          const urlStr = String(url);
+          if (urlStr.includes('whatsapp') || urlStr.includes('telegram')) {
+            sendDiagnostic('WS_CONNECTING', { url: urlStr });
+            ws.addEventListener('open', function() {
+              sendDiagnostic('WS_OPEN', { url: urlStr });
+            });
+            ws.addEventListener('close', function(ev) {
+              sendDiagnostic('WS_CLOSE', {
+                url: urlStr,
+                code: ev.code,
+                reason: ev.reason || '',
+                wasClean: ev.wasClean
+              });
+            });
+            ws.addEventListener('error', function() {
+              sendDiagnostic('WS_ERROR', { url: urlStr });
+            });
+          }
+        } catch(e) {}
+        return ws;
+      };
+      window.WebSocket.prototype = OrigWebSocket.prototype;
+      Object.setPrototypeOf(window.WebSocket, OrigWebSocket);
+    }
+  } catch(e) {}
+
+  // Intercettazione e protezione assoluta da auto-distruzione database IndexedDB (TODO #73)
+  try {
+    if (window.indexedDB && typeof window.indexedDB.deleteDatabase === 'function') {
+      const origDeleteDb = window.indexedDB.deleteDatabase.bind(window.indexedDB);
+      // Database critici che contengono token di autenticazione, chiavi crittografiche Signal, device registration e sessione
+      const protectedDatabases = [
+        'signal-storage',
+        'wawc_db_enc',
+        'wawc',
+        'model-storage',
+        'worker-storage',
+        'status-storage',
+        'guest-events-storage',
+        'jobs-storage',
+        'lru-media-storage-idb',
+        'offd-storage',
+        'fts-storage',
+        'sw'
+      ];
+
+      window.indexedDB.deleteDatabase = function(name) {
+        const dbNameStr = String(name || '');
+        const stack = new Error().stack || '';
+
+        try {
+          sendDiagnostic('INDEXEDDB_DELETE_ATTEMPT', {
+            dbName: dbNameStr,
+            stack: stack.substring(0, 2000)
+          });
+        } catch(e) {}
+
+        // Se è un database protetto critico per la persistenza della sessione WhatsApp / Telegram
+        if (protectedDatabases.includes(dbNameStr)) {
+          try {
+            sendDiagnostic('INDEXEDDB_DELETE_BLOCKED', {
+              dbName: dbNameStr,
+              message: 'Cancellazione database protetto bloccata per salvaguardare le chiavi di sessione!'
+            });
+          } catch(e) {}
+
+          // Non cancelliamo MAI il database reale su disco!
+          // Chiamiamo origDeleteDb con un database fittizio in modo da restituire un IDBOpenDBRequest
+          // perfettamente valido e conforme alle specifiche W3C su cui scatta onsuccess.
+          // In questo modo l'handler di reset di WhatsApp non va in crash, ma le chiavi di autenticazione
+          // rimangono intatte sul disco.
+          return origDeleteDb('__hidachat_dummy_db__');
+        }
+
+        return origDeleteDb.apply(window.indexedDB, arguments);
+      };
+    }
+  } catch(e) {}
+
+  // Rilevamento dialoghi modali di errore/disconnessione nel DOM
+  let lastReportedPopupText = '';
+  function scanErrorPopups() {
+    try {
+      const dialogs = document.querySelectorAll('div[role="dialog"], [data-animate-modal-popup="true"], [data-testid="popup-contents"], .landing-wrapper, [data-testid="intro-text"]');
+      for (let i = 0; i < dialogs.length; i++) {
+        const dlg = dialogs[i];
+        const text = (dlg.textContent || '').trim();
+        if (!text) continue;
+        const lower = text.toLowerCase();
+        if (lower.includes('disconness') || lower.includes('logged out') || lower.includes('qualcosa è andato storto') ||
+            lower.includes('something went wrong') || lower.includes('usa qui') || lower.includes('use here') ||
+            lower.includes('sessione scaduta') || lower.includes('session expired') || lower.includes('connetti il telefono') ||
+            lower.includes('phone not connected') || lower.includes('errore del browser') || lower.includes('out of memory')) {
+          if (text !== lastReportedPopupText) {
+            lastReportedPopupText = text;
+            const buttons = Array.from(dlg.querySelectorAll('button, [role="button"]')).map(b => (b.textContent || '').trim());
+            sendDiagnostic('POPUP_ERROR_DETECTED', {
+              dialogText: text.substring(0, 1000),
+              buttons: buttons,
+              html: dlg.outerHTML.substring(0, 1500)
+            });
+          }
+          break;
+        }
+      }
+    } catch(e) {}
+  }
+
   try {
     // 1. Intercetta ServiceWorkerRegistration.prototype.showNotification (usato da WhatsApp Web e Telegram PWA)
     if (window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype) {
@@ -487,6 +679,7 @@
     // Se la pagina è nascosta (minimizzata o in background), aumenta il debounce a 2500ms
     const delay = (typeof document !== 'undefined' && document.hidden) ? 2500 : 350;
     updateDebounceTimer = setTimeout(function() {
+      scanErrorPopups();
       checkAndNotifyUnreadCount();
       // Scansiona lo stato online del contatto solo se la pagina è visibile in primo piano
       if (typeof document !== 'undefined' && !document.hidden) {
@@ -545,6 +738,7 @@
     function runAdaptivePoll() {
       const isHidden = (typeof document !== 'undefined' && document.hidden);
       tryAttachChatPanelObserver();
+      scanErrorPopups();
       checkAndNotifyUnreadCount();
       if (!isHidden) {
         checkAndNotifyOnlineStatus();
@@ -557,6 +751,7 @@
     // Ripresa immediata al cambio di visibilità della finestra (quando l'utente sblocca il PC o apre la finestra)
     if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
       document.addEventListener('visibilitychange', function() {
+        sendDiagnostic('VISIBILITY_CHANGE', { hidden: document.hidden });
         if (!document.hidden) {
           scheduleAllChecks();
         }

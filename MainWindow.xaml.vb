@@ -18,6 +18,7 @@ Public Class MainWindow
     Private _defaultShadowEffect As Effect
     Private _dndTimer As System.Windows.Threading.DispatcherTimer
     Private _periodicNetworkSyncTimer As System.Windows.Threading.DispatcherTimer
+    Private _isPeriodicNetworkSyncRunning As Boolean = False
 
     Public Sub New()
         InitializeComponent()
@@ -181,8 +182,17 @@ Public Class MainWindow
                     .Interval = TimeSpan.FromMinutes(10)
                 }
                 AddHandler _periodicNetworkSyncTimer.Tick, Async Sub()
+                    If _isPeriodicNetworkSyncRunning Then
+                        AppLogger.LogSync("PeriodicSync: sincronizzazione precedente ancora attiva, tick ignorato.")
+                        Return
+                    End If
                     If _settingsController.EnableNetworkProfileStaging Then
-                        Await _accountManager.SyncAllProfilesToNetworkAsync(isPeriodic:=True)
+                        _isPeriodicNetworkSyncRunning = True
+                        Try
+                            Await _accountManager.SyncAllProfilesToNetworkAsync(isPeriodic:=True)
+                        Finally
+                            _isPeriodicNetworkSyncRunning = False
+                        End Try
                     End If
                 End Sub
                 _periodicNetworkSyncTimer.Start()

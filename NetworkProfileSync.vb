@@ -10,6 +10,8 @@ Imports System.Diagnostics
 ''' </summary>
 Public Class NetworkProfileSync
 
+    Private Shared ReadOnly _syncLock As New System.Threading.SemaphoreSlim(1, 1)
+
     Private Shared ReadOnly _isRunningOnNetwork As Lazy(Of Boolean) = New Lazy(Of Boolean)(Function()
         Return IsNetworkPath(AppDomain.CurrentDomain.BaseDirectory)
     End Function)
@@ -138,7 +140,7 @@ Public Class NetworkProfileSync
     ''' Se isMirror è True, elimina dalla destinazione i file non più presenti nella sorgente (utile alla chiusura per LevelDB compact).
     ''' Se onlyIfSourceNewer è True, non sovrascrive mai file di destinazione che risultano più recenti della sorgente.
     ''' </summary>
-    Public Shared Async Function SyncDirectoryAsync(sourceDir As String, targetDir As String, isMirror As Boolean, Optional onlyIfSourceNewer As Boolean = False) As Task(Of Boolean)
+    Public Shared Async Function SyncDirectoryAsync(sourceDir As String, targetDir As String, isMirror As Boolean, Optional onlyIfSourceNewer As Boolean = False, Optional isPeriodic As Boolean = False) As Task(Of Boolean)
         If String.IsNullOrWhiteSpace(sourceDir) OrElse Not Directory.Exists(sourceDir) Then Return False
 
         Return Await Task.Run(Function() As Boolean
@@ -148,6 +150,23 @@ Public Class NetworkProfileSync
                 End If
 
                 Dim sourceDirUri = New Uri(sourceDir.TrimEnd(Path.DirectorySeparatorChar) & Path.DirectorySeparatorChar)
+
+                ' Indicizza preliminarmente i file esistenti nella destinazione per evitare migliaia di query di rete (File.Exists / FileInfo) individuali su SMB
+                Dim dstMap As New Dictionary(Of String, (Length As Long, LastWriteTimeUtc As DateTime))(StringComparer.OrdinalIgnoreCase)
+                If Directory.Exists(targetDir) Then
+                    Dim targetDirUri = New Uri(targetDir.TrimEnd(Path.DirectorySeparatorChar) & Path.DirectorySeparatorChar)
+                    For Each dstFile In Directory.EnumerateFiles(targetDir, "*", SearchOption.AllDirectories)
+                        Try
+                            Dim dstUri = New Uri(dstFile)
+                            Dim relPath = Uri.UnescapeDataString(targetDirUri.MakeRelativeUri(dstUri).ToString().Replace("/"c, "\"c))
+                            If Not ShouldSkipRelativePath(relPath) Then
+                                Dim fi As New FileInfo(dstFile)
+                                dstMap(relPath) = (fi.Length, fi.LastWriteTimeUtc)
+                            End If
+                        Catch
+                        End Try
+                    Next
+                End If
 
                 ' 1. Copia incrementale di file nuovi o modificati
                 For Each srcFile In Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories)
@@ -164,9 +183,9 @@ Public Class NetworkProfileSync
                         End If
 
                         Dim needCopy = True
-                        If File.Exists(dstFile) Then
+                        Dim dstInfo As (Length As Long, LastWriteTimeUtc As DateTime) = Nothing
+                        If dstMap.TryGetValue(relPath, dstInfo) Then
                             Dim srcInfo As New FileInfo(srcFile)
-                            Dim dstInfo As New FileInfo(dstFile)
                             If srcInfo.Length = dstInfo.Length AndAlso Math.Abs((srcInfo.LastWriteTimeUtc - dstInfo.LastWriteTimeUtc).TotalSeconds) < 2 Then
                                 needCopy = False
                             ElseIf onlyIfSourceNewer AndAlso srcInfo.LastWriteTimeUtc <= dstInfo.LastWriteTimeUtc Then
@@ -176,7 +195,7 @@ Public Class NetworkProfileSync
                         End If
 
                         If needCopy Then
-                            CopyFileWithRetry(srcFile, dstFile, maxRetries:=6)
+                            CopyFileWithRetry(srcFile, dstFile, maxRetries:=If(isPeriodic, 3, 6), isPeriodic:=isPeriodic)
                         End If
                     Catch exFile As Exception
                         Debug.WriteLine($"[NetworkProfileSync] SyncDirectory file copy warning ({srcFile}): {exFile.Message}")
@@ -184,17 +203,12 @@ Public Class NetworkProfileSync
                 Next
 
                 ' 2. Pulizia mirror (rimozione file orfani nel target non più presenti in sorgente)
-                If isMirror AndAlso Directory.Exists(targetDir) Then
-                    Dim targetDirUri = New Uri(targetDir.TrimEnd(Path.DirectorySeparatorChar) & Path.DirectorySeparatorChar)
-                    For Each dstFile In Directory.EnumerateFiles(targetDir, "*", SearchOption.AllDirectories)
+                If isMirror AndAlso dstMap.Count > 0 Then
+                    For Each relPath In dstMap.Keys
                         Try
-                            Dim dstUri = New Uri(dstFile)
-                            Dim relPath = Uri.UnescapeDataString(targetDirUri.MakeRelativeUri(dstUri).ToString().Replace("/"c, "\"c))
-
-                            If ShouldSkipRelativePath(relPath) Then Continue For
-
                             Dim srcFile = Path.Combine(sourceDir, relPath)
                             If Not File.Exists(srcFile) Then
+                                Dim dstFile = Path.Combine(targetDir, relPath)
                                 Try
                                     File.Delete(dstFile)
                                     Debug.WriteLine($"[NetworkProfileSync] Mirror removed obsolete target file: {dstFile}")
@@ -217,12 +231,15 @@ Public Class NetworkProfileSync
     ''' <summary>
     ''' Copia un file gestendo eventuali lock temporanei tramite tentativi con ritardo.
     ''' </summary>
-    Private Shared Sub CopyFileWithRetry(sourceFile As String, destFile As String, maxRetries As Integer)
+    Private Shared Sub CopyFileWithRetry(sourceFile As String, destFile As String, maxRetries As Integer, Optional isPeriodic As Boolean = False)
         For attempt = 1 To maxRetries
             Try
-                ' Usa FileShare.ReadWrite per permettere la lettura anche se il file è aperto con shared access
-                Using srcStream As New FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
-                    Using dstStream As New FileStream(destFile, FileMode.Create, FileAccess.Write, FileShare.None)
+                ' CRITICO: FileShare.ReadWrite Or FileShare.Delete
+                ' L'aggiunta di FileShare.Delete è indispensabile: permette a Chromium LevelDB di eliminare o rinominare
+                ' i file SST (.ldb) e i file di log (.log) durante la compattazione in background,
+                ' prevenendo l'errore di condivisione ERROR_SHARING_VIOLATION (0x20) che corrompeva la sessione di WhatsApp.
+                Using srcStream As New FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite Or FileShare.Delete)
+                    Using dstStream As New FileStream(destFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite Or FileShare.Delete)
                         srcStream.CopyTo(dstStream)
                     End Using
                 End Using
@@ -233,13 +250,13 @@ Public Class NetworkProfileSync
                     Debug.WriteLine($"[NetworkProfileSync] CopyFileWithRetry failed after {maxRetries} attempts for '{sourceFile}': {ex.Message}")
                     Exit For
                 End If
-                System.Threading.Thread.Sleep(150 * attempt)
+                System.Threading.Thread.Sleep(If(isPeriodic, 30 * attempt, 100 * attempt))
             Catch ex As UnauthorizedAccessException
                 If attempt = maxRetries Then
                     Debug.WriteLine($"[NetworkProfileSync] CopyFileWithRetry access denied after {maxRetries} attempts for '{sourceFile}': {ex.Message}")
                     Exit For
                 End If
-                System.Threading.Thread.Sleep(150 * attempt)
+                System.Threading.Thread.Sleep(If(isPeriodic, 30 * attempt, 100 * attempt))
             Catch ex As Exception
                 Debug.WriteLine($"[NetworkProfileSync] CopyFileWithRetry unexpected error for '{sourceFile}': {ex.Message}")
                 Exit For
@@ -248,55 +265,174 @@ Public Class NetworkProfileSync
     End Sub
 
     ''' <summary>
+    ''' Calcola la dimensione totale in byte dei database IndexedDB e Local Storage del profilo specificato.
+    ''' </summary>
+    Public Shared Function GetProfileStorageSize(profileDir As String) As Long
+        Try
+            If Not Directory.Exists(profileDir) Then Return 0
+            Dim totalBytes As Long = 0
+            Dim targetDirs = {
+                Path.Combine(profileDir, "EBWebView\Default\IndexedDB"),
+                Path.Combine(profileDir, "EBWebView\Default\Local Storage")
+            }
+            For Each d In targetDirs
+                If Directory.Exists(d) Then
+                    For Each f In Directory.EnumerateFiles(d, "*", SearchOption.AllDirectories)
+                        Try
+                            Dim fi As New FileInfo(f)
+                            totalBytes += fi.Length
+                        Catch
+                        End Try
+                    Next
+                End If
+            Next
+            Return totalBytes
+        Catch
+            Return 0
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Percorso della cartella snapshot Last-Known-Good per un account (data/webview/WV2Profile_{id}_Snapshot).
+    ''' </summary>
+    Public Shared Function GetSnapshotProfileDir(accountId As String) As String
+        Return Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}_Snapshot")
+    End Function
+
+    ''' <summary>
+    ''' Crea o aggiorna lo snapshot Last-Known-Good solo se il profilo contiene una sessione sana (> 2 MB).
+    ''' </summary>
+    Public Shared Async Function CreateSnapshotIfHealthyAsync(sourceDir As String, accountId As String) As Task(Of Boolean)
+        Try
+            Dim size = GetProfileStorageSize(sourceDir)
+            If size < 2 * 1024 * 1024 Then
+                Return False
+            End If
+
+            Dim snapshotDir = GetSnapshotProfileDir(accountId)
+            AppLogger.LogSync($"Creazione/aggiornamento Snapshot Last-Known-Good per {accountId} (Dimensione: {size \ 1024} KB)...")
+            Dim result = Await SyncDirectoryAsync(sourceDir, snapshotDir, isMirror:=True, onlyIfSourceNewer:=False)
+            If result Then
+                AppLogger.LogSync($"Snapshot Last-Known-Good completato per {accountId}")
+            End If
+            Return result
+        Catch ex As Exception
+            AppLogger.LogSync($"Errore creazione snapshot per {accountId}: {ex.Message}")
+            Return False
+        End Try
+    End Function
+
+    ''' <summary>
     ''' Sincronizza il profilo master dal drive di rete allo staging locale prima dell'avvio di WebView2.
     ''' Protegge la sessione locale se già esistente, evitando sovrascritture da master obsoleto.
     ''' </summary>
     Public Shared Async Function SyncMasterToLocalStagingAsync(accountId As String) As Task(Of Boolean)
         Dim masterDir = GetMasterProfileDir(accountId)
         Dim stagingDir = GetLocalStagingProfileDir(accountId)
+        Dim snapshotDir = GetSnapshotProfileDir(accountId)
 
-        If Not Directory.Exists(masterDir) Then
-            Debug.WriteLine($"[NetworkProfileSync] Master profile does not exist yet: {masterDir}")
-            Return False
+        Dim masterExists = Directory.Exists(masterDir)
+        Dim stagingExists = Directory.Exists(stagingDir)
+        Dim snapshotExists = Directory.Exists(snapshotDir)
+
+        Dim masterSize = If(masterExists, GetProfileStorageSize(masterDir), 0L)
+        Dim stagingSize = If(stagingExists, GetProfileStorageSize(stagingDir), 0L)
+        Dim snapshotSize = If(snapshotExists, GetProfileStorageSize(snapshotDir), 0L)
+
+        AppLogger.LogSync($"SyncMasterToLocalStaging [{accountId}] Inizio verifica: Master={masterSize \ 1024} KB, Staging={stagingSize \ 1024} KB, Snapshot={snapshotSize \ 1024} KB")
+
+        ' Caso 1: Staging locale è vuoto o collassato (< 500 KB) mentre Master ha una sessione (> 2 MB)
+        If stagingSize < 500 * 1024 AndAlso masterSize >= 2 * 1024 * 1024 Then
+            AppLogger.LogSync($"SyncMasterToLocalStaging [{accountId}] Staging vuoto o non integro ({stagingSize \ 1024} KB). Ripristino completo da Master ({masterSize \ 1024} KB)...")
+            Dim sw = Stopwatch.StartNew()
+            Dim res = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=False)
+            sw.Stop()
+            AppLogger.LogSync($"SyncMasterToLocalStaging [{accountId}] Ripristino Master -> Staging completato in {sw.ElapsedMilliseconds} ms (Esito: {res})")
+            Return res
         End If
 
-        ' Se la cartella di staging locale esiste già e contiene una sessione attiva (IndexedDB o Preferences),
-        ' non scaricare dal master di rete per prevenire la sovrascrittura con file obsoleti o conflitti LevelDB.
-        Dim stagingHasSession = (Directory.Exists(Path.Combine(stagingDir, "EBWebView\Default\IndexedDB")) AndAlso
-                                 Directory.EnumerateFiles(Path.Combine(stagingDir, "EBWebView\Default\IndexedDB"), "*", SearchOption.AllDirectories).Any()) OrElse
-                                File.Exists(Path.Combine(stagingDir, "EBWebView\Default\Preferences"))
-
-        If stagingHasSession Then
-            Debug.WriteLine($"[NetworkProfileSync] Sessione locale attiva già presente in staging per account {accountId}. Salto download da master per proteggere la sessione da sovrascritture.")
+        ' Caso 2: Sia Staging che Master sono collassati (< 500 KB) MA Snapshot ha sessione sana (> 2 MB)
+        If stagingSize < 500 * 1024 AndAlso masterSize < 500 * 1024 AndAlso snapshotSize >= 2 * 1024 * 1024 Then
+            AppLogger.LogSync($"SyncMasterToLocalStaging [{accountId}] ALLARME: Master e Staging entrambi collassati! Ripristino automatico da Snapshot Last-Known-Good ({snapshotSize \ 1024} KB)...")
+            Await SyncDirectoryAsync(snapshotDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=False)
+            Await SyncDirectoryAsync(snapshotDir, masterDir, isMirror:=False, onlyIfSourceNewer:=False)
             Return True
         End If
 
-        Debug.WriteLine($"[NetworkProfileSync] Download iniziale Master -> Staging per account {accountId}...")
-        Dim sw = Stopwatch.StartNew()
-        Dim result = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=False)
-        sw.Stop()
-        Debug.WriteLine($"[NetworkProfileSync] Completato download Master -> Staging per {accountId} in {sw.ElapsedMilliseconds} ms (Esito: {result})")
-        Return result
+        ' Caso 3: Master esiste e Staging esiste
+        If masterExists Then
+            AppLogger.LogSync($"SyncMasterToLocalStaging [{accountId}] Sincronizzazione incrementale protetta (onlyIfSourceNewer:=True)...")
+            Dim sw = Stopwatch.StartNew()
+            ' Preserva file locali recenti ma scarica eventuali file mancanti o più recenti dal Master
+            Dim res = Await SyncDirectoryAsync(masterDir, stagingDir, isMirror:=False, onlyIfSourceNewer:=True)
+            sw.Stop()
+            AppLogger.LogSync($"SyncMasterToLocalStaging [{accountId}] Completata in {sw.ElapsedMilliseconds} ms (Esito: {res})")
+            Return res
+        End If
+
+        Return True
     End Function
 
     ''' <summary>
     ''' Sincronizza il profilo aggiornato dallo staging locale al master su drive di rete alla chiusura dell'applicazione o periodicamente.
-    ''' Se isPeriodic è True, non elimina file dal master (isMirror:=False) per evitare rimozioni premature mentre il browser è attivo.
+    ''' Se isPeriodic è True, non elimina file dal master (isMirror:=False) a meno che il master non sia oltre il doppio dello staging sano,
+    ''' per evitare l'accumulo di vecchi file .ldb orfani durante sessioni attive 24/7.
     ''' </summary>
     Public Shared Async Function SyncLocalStagingToMasterAsync(accountId As String, Optional isPeriodic As Boolean = False) As Task(Of Boolean)
-        Dim stagingDir = GetLocalStagingProfileDir(accountId)
-        Dim masterDir = GetMasterProfileDir(accountId)
-
-        If Not Directory.Exists(stagingDir) Then
-            Return False
+        Dim acquired = Await _syncLock.WaitAsync(If(isPeriodic, 0, 30000))
+        If Not acquired Then
+            If isPeriodic Then
+                AppLogger.LogSync($"SyncLocalStagingToMaster [{accountId}] Sincronizzazione periodica saltata: un'altra operazione di sync è già attiva.")
+                Return False
+            Else
+                AppLogger.LogSync($"SyncLocalStagingToMaster [{accountId}] Attesa lock sincronizzazione scaduta (30s).")
+                Return False
+            End If
         End If
 
-        Debug.WriteLine($"[NetworkProfileSync] Sincronizzazione Staging -> Master per account {accountId} (isPeriodic={isPeriodic})...")
-        Dim sw = Stopwatch.StartNew()
-        Dim result = Await SyncDirectoryAsync(stagingDir, masterDir, isMirror:=(Not isPeriodic))
-        sw.Stop()
-        Debug.WriteLine($"[NetworkProfileSync] Completata sincronizzazione Staging -> Master per {accountId} in {sw.ElapsedMilliseconds} ms (Esito: {result})")
-        Return result
+        Try
+            Dim stagingDir = GetLocalStagingProfileDir(accountId)
+            Dim masterDir = GetMasterProfileDir(accountId)
+
+            If Not Directory.Exists(stagingDir) Then
+                Return False
+            End If
+
+            Dim stagingSize = GetProfileStorageSize(stagingDir)
+            Dim masterSize = If(Directory.Exists(masterDir), GetProfileStorageSize(masterDir), 0L)
+
+            AppLogger.LogSync($"SyncLocalStagingToMaster [{accountId}] (isPeriodic={isPeriodic}) Staging: {stagingSize \ 1024} KB, Master: {masterSize \ 1024} KB")
+
+            ' Gestione mirror: alla chiusura sempre mirror. Nel periodico, attiva mirror solo se il master si è gonfiato oltre il doppio dello staging sano (> 2MB)
+            Dim allowMirror = (Not isPeriodic)
+            If isPeriodic AndAlso stagingSize >= 2 * 1024 * 1024 AndAlso masterSize > (stagingSize * 2) Then
+                allowMirror = True
+                AppLogger.LogSync($"SyncLocalStagingToMaster [{accountId}] Pulizia mirror periodica attivata: Master ({masterSize \ 1024} KB) supera 2x Staging ({stagingSize \ 1024} KB).")
+            End If
+
+            ' PROTEZIONE CRITICA COLLASSO:
+            ' Se Master conteneva una sessione valida (> 2 MB) e Staging è improvvisamente crollato a < 500 KB (es. logout imprevisto o cancellazione tabelle LevelDB):
+            ' NON eseguire MAI il mirror distruttivo che cancellerebbe i file sul Master!
+            If allowMirror AndAlso masterSize >= 2 * 1024 * 1024 AndAlso stagingSize < 500 * 1024 Then
+                allowMirror = False
+                AppLogger.LogSync($"[ALLARME SICUREZZA] Account {accountId}: Staging collassato a {stagingSize \ 1024} KB mentre Master ha {masterSize \ 1024} KB. Mirror disattivato per proteggere il Master!")
+                AppLogger.Log("whatsapp_errors.log", "STAGING_COLLAPSE", $"[ACCOUNT: {accountId}] Staging storage collassato a {stagingSize \ 1024} KB (Master: {masterSize \ 1024} KB). Rifiutata eliminazione mirror sul Master.")
+            End If
+
+            Dim sw = Stopwatch.StartNew()
+            Dim result = Await SyncDirectoryAsync(stagingDir, masterDir, isMirror:=allowMirror, isPeriodic:=isPeriodic)
+            sw.Stop()
+            AppLogger.LogSync($"SyncLocalStagingToMaster [{accountId}] Completata in {sw.ElapsedMilliseconds} ms (Esito: {result})")
+
+            ' Se la sessione locale è sana (> 2 MB), aggiorna lo snapshot Last-Known-Good
+            If stagingSize >= 2 * 1024 * 1024 Then
+                Await CreateSnapshotIfHealthyAsync(stagingDir, accountId)
+            End If
+
+            Return result
+        Finally
+            _syncLock.Release()
+        End Try
     End Function
 
     ''' <summary>
