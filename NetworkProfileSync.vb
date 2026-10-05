@@ -93,8 +93,10 @@ Public Class NetworkProfileSync
     ''' <summary>
     ''' Determina se un file o directory relativo del profilo WebView2 debba essere escluso dalla sincronizzazione di rete.
     ''' Esclude cache volatili, shader, crash report e file di lock temporanei per massimizzare la velocità di trasferimento.
+    ''' Se isPeriodic è True, esclude categoricamente le cartelle LevelDB attive (IndexedDB e Local Storage) per evitare
+    ''' lock contention e l'errore QuotaExceededError in Chromium mentre il browser è attivo.
     ''' </summary>
-    Public Shared Function ShouldSkipRelativePath(relativePath As String) As Boolean
+    Public Shared Function ShouldSkipRelativePath(relativePath As String, Optional isPeriodic As Boolean = False) As Boolean
         If String.IsNullOrEmpty(relativePath) Then Return False
         Dim normalized = relativePath.Replace("/"c, "\"c).TrimStart("\"c)
 
@@ -122,6 +124,25 @@ Public Class NetworkProfileSync
                 Return True
             End If
         Next
+
+        ' Durante la sincronizzazione periodica a caldo (mentre WebView2 è in esecuzione):
+        ' ESCLUSIONE CRITICA LEVELDB: IndexedDB, Local Storage e Session Storage.
+        ' La lettura sequenziale dei file .ldb e .log su share SMB con latenza di rete tiene aperti lock di lettura
+        ' per minuti, provocando in Chromium: QuotaExceededError (AbortError) - dropping db read operation due to logout.
+        ' Lo staging locale su SSD è la fonte primaria affidabile 24/7; il mirror integrale su master avviene alla chiusura.
+        If isPeriodic Then
+            Dim liveDbPrefixes As String() = {
+                "EBWebView\Default\IndexedDB",
+                "EBWebView\Default\Local Storage",
+                "EBWebView\Default\Session Storage"
+            }
+            For Each prefix In liveDbPrefixes
+                If normalized.Equals(prefix, StringComparison.OrdinalIgnoreCase) OrElse
+                   normalized.StartsWith(prefix & "\", StringComparison.OrdinalIgnoreCase) Then
+                    Return True
+                End If
+            Next
+        End If
 
         ' Esclude file di lock temporanei
         Dim fileName = Path.GetFileName(normalized)
@@ -159,7 +180,7 @@ Public Class NetworkProfileSync
                         Try
                             Dim dstUri = New Uri(dstFile)
                             Dim relPath = Uri.UnescapeDataString(targetDirUri.MakeRelativeUri(dstUri).ToString().Replace("/"c, "\"c))
-                            If Not ShouldSkipRelativePath(relPath) Then
+                            If Not ShouldSkipRelativePath(relPath, isPeriodic) Then
                                 Dim fi As New FileInfo(dstFile)
                                 dstMap(relPath) = (fi.Length, fi.LastWriteTimeUtc)
                             End If
@@ -174,7 +195,7 @@ Public Class NetworkProfileSync
                         Dim srcUri = New Uri(srcFile)
                         Dim relPath = Uri.UnescapeDataString(sourceDirUri.MakeRelativeUri(srcUri).ToString().Replace("/"c, "\"c))
 
-                        If ShouldSkipRelativePath(relPath) Then Continue For
+                        If ShouldSkipRelativePath(relPath, isPeriodic) Then Continue For
 
                         Dim dstFile = Path.Combine(targetDir, relPath)
                         Dim dstDir = Path.GetDirectoryName(dstFile)
@@ -424,8 +445,9 @@ Public Class NetworkProfileSync
             sw.Stop()
             AppLogger.LogSync($"SyncLocalStagingToMaster [{accountId}] Completata in {sw.ElapsedMilliseconds} ms (Esito: {result})")
 
-            ' Se la sessione locale è sana (> 2 MB), aggiorna lo snapshot Last-Known-Good
-            If stagingSize >= 2 * 1024 * 1024 Then
+            ' Se la sessione locale è sana (> 2 MB), aggiorna lo snapshot Last-Known-Good SOLO alla chiusura dell'applicazione
+            ' MAI durante la sincronizzazione periodica a runtime (evita copia massiva da 33 minuti su SMB che intasa il disco di rete)
+            If Not isPeriodic AndAlso stagingSize >= 2 * 1024 * 1024 Then
                 Await CreateSnapshotIfHealthyAsync(stagingDir, accountId)
             End If
 

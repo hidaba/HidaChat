@@ -850,6 +850,25 @@ Public Class AppAccounts
                 If String.IsNullOrEmpty(e.Uri) Then Return
                 If e.Uri.StartsWith("about:blank", StringComparison.OrdinalIgnoreCase) Then Return
 
+                ' PROTEZIONE CRITICA WHATSAPP: blocca reindirizzamento forzato di logout (es. ?post_logout=1)
+                ' Quando WhatsApp Web incontra un timeout temporaneo del websocket o I/O di storage, tenta di navigare a ?post_logout=1
+                ' che distrugge la sessione visualizzando il QR code anche se le chiavi crittografiche sono ancora integre nel DB.
+                If IsWhatsApp AndAlso e.Uri.IndexOf("post_logout=", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                    e.Cancel = True
+                    AppLogger.Log("whatsapp_errors.log", "BLOCKED_POST_LOGOUT", $"[ACCOUNT: {Id}] Intercettata e bloccata navigazione forzata a '{e.Uri}'. Ripristino sessione su https://web.whatsapp.com/ ...")
+                    Dim app = Application.Current
+                    If app IsNot Nothing AndAlso app.Dispatcher IsNot Nothing Then
+                        app.Dispatcher.BeginInvoke(Sub()
+                            Try
+                                WebView?.CoreWebView2?.Navigate("https://web.whatsapp.com/")
+                            Catch exNav As Exception
+                                Debug.WriteLine($"[AppAccounts] Errore ripristino WhatsAppUrl: {exNav.Message}")
+                            End Try
+                        End Sub)
+                    End If
+                    Return
+                End If
+
                 If e.Uri.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
                     e.Cancel = True
                     Dim target = ResolveTelegramUrl(e.Uri)
