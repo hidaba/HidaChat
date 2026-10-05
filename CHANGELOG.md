@@ -2,16 +2,13 @@
 
 ## [1.1.5-beta] - 2026-10-05
 
-### Pre-release / Beta — Risoluzione Definitiva Disconnessione Notturna WhatsApp: Esclusione LevelDB Live da Sync Periodica, Protezione LocalStorage e Blocco Reindirizzamento post_logout
+### Pre-release / Beta — Risoluzione Causa Radice Disconnessione Notturna: Esclusione Cartelle LevelDB Live da Sync Periodica e Persistenza Storage W3C
 - **Eliminazione Contesa Lock LevelDB e QuotaExceededError (`NetworkProfileSync.vb`)**:
-  - **Esclusione Cartelle LevelDB Live durante Sync Periodica**: Durante la sincronizzazione periodica a runtime (`isPeriodic:=True`), le cartelle attive `IndexedDB`, `Local Storage` e `Session Storage` vengono categoricamente escluse. Leggere i file `.ldb` e `.log` mentre Chromium ne deteneva lock attivi su cartelle di rete SMB con latenza creava contese di I/O prolungate, innescando in Chromium l'errore `QuotaExceededError (AbortError) - dropping db read operation due to logout`. La cartella locale di staging su SSD rimane l'unica fonte di verità sicura e reattiva durante l'esecuzione; il mirror completo su master avviene atomicamente alla chiusura di WebView2.
+  - **Esclusione Cartelle LevelDB Live durante Sync Periodica**: Durante la sincronizzazione periodica a caldo (`isPeriodic:=True`), le cartelle attive `IndexedDB`, `Local Storage` e `Session Storage` vengono categoricamente escluse dalla copia su share SMB. La lettura sequenziale dei file `.ldb` e `.log` mentre Chromium ne deteneva lock attivi su rete con latenza creava contese di I/O prolungate, innescando l'errore `QuotaExceededError (AbortError) - dropping db read operation due to logout`. La cartella locale di staging su SSD rimane l'unica fonte di verità rapida e affidabile 24/7; il mirror completo su master avviene atomicamente alla chiusura ordinaria dell'applicazione.
   - **Rimozione Aggiornamento Snapshot Massivo nel Timer Periodico**: Lo snapshot Last-Known-Good viene ora aggiornato esclusivamente alla chiusura dell'applicazione (`Not isPeriodic`) e non più ad ogni ciclo da 10 minuti, eliminando copie continue da oltre 30 minuti che saturavano la banda di rete e il sottosistema disco.
-- **Protezione LocalStorage contro Distruzione Chiavi di Autenticazione (`Scripts/notification.js`)**:
-  - **Schermatura `localStorage.clear()` e `localStorage.removeItem()`**: Intercettate le chiamate di svuotamento dello storage per salvaguardare le chiavi crittografiche e di identità della sessione WhatsApp (`WABrowserId`, `WASecretBundle`, `WAToken1`, `WAToken2`, `last-wid`, `last-wid-md`, `me`, `remember-me`). In caso di attivazione del reset interno di WhatsApp, le chiavi di autenticazione non vengono eliminate dal disco.
+- **Persistenza Storage e Ciclo di Vita Pairing (`Scripts/notification.js`)**:
   - **Richiesta Persistenza Storage W3C (`navigator.storage.persist()`)**: Richiesta automatica all'avvio della persistenza dello storage per impedire a Chromium di applicare quote restrittive o sfratti automatici di dati in background.
-- **Intercettazione e Blocco Navigazione Forzata post_logout (`AppAccounts.vb`, `Scripts/notification.js`)**:
-  - **Blocco Reindirizzamento `post_logout=1` a livello WebView2**: Nel gestore eventi `NavigationStarting` di WebView2, qualsiasi richiesta di navigazione contenente `post_logout=` per account WhatsApp viene intercettata, bloccata (`e.Cancel = True`) e reindirizzata in sicurezza alla home page `https://web.whatsapp.com/`, impedendo l'atterraggio sulla pagina di reset sessione con codice QR.
-  - **Trappola JS su `window.location.replace` e `window.location.assign`**: Intercettati i metodi di navigazione della pagina per convertire tentativi di redirect a `post_logout` in ricaricamenti sicuri dell'interfaccia.
+  - **Preservazione del Ciclo di Reset e Accoppiamento QR**: Garantito il corretto completamento del protocollo di pairing QR senza blocchi di navigazione, permettendo la rigenerazione pulita delle chiavi di sessione.
 
 ## [1.1.4-beta] - 2026-10-04
 
