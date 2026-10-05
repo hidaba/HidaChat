@@ -116,25 +116,10 @@
     }
   } catch(e) {}
 
-  // Intercettazione e protezione assoluta da auto-distruzione database IndexedDB (TODO #73)
+  // Intercettazione e diagnostica tentativi cancellazione database IndexedDB
   try {
     if (window.indexedDB && typeof window.indexedDB.deleteDatabase === 'function') {
       const origDeleteDb = window.indexedDB.deleteDatabase.bind(window.indexedDB);
-      // Database critici che contengono token di autenticazione, chiavi crittografiche Signal, device registration e sessione
-      const protectedDatabases = [
-        'signal-storage',
-        'wawc_db_enc',
-        'wawc',
-        'model-storage',
-        'worker-storage',
-        'status-storage',
-        'guest-events-storage',
-        'jobs-storage',
-        'lru-media-storage-idb',
-        'offd-storage',
-        'fts-storage',
-        'sw'
-      ];
 
       window.indexedDB.deleteDatabase = function(name) {
         const dbNameStr = String(name || '');
@@ -146,23 +131,6 @@
             stack: stack.substring(0, 2000)
           });
         } catch(e) {}
-
-        // Se è un database protetto critico per la persistenza della sessione WhatsApp / Telegram
-        if (protectedDatabases.includes(dbNameStr)) {
-          try {
-            sendDiagnostic('INDEXEDDB_DELETE_BLOCKED', {
-              dbName: dbNameStr,
-              message: 'Cancellazione database protetto bloccata per salvaguardare le chiavi di sessione!'
-            });
-          } catch(e) {}
-
-          // Non cancelliamo MAI il database reale su disco!
-          // Chiamiamo origDeleteDb con un database fittizio in modo da restituire un IDBOpenDBRequest
-          // perfettamente valido e conforme alle specifiche W3C su cui scatta onsuccess.
-          // In questo modo l'handler di reset di WhatsApp non va in crash, ma le chiavi di autenticazione
-          // rimangono intatte sul disco.
-          return origDeleteDb('__hidachat_dummy_db__');
-        }
 
         return origDeleteDb.apply(window.indexedDB, arguments);
       };

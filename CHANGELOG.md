@@ -2,13 +2,14 @@
 
 ## [1.1.5-beta] - 2026-10-05
 
-### Pre-release / Beta — Risoluzione Causa Radice Disconnessione Notturna: Esclusione Cartelle LevelDB Live da Sync Periodica e Persistenza Storage W3C
+### Pre-release / Beta — Risoluzione Causa Radice Disconnessione Notturna: Esclusione LevelDB Live da Sync Periodica, Ripristino Integrità Database IndexedDB e Persistenza Storage W3C
 - **Eliminazione Contesa Lock LevelDB e QuotaExceededError (`NetworkProfileSync.vb`)**:
   - **Esclusione Cartelle LevelDB Live durante Sync Periodica**: Durante la sincronizzazione periodica a caldo (`isPeriodic:=True`), le cartelle attive `IndexedDB`, `Local Storage` e `Session Storage` vengono categoricamente escluse dalla copia su share SMB. La lettura sequenziale dei file `.ldb` e `.log` mentre Chromium ne deteneva lock attivi su rete con latenza creava contese di I/O prolungate, innescando l'errore `QuotaExceededError (AbortError) - dropping db read operation due to logout`. La cartella locale di staging su SSD rimane l'unica fonte di verità rapida e affidabile 24/7; il mirror completo su master avviene atomicamente alla chiusura ordinaria dell'applicazione.
   - **Rimozione Aggiornamento Snapshot Massivo nel Timer Periodico**: Lo snapshot Last-Known-Good viene ora aggiornato esclusivamente alla chiusura dell'applicazione (`Not isPeriodic`) e non più ad ogni ciclo da 10 minuti, eliminando copie continue da oltre 30 minuti che saturavano la banda di rete e il sottosistema disco.
-- **Persistenza Storage e Ciclo di Vita Pairing (`Scripts/notification.js`)**:
+- **Risoluzione Errore Database Browser e Ripristino Accoppiamento QR (`Scripts/notification.js`)**:
+  - **Rimozione Intercettazione Fittizia `indexedDB.deleteDatabase`**: Rimosso il reindirizzamento delle cancellazioni su database dummy. L'emulazione fittizia impediva a WhatsApp di ricreare le tabelle corrotte durante il pairing iniziale o la migrazione di schema, generando l'errore "Si è verificato un errore del database del tuo browser". Ora i tentativi di eliminazione vengono tracciati nella diagnostica e passati al motore IndexedDB nativo.
+  - **Pulizia Tabelle Corrotte WhatsApp**: Eliminati i file LevelDB residui danneggiati dai blocchi precedenti, consentendo a WhatsApp di inizializzare una banca dati pulita e priva di conflitti.
   - **Richiesta Persistenza Storage W3C (`navigator.storage.persist()`)**: Richiesta automatica all'avvio della persistenza dello storage per impedire a Chromium di applicare quote restrittive o sfratti automatici di dati in background.
-  - **Preservazione del Ciclo di Reset e Accoppiamento QR**: Garantito il corretto completamento del protocollo di pairing QR senza blocchi di navigazione, permettendo la rigenerazione pulita delle chiavi di sessione.
 
 ## [1.1.4-beta] - 2026-10-04
 
