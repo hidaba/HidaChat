@@ -1,3 +1,4 @@
+Imports System.Threading.Tasks
 Imports System.IO
 Imports System.ComponentModel
 Imports System.Text.Json.Serialization
@@ -671,9 +672,9 @@ Public Class AppAccounts
         Next
     End Sub
 
-    ''' <summary>Genera un identificativo alfanumerico univoco basato sul timestamp corrente.</summary>
+    ''' <summary>Genera un identificativo alfanumerico basato su GUID; gli ID esistenti restano invariati.</summary>
     Public Shared Function GenerateId() As String
-        Return "account_" & DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        Return "account_" & Guid.NewGuid().ToString("N")
     End Function
 
     ''' <summary>Genera un token crittograficamente sicuro (CSPRNG) a 128 bit per la validazione della comunicazione IPC (#62).</summary>
@@ -696,15 +697,49 @@ Public Class AppAccounts
     End Sub
 
     Private _initTask As Task = Nothing
+    Private _closeTask As Task(Of Boolean)
+    Private _stopRequested As Boolean
+    Private _browserLifetime As WebViewLifetime
+    Private _environmentCreationStarted As Boolean
+    Private _profilePath As String
+    Private _usesNetworkStaging As Boolean
+    Private _recoveryQueued As Boolean
+    Private _lastRendererReloadUtc As DateTime = DateTime.MinValue
+
+    <JsonIgnore>
+    Public ReadOnly Property UsesNetworkStaging As Boolean
+        Get
+            Return _usesNetworkStaging
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property CanReleaseNetworkLease As Boolean
+        Get
+            Return _isDisposed AndAlso (BrowserProfileReleased OrElse Not _environmentCreationStarted)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property BrowserProfileReleased As Boolean
+        Get
+            Return _isDisposed AndAlso _browserLifetime IsNot Nothing AndAlso _browserLifetime.HasExited
+        End Get
+    End Property
 
     ''' <summary>
     ''' Configura l'ambiente isolato della WebView2, inietta gli script JavaScript per l'intercettazione delle notifiche e traduzioni,
     ''' e naviga verso la pagina della piattaforma di messaggistica (WhatsApp Web o Telegram Web).
     ''' </summary>
     Public Function SetupWebViewAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
-        If _initTask IsNot Nothing AndAlso Not _initTask.IsFaulted AndAlso Not _isCrashed Then
+        If _closeTask IsNot Nothing AndAlso Not _closeTask.IsCompleted Then
+            Throw New InvalidOperationException("WebView2 is still closing; initialization postponed.")
+        End If
+        If Not _isDisposed AndAlso _initTask IsNot Nothing AndAlso Not _initTask.IsFaulted AndAlso Not _initTask.IsCanceled AndAlso Not _isCrashed Then
             Return _initTask
         End If
+        _stopRequested = False
+        _closeTask = Nothing
         _initTask = SetupWebViewInternalAsync(settings, onNotificationChanged)
         Return _initTask
     End Function
@@ -713,69 +748,36 @@ Public Class AppAccounts
         If WebView Is Nothing Then Return
         _isDisposed = False
 
-        Dim masterProfileDir = Path.Combine(SharedDataDirectory, $"WV2Profile_{Id}")
-        Dim orphanProfile = Path.Combine(SharedDataDirectory, "WV2Profile_")
-        If Directory.Exists(orphanProfile) Then
-            Dim movedToBak = False
-            Dim bakDir = masterProfileDir & ".bak"
-            If Directory.Exists(masterProfileDir) Then
-                Try
-                    If Directory.Exists(bakDir) Then
-                        Dim bakTimestamp = $"{masterProfileDir}.bak_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
-                        Try
-                            Directory.Move(bakDir, bakTimestamp)
-                        Catch
-                        End Try
-                    End If
-                    Directory.Move(masterProfileDir, bakDir)
-                    movedToBak = True
-                    Debug.WriteLine($"SetupWebView: rinominato profilo esistente in backup {masterProfileDir} -> {bakDir}")
-                Catch ex As Exception
-                    Debug.WriteLine($"SetupWebView: errore rinomina in backup stale: {ex.Message}")
-                End Try
+        If _browserLifetime IsNot Nothing Then
+            If Not Await _browserLifetime.WaitForExitAsync() Then
+                Throw New TimeoutException("Previous WebView2 process still owns the profile. No reset was performed.")
             End If
-            Try
-                Directory.Move(orphanProfile, masterProfileDir)
-                Debug.WriteLine($"SetupWebView: recuperato profilo orfano {orphanProfile} -> {masterProfileDir}")
-            Catch ex As Exception
-                Debug.WriteLine($"SetupWebView: fallito recupero orfano: {ex.Message}")
-                If movedToBak AndAlso Not Directory.Exists(masterProfileDir) AndAlso Directory.Exists(bakDir) Then
-                    Try
-                        Directory.Move(bakDir, masterProfileDir)
-                    Catch
-                    End Try
-                End If
-            End Try
+            _browserLifetime.Dispose()
+            _browserLifetime = Nothing
         End If
+        ThrowIfSetupStopped()
+        _environmentCreationStarted = False
 
-        If Not Directory.Exists(masterProfileDir) Then
-            Directory.CreateDirectory(masterProfileDir)
-            Debug.WriteLine($"SetupWebView: creato nuovo profilo master {masterProfileDir}")
+        Dim masterProfileDir = NetworkProfileSync.GetMasterProfileDir(Id)
+        If String.IsNullOrEmpty(_profilePath) Then
+            _usesNetworkStaging = NetworkProfileSync.IsRunningOnNetwork AndAlso (settings Is Nothing OrElse settings.EnableNetworkProfileStaging)
+            _profilePath = If(_usesNetworkStaging, NetworkProfileSync.GetLocalStagingProfileDir(Id), masterProfileDir)
         End If
-
-        Dim profileDir = masterProfileDir
-
-        Dim isUsingLocalStaging = NetworkProfileSync.IsRunningOnNetwork AndAlso (settings Is Nothing OrElse settings.EnableNetworkProfileStaging)
-        If isUsingLocalStaging Then
+        Dim profileDir = _profilePath
+        If _usesNetworkStaging Then
+            ' Acquire BEFORE import, and retain the lease until after the final cold export.
+            Dim conflict = NetworkProfileSync.AcquireSessionLock(Id)
+            If Not String.IsNullOrEmpty(conflict) Then Throw New IOException(conflict)
             profileDir = NetworkProfileSync.GetLocalStagingProfileDir(Id)
-            If Not Directory.Exists(profileDir) Then
-                Directory.CreateDirectory(profileDir)
-            End If
-            Debug.WriteLine($"[NetworkProfileSync] Account '{Id}' in local staging: {profileDir}")
-
-            ' Sincronizza lo stato master dal disco di rete allo staging locale prima di agganciare WebView2
-            Await NetworkProfileSync.SyncMasterToLocalStagingAsync(Id)
-
-            ' Verifica eventuale lock multi-PC
-            Dim conflictMachine = NetworkProfileSync.AcquireSessionLock(Id)
-            If Not String.IsNullOrEmpty(conflictMachine) Then
-                Debug.WriteLine($"[NetworkProfileSync] Attenzione: account {Id} in uso da {conflictMachine}")
+            If Not Await NetworkProfileSync.SyncMasterToLocalStagingAsync(Id) Then
+                Throw New IOException("Profile import failed. Existing data were not reset; initialization stopped.")
             End If
         End If
-
-        ' Pulizia preventiva delle cartelle di cache volatile prima di agganciare il processo WebView2
-        CleanTransientCacheFolders(profileDir)
-
+        ThrowIfSetupStopped()
+        ColdProfileCopy.RecoverInterruptedPublication(profileDir)
+        Directory.CreateDirectory(profileDir)
+        AppLogger.LogApp($"[PROFILE_OPEN] account={Id}, requested={profileDir}, staging={_usesNetworkStaging}")
+        ' No automatic cache deletion or orphan substitution when reopening a profile.
 
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
@@ -794,10 +796,15 @@ Public Class AppAccounts
             browserArgs &= $" --disable-features={String.Join(",", disabledFeatures)}"
             options.AdditionalBrowserArguments = browserArgs
 
+            _environmentCreationStarted = True
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
+            ThrowIfSetupStopped()
             
             Await WebView.EnsureCoreWebView2Async(accountEnv)
+            _browserLifetime = New WebViewLifetime(WebView.CoreWebView2, Id)
+            ThrowIfSetupStopped()
             _isCrashed = False
+            AppLogger.LogApp($"[PROFILE_READY] account={Id}, actual={accountEnv.UserDataFolder}, runtime={accountEnv.BrowserVersionString}, private={WebView.CoreWebView2.Profile.IsInPrivateModeEnabled}")
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
@@ -827,6 +834,11 @@ Public Class AppAccounts
                 If e.PermissionKind = CoreWebView2PermissionKind.Notifications Then
                     e.State = CoreWebView2PermissionState.Allow
                     e.Handled = True
+                ElseIf e.PermissionKind = CoreWebView2PermissionKind.PersistentStorage AndAlso
+                       SessionRecoveryPolicy.IsTrustedStorageOrigin(e.Uri) Then
+                    e.State = CoreWebView2PermissionState.Allow
+                    e.Handled = True
+                    AppLogger.LogApp($"[PERSISTENT_STORAGE_ALLOWED] account={Id}")
                 End If
             End Sub
             AddHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
@@ -835,16 +847,24 @@ Public Class AppAccounts
                 If WebView.CoreWebView2.Profile IsNot Nothing Then
                     Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.whatsapp.com", CoreWebView2PermissionState.Allow)
                     Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.telegram.org", CoreWebView2PermissionState.Allow)
+                    ThrowIfSetupStopped()
+                    For Each origin In {"https://web.whatsapp.com", "https://web.telegram.org"}
+                        Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.PersistentStorage, origin, CoreWebView2PermissionState.Allow)
+                        ThrowIfSetupStopped()
+                    Next
                 End If
             Catch ex As Exception
                 Debug.WriteLine($"Profile.SetPermissionStateAsync warning: {ex.Message}")
             End Try
 
-            Dim initScript = NotificationJsScripts.GetNotificationOverrideJS(BridgeToken)
+            ThrowIfSetupStopped()
+            Dim healthScript = EmbeddedScriptLoader.GetEmbeddedString("session-health.js").Replace("$$BRIDGE_TOKEN$$", JsonSerializer.Serialize(BridgeToken))
+            Dim initScript = healthScript & vbCrLf & NotificationJsScripts.GetNotificationOverrideJS(BridgeToken)
             If IsTelegram Then
                 initScript &= vbCrLf & ThemeJsScripts.TelegramInitJS
             End If
             Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
+            ThrowIfSetupStopped()
 
             _navigationStartingHandler = Sub(sender, e)
                 If String.IsNullOrEmpty(e.Uri) Then Return
@@ -1036,10 +1056,12 @@ Public Class AppAccounts
                 Await EnsureLocalProxyAsync(forceUpdate:=True)
             End If
 
+            ThrowIfSetupStopped()
             WebView.CoreWebView2.Navigate(WebUrl)
 
         Catch ex As Exception
-            Debug.WriteLine($"Error configuring WebView2 for account {Id}: {ex.Message}")
+            Application.LogUnhandledException($"PROFILE_INIT_FAILED account={Id}", ex)
+            Throw
         End Try
     End Function
 
@@ -1047,34 +1069,44 @@ Public Class AppAccounts
     ''' Intercetta i crash del processo di rendering o del processo browser principale di WebView2 ed avvia il ripristino automatico.
     ''' </summary>
     Private Sub HandleProcessFailed(e As CoreWebView2ProcessFailedEventArgs)
+        If _isDisposed OrElse _stopRequested Then Return
         Try
-            Dim crashMsg = $"[ProcessFailed] Account {Id} ({Name}) - Kind: {e.ProcessFailedKind}, Reason: {e.Reason}, ExitCode: {e.ExitCode}, Description: {e.ProcessDescription}"
-            Debug.WriteLine(crashMsg)
-            AppLogger.LogApp(crashMsg)
-            AppLogger.Log("whatsapp_errors.log", "PROCESS_CRASH", crashMsg)
-            
-            ' Se crasha unicamente il processo di rendering (tab), un rapido reload è sufficiente per ripristinarlo
-            If e.ProcessFailedKind = CoreWebView2ProcessFailedKind.RenderProcessExited Then
-                Debug.WriteLine($"[ProcessFailed] Render process exited for account {Id}, attempting fast reload...")
-                Try
-                    If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
-                        WebView.CoreWebView2.Reload()
-                        Return
-                    End If
-                Catch ex As Exception
-                    Debug.WriteLine($"[ProcessFailed] Fast reload failed: {ex.Message}")
-                End Try
+            Dim kind = e.ProcessFailedKind.ToString()
+            AppLogger.LogApp($"[PROCESS_FAILED] account={Id}, kind={kind}, reason={e.Reason}, exitCode={e.ExitCode}")
+            Dim action = SessionRecoveryPolicy.ForFailure(kind)
+            If action = SessionRecoveryPolicy.RecoveryAction.Observe Then
+                AppLogger.LogApp($"[RECOVERY_OBSERVE] account={Id}, kind={kind}; browser/profile left intact.")
+                Return
             End If
-
-            ' Per BrowserProcessExited o fallimento del reload, segna lo stato di crash e richiede l'Auto-Recovery completa
-            _isCrashed = True
-            _initTask = Nothing
-            
-            Application.Current?.Dispatcher.BeginInvoke(Sub()
-                RaiseEvent ProcessFailedRecoveryRequested(Me, e)
+            If _recoveryQueued Then Return
+            If action = SessionRecoveryPolicy.RecoveryAction.Reload AndAlso
+               DateTime.UtcNow - _lastRendererReloadUtc < TimeSpan.FromSeconds(30) Then
+                AppLogger.LogApp($"[RECOVERY_RATE_LIMIT] account={Id}; repeated renderer failure, use manual reload.")
+                Return
+            End If
+            _recoveryQueued = True
+            If action = SessionRecoveryPolicy.RecoveryAction.Recreate Then _isCrashed = True
+            ' Let the WebView2 callback unwind before reloading or disposing controls.
+            Application.Current.Dispatcher.BeginInvoke(Sub()
+                Try
+                    If _isDisposed OrElse _stopRequested Then Return
+                    If action = SessionRecoveryPolicy.RecoveryAction.Reload Then
+                        Try
+                            _lastRendererReloadUtc = DateTime.UtcNow
+                            WebView.CoreWebView2.Reload()
+                            Return
+                        Catch ex As Exception
+                            AppLogger.LogApp($"[RELOAD_FAILED] account={Id}: {ex.Message}")
+                        End Try
+                    End If
+                    _isCrashed = True
+                    RaiseEvent ProcessFailedRecoveryRequested(Me, e)
+                Finally
+                    _recoveryQueued = False
+                End Try
             End Sub)
         Catch ex As Exception
-            Debug.WriteLine($"[ProcessFailed] Error in HandleProcessFailed: {ex.Message}")
+            Application.LogUnhandledException($"HandleProcessFailed account={Id}", ex)
         End Try
     End Sub
 
@@ -1709,8 +1741,43 @@ Public Class AppAccounts
     ''' <summary>
     ''' Rimuove tutti gli event handler registrati sulla WebView2 e libera le risorse allocate.
     ''' </summary>
+    Public Function CloseWebViewAsync(Optional timeoutMs As Integer = 10000) As Task(Of Boolean)
+        If _closeTask IsNot Nothing AndAlso Not _closeTask.IsCompleted Then Return _closeTask
+        _stopRequested = True
+        _closeTask = CloseWebViewInternalAsync(timeoutMs)
+        Return _closeTask
+    End Function
+
+    Private Async Function CloseWebViewInternalAsync(timeoutMs As Integer) As Task(Of Boolean)
+        Dim pendingInit = _initTask
+        If pendingInit IsNot Nothing AndAlso Not pendingInit.IsCompleted Then
+            Dim finished = Await Task.WhenAny(pendingInit, Task.Delay(timeoutMs))
+            If finished IsNot pendingInit Then
+                AppLogger.LogApp($"[INIT_CLOSE_TIMEOUT] account={Id}; profile operations refused.")
+                Return False
+            End If
+        End If
+        If pendingInit IsNot Nothing Then
+            Try
+                Await pendingInit
+            Catch
+                ' Initialization failures are already logged, but still require disposal.
+            End Try
+        End If
+        Dispose()
+        If _browserLifetime Is Nothing Then Return Not _environmentCreationStarted
+        Return Await _browserLifetime.WaitForExitAsync(timeoutMs)
+    End Function
+
+    Private Sub ThrowIfSetupStopped()
+        If _stopRequested OrElse _isDisposed OrElse WebView Is Nothing Then
+            Throw New OperationCanceledException("WebView2 initialization stopped during shutdown.")
+        End If
+    End Sub
+
     Public Sub Dispose() Implements IDisposable.Dispose
         If _isDisposed Then Return
+        _stopRequested = True
         _isDisposed = True
 
         Try
@@ -1764,13 +1831,7 @@ Public Class AppAccounts
                 WebView = Nothing
             End If
 
-            If NetworkProfileSync.IsRunningOnNetwork Then
-                Dim accId = Id
-                NetworkProfileSync.ReleaseSessionLock(accId)
-            End If
-
-
-            _initTask = Nothing
+            ' The network lease is released only by the owner after confirmed browser exit/export.
             _isCrashed = False
             ActiveNotificationIds.Clear()
         Catch ex As Exception

@@ -1,3 +1,4 @@
+Imports System.Threading.Tasks
 Imports System.IO
 Imports System.Text.Json
 Imports System.ComponentModel
@@ -231,9 +232,9 @@ Public Class AccountManager
                     ' Pulizia non distruttiva dei profili non referenziati eseguita esclusivamente se la configurazione è valida
                     ' e delegata a un task di background in Task.Run per non bloccare il thread UI all'avvio
                     Dim activeIds = _accounts.Map(Function(a) a.Id).ToList()
-                    Dim cleanupTask = CleanupUnusedProfilesAsync(activeIds)
+                    ' Do not automatically delete profiles based on a possibly incomplete settings list.
 
-                    Await CleanupTransientCachesAsync()
+                    ' No filesystem cleanup before browser ownership is known.
                     
                     _currentAccount = _accounts.FirstOrDefault(Function(a) a.IsActive)
                     If _currentAccount Is Nothing AndAlso _accounts.Count > 0 Then
@@ -291,53 +292,21 @@ Public Class AccountManager
     ''' </summary>
     Private Sub MigrateOrphanProfile()
         Try
-            Dim orphanProfile = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
-            If Not Directory.Exists(orphanProfile) Then
-                Debug.WriteLine("MigrateOrphanProfile: nessun profilo orfano trovato")
+            Dim orphan = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
+            If Not Directory.Exists(orphan) Then Return
+            ' An anonymous profile cannot be attributed safely among multiple accounts.
+            If _accounts.Count <> 1 Then
+                AppLogger.LogApp("[ORPHAN_PRESERVED] Multiple accounts; manual attribution required.")
                 Return
             End If
-            Debug.WriteLine($"MigrateOrphanProfile: trovato profilo orfano {orphanProfile}")
-
-            For Each acc In _accounts
-                Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{acc.Id}")
-                Debug.WriteLine($"MigrateOrphanProfile: check account Id='{acc.Id}', target={profileDir}, exists={Directory.Exists(profileDir)}")
-                Dim movedToBak = False
-                Dim bakDir = profileDir & ".bak"
-
-                If Directory.Exists(profileDir) Then
-                    Try
-                        If Directory.Exists(bakDir) Then
-                            Dim bakTimestamp = $"{profileDir}.bak_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
-                            Try
-                                Directory.Move(bakDir, bakTimestamp)
-                            Catch
-                            End Try
-                        End If
-                        Directory.Move(profileDir, bakDir)
-                        movedToBak = True
-                        Debug.WriteLine($"MigrateOrphanProfile: rinominato profilo esistente in backup: {profileDir} -> {bakDir}")
-                    Catch exBak As Exception
-                        Debug.WriteLine($"MigrateOrphanProfile: errore rinomina in backup: {exBak.Message}")
-                        Continue For
-                    End Try
-                End If
-
-                Try
-                    Directory.Move(orphanProfile, profileDir)
-                    Debug.WriteLine($"MigrateOrphanProfile: rinominato {orphanProfile} -> {profileDir}")
-                Catch ex As Exception
-                    Debug.WriteLine($"MigrateOrphanProfile: errore rinomina orfano: {ex.Message}")
-                    If movedToBak AndAlso Not Directory.Exists(profileDir) AndAlso Directory.Exists(bakDir) Then
-                        Try
-                            Directory.Move(bakDir, profileDir)
-                        Catch
-                        End Try
-                    End If
-                End Try
-                Exit For
-            Next
+            Dim target = NetworkProfileSync.GetMasterProfileDir(_accounts(0).Id)
+            If Directory.Exists(target) OrElse Directory.Exists(target & ".previous") Then
+                AppLogger.LogApp("[ORPHAN_PRESERVED] Existing account profile must never be replaced.")
+                Return
+            End If
+            Directory.Move(orphan, target)
         Catch ex As Exception
-            Debug.WriteLine($"MigrateOrphanProfile error: {ex.Message}")
+            AppLogger.LogApp($"[ORPHAN_MIGRATION_FAILED] {ex.Message}")
         End Try
     End Sub
 
@@ -362,7 +331,9 @@ Public Class AccountManager
                     If dirName.Equals("WV2Profile_", StringComparison.OrdinalIgnoreCase) OrElse
                        dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse
                        dirName.Contains(".bak_") OrElse
-                       dirName.EndsWith("_Snapshot", StringComparison.OrdinalIgnoreCase) Then
+                       dirName.EndsWith("_Snapshot", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.EndsWith(".previous", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.Contains(".incoming-") Then
                         Continue For
                     End If
 
@@ -467,26 +438,29 @@ Public Class AccountManager
     ''' <summary>
     ''' Sincronizza tutti i profili locali verso la cartella master su disco di rete e, se non periodico, rilascia i lock (TODO #73).
     ''' </summary>
-    Public Async Function SyncAllProfilesToNetworkAsync(Optional isPeriodic As Boolean = False) As Task
-        If Not NetworkProfileSync.IsRunningOnNetwork Then Return
-        Try
-            Debug.WriteLine($"[NetworkProfileSync] Inizio sincronizzazione profili su share di rete (isPeriodic={isPeriodic})...")
-            For Each acc In _accounts
-                Try
-                    Await NetworkProfileSync.SyncLocalStagingToMasterAsync(acc.Id, isPeriodic:=isPeriodic)
-                    If Not isPeriodic Then
-                        NetworkProfileSync.ReleaseSessionLock(acc.Id)
-                    End If
-                Catch exAcc As Exception
-                    Debug.WriteLine($"[NetworkProfileSync] Errore sync account {acc.Id}: {exAcc.Message}")
-                End Try
-            Next
-            Debug.WriteLine("[NetworkProfileSync] Sincronizzazione di tutti i profili completata.")
-        Catch ex As Exception
-            Debug.WriteLine($"SyncAllProfilesToNetworkAsync error: {ex.Message}")
-        End Try
+    Public Async Function CloseAllWebViewsAsync() As Task(Of Boolean)
+        Dim results = Await Task.WhenAll(_accounts.Select(Function(acc) acc.CloseWebViewAsync()).ToArray())
+        Return results.All(Function(closed) closed)
     End Function
 
+    Public Async Function SyncAllProfilesToNetworkAsync(Optional isPeriodic As Boolean = False) As Task
+        If isPeriodic Then Return
+        For Each acc In _accounts.ToList()
+            If Not acc.UsesNetworkStaging Then Continue For
+            Try
+                If acc.BrowserProfileReleased Then
+                    Dim saved = Await NetworkProfileSync.SyncLocalStagingToMasterAsync(acc.Id, browserExited:=True)
+                    If Not saved Then AppLogger.LogSync($"[EXPORT_NOT_SAVED] account={acc.Id}; local profile retained.")
+                Else
+                    AppLogger.LogSync($"[EXPORT_SKIPPED] account={acc.Id}; no confirmed browser exit.")
+                End If
+            Finally
+                ' All views were closed before this method is called. On a timeout no
+                ' copy is attempted; the OS releases any remaining lease on process exit.
+                If acc.CanReleaseNetworkLease Then NetworkProfileSync.ReleaseSessionLock(acc.Id)
+            End Try
+        Next
+    End Function
 
     ''' <summary>
     ''' Crea l'account predefinito o ricostruisce gli account da eventuali cartelle di profilo esistenti su disco
@@ -521,7 +495,9 @@ Public Class AccountManager
                     If dirName.Equals("WV2Profile_", StringComparison.OrdinalIgnoreCase) OrElse
                        dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse
                        dirName.Contains(".bak_") OrElse
-                       dirName.EndsWith("_Snapshot", StringComparison.OrdinalIgnoreCase) Then
+                       dirName.EndsWith("_Snapshot", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.EndsWith(".previous", StringComparison.OrdinalIgnoreCase) OrElse
+                       dirName.Contains(".incoming-") Then
                         Continue For
                     End If
 
@@ -555,7 +531,7 @@ Public Class AccountManager
         _isDirty = True
         
         Await SaveAccountsAsync(force:=True)
-        Await CleanupTransientCachesAsync()
+        ' No automatic profile/cache cleanup during account discovery.
         
         NotifyPropertyChanged(NameOf(Accounts))
         NotifyPropertyChanged(NameOf(CurrentAccount))
@@ -648,6 +624,9 @@ Public Class AccountManager
 
         Dim accountToRemove = _accounts.FirstOrDefault(Function(a) a.Id = accountId)
         If accountToRemove Is Nothing Then Return
+        If Not Await accountToRemove.CloseWebViewAsync() Then
+            Throw New IOException("WebView2 has not released the account; profile removal cancelled.")
+        End If
 
         _accounts.Remove(accountToRemove)
         _isDirty = True
@@ -692,8 +671,9 @@ Public Class AccountManager
             End Try
         End If
 
-        If NetworkProfileSync.IsRunningOnNetwork Then
+        If accountToRemove.UsesNetworkStaging Then
             NetworkProfileSync.CleanLocalStaging(accountId)
+            NetworkProfileSync.ReleaseSessionLock(accountId)
         End If
 
         Await SaveAccountsAsync()

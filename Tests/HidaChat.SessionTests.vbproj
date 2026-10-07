@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>HidaChat</RootNamespace>
+    <OptionStrict>On</OptionStrict>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../SessionRecoveryPolicy.vb" Link="SessionRecoveryPolicy.vb" />
+    <Compile Include="../ColdProfileCopy.vb" Link="ColdProfileCopy.vb" />
+    <Compile Include="../NetworkProfileSync.vb" Link="NetworkProfileSync.vb" />
+    <Compile Include="SessionTests.vb" />
+  </ItemGroup>
+</Project>

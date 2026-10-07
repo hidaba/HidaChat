@@ -1,0 +1,100 @@
+HIDACHAT SESSIONFIX1 - VERIFICHE EFFETTIVAMENTE ESEGUITE
+Ambiente: contenitore Linux; Node.js v22.16.0
+
+RISULTATI
+- Test JavaScript: 9 superati, 0 falliti.
+- Controllo sintattico node --check: tutti i 3 file Scripts/*.js superati.
+- git diff --check: superato.
+- Parsing XML dei due progetti: superato (non e' una compilazione).
+- Controlli statici mirati: 15 superati, elencati sotto.
+
+NON ESEGUITI
+- Compilazione VB/.NET/WPF: SDK e toolchain non disponibili.
+- Tests/HidaChat.SessionTests.vbproj: scritto ma NON eseguito.
+- Runtime WebView2/Windows/WhatsApp e mantenimento login reale: NON provati.
+- Workflow GitHub Actions: modificato ma NON avviato.
+- I controlli statici verificano presenza/assenza di specifiche protezioni,
+  non la correttezza semantica o l'esecuzione del codice VB.
+
+CONTROLLI STATICI
+PASS: Test VB files excluded from main application project
+PASS: Session diagnostics covered by embedded script resource glob
+PASS: Initialized browser has lifetime tracking
+PASS: Asynchronous close waits for browser process exit
+PASS: No orphan profile replacement in WebView initialization
+PASS: Cold export call explicitly requires browser exit
+PASS: Live exports and exports without lease are refused
+PASS: OS-exclusive lease handle declared
+PASS: Updater contains no forced taskkill command
+PASS: Orderly shutdown precedes launching update batch
+PASS: Updater copy excludes user data directory
+PASS: Old profile-sync timers not present
+PASS: New script injected and emits storage diagnostics
+PASS: Persistent storage permission explicitly configured
+PASS: New account identifiers use GUID without rewriting saved IDs
+
+OUTPUT NODE TEST RUNNER
+TAP version 13
+# Subtest: storage permission and estimates are reported, not assumed
+ok 1 - storage permission and estimates are reported, not assumed
+  ---
+  duration_ms: 6.74503
+  type: 'test'
+  ...
+# Subtest: denied persistence remains visible as false
+ok 2 - denied persistence remains visible as false
+  ---
+  duration_ms: 1.413316
+  type: 'test'
+  ...
+# Subtest: untrusted origins and subframes are ignored
+ok 3 - untrusted origins and subframes are ignored
+  ---
+  duration_ms: 2.376573
+  type: 'test'
+  ...
+# Subtest: double injection does not create duplicate timers
+ok 4 - double injection does not create duplicate timers
+  ---
+  duration_ms: 1.947868
+  type: 'test'
+  ...
+# Subtest: QR transition logs only state, never DOM content or QR payload
+ok 5 - QR transition logs only state, never DOM content or QR payload
+  ---
+  duration_ms: 2.416993
+  type: 'test'
+  ...
+# Subtest: native transport and database methods remain untouched
+ok 6 - native transport and database methods remain untouched
+  ---
+  duration_ms: 1.222012
+  type: 'test'
+  ...
+# Subtest: storage errors are caught and expose only the error category
+ok 7 - storage errors are caught and expose only the error category
+  ---
+  duration_ms: 2.033124
+  type: 'test'
+  ...
+# Subtest: leaving the page cancels sampling and ignores pending callbacks
+ok 8 - leaving the page cancels sampling and ignores pending callbacks
+  ---
+  duration_ms: 1.043637
+  type: 'test'
+  ...
+# Subtest: unknown UI is not labeled as logout
+ok 9 - unknown UI is not labeled as logout
+  ---
+  duration_ms: 1.103616
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 67.26781

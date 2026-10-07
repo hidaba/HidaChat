@@ -137,14 +137,7 @@
     }
   } catch(e) {}
 
-  // Richiesta persistenza storage W3C: previene sfratto automatico di IndexedDB e LocalStorage da parte di Chromium
-  try {
-    if (navigator.storage && typeof navigator.storage.persist === 'function') {
-      navigator.storage.persist().then(function(persisted) {
-        sendDiagnostic('STORAGE_PERSIST', { persisted: persisted });
-      }).catch(function(e) {});
-    }
-  } catch(e) {}
+  // Storage persistence and passive health diagnostics live in session-health.js.
 
   // Rilevamento dialoghi modali di errore/disconnessione nel DOM
   let lastReportedPopupText = '';

@@ -714,20 +714,17 @@ Public Class UpdateChecker
             sbBatch.AppendLine(":waitloop")
             sbBatch.AppendLine("echo [%date% %time%] Waiting for HidaChat.exe to exit... >> %LOG%")
             sbBatch.AppendLine("timeout /t 2 /nobreak > nul")
-            sbBatch.AppendLine("tasklist /fi ""IMAGENAME eq HidaChat.exe"" 2>>%LOG% | find /i ""HidaChat.exe"" >nul")
+            sbBatch.AppendLine($"tasklist /fi ""PID eq {Environment.ProcessId}"" /nh 2>>%LOG% | find ""{Environment.ProcessId}"" >nul")
             sbBatch.AppendLine("if errorlevel 1 goto continue")
             sbBatch.AppendLine("set /a RETRY=RETRY+1")
-            sbBatch.AppendLine("if %RETRY% GEQ 5 (")
-            sbBatch.AppendLine("    echo [%date% %time%] Timeout dopo 10 secondi, forzo chiusura del processo... >> %LOG%")
-            sbBatch.AppendLine("    taskkill /f /im HidaChat.exe /t >nul 2>&1")
-            sbBatch.AppendLine("    taskkill /f /im tsnetd.exe /t >nul 2>&1")
-            sbBatch.AppendLine("    timeout /t 1 /nobreak > nul")
-            sbBatch.AppendLine("    goto continue")
+            sbBatch.AppendLine("if %RETRY% GEQ 30 (")
+            sbBatch.AppendLine("    echo [%date% %time%] Update aborted: process still running. No forced termination. >> %LOG%")
+            sbBatch.AppendLine("    exit /b 1")
             sbBatch.AppendLine(")")
             sbBatch.AppendLine("goto waitloop")
             sbBatch.AppendLine(":continue")
             sbBatch.AppendLine("echo [%date% %time%] Process exited, copying files... >> %LOG%")
-            sbBatch.AppendLine($"robocopy ""{sourceDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 >> %LOG%")
+            sbBatch.AppendLine($"robocopy ""{sourceDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 /xd ""{Path.Combine(sourceDir, "data")}"" ""{Path.Combine(installDir, "data")}"" >> %LOG%")
             sbBatch.AppendLine("set RC=%ERRORLEVEL%")
             sbBatch.AppendLine("echo [%date% %time%] Robocopy exit code: %RC% >> %LOG%")
             sbBatch.AppendLine("if %RC% GEQ 8 (")
@@ -746,14 +743,6 @@ Public Class UpdateChecker
             sbBatch.AppendLine("del ""%~f0""")
 
             File.WriteAllText(batchPath, sbBatch.ToString())
-
-            ' 1. Avvia lo script batch PRIMA di chiudere l'applicazione
-            ' In questo modo il processo di aggiornamento è attivo e autonomo, monitorando l'uscita di HidaChat
-            Process.Start(New ProcessStartInfo With {
-                .FileName = batchPath,
-                .UseShellExecute = True
-            })
-            updateLaunched = True
 
             ' 2. Salva lo stato dell'applicazione e rilascia le risorse (impostazioni e account)
             Dim mainWin As MainWindow = Nothing
@@ -777,11 +766,21 @@ Public Class UpdateChecker
                         End Function)
                         Await op.Task.Unwrap()
                     End If
-                Catch
+                Catch ex As Exception
+                    Throw New IOException("Update cancelled: orderly browser shutdown failed.", ex)
                 End Try
+            Else
+                Throw New IOException("Update cancelled: the main window is not available for orderly shutdown.")
             End If
 
-            ' 3. Termina immediatamente il processo corrente per consentire a robocopy di procedere senza attendere il timeout di taskkill
+            ' Start the updater ONLY after the browser groups have really exited.
+            Process.Start(New ProcessStartInfo With {
+                .FileName = batchPath,
+                .UseShellExecute = True
+            })
+            updateLaunched = True
+
+            ' The browser is already closed. Exit only this host process for file replacement.
             Environment.Exit(0)
 
         Catch ex As Exception

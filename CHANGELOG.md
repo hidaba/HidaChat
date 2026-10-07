@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.6-beta] - 2026-10-07
+
+### Pre-release / Beta — Architettura Difensiva Ciclo di Vita Profili WebView2, Copie Atomiche Cold Profile, Lease Esclusivo Multi-PC e Diagnostica Session Health
+- **Gestione Resiliente Fallimenti WebView2 (`AppAccounts.vb`, `WebViewLifetime.vb`)**:
+  - **Differenziazione dei Guasti di Processo (`ProcessFailed`)**: Gli arresti anomali non fatali di GPU, sottosistemi di utilità o temporanei blocchi del renderer (`RenderProcessUnresponsive`) non causano più l'abbattimento distruttivo dell'istanza del browser. La ricreazione completa avviene esclusivamente se il processo principale del browser è terminato.
+  - **Sincronizzazione Esplicita `BrowserProcessExited`**: Introdotta l'attesa asincrona (`WaitForBrowserProcessExitAsync`) della reale chiusura del processo OS `msedgewebview2.exe` prima di liberare risorse, riutilizzare la directory del profilo o avviare esportazioni, eliminando contese di lock e corruzioni LevelDB da terminazioni premature.
+  - **Serializzazione delle Ricreazioni**: Sincronizzazione thread-safe tramite semaforo per prevenire corse critiche o ricreazioni concorrenti in caso di crash multipli ravvicinati.
+- **Copie Atomiche Cold Profile e Sicurezza Staging (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`)**:
+  - **Rifiuto Tassativo di Copie Live (`[LIVE_COPY_REFUSED]`)**: Vietata qualsiasi esportazione di directory profilo mentre il browser associato è in esecuzione, prevenendo la cattura di file LevelDB/IndexedDB aperti a metà scrittura.
+  - **Staging Atomico e Rollback (`.incoming-*` e `.previous`)**: Le copie su disco/rete avvengono in directory temporanee di staging con rinomina atomica finale. In caso di interruzione, la versione precedente integra viene preservata ed è sempre recuperabile.
+  - **Rimozione Heuristiche Distruttive di Dimensione (`SessionRecoveryPolicy.vb`)**: Eliminati i controlli euristici basati su soglie arbitrarie di dimensione che scartavano profili locali validi o sovrascrivevano profili attivi con cartelle orfane.
+- **Lease Esclusivo a Livello OS per Condivisioni Multi-PC (`NetworkProfileSync.vb`)**:
+  - **File Handle Bloccante OS**: Sostituita la verifica basata su timestamp con un lock esclusivo a livello di filesystem (`FileShare.None`) mantenuto attivo per l'intera durata della sessione. Se un altro computer sta già eseguendo l'account, l'acquisizione fallisce in modo pulito prevenendo sovrascritture incrociate.
+- **Ciclo di Vita Pulito negli Aggiornamenti (`UpdateChecker.vb`)**:
+  - **Rimozione `taskkill /f` Distruttivo**: Eliminata la terminazione forzata del browser durante la procedura di aggiornamento; lo script attende la chiusura ordinata del processo host prima di sostituire i binari.
+- **Diagnostica Passiva In-Page Session Health (`Scripts/session-health.js`)**:
+  - **Heartbeat Periodico Storage & UI**: Monitoraggio passivo ogni 60 secondi della persistenza dello storage (`navigator.storage.persist()`), stima della quota IndexedDB e stato visivo dell'interfaccia WhatsApp (transizioni QR, caricamento, chat attiva) senza alterare il DOM né intercettare le chiamate native del database.
+  - **Gestione Permessi WebView2**: Gestione esplicita dell'evento `PermissionRequested` per concedere automaticamente l'autorizzazione di persistenza storage per gli host fidati (`web.whatsapp.com`, `web.telegram.org`).
+- **Suite di Test di Regressione (.NET e JavaScript)**:
+  - Integrati 42 test di regressione unitari .NET (`Tests/HidaChat.SessionTests.vbproj`) e 9 test JavaScript (`Tests/session-health.test.cjs`) integrati sia nella build locale che nella pipeline CI GitHub Actions.
+
 ## [1.1.5-beta] - 2026-10-05
 
 ### Pre-release / Beta — Risoluzione Causa Radice Disconnessione Notturna: Esclusione LevelDB Live da Sync Periodica, Ripristino Integrità Database IndexedDB e Persistenza Storage W3C

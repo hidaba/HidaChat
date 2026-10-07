@@ -1,3 +1,4 @@
+Imports System.Threading.Tasks
 Imports System.IO
 Imports System.ComponentModel
 Imports System.Runtime.InteropServices
@@ -17,8 +18,7 @@ Public Class MainWindow
     Private _allowExit As Boolean = False
     Private _defaultShadowEffect As Effect
     Private _dndTimer As System.Windows.Threading.DispatcherTimer
-    Private _periodicNetworkSyncTimer As System.Windows.Threading.DispatcherTimer
-    Private _isPeriodicNetworkSyncRunning As Boolean = False
+    Private ReadOnly _recreationTasks As New Dictionary(Of String, Task)(StringComparer.OrdinalIgnoreCase)
 
     Public Sub New()
         InitializeComponent()
@@ -176,27 +176,7 @@ Public Class MainWindow
             _dndTimer.Start()
             UpdateDndState()
 
-            ' 12. Configura il timer di sincronizzazione periodica verso il drive di rete (TODO #73)
-            If NetworkProfileSync.IsRunningOnNetwork Then
-                _periodicNetworkSyncTimer = New System.Windows.Threading.DispatcherTimer With {
-                    .Interval = TimeSpan.FromMinutes(10)
-                }
-                AddHandler _periodicNetworkSyncTimer.Tick, Async Sub()
-                    If _isPeriodicNetworkSyncRunning Then
-                        AppLogger.LogSync("PeriodicSync: sincronizzazione precedente ancora attiva, tick ignorato.")
-                        Return
-                    End If
-                    If _settingsController.EnableNetworkProfileStaging Then
-                        _isPeriodicNetworkSyncRunning = True
-                        Try
-                            Await _accountManager.SyncAllProfilesToNetworkAsync(isPeriodic:=True)
-                        Finally
-                            _isPeriodicNetworkSyncRunning = False
-                        End Try
-                    End If
-                End Sub
-                _periodicNetworkSyncTimer.Start()
-            End If
+            ' Profiles are copied only after confirmed browser exit; no periodic live sync.
 
             UpdateOnlineIndicator()
             CheckNetworkDriveWarning()
@@ -317,191 +297,109 @@ Public Class MainWindow
 
 
     Private _isShuttingDown As Boolean = False
-    Private ReadOnly _shutdownLock As New Object()
+    Private _shutdownTask As Task(Of Boolean)
 
-    ''' <summary>
-    ''' Esegue la chiusura definitiva e coordinata dell'applicazione: disattivazione timer,
-    ''' salvataggio atomico di account e impostazioni, chiusura e rilascio di WebView2 e companion processes.
-    ''' </summary>
-    Public Sub PrepareForShutdown()
-        SyncLock _shutdownLock
-            If _isShuttingDown Then Return
-            _isShuttingDown = True
-        End SyncLock
-
+    Private Function ShutdownAsync(exportProfiles As Boolean) As Task(Of Boolean)
+        If _shutdownTask IsNot Nothing Then Return _shutdownTask
+        _isShuttingDown = True
+        Me.IsEnabled = False
         _allowExit = True
+        _shutdownTask = ShutdownCoreAsync(exportProfiles)
+        Return _shutdownTask
+    End Function
 
-        If _dndTimer IsNot Nothing Then
-            _dndTimer.Stop()
-            _dndTimer = Nothing
-        End If
-
-        If _periodicNetworkSyncTimer IsNot Nothing Then
-            _periodicNetworkSyncTimer.Stop()
-            _periodicNetworkSyncTimer = Nothing
-        End If
-
-        Try
-            RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
-            RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
-        Catch
-        End Try
-
-        Try
-            Dim frame As New System.Windows.Threading.DispatcherFrame()
-            Dim saveTask = Task.WhenAll(_accountManager.SaveAccountsAsync(force:=True), _settingsController.FlushNowAsync())
-            saveTask.ContinueWith(Sub(prev) frame.Continue = False)
-            Dim timeoutTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(3)}
-            AddHandler timeoutTimer.Tick, Sub()
-                timeoutTimer.Stop()
-                frame.Continue = False
-            End Sub
-            timeoutTimer.Start()
-            System.Windows.Threading.Dispatcher.PushFrame(frame)
-        Catch
-        End Try
-
+    Private Async Function ShutdownCoreAsync(exportProfiles As Boolean) As Task(Of Boolean)
+        If _dndTimer IsNot Nothing Then _dndTimer.Stop()
+        RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
+        RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
         For Each acc In _accountManager.Accounts
-            Try
-                RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
-                RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
-                acc.Dispose()
-            Catch
-            End Try
+            RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
+            RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
         Next
-
-        ' Sincronizzazione atomica di ritorno su cartella di rete dei profili locali (TODO #73)
-        If NetworkProfileSync.IsRunningOnNetwork AndAlso _settingsController.EnableNetworkProfileStaging Then
+        ' Close all browser groups in parallel; no Sleep, Process.Kill, or cache deletion.
+        Dim closeTask = _accountManager.CloseAllWebViewsAsync()
+        Try
+            Await Task.WhenAll(_accountManager.SaveAccountsAsync(force:=True), _settingsController.FlushNowAsync())
+        Catch ex As Exception
+            Application.LogUnhandledException("Shutdown.Save", ex)
+        End Try
+        Dim allClosed = Await closeTask
+        If exportProfiles Then
             Try
-                System.Threading.Thread.Sleep(600)
-                Dim frameSync As New System.Windows.Threading.DispatcherFrame()
-                Dim syncTask = _accountManager.SyncAllProfilesToNetworkAsync()
-                syncTask.ContinueWith(Sub(prev) frameSync.Continue = False)
-                Dim syncTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(30)}
-                AddHandler syncTimeout.Tick, Sub()
-                    syncTimeout.Stop()
-                    frameSync.Continue = False
-                End Sub
-                syncTimeout.Start()
-                System.Windows.Threading.Dispatcher.PushFrame(frameSync)
-            Catch exSync As Exception
-                Debug.WriteLine($"PrepareForShutdown network sync error: {exSync.Message}")
+                Await _accountManager.SyncAllProfilesToNetworkAsync()
+            Catch ex As Exception
+                Application.LogUnhandledException("Shutdown.ColdExport", ex)
             End Try
+        Else
+            ' Windows logoff/shutdown has a strict time budget: retain the local profile
+            ' and skip network I/O entirely. No background copy is started here.
+            For Each acc In _accountManager.Accounts
+                If acc.CanReleaseNetworkLease Then NetworkProfileSync.ReleaseSessionLock(acc.Id)
+            Next
         End If
-
-
         Try
-            Dim frameClean As New System.Windows.Threading.DispatcherFrame()
-            Dim cleanTask = _accountManager.CleanupTransientCachesAsync()
-            cleanTask.ContinueWith(Sub(prev) frameClean.Continue = False)
-            Dim cleanTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
-            AddHandler cleanTimeout.Tick, Sub()
-                cleanTimeout.Stop()
-                frameClean.Continue = False
-            End Sub
-            cleanTimeout.Start()
-            System.Windows.Threading.Dispatcher.PushFrame(frameClean)
-        Catch
+            Await TsnetManager.Instance.ShutdownAsync()
+        Catch ex As Exception
+            AppLogger.LogApp($"Shutdown.Tsnet: {ex.Message}")
         End Try
-
-        Try
-            Dim frameTs As New System.Windows.Threading.DispatcherFrame()
-            Dim tsTask = TsnetManager.Instance.ShutdownAsync()
-            tsTask.ContinueWith(Sub(prev) frameTs.Continue = False)
-            Dim tsTimeout As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(2)}
-            AddHandler tsTimeout.Tick, Sub()
-                tsTimeout.Stop()
-                frameTs.Continue = False
-            End Sub
-            tsTimeout.Start()
-            System.Windows.Threading.Dispatcher.PushFrame(frameTs)
-        Catch
-        End Try
-
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
             _trayIcon = Nothing
         End If
-
         Try
             ToastNotificationManagerCompat.Uninstall()
         Catch
         End Try
-    End Sub
+        Return allClosed
+    End Function
 
-    ''' <summary>
-    ''' Esegue la chiusura definitiva dell'applicazione liberando tutte le risorse allocate e rimuovendo i listener.
-    ''' </summary>
-    Private Sub ExitApplication()
-        PrepareForShutdown()
-        Application.Current.Shutdown()
-    End Sub
-
-    ''' <summary>
-    ''' Forza l'uscita dell'applicazione senza conferma per consentire l'avvio della procedura di aggiornamento automatico.
-    ''' </summary>
-    Public Async Function ForceExitForUpdateAsync() As Task
-        _allowExit = True
-
-        If _dndTimer IsNot Nothing Then
-            _dndTimer.Stop()
-            _dndTimer = Nothing
-        End If
-
-        If _periodicNetworkSyncTimer IsNot Nothing Then
-            _periodicNetworkSyncTimer.Stop()
-            _periodicNetworkSyncTimer = Nothing
-        End If
-
-        RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
-        RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
-
+    ''' <summary>Best effort for the synchronous Windows session-ending callback.</summary>
+    Public Sub PrepareForShutdown()
+        Dim pending = ShutdownAsync(exportProfiles:=False)
+        If pending.IsCompleted Then Return
+        Dim frame As New System.Windows.Threading.DispatcherFrame()
+        Dim timer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(10)}
+        AddHandler timer.Tick, Sub()
+            timer.Stop()
+            frame.Continue = False
+        End Sub
+        pending.ContinueWith(Sub(completed) frame.Continue = False)
+        timer.Start()
         Try
-            Await Task.WhenAll(_accountManager.SaveAccountsAsync(), _settingsController.FlushNowAsync())
-        Catch
+            System.Windows.Threading.Dispatcher.PushFrame(frame)
+        Finally
+            timer.Stop()
         End Try
+    End Sub
 
-        For Each acc In _accountManager.Accounts
-            Try
-                acc.Dispose()
-            Catch
-            End Try
-        Next
+    Private Async Sub ExitApplication()
+        Try
+            Await ShutdownAsync(exportProfiles:=True)
+        Catch ex As Exception
+            Application.LogUnhandledException("ExitApplication", ex)
+        Finally
+            Application.Current.Shutdown()
+        End Try
+    End Sub
 
-        If NetworkProfileSync.IsRunningOnNetwork AndAlso _settingsController.EnableNetworkProfileStaging Then
-            Try
-                Await _accountManager.SyncAllProfilesToNetworkAsync()
-            Catch
-            End Try
+    Public Async Function ForceExitForUpdateAsync() As Task
+        If Not Await ShutdownAsync(exportProfiles:=True) Then
+            Throw New IOException("Update cancelled: WebView2 has not released its profiles. Restart HidaChat manually.")
         End If
-
-
-        If _trayIcon IsNot Nothing Then
-            _trayIcon.Visible = False
-            _trayIcon.Dispose()
-        End If
-        ToastNotificationManagerCompat.Uninstall()
-
-        ' Rilascia il Mutex dell'istanza singola prima che lo script di aggiornamento avvii il nuovo processo
         Application.ReleaseSingleInstanceMutex()
     End Function
 
     Public Sub ForceExitForUpdate()
-        If Dispatcher.CheckAccess() Then
-            Dim frame As New System.Windows.Threading.DispatcherFrame()
-            Dim t = ForceExitForUpdateAsync()
-            t.ContinueWith(Sub(prev) frame.Continue = False)
-            Dim timeoutTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(3)}
-            AddHandler timeoutTimer.Tick, Sub()
-                timeoutTimer.Stop()
-                frame.Continue = False
-            End Sub
-            timeoutTimer.Start()
-            System.Windows.Threading.Dispatcher.PushFrame(frame)
-        Else
-            ForceExitForUpdateAsync().GetAwaiter().GetResult()
+        If Not Dispatcher.CheckAccess() Then
+            Dispatcher.InvokeAsync(Function() ForceExitForUpdateAsync()).Task.Unwrap().GetAwaiter().GetResult()
+            Return
         End If
+        Dim pending = ForceExitForUpdateAsync()
+        Dim frame As New System.Windows.Threading.DispatcherFrame()
+        pending.ContinueWith(Sub(completed) frame.Continue = False)
+        If Not pending.IsCompleted Then System.Windows.Threading.Dispatcher.PushFrame(frame)
+        pending.GetAwaiter().GetResult()
     End Sub
 
     ''' <summary>
@@ -683,7 +581,12 @@ Public Class MainWindow
     ''' In caso di crash pregresso o stato invalidato, attiva il ripristino automatico (Auto-Recovery).
     ''' </summary>
     Private Async Function EnsureWebViewAsync(account As AppAccounts) As Task
-        If account Is Nothing Then Return
+        If account Is Nothing OrElse _isShuttingDown Then Return
+        Dim pendingRecreation As Task = Nothing
+        If _recreationTasks.TryGetValue(account.Id, pendingRecreation) AndAlso Not pendingRecreation.IsCompleted Then
+            Await pendingRecreation
+            Return
+        End If
 
         Dim needsRecreation As Boolean = (account.WebView Is Nothing OrElse account.IsCrashed)
         If Not needsRecreation AndAlso account.WebView IsNot Nothing Then
@@ -710,23 +613,21 @@ Public Class MainWindow
     ''' <summary>
     ''' Ricrea da zero il controllo WebView2 per un account in seguito a un crash del processo browser (Auto-Recovery trasparente).
     ''' </summary>
-    Public Async Function RecreateAccountWebViewAsync(account As AppAccounts) As Task
-        If account Is Nothing Then Return
+    Public Function RecreateAccountWebViewAsync(account As AppAccounts) As Task
+        If account Is Nothing OrElse _isShuttingDown Then Return Task.CompletedTask
+        Dim pending As Task = Nothing
+        If _recreationTasks.TryGetValue(account.Id, pending) AndAlso Not pending.IsCompleted Then Return pending
+        Dim operation = RecreateAccountWebViewCoreAsync(account)
+        _recreationTasks(account.Id) = operation
+        Return operation
+    End Function
 
-        Debug.WriteLine($"[Auto-Recovery] Recreating WebView2 control for account {account.Id} ({account.Name})")
-
-        ' 1. Rimozione e rilascio sicuro del vecchio controllo compromesso
-        If account.WebView IsNot Nothing Then
-            Try
-                WebViewsGrid.Children.Remove(account.WebView)
-            Catch
-            End Try
-            Try
-                account.Dispose()
-            Catch
-            End Try
-            account.WebView = Nothing
+    Private Async Function RecreateAccountWebViewCoreAsync(account As AppAccounts) As Task
+        If Not Await account.CloseWebViewAsync() Then
+            account.IsCrashed = True
+            Throw New IOException("Previous WebView2 process still owns the profile. No profile reset was performed.")
         End If
+        If _isShuttingDown OrElse Not _accountManager.Accounts.Contains(account) Then Return
 
         account.IsCrashed = False
 
