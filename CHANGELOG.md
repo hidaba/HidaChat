@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.6-beta] - 2026-10-07
+## [1.1.7-beta] - 2026-10-07
 
 ### Pre-release / Beta — Architettura Difensiva Ciclo di Vita Profili WebView2, Copie Atomiche Cold Profile, Lease Esclusivo Multi-PC e Diagnostica Session Health
 - **Gestione Resiliente Fallimenti WebView2 (`AppAccounts.vb`, `WebViewLifetime.vb`)**:
