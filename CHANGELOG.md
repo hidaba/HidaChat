@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.8-beta] - 2026-10-08
+
+### Pre-release / Beta — Ripristino Integrale API Native Web (`WebSocket` e `IndexedDB`), Normalizzazione Browser Flags Chromium e Isolamento Resilienza I/O
+- **Ripristino Integrale delle API Web Native (`Scripts/notification.js`)**:
+  - **Rimozione Override `window.WebSocket`**: Eliminata la sostituzione del costruttore WebSocket globale e l'iniezione di listener diagnostici a caldo. Il costruttore nativo, i prototipi e la negoziazione dei socket rimangono al 100% inalterati, prevenendo anomalie di timing e aperture multiple concorrenti durante le riconnessioni.
+  - **Rimozione Override `window.indexedDB.deleteDatabase`**: Rimosso il wrapping del metodo di cancellazione del database; le banche dati IndexedDB e LevelDB operano esclusivamente tramite i motori nativi W3C del browser senza intercettazioni JavaScript né allocazioni di stack trace.
+  - **Sanificazione Gestione Permessi Navigator**: Il fallback di `navigator.permissions.query` è limitato esclusivamente al parametro `notifications`, evitando ritorni anomali per query relative allo storage, clipboard o periferiche.
+- **Normalizzazione Browser Flags Chromium (`AppAccounts.vb`)**:
+  - **Rimozione `--disable-background-timer-throttling` e `--disable-backgrounding-occluded-windows`**: L'inibizione forzata del throttling impediva a Chromium di gestire fisiologicamente la sospensione, i reset del controller disco (VirtIO SCSI `vioscsi 129`) e gli eventi di sleep/wake, causando aborti di transazione LevelDB (`AbortError: QuotaExceededError`). Ripristinato il comportamento nativo di Microsoft Edge WebView2, che mette in sicurezza l'I/O su disco in background.
+  - **Pulizia Argomenti Browser**: Rimossi browser flags non raccomandati per la distribuzione da Microsoft, mantenendo unicamente le funzionalità standard di supporto correttore ortografico (`Spellcheck`) e disabilitazione di feature non pertinenti (`Translate`, `MediaRouter`).
+- **Verifica Congiunta Script di Pagina (`Tests/session-health.test.cjs`)**:
+  - Estesa la suite di test JavaScript per validare che l'esecuzione simultanea di tutti gli script iniettati (`session-health.js` e `notification.js`) mantenga invariati i prototipi e i costruttori nativi di trasporto (`window.WebSocket`) e persistenza (`indexedDB.deleteDatabase`).
+
 ## [1.1.7-beta] - 2026-10-07
 
 ### Pre-release / Beta — Architettura Difensiva Ciclo di Vita Profili WebView2, Copie Atomiche Cold Profile, Lease Esclusivo Multi-PC e Diagnostica Session Health

@@ -786,15 +786,15 @@ Public Class AppAccounts
                 options.Language = effectiveLang
             End If
 
-            Dim browserArgs = "--disable-component-update --disable-domain-reliability --no-crash-upload --disable-background-timer-throttling --disable-backgrounding-occluded-windows"
+            Dim browserArgsList As New List(Of String)()
             Dim disabledFeatures As New List(Of String) From {"Translate", "MediaRouter"}
             If settings.EnableSpellcheck Then
-                browserArgs &= $" --enable-features=Spellcheck --lang={effectiveLang}"
+                browserArgsList.Add($"--enable-features=Spellcheck --lang={effectiveLang}")
             Else
                 disabledFeatures.Add("Spellcheck")
             End If
-            browserArgs &= $" --disable-features={String.Join(",", disabledFeatures)}"
-            options.AdditionalBrowserArguments = browserArgs
+            browserArgsList.Add($"--disable-features={String.Join(",", disabledFeatures)}")
+            options.AdditionalBrowserArguments = String.Join(" ", browserArgsList).Trim()
 
             _environmentCreationStarted = True
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)

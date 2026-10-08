@@ -83,60 +83,7 @@
     };
   } catch(e) {}
 
-  // Intercettazione WebSocket per WhatsApp / Telegram
-  try {
-    if (typeof window.WebSocket === 'function') {
-      const OrigWebSocket = window.WebSocket;
-      window.WebSocket = function(url, protocols) {
-        const ws = protocols !== undefined ? new OrigWebSocket(url, protocols) : new OrigWebSocket(url);
-        try {
-          const urlStr = String(url);
-          if (urlStr.includes('whatsapp') || urlStr.includes('telegram')) {
-            sendDiagnostic('WS_CONNECTING', { url: urlStr });
-            ws.addEventListener('open', function() {
-              sendDiagnostic('WS_OPEN', { url: urlStr });
-            });
-            ws.addEventListener('close', function(ev) {
-              sendDiagnostic('WS_CLOSE', {
-                url: urlStr,
-                code: ev.code,
-                reason: ev.reason || '',
-                wasClean: ev.wasClean
-              });
-            });
-            ws.addEventListener('error', function() {
-              sendDiagnostic('WS_ERROR', { url: urlStr });
-            });
-          }
-        } catch(e) {}
-        return ws;
-      };
-      window.WebSocket.prototype = OrigWebSocket.prototype;
-      Object.setPrototypeOf(window.WebSocket, OrigWebSocket);
-    }
-  } catch(e) {}
-
-  // Intercettazione e diagnostica tentativi cancellazione database IndexedDB
-  try {
-    if (window.indexedDB && typeof window.indexedDB.deleteDatabase === 'function') {
-      const origDeleteDb = window.indexedDB.deleteDatabase.bind(window.indexedDB);
-
-      window.indexedDB.deleteDatabase = function(name) {
-        const dbNameStr = String(name || '');
-        const stack = new Error().stack || '';
-
-        try {
-          sendDiagnostic('INDEXEDDB_DELETE_ATTEMPT', {
-            dbName: dbNameStr,
-            stack: stack.substring(0, 2000)
-          });
-        } catch(e) {}
-
-        return origDeleteDb.apply(window.indexedDB, arguments);
-      };
-    }
-  } catch(e) {}
-
+  // Native transport (WebSocket) and storage (IndexedDB) remain 100% untouched.
   // Storage persistence and passive health diagnostics live in session-health.js.
 
   // Rilevamento dialoghi modali di errore/disconnessione nel DOM
@@ -274,26 +221,22 @@
       window.Notification = CustomNotification;
     }
 
-    // 3. Gestione permessi nativi con fallback sicuro
+    // 3. Gestione permessi notifiche per WebView2
     if (navigator.permissions && typeof navigator.permissions.query === 'function') {
       try {
         const origQuery = navigator.permissions.query;
         navigator.permissions.query = function(parameters) {
-          try {
-            if (parameters && parameters.name === 'notifications') {
-              return Promise.resolve({
-                state: 'granted',
-                name: 'notifications',
-                onchange: null,
-                addEventListener: function() {},
-                removeEventListener: function() {},
-                dispatchEvent: function() { return false; }
-              });
-            }
-            return origQuery.apply(navigator.permissions, arguments);
-          } catch(err) {
-            return Promise.resolve({ state: 'granted', name: parameters ? parameters.name : 'unknown' });
+          if (parameters && parameters.name === 'notifications') {
+            return Promise.resolve({
+              state: 'granted',
+              name: 'notifications',
+              onchange: null,
+              addEventListener: function() {},
+              removeEventListener: function() {},
+              dispatchEvent: function() { return false; }
+            });
           }
+          return origQuery.apply(navigator.permissions, arguments);
         };
       } catch(e) {}
     }
