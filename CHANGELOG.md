@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.0] - 2026-10-09
+
+### Release Stabile — Nuova Architettura Resiliente Profili WebView2, Copie Atomiche Cold Profile, Ripristino API Web Native e Sincronizzazione Multi-PC
+- **Ripristino Integrale delle API Web Native e Normalizzazione Browser (`Scripts/notification.js`, `AppAccounts.vb`)**:
+  - **Integrità WebSocket e IndexedDB Native**: Rimossa qualsiasi intercettazione o monkey-patching dei costruttori `window.WebSocket` e del metodo `indexedDB.deleteDatabase`. Le connessioni socket e le banche dati crittografiche (Signal e LevelDB) operano al 100% secondo gli standard W3C nativi di Chromium senza alterazioni di prototipi né interferenze di timing.
+  - **Normalizzazione Browser Flags Chromium**: Rimossi i flag di inibizione del timer throttling in background (`--disable-background-timer-throttling` e `--disable-backgrounding-occluded-windows`), ripristinando il corretto comportamento del browser in sospensione e prevenendo contese di I/O disco e aborti di transazione (`QuotaExceededError`) durante i reset hardware o virtuali.
+  - **Sanificazione Deleghe Permessi**: La delega di `navigator.permissions.query` è limitata alle notifiche, delegando tutte le altre autorizzazioni alla gestione nativa di WebView2.
+- **Architettura Resiliente del Ciclo di Vita Profili WebView2 (`AppAccounts.vb`, `WebViewLifetime.vb`)**:
+  - **Differenziazione Fallimenti di Processo**: Gli arresti non fatali di GPU o sottosistemi di utilità non causano più la ricreazione forzata dell'istanza del browser; la ricreazione scatta unicamente se il processo browser è effettivamente terminato.
+  - **Sincronizzazione Atomica `BrowserProcessExited`**: Attesa asincrona della reale chiusura del processo `msedgewebview2.exe` prima di liberare risorse o riutilizzare directory, eliminando contese di lock e corruzioni LevelDB.
+  - **Serializzazione Thread-Safe**: Sincronizzazione delle ricreazioni tramite semaforo per escludere corse critiche.
+- **Copie Atomiche Cold Profile e Sicurezza Staging (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`)**:
+  - **Divieto Tassativo Copie Live (`[LIVE_COPY_REFUSED]`)**: Bloccata qualsiasi copia o esportazione di profilo a browser in esecuzione.
+  - **Staging Atomico e Rollback**: Le operazioni di copia avvengono in cartelle temporanee `.incoming-*` con rinomina atomica finale e conservazione del backup integro `.previous`.
+  - **Eliminazione Euristiche Distruttive**: Rimossi controlli basati su dimensioni che rischiavano di scartare profili validi.
+- **Lease Esclusivo OS per Condivisioni Multi-PC (`NetworkProfileSync.vb`)**:
+  - File lock a livello di filesystem (`FileShare.None`) attivo per l'intera sessione per prevenire l'avvio concorrente dello stesso account da postazioni diverse.
+- **Aggiornamenti Puliti e Non Invasivi (`UpdateChecker.vb`)**:
+  - Eliminata la terminazione forzata con `taskkill /f`: l'aggiornatore attende la chiusura ordinata del processo host prima della sostituzione dei file.
+- **Suite di Test Completa**:
+  - Validati con successo tutti i 42 test di regressione .NET e 9 test JavaScript in esecuzione congiunta.
+
 ## [1.1.8-beta] - 2026-10-08
 
 ### Pre-release / Beta — Ripristino Integrale API Native Web (`WebSocket` e `IndexedDB`), Normalizzazione Browser Flags Chromium e Isolamento Resilienza I/O
