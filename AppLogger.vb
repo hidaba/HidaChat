@@ -62,4 +62,14 @@ Public Class AppLogger
     Public Shared Sub LogApp(message As String)
         Log("app.log", "App", message)
     End Sub
+
+    ''' <summary>Registra un messaggio informativo generale in app.log.</summary>
+    Public Shared Sub LogInfo(message As String)
+        Log("app.log", "INFO", message)
+    End Sub
+
+    ''' <summary>Registra un avviso di sicurezza o anomalia in app.log.</summary>
+    Public Shared Sub LogWarn(message As String)
+        Log("app.log", "WARN", message)
+    End Sub
 End Class

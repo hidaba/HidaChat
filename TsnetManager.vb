@@ -48,6 +48,23 @@ Public Class TsnetManager
         End Try
     End Function
 
+    ''' <summary>
+    ''' Restituisce la directory di stato isolata per il nodo tsnet associata alla macchina corrente (TODO #60),
+    ''' prevenendo la clonazione o sovrascrittura dell'identità del nodo su host differenti in ambiente portabile.
+    ''' </summary>
+    Public Shared Function GetMachineStateDir() As String
+        Dim machineName = Environment.MachineName.Trim()
+        Dim safeMachineName = System.Text.RegularExpressions.Regex.Replace(machineName, "[^a-zA-Z0-9_\-]", "_")
+        If String.IsNullOrWhiteSpace(safeMachineName) Then safeMachineName = "default"
+        Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "tsnet", safeMachineName)
+    End Function
+
+    ''' <summary>Fornisce facoltativamente la chiave di autenticazione configurata nelle impostazioni.</summary>
+    Public Property AuthKeyProvider As Func(Of String)
+
+    ''' <summary>Azione asincrona invocata una volta completato l'enrollment (passaggio a stato Running).</summary>
+    Public Property OnEnrollmentCompletedAsync As Func(Of Task)
+
     Private ReadOnly _localToken As String = GetOrCreateLocalToken()
     Private _pollTimer As Timer
     Private _isShuttingDown As Boolean = False
@@ -165,13 +182,20 @@ Public Class TsnetManager
             Return False
         End If
 
-        Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
-        Dim stateDir = Path.Combine(dataDir, "tsnet")
+        Dim stateDir = GetMachineStateDir()
         Directory.CreateDirectory(stateDir)
 
+        Dim effectiveAuthKey = authKey
+        If String.IsNullOrWhiteSpace(effectiveAuthKey) AndAlso AuthKeyProvider IsNot Nothing Then
+            Try
+                effectiveAuthKey = AuthKeyProvider.Invoke()
+            Catch
+            End Try
+        End If
+
         Dim args = $"-dir ""{stateDir}"" -hostname ""hidachat"""
-        If Not String.IsNullOrWhiteSpace(authKey) Then
-            args &= $" -authkey ""{authKey.Trim()}"""
+        If Not String.IsNullOrWhiteSpace(effectiveAuthKey) Then
+            args &= $" -authkey ""{effectiveAuthKey.Trim()}"""
         End If
 
         Dim psi As New ProcessStartInfo With {
@@ -276,7 +300,18 @@ Public Class TsnetManager
             Using doc As JsonDocument = JsonDocument.Parse(resp)
                 Dim root = doc.RootElement
                 If root.TryGetProperty("nodeState", Nothing) Then
-                    NodeState = root.GetProperty("nodeState").GetString()
+                    Dim newState = root.GetProperty("nodeState").GetString()
+                    Dim wasRunning = String.Equals(NodeState, "Running", StringComparison.OrdinalIgnoreCase)
+                    NodeState = newState
+                    If Not wasRunning AndAlso String.Equals(newState, "Running", StringComparison.OrdinalIgnoreCase) Then
+                        If OnEnrollmentCompletedAsync IsNot Nothing Then
+                            Try
+                                Await OnEnrollmentCompletedAsync.Invoke()
+                            Catch ex As Exception
+                                Debug.WriteLine($"[TsnetManager] Error in OnEnrollmentCompletedAsync: {ex.Message}")
+                            End Try
+                        End If
+                    End If
                 End If
                 If root.TryGetProperty("tailnetIP", Nothing) Then
                     TailnetIP = root.GetProperty("tailnetIP").GetString()

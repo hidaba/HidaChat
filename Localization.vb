@@ -605,6 +605,10 @@ Public Class AppLocalizations
         {"enable_network_profile_staging", "Enable local staging for network drives"},
         {"enable_network_profile_staging_hint", "Improves session stability and prevents WhatsApp disconnection when running from network shares (SMB/UNC)."},
         {"network_drive_session_conflict", "Warning: Account '{name}' appears to be active on another computer ({machine}). Simultaneous usage may cause disconnects."},
+        {"secret_decrypt_error_title", "Credential Decryption Warning"},
+        {"secret_decrypt_error_msg", "Could not decrypt the stored Tailscale AuthKey: the application folder was opened on a different computer or Windows user profile (DPAPI protection is machine/user-bound)." & vbCrLf & vbCrLf & "To re-enable Tailscale integration, please re-enter the AuthKey in Settings."},
+        {"folder_locked_title", "Application Folder in Use"},
+        {"folder_locked_msg", "The HidaChat folder is currently locked and in use by another instance or computer:" & vbCrLf & vbCrLf & "• Machine: {machine}" & vbCrLf & "• User: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Started at: {time}" & vbCrLf & vbCrLf & "To prevent WebView2 profile and session data corruption, running multiple concurrent instances from the same folder is not allowed."},
         {"close", "Close"}
     }
 
@@ -729,6 +733,10 @@ Public Class AppLocalizations
         {"enable_network_profile_staging", "Abilita staging locale per dischi di rete"},
         {"enable_network_profile_staging_hint", "Migliora la stabilità e previene la perdita della sessione WhatsApp quando l'app risiede su cartelle di rete (SMB/UNC)."},
         {"network_drive_session_conflict", "Attenzione: L'account '{name}' risulta già attivo su un altro computer ({machine}). L'uso simultaneo può causare disconnessioni."},
+        {"secret_decrypt_error_title", "Avviso Decifratura Credenziali"},
+        {"secret_decrypt_error_msg", "Impossibile decifrare la chiave Tailscale AuthKey memorizzata: la cartella dell'applicazione è stata aperta su un computer o profilo utente Windows differente rispetto a dove è stata salvata (la protezione DPAPI è vincolata alla macchina/utente locale)." & vbCrLf & vbCrLf & "Per riattivare l'integrazione con Tailscale, reinserisci l'AuthKey nelle Impostazioni."},
+        {"folder_locked_title", "Cartella Applicazione in Uso"},
+        {"folder_locked_msg", "La cartella di HidaChat è attualmente bloccata ed in uso da un'altra postazione o processo:" & vbCrLf & vbCrLf & "• Computer: {machine}" & vbCrLf & "• Utente: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Avviato il: {time}" & vbCrLf & vbCrLf & "Per prevenire la corruzione dei profili WebView2 e dei dati di sessione, non è consentito avviare contemporaneamente più istanze dalla stessa cartella."},
         {"close", "Chiudi"}
     }
 
@@ -853,6 +861,10 @@ Public Class AppLocalizations
         {"enable_network_profile_staging", "Activer le relais local pour les lecteurs réseau"},
         {"enable_network_profile_staging_hint", "Améliore la stabilité et évite la déconnexion de WhatsApp lors de l'exécution sur un partage réseau (SMB/UNC)."},
         {"network_drive_session_conflict", "Attention : Le compte '{name}' semble actif sur un autre ordinateur ({machine}). L'utilisation simultanée peut entraîner des déconnexions."},
+        {"secret_decrypt_error_title", "Avertissement de Déchiffrement des Identifiants"},
+        {"secret_decrypt_error_msg", "Impossible de déchiffrer la clé Tailscale AuthKey enregistrée : le dossier de l'application a été ouvert sur un ordinateur ou un profil utilisateur Windows différent (la protection DPAPI est liée à la machine locale)." & vbCrLf & vbCrLf & "Pour réactiver l'intégration Tailscale, veuillez saisir à nouveau l'AuthKey dans les Paramètres."},
+        {"folder_locked_title", "Dossier d'Application en Cours d'Utilisation"},
+        {"folder_locked_msg", "Le dossier HidaChat est actuellement verrouillé et utilisé par un autre poste ou processus :" & vbCrLf & vbCrLf & "• Ordinateur : {machine}" & vbCrLf & "• Utilisateur : {user}" & vbCrLf & "• PID : {pid}" & vbCrLf & "• Démarré le : {time}" & vbCrLf & vbCrLf & "Pour éviter toute corruption des profils WebView2 et des sessions, l'exécution simultanée depuis le même dossier n'est pas autorisée."},
         {"close", "Fermer"}
     }
 
@@ -977,6 +989,10 @@ Public Class AppLocalizations
         {"enable_network_profile_staging", "Habilitar almacenamiento local para unidades de red"},
         {"enable_network_profile_staging_hint", "Mejora la estabilidad y evita que WhatsApp cierre la sesión al ejecutarse desde recursos de red (SMB/UNC)."},
         {"network_drive_session_conflict", "Advertencia: La cuenta '{name}' parece estar activa en otro equipo ({machine}). El uso simultáneo puede provocar desconexiones."},
+        {"secret_decrypt_error_title", "Aviso de Descifrado de Credenciales"},
+        {"secret_decrypt_error_msg", "No se pudo descifrar la clave Tailscale AuthKey almacenada: la carpeta de la aplicación se abrió en un equipo o perfil de usuario de Windows diferente (la protección DPAPI está vinculada al equipo/usuario local)." & vbCrLf & vbCrLf & "Para reactivar la integración con Tailscale, vuelva a introducir la AuthKey en Configuración."},
+        {"folder_locked_title", "Carpeta de la Aplicación en Uso"},
+        {"folder_locked_msg", "La carpeta de HidaChat está actualmente bloqueada y en uso por otra estación o proceso:" & vbCrLf & vbCrLf & "• Equipo: {machine}" & vbCrLf & "• Usuario: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Iniciado: {time}" & vbCrLf & vbCrLf & "Para prevenir la corrupción de los perfiles WebView2 y las sesiones, no se permite ejecutar simultáneamente múltiples instancias desde la misma carpeta."},
         {"close", "Cerrar"}
     }
 
@@ -1101,6 +1117,10 @@ Public Class AppLocalizations
         {"enable_network_profile_staging", "Lokales Staging für Netzlaufwerke aktivieren"},
         {"enable_network_profile_staging_hint", "Verbessert die Sitzungsstabilität und verhindert das Abmelden von WhatsApp bei Ausführung über Netzwerkfreigaben (SMB/UNC)."},
         {"network_drive_session_conflict", "Warnung: Konto '{name}' scheint auf einem anderen Computer ({machine}) aktiv zu sein. Die gleichzeitige Nutzung kann zu Abmeldungen führen."},
+        {"secret_decrypt_error_title", "Warnung zur Entschlüsselung der Anmeldedaten"},
+        {"secret_decrypt_error_msg", "Der gespeicherte Tailscale AuthKey konnte nicht entschlüsselt werden: Der Anwendungsordner wurde auf einem anderen Computer oder Windows-Benutzerprofil geöffnet (der DPAPI-Schutz ist an das lokale System/Benutzer gebunden)." & vbCrLf & vbCrLf & "Um die Tailscale-Integration erneut zu aktivieren, geben Sie den AuthKey bitte in den Einstellungen erneut ein."},
+        {"folder_locked_title", "Anwendungsordner wird Bereits Verwendet"},
+        {"folder_locked_msg", "Der HidaChat-Ordner ist derzeit gesperrt und wird von einem anderen Computer oder Prozess verwendet:" & vbCrLf & vbCrLf & "• Computer: {machine}" & vbCrLf & "• Benutzer: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Gestartet am: {time}" & vbCrLf & vbCrLf & "Um eine Beschädigung der WebView2-Profile und Sitzungen zu verhindern, können nicht mehrere Instanzen gleichzeitig aus demselben Ordner ausgeführt werden."},
         {"close", "Schließen"}
     }
 

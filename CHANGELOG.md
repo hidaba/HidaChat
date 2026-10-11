@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.1-beta] - 2026-10-11
+
+### Pre-release / Beta — Ottimizzazione I/O Configurazione, Sicurezza Segreti Portabili & Bearer Token, File Lock Multi-PC e Isolamento State Directory tsnet
+- **Ottimizzazione I/O e Risoluzione `SettingsFile` (`SettingsController.vb` — TODO #65)**:
+  - **Risoluzione Lazy Thread-Safe**: Sostituita la verifica I/O ad ogni accesso con una memorizzazione persistente tramite `Lazy(Of String)` (`_settingsFilePathLazy`). Il percorso del file di configurazione `data/settings.json` viene ora calcolato e cachato esattamente una volta per l'intero ciclo di vita dell'applicazione.
+  - **Inizializzazione e Migrazione Dedicata (`InitializeSettingsFilePath`)**: La verifica della cartella `data/` e la migrazione una tantum del file storico `settings.json` dalla radice sono state isolate nella procedura di inizializzazione, azzerando le chiamate ridondanti a `File.Exists`, `Directory.CreateDirectory` e `File.Move` durante le normali operazioni di lettura e scrittura.
+- **Sicurezza Segreti Portabili, Isolamento Host tsnet e Iniezione Header Bearer (`SettingsController.vb`, `TsnetManager.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb` — TODO #60)**:
+  - **Gestione Esplicita Errori DPAPI**: In caso di fallimento della decifratura DPAPI (`CryptographicException`, ad es. spostando l'archivio portabile su un altro computer o utente Windows), l'applicazione non azzera più silenziosamente la chiave ma imposta `TsnetAuthKeyDecryptionFailed = True`, registra un log diagnostico ed avvisa l'utente tramite dialogo esplicito richiedendo il reinserimento delle credenziali.
+  - **Isolamento State Directory tsnet per Host (`data/tsnet/<hostname>`)**: Implementata la funzione `GetMachineStateDir()` che associa a ciascun computer una cartella di stato separata per il nodo tsnet embedded, impedendo la clonazione dell'identità del nodo o conflitti di enrollment tra macchine differenti che condividono l'archivio portabile.
+  - **Rilascio e Pulizia Automatica `tsnetAuthKey` Post-Enrollment**: Una volta che il nodo raggiunge lo stato `Running`, l'evento `OnEnrollmentCompletedAsync` provvede a rimuovere automaticamente la chiave monouso salvata (`ClearTsnetAuthKeyAfterEnrollmentAsync`), prevenendo la persistenza superflua di segreti esauriti nel file JSON.
+  - **Rimozione Token in Chiaro dall'URL & Iniezione Bearer Token**: Rimosso totalmente il parametro `token=` in query string dall'URL di navigazione per le piattaforme OpenClaw ed Hermes. Il token di accesso viene ora iniettato in modo sicuro e trasparente tramite header HTTP `Authorization: Bearer <token>` intercettato dall'evento `WebResourceRequested` di CoreWebView2 (sia per connessioni dirette che attraverso il reverse proxy tsnet).
+- **Protezione Attiva Multi-PC tramite Lock di Cartella (`Application.xaml.vb`, `README.md`, `README.it.md` — TODO #70)**:
+  - **File Lock Esclusivo OS (`data/.lock`)**: All'avvio dell'applicazione (`Application.OnStartup`) viene acquisito un file lock esclusivo a livello di filesystem (`data/.lock`) con `FileShare.Read` mantenuto aperto per tutta la durata dell'esecuzione.
+  - **Prevenzione Corruzione Profili e Dialogo Diagnostico**: All'avvio da un secondo computer o processo concorrente sulla stessa cartella, l'applicazione legge i metadati serializzati (hostname, utente, PID e timestamp di avvio dell'istanza bloccante) e presenta un avviso informativo bloccante, arrestandosi ordinatamente per salvaguardare l'integrità dei profili e dei database LevelDB di WebView2.
+  - **Rilascio Controllato all'Uscita**: Rilascio trasparente dell'handle e cancellazione di `data/.lock` in `Application.OnExit` e in tutti i percorsi di chiusura/spegnimento.
+  - **Armonizzazione Documentazione Portabilità e Requisiti**: Aggiornati i file `README.md` e `README.it.md` dettagliando il meccanismo di lock `data/.lock` e chiarendo la definizione di "Zero Installazione" (distribuzione portabile autonoma) unitamente al requisito del runtime Microsoft .NET 9 Desktop.
+- **Localizzazione Multilingua Sincrona (`Localization.vb`)**:
+  - Aggiunte e sincronizzate le nuove chiavi per notifiche decifratura credenziali e blocco cartella (`secret_decrypt_error_title`, `secret_decrypt_error_msg`, `folder_locked_title`, `folder_locked_msg`) nei dizionari di tutte e 5 le lingue supportate (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+
 ## [1.2.0] - 2026-10-09
 
 ### Release Stabile — Nuova Architettura Resiliente Profili WebView2, Copie Atomiche Cold Profile, Ripristino API Web Native e Sincronizzazione Multi-PC

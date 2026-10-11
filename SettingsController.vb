@@ -217,6 +217,14 @@ Public Class SettingsController
         End Set
     End Property
 
+    Private _tsnetAuthKeyDecryptionFailed As Boolean = False
+    ''' <summary>Indica se la decifratura DPAPI della chiave TsnetAuthKey è fallita (es. spostamento su altro PC o utente).</summary>
+    Public ReadOnly Property TsnetAuthKeyDecryptionFailed As Boolean
+        Get
+            Return _tsnetAuthKeyDecryptionFailed
+        End Get
+    End Property
+
     Private _suppressNetworkDriveWarning As Boolean = False
     ''' <summary>Indica se l'utente ha scelto di sopprimere l'avviso relativo all'esecuzione da unità di rete.</summary>
     Public Property SuppressNetworkDriveWarning As Boolean
@@ -452,31 +460,41 @@ Public Class SettingsController
         End Set
     End Property
 
+    Private Shared ReadOnly _settingsFilePathLazy As New Lazy(Of String)(AddressOf InitializeSettingsFilePath)
+
+    ''' <summary>
+    ''' Risolve il percorso del file settings.json ed esegue l'eventuale migrazione una tantum da radice a data/.
+    ''' Eseguito una sola volta per l'intero ciclo di vita dell'applicazione (TODO #65).
+    ''' </summary>
+    Private Shared Function InitializeSettingsFilePath() As String
+        Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
+        Dim dataPath = Path.Combine(dataDir, "settings.json")
+        If File.Exists(dataPath) Then Return dataPath
+
+        Dim rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
+        If File.Exists(rootPath) Then
+            Try
+                If Not Directory.Exists(dataDir) Then Directory.CreateDirectory(dataDir)
+                File.Move(rootPath, dataPath)
+                Return dataPath
+            Catch
+                Return rootPath
+            End Try
+        End If
+
+        If Not Directory.Exists(dataDir) Then
+            Try
+                Directory.CreateDirectory(dataDir)
+            Catch
+            End Try
+        End If
+        Return dataPath
+    End Function
+
     ' --- File JSON delle impostazioni ---
     Private ReadOnly Property SettingsFile As String
         Get
-            Dim dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data")
-            Dim dataPath = Path.Combine(dataDir, "settings.json")
-            If File.Exists(dataPath) Then Return dataPath
-
-            Dim rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
-            If File.Exists(rootPath) Then
-                Try
-                    If Not Directory.Exists(dataDir) Then Directory.CreateDirectory(dataDir)
-                    File.Move(rootPath, dataPath)
-                    Return dataPath
-                Catch
-                    Return rootPath
-                End Try
-            End If
-
-            If Not Directory.Exists(dataDir) Then
-                Try
-                    Directory.CreateDirectory(dataDir)
-                Catch
-                End Try
-            End If
-            Return dataPath
+            Return _settingsFilePathLazy.Value
         End Get
     End Property
 
@@ -627,6 +645,28 @@ Public Class SettingsController
                         $"Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{fileName}'." & vbCrLf & vbCrLf &
                         "Non è stato possibile recuperare un backup valido: l'applicazione è stata avviata con le impostazioni predefinite.")
                     MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Error)
+                Catch
+                End Try
+            End Sub)
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Notifica all'utente che la decifratura DPAPI di una credenziale/chiave salvata è fallita (TODO #60),
+    ''' indicando che la cartella dell'applicazione è stata spostata su un altro PC o utente e richiedendo il reinserimento.
+    ''' </summary>
+    Private Sub NotifySecretDecryptionFailed()
+        Try
+            Application.Current?.Dispatcher?.BeginInvoke(Sub()
+                Try
+                    Dim loc = Localizations
+                    Dim title = If(loc IsNot Nothing, loc.Get("secret_decrypt_error_title"), "Avviso Decifratura Credenziali")
+                    Dim msg = If(loc IsNot Nothing,
+                        loc.Get("secret_decrypt_error_msg"),
+                        "Impossibile decifrare la chiave Tailscale AuthKey memorizzata: la cartella dell'applicazione è stata aperta su un computer o profilo utente Windows differente rispetto a dove è stata salvata (la protezione DPAPI è vincolata alla macchina/utente locale)." & vbCrLf & vbCrLf &
+                        "Per riattivare l'integrazione con Tailscale, reinserisci l'AuthKey nelle Impostazioni.")
+                    MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Warning)
                 Catch
                 End Try
             End Sub)
@@ -824,8 +864,17 @@ Public Class SettingsController
                     Dim protectedBytes = Convert.FromBase64String(enc)
                     Dim bytes = ProtectedData.Unprotect(protectedBytes, Nothing, DataProtectionScope.CurrentUser)
                     _tsnetAuthKey = Encoding.UTF8.GetString(bytes)
-                Catch
+                    _tsnetAuthKeyDecryptionFailed = False
+                Catch ex As CryptographicException
                     _tsnetAuthKey = ""
+                    _tsnetAuthKeyDecryptionFailed = True
+                    AppLogger.LogWarn($"[DPAPI] Decifratura di tsnetAuthKey fallita (spostamento cartella su altro PC o utente differente): {ex.Message}")
+                    NotifySecretDecryptionFailed()
+                Catch ex As Exception
+                    _tsnetAuthKey = ""
+                    _tsnetAuthKeyDecryptionFailed = True
+                    AppLogger.LogWarn($"[DPAPI] Errore durante decifratura tsnetAuthKey: {ex.Message}")
+                    NotifySecretDecryptionFailed()
                 End Try
             Else
                 _tsnetAuthKey = ""
@@ -956,6 +1005,21 @@ Public Class SettingsController
         _cachedSettings("tsnetAuthKey") = encryptedBase64
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>
+    ''' Rimuove la chiave tsnetAuthKey salvata una volta completato l'enrollment del nodo tsnet (TODO #60),
+    ''' prevenendo la persistenza non necessaria di segreti one-time nel file di configurazione portabile.
+    ''' </summary>
+    Public Async Function ClearTsnetAuthKeyAfterEnrollmentAsync() As Task
+        If Not String.IsNullOrEmpty(_tsnetAuthKey) Then
+            TsnetAuthKey = ""
+            If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+            _cachedSettings("tsnetAuthKey") = ""
+            _dirty = True
+            Await FlushAfterDebounceAsync()
+            AppLogger.LogInfo("[TsnetManager] tsnetAuthKey consumata e rimossa dalle impostazioni dopo l'enrollment con successo.")
+        End If
     End Function
 
     ''' <summary>Imposta e persiste la modalità Non Disturbare con la durata specificata (TODO #47, #64).</summary>

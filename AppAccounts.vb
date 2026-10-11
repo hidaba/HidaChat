@@ -259,10 +259,8 @@ Public Class AppAccounts
                 If Not base.StartsWith("http://", StringComparison.OrdinalIgnoreCase) AndAlso Not base.StartsWith("https://", StringComparison.OrdinalIgnoreCase) Then
                     base = "http://" & base
                 End If
-                If Not String.IsNullOrWhiteSpace(AuthToken) AndAlso Not base.Contains("token=") Then
-                    Dim sep = If(base.Contains("?"), "&", "?")
-                    base = $"{base}{sep}token={Uri.EscapeDataString(AuthToken)}"
-                End If
+                ' NOTA: Il token di autenticazione non viene accodato in chiaro come query parameter (?token=) per preservare
+                ' la riservatezza e il principio 100% portabile (TODO #60). Viene iniettato come header 'Authorization: Bearer <token>' via WebResourceRequested.
                 If TailscaleIntegration AndAlso Not String.IsNullOrEmpty(LocalProxyUrl) Then
                     Dim sep = If(base.Contains("?"), "&", "?")
                     base = $"{base}{sep}__htok={Uri.EscapeDataString(TsnetManager.Instance.LocalToken)}"
@@ -1034,7 +1032,7 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
-            If IsHermes AndAlso Not String.IsNullOrWhiteSpace(AuthToken) AndAlso Not TailscaleIntegration Then
+            If (IsOpenClaw OrElse IsHermes) AndAlso Not String.IsNullOrWhiteSpace(AuthToken) AndAlso Not TailscaleIntegration Then
                 Try
                     Dim targetUri As Uri = Nothing
                     Dim filterPattern = "*://*/*"
@@ -1048,7 +1046,7 @@ Public Class AppAccounts
                         End If
                     End Sub
                 Catch ex As Exception
-                    Debug.WriteLine($"Failed to set Hermes auth filter: {ex.Message}")
+                    Debug.WriteLine($"Failed to set gateway auth filter: {ex.Message}")
                 End Try
             End If
 
@@ -1141,7 +1139,7 @@ Public Class AppAccounts
                             WebView.CoreWebView2.AddWebResourceRequestedFilter("http://127.0.0.1:*/*", CoreWebView2WebResourceContext.All)
                             _webResourceRequestedHandler = Sub(sender, reqArgs)
                                 reqArgs.Request.Headers.SetHeader("X-HidaChat-Local-Token", TsnetManager.Instance.LocalToken)
-                                If IsHermes AndAlso Not String.IsNullOrWhiteSpace(AuthToken) Then
+                                If (IsOpenClaw OrElse IsHermes) AndAlso Not String.IsNullOrWhiteSpace(AuthToken) Then
                                     If Not reqArgs.Request.Headers.Contains("Authorization") Then
                                         reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
                                     End If

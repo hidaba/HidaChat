@@ -126,6 +126,12 @@ Public Class MainWindow
         Try
             ' 1. Carica le impostazioni utente dal file JSON
             Await _settingsController.LoadSettingsAsync()
+
+            ' Configura TsnetManager con le credenziali e il rilascio della chiave post-enrollment (TODO #60)
+            TsnetManager.Instance.AuthKeyProvider = Function() _settingsController.TsnetAuthKey
+            TsnetManager.Instance.OnEnrollmentCompletedAsync = Async Function()
+                Await _settingsController.ClearTsnetAuthKeyAfterEnrollmentAsync()
+            End Function
             
             ' 2. Verifica che il runtime Microsoft Edge WebView2 sia installato nel sistema
             If Not CheckWebView2Installed() Then

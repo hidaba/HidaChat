@@ -393,14 +393,15 @@
   - Rimozione account non distruttiva e non bloccante in `RemoveAccountAsync`: spostamento preliminare nel cestino `_trash/` e cancellazione differita asincrona in background con backoff per consentire il rilascio dei file di lock da parte del processo Chromium.
 - **Impatto**: Alto | **Sforzo**: Medio
 
-## 60. Segreti portabili: DPAPI CurrentUser vs portabilità
-- **File**: `SettingsController.vb` (`SaveTsnetAuthKeyAsync`, `LoadSettingsAsync`), `AppAccounts.vb` (`AuthToken`); impatta anche #53 e #54 (`AuthToken` / `ApiKey`)
-- **Problema**: L'uso di `ProtectedData` con `DataProtectionScope.CurrentUser` vincola i segreti all'utente e alla macchina Windows locale: spostando la cartella dell'applicazione su un altro PC (su chiavetta USB o disco esterno) `Unprotect` fallisce e il blocco `Catch` azzera la chiave in silenzio. Inoltre, in `AppAccounts.vb` il token di autenticazione per OpenClaw ed Hermes viene accodato in chiaro come query parameter (`?token=`) nell'URL di navigazione, restando visibile nei log e nella cronologia. Questo compromette il principio di portabilità 100%.
-- **Fix**:
-  - Su errore di decifratura mostrare un messaggio esplicito all'utente richiedendo il reinserimento delle credenziali anziché azzerare silenziosamente il segreto;
-  - Non persistere l'`AuthKey` tsnet dopo il completamento del primo enrollment se il nodo mantiene il proprio stato nella state directory locale; predisporre una state directory separata per macchina (es. `data/tsnet/<hostname>`) per prevenire la clonazione dell'identità del nodo su host differenti;
-  - Opzionale: implementare master password con cifratura AES-GCM e derivazione della chiave (PBKDF2/Argon2) per segreti portabili indipendenti dalla macchina, riutilizzabile per la funzionalità App Lock (#48);
-  - Per i gateway OpenClaw/Hermes iniettare il token tramite header HTTP `Authorization: Bearer` via evento `WebResourceRequested` di CoreWebView2 invece di esporlo in query string nell'URL.
+## ~~60. Segreti portabili: DPAPI CurrentUser vs portabilità~~ ✅
+- **File**: `SettingsController.vb` (`SaveTsnetAuthKeyAsync`, `LoadSettingsAsync`, `ClearTsnetAuthKeyAfterEnrollmentAsync`), `TsnetManager.vb` (`GetMachineStateDir`, `StartAsync`, `CheckStatusAsync`), `AppAccounts.vb` (`WebUrl`, `SetupWebViewInternalAsync`, `EnsureLocalProxyAsync`), `MainWindow.xaml.vb`, `Localization.vb`
+- **Problema**: L'uso di `ProtectedData` con `DataProtectionScope.CurrentUser` vincola i segreti all'utente e alla macchina Windows locale: spostando la cartella dell'applicazione su un altro PC (su chiavetta USB o disco esterno) `Unprotect` fallisce e il blocco `Catch` azzera la chiave in silenzio. Inoltre, in `AppAccounts.vb` il token di autenticazione per OpenClaw ed Hermes veniva accodato in chiaro come query parameter (`?token=`) nell'URL di navigazione, restando visibile nei log e nella cronologia. Questo comprometteva il principio di portabilità 100%.
+- **Fix Implementato**:
+  - In caso di errore di decifratura DPAPI (`CryptographicException`), l'applicazione non azzera più il segreto silenziosamente: imposta `TsnetAuthKeyDecryptionFailed = True`, registra un log esplicito e mostra un dialogo di notifica all'utente richiedendo il reinserimento delle credenziali nelle Impostazioni;
+  - Isolamento della directory di stato del nodo tsnet per singola macchina (`data/tsnet/<hostname>`), prevenendo conflitti e la clonazione dell'identità del nodo su host differenti in ambiente portabile;
+  - Rilascio e rimozione automatica della `tsnetAuthKey` salvata una volta completato l'enrollment con successo (transizione a stato `Running`), evitando la persistenza permanente di chiavi monouso nel file di configurazione portabile;
+  - Rimozione totale del parametro `token=` in chiaro dalla query string dell'URL per OpenClaw ed Hermes; il token di autenticazione viene ora iniettato in modo sicuro e trasparente tramite header HTTP `Authorization: Bearer <token>` intercettato via evento `WebResourceRequested` di CoreWebView2 (sia in modalità diretta che tramite proxy locale tsnet);
+  - Aggiunte e sincronizzate le chiavi di notifica errore decifratura (`secret_decrypt_error_title`, `secret_decrypt_error_msg`) in tutti i 5 dizionari linguistici (`Localization.vb`: IT, EN, FR, ES, DE).
 - **Impatto**: Medio-Alto | **Sforzo**: Medio
 
 ---
@@ -452,10 +453,13 @@
 
 # REVISIONE CODICE — MINORI & PREPARAZIONE ROADMAP
 
-## 65. SettingsFile: I/O e migrazione a ogni accesso
-- **File**: `SettingsController.vb` (proprietà `SettingsFile`)
-- **Problema**: Il getter della proprietà `SettingsFile` esegue verifiche I/O su filesystem (`File.Exists`, `Directory.CreateDirectory`) e tenta la migrazione `File.Move` a ogni singola operazione di lettura o scrittura delle impostazioni.
-- **Fix**: Calcolare e memorizzare il percorso una sola volta all'avvio (tramite `Lazy(Of String)` o durante `LoadSettingsAsync`) e spostare la migrazione iniziale da radice a `data/` all'interno di una procedura di inizializzazione dedicata.
+## ~~65. SettingsFile: I/O e migrazione a ogni accesso~~ ✅
+- **File**: `SettingsController.vb` (proprietà `SettingsFile`, metodo `InitializeSettingsFilePath`)
+- **Problema**: Il getter della proprietà `SettingsFile` eseguiva verifiche I/O su filesystem (`File.Exists`, `Directory.CreateDirectory`) e tentava la migrazione `File.Move` a ogni singola operazione di lettura o scrittura delle impostazioni.
+- **Fix Implementato**:
+  - Calcolo e memorizzazione persistente del percorso tramite `Lazy(Of String)` thread-safe (`_settingsFilePathLazy`), risolto una sola volta al primo accesso per l'intero ciclo di vita dell'applicazione;
+  - Spostamento della logica di migrazione una tantum dalla cartella radice a `data/` all'interno della procedura di inizializzazione dedicata `InitializeSettingsFilePath`;
+  - Rimozione totale di qualsiasi operazione di I/O o accesso al disco dal getter della proprietà `SettingsFile`.
 - **Impatto**: Basso | **Sforzo**: Basso
 
 ## ~~66. Limite massimo account: sincronizzazione e policy di downgrade~~ ✅
@@ -496,10 +500,15 @@
 - **Fix**: Rendere la funzione di traduzione opt-in presentando un avviso esplicativo al primo utilizzo; definire un'interfaccia `ITranslationProvider` per supportare sia Google Translate (provider predefinito attuale) sia provider self-hosted o locali (LibreTranslate, Ollama o endpoint compatibili OpenAI con URL configurabile); restituire un messaggio d'errore chiaro e discreto qualora il provider configurato risulti irraggiungibile.
 - **Impatto**: Medio | **Sforzo**: Medio
 
-## 70. Uso portabile: lock multi-PC e coerenza del README
-- **File**: `Application.xaml.vb`, `README.md`, `README.it.md`, `publish.ps1`
-- **Problema**: Il file README raccomanda di non eseguire la stessa istanza portabile contemporaneamente da postazioni differenti (rischio concreto di lock file e corruzione del profilo WebView2), ma l'applicazione non adotta alcun meccanismo di prevenzione a livello di filesystem. Inoltre, l'indicazione "Zero Installation" contrasta con la necessità del runtime .NET 9 per le pubblicazioni standard framework-dependent.
-- **Fix**: Creare all'avvio un file di lock `data/.lock` (registrando hostname, ID processo e timestamp) con rilascio controllato all'uscita e segnalazione bloccante all'utente se la cartella risulta già utilizzata da un'altra macchina o processo; valutare la compilazione in formato self-contained (gestendo il conseguente aumento dimensionale dello ZIP, vedi #56) oppure armonizzare il testo del README esplicitando il requisito del runtime .NET 9.
+## ~~70. Uso portabile: lock multi-PC e coerenza del README~~ ✅
+- **File**: `Application.xaml.vb` (`TryAcquireFolderLock`, `ReleaseFolderLock`, `OnStartup`, `OnExit`), `README.md`, `README.it.md`, `Localization.vb`
+- **Problema**: Il file README raccomandava di non eseguire la stessa istanza portabile contemporaneamente da postazioni differenti (rischio concreto di lock file e corruzione del profilo WebView2), ma l'applicazione non adottava alcun meccanismo di prevenzione a livello di filesystem. Inoltre, l'indicazione "Zero Installation" contrastava con la necessità del runtime .NET 9 per le pubblicazioni standard framework-dependent.
+- **Fix Implementato**:
+  - Implementato a livello di avvio applicazione (`Application.OnStartup`) un file lock esclusivo sul filesystem `data/.lock` mantenuto aperto per l'intera durata della sessione;
+  - Registrazione strutturata in formato JSON nel lock file dei metadati del processo (hostname, username, PID, data/ora ISO di avvio);
+  - In caso di rilevamento di una contesa o sessione già attiva sulla medesima cartella (da altra macchina su rete o altro processo locale), visualizzazione di un messaggio bloccante all'utente (localizzato in tutte le lingue con dettaglio di macchina, PID e orario) ed arresto controllato dell'applicazione per impedire la corruzione dei profili WebView2;
+  - Rilascio pulito e rimozione automatica di `data/.lock` alla chiusura dell'applicazione in `OnExit` e nei percorsi di shutdown;
+  - Armonizzazione della documentazione in `README.md` e `README.it.md`: chiarito il meccanismo di protezione attiva del lock multi-PC `data/.lock`, ed esplicitato il requisito del .NET 9 Desktop Runtime chiarendo che l'indicazione "Zero Installazione" si riferisce alla distribuzione portabile (nessun installer di sistema necessario, nessun dato in registry o percorsi esterni).
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
 ---

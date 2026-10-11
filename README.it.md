@@ -50,7 +50,7 @@ Scegli tra la **Versione Stabile** (testata, consigliata per l'uso quotidiano) e
 - 📂 **Avvio rapido**: Estrai l'archivio ZIP in qualsiasi cartella (locale o chiavetta USB) ed avvia `HidaChat.exe`.
 - 🔄 **Aggiornamenti automatici (OTA)**: HidaChat include il controllo e l'aggiornamento automatico integrato. Puoi attivare o disattivare la ricezione delle versioni Beta in qualsiasi momento dalle **Impostazioni** (`Ctrl+,`).
 
-> ⚠️ **Nota Importante sulla Portabilità**: Non eseguire HidaChat contemporaneamente da più computer che accedono alla stessa cartella di rete condivisa: potrebbe corrompere le sessioni WebView2 e le impostazioni. HidaChat è progettato per essere utilizzato da un solo PC alla volta.
+> 🔒 **Portabilità e Lock Multi-PC (`data/.lock`)**: HidaChat è un'applicazione al 100% portabile (tutti i dati, profili e impostazioni risiedono esclusivamente all'interno della cartella dell'app). Per prevenire la corruzione dei database LevelDB di WebView2 e la perdita delle sessioni, HidaChat applica un lock a livello di filesystem (`data/.lock`): l'esecuzione contemporanea da più computer o processi che condividono la stessa cartella viene intercettata e bloccata con segnalazione diagnostica di host, utente e PID.
 
 ---
 
@@ -112,8 +112,9 @@ Scegli tra la **Versione Stabile** (testata, consigliata per l'uso quotidiano) e
 ## 💻 Requisiti di Sistema
 
 - **OS**: Windows 10 (build 19041 o successiva) / Windows 11
-- **Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (incluso di serie in Windows 11)
-- **Framework**: .NET 9.0 Runtime
+- **Installazione**: **Zero Installazione** (distribuzione portabile in archivio ZIP: non richiede setup né installatori, non modifica il registro di Windows né scrive in cartelle esterne)
+- **Framework**: [.NET 9.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0) (Windows Desktop x64)
+- **Web Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (incluso di serie in Windows 11 e nelle versioni recenti di Windows 10)
 
 ---
 

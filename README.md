@@ -50,7 +50,7 @@ Choose between the **Stable Release** (tested, recommended for daily use) and th
 - 📂 **Quick start**: Extract the ZIP file anywhere (Local Drive or USB Flash Drive) and launch `HidaChat.exe`.
 - 🔄 **Automatic updates (OTA)**: HidaChat includes a built-in auto-updater. You can enable or disable the Beta channel at any time in **Settings** (`Ctrl+,`).
 
-> ⚠️ **Important Portability Note**: Do not run HidaChat simultaneously from multiple computers accessing the same shared network folder. HidaChat is designed to be used by one PC at a time to prevent WebView2 profile lock conflicts.
+> 🔒 **Portability & Multi-PC Lock (`data/.lock`)**: HidaChat is 100% portable (all data, profiles, and settings reside strictly within the application folder). To prevent WebView2 LevelDB profile corruption and session loss, HidaChat enforces a filesystem-level lock (`data/.lock`): concurrent execution from multiple machines or processes sharing the same directory is detected and blocked with host, user, and PID diagnostic reporting.
 
 ---
 
@@ -112,8 +112,9 @@ Choose between the **Stable Release** (tested, recommended for daily use) and th
 ## 💻 System Requirements
 
 - **OS**: Windows 10 (version 20H1 / build 19041 or higher) or Windows 11
-- **Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (pre-installed on Windows 11)
-- **Framework**: .NET 9.0 Runtime
+- **Installation**: **Zero Installation** (portable ZIP archive: no installer or setup required, does not write to Windows registry or external folders)
+- **Framework**: [.NET 9.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0) (Windows Desktop x64)
+- **Web Runtime**: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (pre-installed on Windows 11 and modern Windows 10 builds)
 
 ---
 
