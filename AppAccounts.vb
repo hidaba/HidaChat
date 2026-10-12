@@ -602,6 +602,7 @@ Public Class AppAccounts
 
     ' Event Handlers fortemente tipizzati per WebView2 (evita memory leak)
     Private _permissionRequestedHandler As EventHandler(Of CoreWebView2PermissionRequestedEventArgs)
+    Private _notificationReceivedHandler As EventHandler(Of CoreWebView2NotificationReceivedEventArgs)
     Private _newWindowRequestedHandler As EventHandler(Of CoreWebView2NewWindowRequestedEventArgs)
     Private _navigationStartingHandler As EventHandler(Of CoreWebView2NavigationStartingEventArgs)
     Private _webMessageReceivedHandler As EventHandler(Of CoreWebView2WebMessageReceivedEventArgs)
@@ -830,7 +831,8 @@ Public Class AppAccounts
             ' Salvataggio riferimenti handler per poterli rimuovere in Dispose()
             _permissionRequestedHandler = Sub(sender, e)
                 If e.PermissionKind = CoreWebView2PermissionKind.Notifications Then
-                    e.State = CoreWebView2PermissionState.Allow
+                    ' Blocca i permessi notifiche native del browser per evitare la comparsa di popup doppi dell'account
+                    e.State = CoreWebView2PermissionState.Deny
                     e.Handled = True
                 ElseIf e.PermissionKind = CoreWebView2PermissionKind.PersistentStorage AndAlso
                        SessionRecoveryPolicy.IsTrustedStorageOrigin(e.Uri) Then
@@ -841,11 +843,38 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
 
+            _notificationReceivedHandler = Sub(sender, e)
+                Try
+                    ' Intercetta e sopprime il popup/interfaccia predefinita di notifica di WebView2 per l'account
+                    e.Handled = True
+                    Dim notif = e.Notification
+                    If notif IsNot Nothing Then
+                        Try
+                            notif.ReportShown()
+                            notif.ReportClosed()
+                        Catch
+                        End Try
+                    End If
+                Catch ex As Exception
+                    Debug.WriteLine($"NotificationReceived suppression error: {ex.Message}")
+                End Try
+            End Sub
+            AddHandler WebView.CoreWebView2.NotificationReceived, _notificationReceivedHandler
+
             Try
                 If WebView.CoreWebView2.Profile IsNot Nothing Then
-                    Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.whatsapp.com", CoreWebView2PermissionState.Allow)
-                    Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.telegram.org", CoreWebView2PermissionState.Allow)
+                    Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.whatsapp.com", CoreWebView2PermissionState.Deny)
+                    Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, "https://web.telegram.org", CoreWebView2PermissionState.Deny)
                     ThrowIfSetupStopped()
+                    Dim accountUri As Uri = Nothing
+                    If Uri.TryCreate(WebUrl, UriKind.Absolute, accountUri) Then
+                        Dim origin = accountUri.GetLeftPart(UriPartial.Authority)
+                        If Not origin.Equals("https://web.whatsapp.com", StringComparison.OrdinalIgnoreCase) AndAlso
+                           Not origin.Equals("https://web.telegram.org", StringComparison.OrdinalIgnoreCase) Then
+                            Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications, origin, CoreWebView2PermissionState.Deny)
+                            ThrowIfSetupStopped()
+                        End If
+                    End If
                     For Each origin In {"https://web.whatsapp.com", "https://web.telegram.org"}
                         Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.PersistentStorage, origin, CoreWebView2PermissionState.Allow)
                         ThrowIfSetupStopped()
@@ -1344,7 +1373,7 @@ Public Class AppAccounts
                 builder.AddText(body)
                 builder.AddArgument("accountId", Id)
                 builder.AddArgument("notificationId", notificationId)
-                builder.Show()
+                builder.Show(Sub(toast) toast.SuppressPopup = settings.ShowMessagePopup)
             Catch ex As Exception
                 Debug.WriteLine($"Failed to show toast notification: {ex.Message}")
             End Try
@@ -1421,7 +1450,7 @@ Public Class AppAccounts
                         builder.AddText(notifBody)
                         builder.AddArgument("accountId", Id)
                         builder.AddArgument("notificationId", "unread_" + DateTime.UtcNow.Ticks.ToString())
-                        builder.Show()
+                        builder.Show(Sub(toast) toast.SuppressPopup = settings.ShowMessagePopup)
                     Catch ex As Exception
                         Debug.WriteLine($"Failed to show toast notification for unread change: {ex.Message}")
                     End Try
@@ -1790,6 +1819,10 @@ Public Class AppAccounts
                         If _permissionRequestedHandler IsNot Nothing Then
                             RemoveHandler wv.CoreWebView2.PermissionRequested, _permissionRequestedHandler
                             _permissionRequestedHandler = Nothing
+                        End If
+                        If _notificationReceivedHandler IsNot Nothing Then
+                            RemoveHandler wv.CoreWebView2.NotificationReceived, _notificationReceivedHandler
+                            _notificationReceivedHandler = Nothing
                         End If
                         If _newWindowRequestedHandler IsNot Nothing Then
                             RemoveHandler wv.CoreWebView2.NewWindowRequested, _newWindowRequestedHandler

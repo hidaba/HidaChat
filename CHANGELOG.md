@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.2-beta] - 2026-10-12
+
+### Pre-release / Beta — Soppressione Notifiche Native Web degli Account e Risoluzione Popup Duplicati
+- **Blocco Notifiche e Popup Nativi degli Account WebView2 (`AppAccounts.vb`)**:
+  - **Negazione Permessi Notifiche a Livello Profilo e Runtime (`CoreWebView2PermissionState.Deny`)**: Negati permanentemente i permessi di notifica nativi del browser sia nel gestore `PermissionRequested` sia nella configurazione persistente del profilo WebView2 (`Profile.SetPermissionStateAsync`) per WhatsApp Web, Telegram Web e tutte le origini di account configurate (OpenClaw, Hermes, ecc.). In questo modo le web app operanti nei tab non mostrano più popup, banner o notifiche di sistema native del browser.
+  - **Intercettazione e Soppressione `CoreWebView2.NotificationReceived`**: Registrato l'evento `NotificationReceived` su tutte le istanze WebView2 con `e.Handled = True`, impedendo l'emissione dell'interfaccia predefinita di notifica di WebView2 e confermando la chiusura ordinata dell'evento al motore Chromium (`ReportShown()` / `ReportClosed()`). Disiscrizione sicura del listener garantita in `Dispose()`.
+- **Eliminazione Sovrapposizioni e Popup Doppi (`AppAccounts.vb`)**:
+  - **Soppressione Banner Toast Windows con Popup Grafico Attivo (`SuppressPopup`)**: Quando l'opzione "Mostra popup messaggio" (`ShowMessagePopup`) è abilitata, la notifica Toast nativa di Windows viene inoltrata silenziosamente al Centro Notifiche con `toast.SuppressPopup = True`, garantendo la comparsa esclusiva del popup overlay personalizzato di HidaChat (`MessagePopup`) ed azzerando completamente la duplicazione visiva su schermo.
+
 ## [1.2.1-beta] - 2026-10-11
 
 ### Pre-release / Beta — Ottimizzazione I/O Configurazione, Sicurezza Segreti Portabili & Bearer Token, File Lock Multi-PC e Isolamento State Directory tsnet
