@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.3-beta] - 2026-10-13
+
+### Pre-release / Beta — Ibernazione Intelligente Schede Inattive, Limitazione Cache Chromium e Pulizia Selettiva Preservando il Login
+- **Ibernazione Intelligente delle Schede Inattive (`AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb` — TODO #50)**:
+  - **Sospensione Automatica Memoria RAM (`TrySuspendAsync`)**: Implementati i metodi `TryHibernateAsync()` e `ResumeFromHibernation()` che mettono in pausa l'esecuzione JavaScript e il rendering delle istanze WebView2 in background senza chiudere il processo, riducendo drasticamente il working set della memoria RAM.
+  - **Timer di Inattività e Risveglio Istantaneo**: Configurato un timer periodico a 60 secondi che rileva l'inattività delle schede (soglia configurabile a 15, 30 o 60 minuti, predefinita 30 min) e le sospende in modo trasparente. Risveglio immediato a latenza zero al click sulla scheda o al cambio account.
+  - **Indicatore Visivo e Opzioni UI**: Visualizzazione dell'icona `💤` sulle schede ibernate nella barra principale e sezione dedicata nelle Impostazioni con selettore del tempo di inattività e toggle di attivazione.
+- **Limitazione della Cache Chromium su Disco (`AppAccounts.vb`, `SettingsController.vb`, `SettingsWindow.xaml` — TODO #71)**:
+  - **Configurazione `--disk-cache-size`**: Introdotta l'opzione per limitare la cache HTTP su disco di Chromium a livello di `CoreWebView2EnvironmentOptions` (128 MB, 256 MB raccomandato, 512 MB, 1024 MB o illimitata), prevenendo la crescita incontrollata dello spazio occupato dai profili browser.
+- **Pulizia Cache Intelligente Preservando il Login (`AccountManager.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml` — TODO #72)**:
+  - **Bonifica Selettiva Non Distruttiva**: Implementato il metodo `SmartCleanCachePreservingLoginAsync()` che elimina file temporanei pesanti, disk cache, cache shader GPU e report di crash (`Cache`, `Code Cache`, `GPUCache`, `DawnWebGPUCache`, `Crashpad`), salvaguardando integralmente cookie, chiavi crittografiche, `IndexedDB`, `Local Storage` e sessioni di login attive.
+  - **Invocazione Centralizzata e per Scheda**: Aggiunto il pulsante "Pulisci Cache (preserva login)" nelle Impostazioni e la voce dedicata nel menu contestuale col tasto destro sulla singola scheda dell'account.
+- **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+  - Sincronizzate 15 nuove chiavi in tutti e 5 i dizionari di lingua supportati (EN, IT, FR, ES, DE).
+
 ## [1.2.2-beta] - 2026-10-12
 
 ### Pre-release / Beta — Soppressione Notifiche Native Web degli Account e Risoluzione Popup Duplicati

@@ -96,6 +96,31 @@ Public Class SettingsWindow
             ' 4f. Imposta lo stato della Checkbox Staging Drive di Rete (TODO #73)
             ChkEnableNetworkStaging.IsChecked = _settingsController.EnableNetworkProfileStaging
 
+            ' 4g. Imposta lo stato di Ibernazione Schede (TODO #50)
+            ChkEnableTabHibernation.IsChecked = _settingsController.EnableTabHibernation
+            Dim currentHibTimeout = _settingsController.TabHibernationMinutes.ToString()
+            For Each item As ComboBoxItem In ComboTabHibernationTimeout.Items
+                If item.Tag IsNot Nothing AndAlso item.Tag.ToString() = currentHibTimeout Then
+                    ComboTabHibernationTimeout.SelectedItem = item
+                    Exit For
+                End If
+            Next
+            If ComboTabHibernationTimeout.SelectedItem Is Nothing AndAlso ComboTabHibernationTimeout.Items.Count > 0 Then
+                ComboTabHibernationTimeout.SelectedIndex = 1
+            End If
+
+            ' 4h. Imposta il limite della cache disco Chromium (TODO #71)
+            Dim currentCacheLimit = _settingsController.DiskCacheLimitMb.ToString()
+            For Each item As ComboBoxItem In ComboDiskCacheLimit.Items
+                If item.Tag IsNot Nothing AndAlso item.Tag.ToString() = currentCacheLimit Then
+                    ComboDiskCacheLimit.SelectedItem = item
+                    Exit For
+                End If
+            Next
+            If ComboDiskCacheLimit.SelectedItem Is Nothing AndAlso ComboDiskCacheLimit.Items.Count > 0 Then
+                ComboDiskCacheLimit.SelectedIndex = 1
+            End If
+
             ' 5. Collega l'elenco degli account
 
             AccountsList.ItemsSource = _accountManager.Accounts
@@ -608,6 +633,62 @@ Public Class SettingsWindow
         Await _settingsController.SaveSettingAsync("enableNetworkProfileStaging", enabled)
     End Sub
 
+    ' --- Gestori eventi Ibernazione Schede (TODO #50) ---
+    Private Async Sub ChkEnableTabHibernation_Changed(sender As Object, e As RoutedEventArgs)
+        If _isInitializing Then Return
+        Dim enabled = ChkEnableTabHibernation.IsChecked.GetValueOrDefault(True)
+        Dim selectedItem = TryCast(ComboTabHibernationTimeout.SelectedItem, ComboBoxItem)
+        Dim timeoutMin = 30
+        If selectedItem?.Tag IsNot Nothing Then
+            Integer.TryParse(selectedItem.Tag.ToString(), timeoutMin)
+        End If
+        Await _settingsController.SaveTabHibernationSettingsAsync(enabled, timeoutMin)
+    End Sub
+
+    Private Async Sub ComboTabHibernationTimeout_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim selectedItem = TryCast(ComboTabHibernationTimeout.SelectedItem, ComboBoxItem)
+        Dim timeoutMin = 30
+        If selectedItem?.Tag IsNot Nothing Then
+            Integer.TryParse(selectedItem.Tag.ToString(), timeoutMin)
+        End If
+        Dim enabled = ChkEnableTabHibernation.IsChecked.GetValueOrDefault(True)
+        Await _settingsController.SaveTabHibernationSettingsAsync(enabled, timeoutMin)
+    End Sub
+
+    ' --- Gestori eventi Cache Disco e Pulizia Intelligente (TODO #71 & #72) ---
+    Private Async Sub ComboDiskCacheLimit_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim selectedItem = TryCast(ComboDiskCacheLimit.SelectedItem, ComboBoxItem)
+        Dim limitMb = 256
+        If selectedItem?.Tag IsNot Nothing Then
+            Integer.TryParse(selectedItem.Tag.ToString(), limitMb)
+        End If
+        Await _settingsController.SaveDiskCacheLimitAsync(limitMb)
+    End Sub
+
+    Private Async Sub BtnSmartCleanCache_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim loc = _settingsController.Localizations
+            Dim confirmTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_title"), "Pulizia Cache")
+            Dim confirmMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_msg"), "Vuoi eseguire la pulizia dei file temporanei e della cache browser per tutti gli account? Le sessioni di accesso e le credenziali verranno preservate.")
+            If MessageBox.Show(confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question) <> MessageBoxResult.Yes Then
+                Return
+            End If
+
+            BtnSmartCleanCache.IsEnabled = False
+            Await _accountManager.SmartCleanCachePreservingLoginAsync()
+
+            Dim okTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_title"), "Pulizia Completata")
+            Dim okMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_msg"), "Pulizia cache completata con successo! Le sessioni degli account sono state preservate.")
+            MessageBox.Show(okMsg, okTitle, MessageBoxButton.OK, MessageBoxImage.Information)
+        Catch ex As Exception
+            Debug.WriteLine($"BtnSmartCleanCache_Click error: {ex.Message}")
+        Finally
+            BtnSmartCleanCache.IsEnabled = True
+        End Try
+    End Sub
+
 
     ' --- Gestori eventi Custom CSS (TODO #43) ---
     Private Async Sub ChkEnableCustomCss_Changed(sender As Object, e As RoutedEventArgs)
@@ -750,6 +831,33 @@ Public Class SettingsWindow
         If TxtNetworkStagingHint IsNot Nothing Then
             TxtNetworkStagingHint.Text = loc.Get("enable_network_profile_staging_hint")
         End If
+        If SectionHibernation IsNot Nothing Then
+            SectionHibernation.Text = loc.Get("tab_hibernation_section")
+        End If
+        If ChkEnableTabHibernation IsNot Nothing Then
+            ChkEnableTabHibernation.Content = loc.Get("enable_tab_hibernation")
+        End If
+        If LabelTabHibernationTimeout IsNot Nothing Then
+            LabelTabHibernationTimeout.Text = loc.Get("tab_hibernation_timeout")
+        End If
+        If TxtTabHibernationHint IsNot Nothing Then
+            TxtTabHibernationHint.Text = loc.Get("enable_tab_hibernation_hint")
+        End If
+        If SectionCache IsNot Nothing Then
+            SectionCache.Text = loc.Get("cache_section")
+        End If
+        If LabelDiskCacheLimit IsNot Nothing Then
+            LabelDiskCacheLimit.Text = loc.Get("disk_cache_limit")
+        End If
+        If TxtDiskCacheLimitHint IsNot Nothing Then
+            TxtDiskCacheLimitHint.Text = loc.Get("disk_cache_limit_hint")
+        End If
+        If BtnSmartCleanCache IsNot Nothing Then
+            BtnSmartCleanCache.Content = loc.Get("smart_clean_cache_btn")
+        End If
+        If TxtSmartCleanCacheHint IsNot Nothing Then
+            TxtSmartCleanCacheHint.Text = loc.Get("smart_clean_cache_hint")
+        End If
         SectionUpdates.Text = loc.Get("updates")
 
         ChkUseBetaChannel.Content = loc.Get("use_beta_channel")
@@ -793,6 +901,14 @@ Public Class SettingsWindow
         If ComboMaxAccounts IsNot Nothing Then
             ComboMaxAccounts.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
             ComboMaxAccounts.Foreground = fgBrush
+        End If
+        If ComboTabHibernationTimeout IsNot Nothing Then
+            ComboTabHibernationTimeout.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
+            ComboTabHibernationTimeout.Foreground = fgBrush
+        End If
+        If ComboDiskCacheLimit IsNot Nothing Then
+            ComboDiskCacheLimit.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
+            ComboDiskCacheLimit.Foreground = fgBrush
         End If
 
         For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)

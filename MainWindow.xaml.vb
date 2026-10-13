@@ -18,6 +18,7 @@ Public Class MainWindow
     Private _allowExit As Boolean = False
     Private _defaultShadowEffect As Effect
     Private _dndTimer As System.Windows.Threading.DispatcherTimer
+    Private _hibernationTimer As System.Windows.Threading.DispatcherTimer
     Private ReadOnly _recreationTasks As New Dictionary(Of String, Task)(StringComparer.OrdinalIgnoreCase)
 
     Public Sub New()
@@ -182,6 +183,13 @@ Public Class MainWindow
             _dndTimer.Start()
             UpdateDndState()
 
+            ' 12. Configura il timer periodico per l'ibernazione delle schede inattive (TODO #50)
+            _hibernationTimer = New System.Windows.Threading.DispatcherTimer With {
+                .Interval = TimeSpan.FromSeconds(60)
+            }
+            AddHandler _hibernationTimer.Tick, AddressOf CheckTabHibernationTick
+            _hibernationTimer.Start()
+
             ' Profiles are copied only after confirmed browser exit; no periodic live sync.
 
             UpdateOnlineIndicator()
@@ -316,6 +324,11 @@ Public Class MainWindow
 
     Private Async Function ShutdownCoreAsync(exportProfiles As Boolean) As Task(Of Boolean)
         If _dndTimer IsNot Nothing Then _dndTimer.Stop()
+        If _hibernationTimer IsNot Nothing Then
+            _hibernationTimer.Stop()
+            RemoveHandler _hibernationTimer.Tick, AddressOf CheckTabHibernationTick
+            _hibernationTimer = Nothing
+        End If
         RemoveHandler _settingsController.PropertyChanged, AddressOf OnSettingsPropertyChanged
         RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
         For Each acc In _accountManager.Accounts
@@ -748,11 +761,90 @@ Public Class MainWindow
     End Sub
 
     ''' <summary>
+    ''' Localizza dinamicamente le voci del menu contestuale della scheda account all'apertura.
+    ''' </summary>
+    Private Sub AccountTab_ContextMenuOpened(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim cm = TryCast(sender, ContextMenu)
+            If cm IsNot Nothing Then
+                Dim loc = _settingsController?.Localizations
+                If loc IsNot Nothing Then
+                    For Each item In cm.Items
+                        Dim mi = TryCast(item, MenuItem)
+                        If mi IsNot Nothing Then
+                            If mi.Tag?.ToString() = "rename" Then
+                                mi.Header = loc.Get("rename")
+                            ElseIf mi.Tag?.ToString() = "clean_cache" Then
+                                mi.Header = loc.Get("account_clean_cache")
+                            End If
+                        End If
+                    Next
+                End If
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTab_ContextMenuOpened error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Esegue la pulizia mirata della cache per il singolo account selezionato dal menu contestuale, preservando il login (TODO #72).
+    ''' </summary>
+    Private Async Sub AccountTabCleanCache_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim menuItem = CType(sender, MenuItem)
+            Dim contextMenu = CType(menuItem.Parent, ContextMenu)
+            Dim btn = CType(contextMenu.PlacementTarget, Button)
+            Dim acc = CType(btn.DataContext, AppAccounts)
+            If acc Is Nothing Then Return
+
+            Dim loc = _settingsController?.Localizations
+            Dim confirmTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_title"), "Pulizia Cache")
+            Dim confirmMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_msg"), "Vuoi pulire la cache per questo account? Le sessioni di login e i dati personali verranno preservati.")
+            If MessageBox.Show(confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question) <> MessageBoxResult.Yes Then
+                Return
+            End If
+
+            Await acc.SmartCleanCachePreservingLoginAsync()
+
+            Dim okTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_title"), "Pulizia Completata")
+            Dim okMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_msg"), "Pulizia cache completata con successo! Le sessioni degli account sono state preservate.")
+            MessageBox.Show(okMsg, okTitle, MessageBoxButton.OK, MessageBoxImage.Information)
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTabCleanCache_Click error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.AccountTabCleanCache_Click", ex)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Timer tick per sospendere le schede in background inattive e ridurre la memoria RAM (TODO #50).
+    ''' </summary>
+    Private Async Sub CheckTabHibernationTick(sender As Object, e As EventArgs)
+        Try
+            If _settingsController Is Nothing OrElse Not _settingsController.EnableTabHibernation Then Return
+            Dim timeoutMinutes = _settingsController.TabHibernationMinutes
+            If timeoutMinutes <= 0 Then Return
+
+            Dim threshold = DateTime.UtcNow.AddMinutes(-timeoutMinutes)
+            For Each acc In _accountManager.Accounts
+                If acc IsNot _accountManager.CurrentAccount AndAlso Not acc.IsActive AndAlso acc.WebView?.CoreWebView2 IsNot Nothing Then
+                    If Not acc.IsHibernated AndAlso acc.LastActiveTime <= threshold Then
+                        Await acc.TryHibernateAsync()
+                    End If
+                End If
+            Next
+        Catch ex As Exception
+            Debug.WriteLine($"CheckTabHibernationTick error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
     ''' Passa alla scheda account selezionata portando in primo piano la WebView2 corrispondente e spostando la precedente fuori schermo senza scaricarla.
     ''' </summary>
     Public Async Function SwitchToAccountAsync(accountId As String) As Task
         Dim prevAccount = _accountManager.CurrentAccount
         If prevAccount IsNot Nothing AndAlso prevAccount.Id = accountId Then
+            prevAccount.ResumeFromHibernation()
+            prevAccount.LastActiveTime = DateTime.UtcNow
             Dim sameAccNeedsRecovery As Boolean = False
             If prevAccount.WebView IsNot Nothing Then
                 Try
@@ -770,10 +862,17 @@ Public Class MainWindow
             Return
         End If
 
+        If prevAccount IsNot Nothing Then
+            prevAccount.LastActiveTime = DateTime.UtcNow
+        End If
+
         Await _accountManager.SwitchAccountAsync(accountId)
 
         Dim newAccount = _accountManager.CurrentAccount
         If newAccount Is Nothing Then Return
+
+        newAccount.ResumeFromHibernation()
+        newAccount.LastActiveTime = DateTime.UtcNow
 
         ' Sposta il controllo del precedente account fuori schermo lasciandolo attivo
         If prevAccount IsNot Nothing AndAlso prevAccount.WebView IsNot Nothing Then

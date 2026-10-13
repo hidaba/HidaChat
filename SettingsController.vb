@@ -333,6 +333,67 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Ibernazione Intelligente delle Schede Inattive (TODO #50) ---
+    Private _enableTabHibernation As Boolean = True
+    ''' <summary>Indica se sospendere le schede in background non utilizzate per ridurre la RAM (TODO #50).</summary>
+    Public Property EnableTabHibernation As Boolean
+        Get
+            Return _enableTabHibernation
+        End Get
+        Set(value As Boolean)
+            If _enableTabHibernation <> value Then
+                _enableTabHibernation = value
+                NotifyPropertyChanged()
+                If _cachedSettings IsNot Nothing Then
+                    _cachedSettings("enableTabHibernation") = value
+                    _dirty = True
+                    Dim ignore = FlushAfterDebounceAsync()
+                End If
+            End If
+        End Set
+    End Property
+
+    Private _tabHibernationMinutes As Integer = 30
+    ''' <summary>Minuti di inattività prima di sospendere una scheda in background (default: 30 min).</summary>
+    Public Property TabHibernationMinutes As Integer
+        Get
+            Return _tabHibernationMinutes
+        End Get
+        Set(value As Integer)
+            Dim clamped = Math.Max(5, value)
+            If _tabHibernationMinutes <> clamped Then
+                _tabHibernationMinutes = clamped
+                NotifyPropertyChanged()
+                If _cachedSettings IsNot Nothing Then
+                    _cachedSettings("tabHibernationMinutes") = clamped
+                    _dirty = True
+                    Dim ignore = FlushAfterDebounceAsync()
+                End If
+            End If
+        End Set
+    End Property
+
+    ' --- Limitazione Cache Chromium via AdditionalBrowserArguments (TODO #71) ---
+    Private _diskCacheLimitMb As Integer = 256
+    ''' <summary>Limite in megabyte della cache su disco di Chromium per profilo (default: 256 MB, 0 = illimitata).</summary>
+    Public Property DiskCacheLimitMb As Integer
+        Get
+            Return _diskCacheLimitMb
+        End Get
+        Set(value As Integer)
+            Dim clamped = Math.Max(0, value)
+            If _diskCacheLimitMb <> clamped Then
+                _diskCacheLimitMb = clamped
+                NotifyPropertyChanged()
+                If _cachedSettings IsNot Nothing Then
+                    _cachedSettings("diskCacheLimitMb") = clamped
+                    _dirty = True
+                    Dim ignore = FlushAfterDebounceAsync()
+                End If
+            End If
+        End Set
+    End Property
+
     ' --- Modalità Non Disturbare / Focus Mode (TODO #47) ---
     Private _isDndEnabled As Boolean = False
     ''' <summary>Indica se la modalità Non Disturbare è stata attivata manualmente o tramite timer.</summary>
@@ -821,6 +882,9 @@ Public Class SettingsController
         _enableSpellcheck = GetBoolSetting(settings, "enableSpellcheck", True)
         _suppressNetworkDriveWarning = GetBoolSetting(settings, "suppressNetworkDriveWarning", False)
         _enableNetworkProfileStaging = GetBoolSetting(settings, "enableNetworkProfileStaging", True)
+        _enableTabHibernation = GetBoolSetting(settings, "enableTabHibernation", True)
+        _tabHibernationMinutes = GetIntSetting(settings, "tabHibernationMinutes", 30)
+        _diskCacheLimitMb = GetIntSetting(settings, "diskCacheLimitMb", 256)
 
         _isDndEnabled = GetBoolSetting(settings, "isDndEnabled", False)
         If settings.ContainsKey("dndDurationMode") AndAlso settings("dndDurationMode") IsNot Nothing Then
@@ -915,6 +979,22 @@ Public Class SettingsController
                 If element.ValueKind = JsonValueKind.False Then Return False
             End If
             Return Convert.ToBoolean(obj.ToString())
+        End If
+        Return defaultVal
+    End Function
+
+    Private Function GetIntSetting(settings As Dictionary(Of String, Object), key As String, defaultVal As Integer) As Integer
+        If settings.ContainsKey(key) Then
+            Dim obj = settings(key)
+            If TypeOf obj Is JsonElement Then
+                Dim element = CType(obj, JsonElement)
+                Dim intVal As Integer
+                If element.TryGetInt32(intVal) Then Return intVal
+            End If
+            Try
+                Return Convert.ToInt32(obj.ToString())
+            Catch
+            End Try
         End If
         Return defaultVal
     End Function
@@ -1056,6 +1136,29 @@ Public Class SettingsController
         _cachedSettings("isDndEnabled") = IsDndEnabled
         _cachedSettings("dndUntil") = If(DndUntil.HasValue, DndUntil.Value.ToString("o"), Nothing)
         _cachedSettings("dndDurationMode") = DndDurationMode
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e persiste le impostazioni di ibernazione delle schede inattive (TODO #50).</summary>
+    Public Async Function SaveTabHibernationSettingsAsync(enabled As Boolean, timeoutMinutes As Integer) As Task
+        _enableTabHibernation = enabled
+        _tabHibernationMinutes = Math.Max(5, timeoutMinutes)
+        NotifyPropertyChanged(NameOf(EnableTabHibernation))
+        NotifyPropertyChanged(NameOf(TabHibernationMinutes))
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("enableTabHibernation") = _enableTabHibernation
+        _cachedSettings("tabHibernationMinutes") = _tabHibernationMinutes
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e persiste il limite della cache disco Chromium in MB (TODO #71).</summary>
+    Public Async Function SaveDiskCacheLimitAsync(limitMb As Integer) As Task
+        _diskCacheLimitMb = Math.Max(0, limitMb)
+        NotifyPropertyChanged(NameOf(DiskCacheLimitMb))
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("diskCacheLimitMb") = _diskCacheLimitMb
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function

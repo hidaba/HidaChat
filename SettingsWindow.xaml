@@ -458,6 +458,49 @@
                     <CheckBox x:Name="ChkEnableNetworkStaging" Content="Enable local staging for network drives" Checked="ChkEnableNetworkStaging_Changed" Unchecked="ChkEnableNetworkStaging_Changed" Margin="0,5,0,4" Style="{StaticResource CustomCheckBoxStyle}"/>
                     <TextBlock x:Name="TxtNetworkStagingHint" Text="Improves session stability and prevents WhatsApp disconnection when running from network shares (SMB/UNC)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,15"/>
 
+                    <!-- TAB HIBERNATION SECTION (TODO #50) -->
+                    <TextBlock x:Name="SectionHibernation" Text="Tab Hibernation" Style="{StaticResource SectionHeaderStyle}"/>
+                    <CheckBox x:Name="ChkEnableTabHibernation" Content="Enable inactive tab hibernation" Checked="ChkEnableTabHibernation_Changed" Unchecked="ChkEnableTabHibernation_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
+                    <Grid Margin="0,0,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LabelTabHibernationTimeout" Text="Inactivity timeout:" Foreground="#aebac1" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ComboTabHibernationTimeout" Grid.Column="1" Width="180" SelectionChanged="ComboTabHibernationTimeout_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                            <ComboBoxItem Content="15 min" Tag="15"/>
+                            <ComboBoxItem Content="30 min" Tag="30"/>
+                            <ComboBoxItem Content="60 min" Tag="60"/>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock x:Name="TxtTabHibernationHint" Text="Reduces RAM usage by suspending background tabs when idle. They resume instantly when selected." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,15"/>
+
+                    <!-- CACHE & STORAGE (TODO #71 & #72) -->
+                    <TextBlock x:Name="SectionCache" Text="Cache &amp; Storage" Style="{StaticResource SectionHeaderStyle}"/>
+                    <Grid Margin="0,5,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LabelDiskCacheLimit" Text="Chromium disk cache limit:" Foreground="#aebac1" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ComboDiskCacheLimit" Grid.Column="1" Width="180" SelectionChanged="ComboDiskCacheLimit_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                            <ComboBoxItem Content="128 MB" Tag="128"/>
+                            <ComboBoxItem Content="256 MB (Consigliato)" Tag="256"/>
+                            <ComboBoxItem Content="512 MB" Tag="512"/>
+                            <ComboBoxItem Content="1024 MB (1 GB)" Tag="1024"/>
+                            <ComboBoxItem Content="Illimitata" Tag="0"/>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock x:Name="TxtDiskCacheLimitHint" Text="Limits disk space used by Chromium HTTP cache per profile (applied upon tab reload)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="TxtSmartCleanCacheHint" Text="Deletes temporary files, HTTP cache, shaders and GPU cache without logging out (cookies, sessions and IndexedDB remain intact)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" x:Name="BtnSmartCleanCache" Content="Pulisci Cache" Click="BtnSmartCleanCache_Click" Style="{StaticResource ActionButtonStyle}" Height="28" Padding="12,2" FontSize="12"/>
+                    </Grid>
+
                     <!-- UPDATES SECTION -->
                     <TextBlock x:Name="SectionUpdates" Text="Updates" Style="{StaticResource SectionHeaderStyle}"/>
                     <CheckBox x:Name="ChkUseBetaChannel" Content="Use beta update channel" Checked="ChkUseBetaChannel_Changed" Unchecked="ChkUseBetaChannel_Changed" Margin="0,5,0,10" Style="{StaticResource CustomCheckBoxStyle}"/>

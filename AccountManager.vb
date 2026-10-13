@@ -436,6 +436,23 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
+    ''' Esegue la pulizia selettiva e profonda della cache su tutti gli account preservando login, sessioni e cookie (TODO #72).
+    ''' </summary>
+    Public Async Function SmartCleanCachePreservingLoginAsync() As Task
+        ' 1. Esegue la pulizia a runtime per tutti gli account con WebView2 aperta
+        For Each acc In _accounts
+            Try
+                Await acc.SmartCleanCachePreservingLoginAsync()
+            Catch ex As Exception
+                Debug.WriteLine($"SmartCleanCache account {acc.Id} error: {ex.Message}")
+            End Try
+        Next
+
+        ' 2. Esegue la bonifica completa su disco eliminando le cartelle di cache e shader volatili su tutti i profili
+        Await CleanupTransientCachesAsync(purgeDiskAndCodeCache:=True)
+    End Function
+
+    ''' <summary>
     ''' Sincronizza tutti i profili locali verso la cartella master su disco di rete e, se non periodico, rilascia i lock (TODO #73).
     ''' </summary>
     Public Async Function CloseAllWebViewsAsync() As Task(Of Boolean)

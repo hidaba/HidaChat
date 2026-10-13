@@ -264,10 +264,17 @@
                                                  VerticalAlignment="Center" 
                                                  Visibility="{Binding OnlineDotVisibility}" 
                                                  ToolTip="{Binding ContactOnlineStatusText}"/>
+
+                                        <!-- Indicatore Scheda Ibernata (TODO #50) -->
+                                        <TextBlock Text="💤" FontSize="10" Margin="4,0,0,0" 
+                                                   VerticalAlignment="Center" 
+                                                   Visibility="{Binding HibernatedIndicatorVisibility}" 
+                                                   ToolTip="{Binding HibernatedTooltip}"/>
                                     </StackPanel>
                                     <Button.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="Rename" Click="AccountTabRename_Click"/>
+                                        <ContextMenu Opened="AccountTab_ContextMenuOpened">
+                                            <MenuItem Header="Rename" Tag="rename" Click="AccountTabRename_Click"/>
+                                            <MenuItem Header="Clean cache" Tag="clean_cache" Click="AccountTabCleanCache_Click"/>
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>

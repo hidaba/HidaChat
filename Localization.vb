@@ -609,7 +609,22 @@ Public Class AppLocalizations
         {"secret_decrypt_error_msg", "Could not decrypt the stored Tailscale AuthKey: the application folder was opened on a different computer or Windows user profile (DPAPI protection is machine/user-bound)." & vbCrLf & vbCrLf & "To re-enable Tailscale integration, please re-enter the AuthKey in Settings."},
         {"folder_locked_title", "Application Folder in Use"},
         {"folder_locked_msg", "The HidaChat folder is currently locked and in use by another instance or computer:" & vbCrLf & vbCrLf & "• Machine: {machine}" & vbCrLf & "• User: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Started at: {time}" & vbCrLf & vbCrLf & "To prevent WebView2 profile and session data corruption, running multiple concurrent instances from the same folder is not allowed."},
-        {"close", "Close"}
+        {"close", "Close"},
+        {"tab_hibernation_section", "Tab Hibernation"},
+        {"enable_tab_hibernation", "Enable inactive tab hibernation"},
+        {"enable_tab_hibernation_hint", "Reduces RAM usage by suspending background tabs when idle. They resume instantly when selected."},
+        {"tab_hibernation_timeout", "Inactivity timeout:"},
+        {"cache_section", "Cache & Storage"},
+        {"disk_cache_limit", "Chromium disk cache limit:"},
+        {"disk_cache_limit_hint", "Limits disk space used by Chromium HTTP cache per profile (applied upon tab reload)."},
+        {"smart_clean_cache_btn", "Clean Cache (keep login)"},
+        {"smart_clean_cache_hint", "Deletes temporary files, HTTP cache, shaders and GPU cache without logging out (cookies, sessions and IndexedDB remain intact)."},
+        {"smart_clean_cache_confirm_title", "Clean Cache"},
+        {"smart_clean_cache_confirm_msg", "Do you want to clean temporary files and browser caches for all accounts? Login sessions and credentials will be preserved."},
+        {"smart_clean_cache_success_title", "Cache Cleaned"},
+        {"smart_clean_cache_success_msg", "Cache cleanup completed successfully! Account sessions and logins were preserved."},
+        {"account_clean_cache", "Clean account cache"},
+        {"hibernated_badge_tooltip", "Tab hibernated (auto-resumes on click)"}
     }
 
 
@@ -737,7 +752,22 @@ Public Class AppLocalizations
         {"secret_decrypt_error_msg", "Impossibile decifrare la chiave Tailscale AuthKey memorizzata: la cartella dell'applicazione è stata aperta su un computer o profilo utente Windows differente rispetto a dove è stata salvata (la protezione DPAPI è vincolata alla macchina/utente locale)." & vbCrLf & vbCrLf & "Per riattivare l'integrazione con Tailscale, reinserisci l'AuthKey nelle Impostazioni."},
         {"folder_locked_title", "Cartella Applicazione in Uso"},
         {"folder_locked_msg", "La cartella di HidaChat è attualmente bloccata ed in uso da un'altra postazione o processo:" & vbCrLf & vbCrLf & "• Computer: {machine}" & vbCrLf & "• Utente: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Avviato il: {time}" & vbCrLf & vbCrLf & "Per prevenire la corruzione dei profili WebView2 e dei dati di sessione, non è consentito avviare contemporaneamente più istanze dalla stessa cartella."},
-        {"close", "Chiudi"}
+        {"close", "Chiudi"},
+        {"tab_hibernation_section", "Ibernazione Schede"},
+        {"enable_tab_hibernation", "Abilita ibernazione schede inattive"},
+        {"enable_tab_hibernation_hint", "Riduce il consumo di memoria RAM sospendendo le schede in background inattive. Si riattivano istantaneamente quando vengono selezionate."},
+        {"tab_hibernation_timeout", "Tempo di inattività:"},
+        {"cache_section", "Cache e Archiviazione"},
+        {"disk_cache_limit", "Limite cache disco Chromium:"},
+        {"disk_cache_limit_hint", "Limita lo spazio massimo su disco occupato dalla cache HTTP di Chromium per profilo (applicato alla ricarica della scheda)."},
+        {"smart_clean_cache_btn", "Pulisci Cache (preserva login)"},
+        {"smart_clean_cache_hint", "Elimina file temporanei, cache HTTP, shader e GPU senza disconnettere gli account (cookie, sessioni e IndexedDB rimangono intatti)."},
+        {"smart_clean_cache_confirm_title", "Pulizia Cache"},
+        {"smart_clean_cache_confirm_msg", "Vuoi eseguire la pulizia dei file temporanei e della cache browser per tutti gli account? Le sessioni di accesso e le credenziali verranno preservate."},
+        {"smart_clean_cache_success_title", "Pulizia Completata"},
+        {"smart_clean_cache_success_msg", "Pulizia cache completata con successo! Le sessioni degli account sono state preservate."},
+        {"account_clean_cache", "Pulisci cache account"},
+        {"hibernated_badge_tooltip", "Scheda ibernata (risveglio automatico al click)"}
     }
 
 
@@ -865,7 +895,22 @@ Public Class AppLocalizations
         {"secret_decrypt_error_msg", "Impossible de déchiffrer la clé Tailscale AuthKey enregistrée : le dossier de l'application a été ouvert sur un ordinateur ou un profil utilisateur Windows différent (la protection DPAPI est liée à la machine locale)." & vbCrLf & vbCrLf & "Pour réactiver l'intégration Tailscale, veuillez saisir à nouveau l'AuthKey dans les Paramètres."},
         {"folder_locked_title", "Dossier d'Application en Cours d'Utilisation"},
         {"folder_locked_msg", "Le dossier HidaChat est actuellement verrouillé et utilisé par un autre poste ou processus :" & vbCrLf & vbCrLf & "• Ordinateur : {machine}" & vbCrLf & "• Utilisateur : {user}" & vbCrLf & "• PID : {pid}" & vbCrLf & "• Démarré le : {time}" & vbCrLf & vbCrLf & "Pour éviter toute corruption des profils WebView2 et des sessions, l'exécution simultanée depuis le même dossier n'est pas autorisée."},
-        {"close", "Fermer"}
+        {"close", "Fermer"},
+        {"tab_hibernation_section", "Mise en Veille des Onglets"},
+        {"enable_tab_hibernation", "Activer la mise en veille des onglets inactifs"},
+        {"enable_tab_hibernation_hint", "Réduit l'utilisation de la RAM en suspendant les onglets d'arrière-plan inactifs. Ils reprennent instantanément lors de la sélection."},
+        {"tab_hibernation_timeout", "Délai d'inactivité :"},
+        {"cache_section", "Cache et Stockage"},
+        {"disk_cache_limit", "Limite du cache disque Chromium :"},
+        {"disk_cache_limit_hint", "Limite l'espace disque utilisé par le cache HTTP Chromium par profil (appliqué au rechargement de l'onglet)."},
+        {"smart_clean_cache_btn", "Nettoyer le cache (garder session)"},
+        {"smart_clean_cache_hint", "Supprime les fichiers temporaires, le cache HTTP, shaders et GPU sans déconnecter les comptes (cookies, sessions et IndexedDB restent intacts)."},
+        {"smart_clean_cache_confirm_title", "Nettoyage du Cache"},
+        {"smart_clean_cache_confirm_msg", "Voulez-vous nettoyer les fichiers temporaires et les caches de navigation pour tous les comptes ? Les sessions et identifiants seront préservés."},
+        {"smart_clean_cache_success_title", "Cache Nettoyé"},
+        {"smart_clean_cache_success_msg", "Nettoyage du cache terminé avec succès ! Les sessions de compte ont été préservées."},
+        {"account_clean_cache", "Nettoyer le cache du compte"},
+        {"hibernated_badge_tooltip", "Onglet en veille (reprise automatique au clic)"}
     }
 
 
@@ -993,7 +1038,22 @@ Public Class AppLocalizations
         {"secret_decrypt_error_msg", "No se pudo descifrar la clave Tailscale AuthKey almacenada: la carpeta de la aplicación se abrió en un equipo o perfil de usuario de Windows diferente (la protección DPAPI está vinculada al equipo/usuario local)." & vbCrLf & vbCrLf & "Para reactivar la integración con Tailscale, vuelva a introducir la AuthKey en Configuración."},
         {"folder_locked_title", "Carpeta de la Aplicación en Uso"},
         {"folder_locked_msg", "La carpeta de HidaChat está actualmente bloqueada y en uso por otra estación o proceso:" & vbCrLf & vbCrLf & "• Equipo: {machine}" & vbCrLf & "• Usuario: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Iniciado: {time}" & vbCrLf & vbCrLf & "Para prevenir la corrupción de los perfiles WebView2 y las sesiones, no se permite ejecutar simultáneamente múltiples instancias desde la misma carpeta."},
-        {"close", "Cerrar"}
+        {"close", "Cerrar"},
+        {"tab_hibernation_section", "Hibernación de Pestañas"},
+        {"enable_tab_hibernation", "Habilitar hibernación de pestañas inactivas"},
+        {"enable_tab_hibernation_hint", "Reduce el uso de memoria RAM suspendiendo las pestañas inactivas en segundo plano. Se reactivan al instante al seleccionarlas."},
+        {"tab_hibernation_timeout", "Tiempo de inactividad:"},
+        {"cache_section", "Caché y Almacenamiento"},
+        {"disk_cache_limit", "Límite de caché en disco de Chromium:"},
+        {"disk_cache_limit_hint", "Limita el espacio en disco utilizado por la caché HTTP de Chromium por perfil (se aplica al recargar la pestaña)."},
+        {"smart_clean_cache_btn", "Limpiar caché (mantener sesión)"},
+        {"smart_clean_cache_hint", "Elimina archivos temporales, caché HTTP, shaders y GPU sin cerrar sesión (cookies, sesiones e IndexedDB permanecen intactos)."},
+        {"smart_clean_cache_confirm_title", "Limpieza de Caché"},
+        {"smart_clean_cache_confirm_msg", "¿Desea limpiar los archivos temporales y las cachés del navegador para todas las cuentas? Las sesiones y credenciales se conservarán."},
+        {"smart_clean_cache_success_title", "Caché Limpiada"},
+        {"smart_clean_cache_success_msg", "¡Limpieza de caché completada con éxito! Las sesiones de cuenta se han conservado."},
+        {"account_clean_cache", "Limpiar caché de la cuenta"},
+        {"hibernated_badge_tooltip", "Pestaña hibernada (se reactiva automáticamente al hacer clic)"}
     }
 
 
@@ -1121,7 +1181,22 @@ Public Class AppLocalizations
         {"secret_decrypt_error_msg", "Der gespeicherte Tailscale AuthKey konnte nicht entschlüsselt werden: Der Anwendungsordner wurde auf einem anderen Computer oder Windows-Benutzerprofil geöffnet (der DPAPI-Schutz ist an das lokale System/Benutzer gebunden)." & vbCrLf & vbCrLf & "Um die Tailscale-Integration erneut zu aktivieren, geben Sie den AuthKey bitte in den Einstellungen erneut ein."},
         {"folder_locked_title", "Anwendungsordner wird Bereits Verwendet"},
         {"folder_locked_msg", "Der HidaChat-Ordner ist derzeit gesperrt und wird von einem anderen Computer oder Prozess verwendet:" & vbCrLf & vbCrLf & "• Computer: {machine}" & vbCrLf & "• Benutzer: {user}" & vbCrLf & "• PID: {pid}" & vbCrLf & "• Gestartet am: {time}" & vbCrLf & vbCrLf & "Um eine Beschädigung der WebView2-Profile und Sitzungen zu verhindern, können nicht mehrere Instanzen gleichzeitig aus demselben Ordner ausgeführt werden."},
-        {"close", "Schließen"}
+        {"close", "Schließen"},
+        {"tab_hibernation_section", "Tab-Ruhezustand"},
+        {"enable_tab_hibernation", "Ruhezustand für inaktive Tabs aktivieren"},
+        {"enable_tab_hibernation_hint", "Reduziert den RAM-Verbrauch, indem inaktive Hintergrund-Tabs angehalten werden. Sie werden bei Auswahl sofort fortgesetzt."},
+        {"tab_hibernation_timeout", "Inaktivitätszeit:"},
+        {"cache_section", "Cache & Speicher"},
+        {"disk_cache_limit", "Chromium-Festplatten-Cache-Limit:"},
+        {"disk_cache_limit_hint", "Begrenzt den Festplattenspeicher des Chromium-HTTP-Cache pro Profil (wird beim Neuladen angewendet)."},
+        {"smart_clean_cache_btn", "Cache leeren (Login behalten)"},
+        {"smart_clean_cache_hint", "Löscht temporäre Dateien, HTTP-Cache, Shader und GPU-Cache, ohne Konten abzumelden (Cookies, Sitzungen und IndexedDB bleiben intakt)."},
+        {"smart_clean_cache_confirm_title", "Cache-Bereinigung"},
+        {"smart_clean_cache_confirm_msg", "Möchten Sie temporäre Dateien und Browser-Caches für alle Konten bereinigen? Anmeldesitzungen und Anmeldedaten bleiben erhalten."},
+        {"smart_clean_cache_success_title", "Cache Bereinigt"},
+        {"smart_clean_cache_success_msg", "Cache-Bereinigung erfolgreich abgeschlossen! Kontositzungen wurden beibehalten."},
+        {"account_clean_cache", "Kontocache leeren"},
+        {"hibernated_badge_tooltip", "Tab im Ruhezustand (wird beim Klicken automatisch fortgesetzt)"}
     }
 
 

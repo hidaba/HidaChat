@@ -264,8 +264,14 @@
   - Attivare al volo modalità privacy, traduzioni o ricaricare la scheda.
 - **Impatto**: Medio | **Sforzo**: Medio
 
-## 50. Ibernazione Intelligente delle Schede Inattive (Tab Hibernation)
-- **Descrizione**: Ridurre l'impronta di memoria RAM sospendendo lo stato di rendering delle schede in background non utilizzate da più di 30-60 minuti, risvegliandole istantaneamente al click dell'utente.
+## ~~50. Ibernazione Intelligente delle Schede Inattive (Tab Hibernation)~~ ✅
+- **Descrizione**: Ridurre l'impronta di memoria RAM sospendendo lo stato di rendering delle schede in background non utilizzate da più di 15-60 minuti (configurabile, default 30 min), risvegliandole istantaneamente al click dell'utente.
+- **Implementazione**:
+  - Aggiunti metodi `TryHibernateAsync()` e `ResumeFromHibernation()` in `AppAccounts.vb` basati sulle API native `CoreWebView2.TrySuspendAsync()` e `CoreWebView2.Resume()`, con tracciamento `LastActiveTime` e proprietà `IsHibernated`.
+  - Timer periodico in background in `MainWindow.xaml.vb` (`_hibernationTimer`, 60s) che verifica l'inattività delle schede non in primo piano e le sospende in modo trasparente.
+  - Risveglio istantaneo (0 ms di ritardo) al passaggio del focus sulla scheda in `SwitchToAccountAsync` o impostando `IsActive = True`.
+  - Indicatore visivo `💤` sulle schede ibernate nella barra orizzontale di `MainWindow.xaml`.
+  - Configurazione nelle Impostazioni (`SettingsWindow.xaml`): toggle di attivazione `ChkEnableTabHibernation` e selettore intervallo `ComboTabHibernationTimeout` (15, 30, 60 min) con persistenza in `settings.json` e supporto multilingua completo in tutte le 5 lingue (EN, IT, FR, ES, DE).
 - **Impatto**: Medio | **Sforzo**: Medio
 
 ## 51. Estensione a Nuove Piattaforme Web (Microsoft Teams, Slack, Discord)
@@ -515,14 +521,24 @@
 
 # GESTIONE CACHE & MEMORIA CHROMIUM (WEBVIEW2)
 
-## 71. Limitazione della cache Chromium via AdditionalBrowserArguments (`--disk-cache-size`)
-- **File**: `AppAccounts.vb` (`SetupWebViewInternalAsync` / creazione environment WebView2)
-- **Descrizione**: Limitare la cache Chromium via `AdditionalBrowserArguments` in fase di creazione dell'environment WebView2, con lo switch standard `--disk-cache-size=<bytes>` (va verificato che non sia tra quelli filtrati internamente da WebView2 — non lo è per `--user-data-dir`, che è esplicitamente bloccato dalla documentazione Microsoft, ma `--disk-cache-size` è uno switch "innocuo" tipicamente lasciato passare).
+## ~~71. Limitazione della cache Chromium via AdditionalBrowserArguments (`--disk-cache-size`)~~ ✅
+- **File**: `AppAccounts.vb` (`SetupWebViewInternalAsync`), `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`
+- **Descrizione**: Limitata la cache su disco di Chromium via `AdditionalBrowserArguments` in fase di creazione dell'environment WebView2 con lo switch standard `--disk-cache-size=<bytes>`.
+- **Implementazione**:
+  - Configurazione dinamica in `SettingsController.vb` con proprietà `DiskCacheLimitMb` (default: 256 MB, opzioni: 128 MB, 256 MB, 512 MB, 1024 MB, 0 = Illimitata) e salvataggio in `settings.json`.
+  - Iniezione del parametro `--disk-cache-size={CLng(DiskCacheLimitMb) * 1024L * 1024L}` nella creazione di `CoreWebView2Environment` in `AppAccounts.vb`.
+  - Menu a tendina dedicato `ComboDiskCacheLimit` nelle Impostazioni con localizzazione multilingua completa (EN, IT, FR, ES, DE).
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 72. Pulizia cache "preservando il login" (Smart Cache Cleanup)
-- **File**: `AccountManager.vb`, `AppAccounts.vb`, `SettingsController.vb` / `SettingsWindow.xaml`
-- **Descrizione**: Implementare la pulizia cache "preservando il login" (cancellare `Cache`, `Code Cache`, `GPUCache`, lasciando intatti `Local Storage`, `IndexedDB`, `Network\Cookies` e i dati di sessione).
+## ~~72. Pulizia cache "preservando il login" (Smart Cache Cleanup)~~ ✅
+- **File**: `AccountManager.vb`, `AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`
+- **Descrizione**: Implementata la pulizia cache mirata e non distruttiva che cancella unicamente cache volatile, file temporanei, shader e GPU cache (`Cache`, `Code Cache`, `GPUCache`, `DawnWebGPUCache`, `DawnGraphiteCache`, `Crashpad`), lasciando intatti `Local Storage`, `IndexedDB`, `Network\Cookies`, credenziali e sessioni di login.
+- **Implementazione**:
+  - Metodo `SmartCleanCachePreservingLoginAsync()` in `AppAccounts.vb` che combina l'invocazione nativa `Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache Or DownloadHistory)` a runtime con l'eliminazione dei file su disco non bloccati sia per il profilo principale sia per lo staging locale su drive di rete.
+  - Metodo aggregato `SmartCleanCachePreservingLoginAsync()` in `AccountManager.vb` che itera e bonifica tutti i profili contemporaneamente.
+  - Pulsante dedicato "Pulisci Cache (preserva login)" nella sezione "Cache & Archiviazione" di `SettingsWindow.xaml` con finestra di conferma e notifica di successo.
+  - Voce di menu contestuale con click destro sulla scheda dell'account in `MainWindow.xaml` ("Pulisci cache account") per pulizia puntuale per singola sessione.
+  - Localizzazione sincrona in tutte le 5 lingue ufficiali (EN, IT, FR, ES, DE).
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
 ## ~~73. Supporto Drive di Rete tramite Local Staging & Sync delle Sessioni (Network Drive Session Persistence)~~ ✅

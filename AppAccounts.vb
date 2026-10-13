@@ -334,9 +334,56 @@ Public Class AppAccounts
         Set(value As Boolean)
             If _isActive <> value Then
                 _isActive = value
+                _lastActiveTime = DateTime.UtcNow
+                If _isActive Then
+                    ResumeFromHibernation()
+                End If
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsActive)))
             End If
         End Set
+    End Property
+
+    Private _isHibernated As Boolean = False
+    ''' <summary>Indica se la scheda dell'account è attualmente ibernata in memoria (TODO #50).</summary>
+    <JsonIgnore>
+    Public Property IsHibernated As Boolean
+        Get
+            Return _isHibernated
+        End Get
+        Private Set(value As Boolean)
+            If _isHibernated <> value Then
+                _isHibernated = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsHibernated)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HibernatedIndicatorVisibility)))
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HibernatedTooltip)))
+            End If
+        End Set
+    End Property
+
+    Private _lastActiveTime As DateTime = DateTime.UtcNow
+    ''' <summary>Data e ora UTC di ultimo utilizzo o selezione della scheda.</summary>
+    <JsonIgnore>
+    Public Property LastActiveTime As DateTime
+        Get
+            Return _lastActiveTime
+        End Get
+        Set(value As DateTime)
+            _lastActiveTime = value
+        End Set
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property HibernatedIndicatorVisibility As Visibility
+        Get
+            Return If(_isHibernated, Visibility.Visible, Visibility.Collapsed)
+        End Get
+    End Property
+
+    <JsonIgnore>
+    Public ReadOnly Property HibernatedTooltip As String
+        Get
+            Return If(_isHibernated, "Scheda ibernata (risveglio automatico al click)", String.Empty)
+        End Get
     End Property
     
     Private _hasNotification As Boolean
@@ -793,6 +840,13 @@ Public Class AppAccounts
                 disabledFeatures.Add("Spellcheck")
             End If
             browserArgsList.Add($"--disable-features={String.Join(",", disabledFeatures)}")
+
+            ' Limitazione cache Chromium via AdditionalBrowserArguments (TODO #71)
+            If settings IsNot Nothing AndAlso settings.DiskCacheLimitMb > 0 Then
+                Dim diskCacheBytes As Long = CLng(settings.DiskCacheLimitMb) * 1024L * 1024L
+                browserArgsList.Add($"--disk-cache-size={diskCacheBytes}")
+            End If
+
             options.AdditionalBrowserArguments = String.Join(" ", browserArgsList).Trim()
 
             _environmentCreationStarted = True
@@ -1763,6 +1817,75 @@ Public Class AppAccounts
         Catch ex As Exception
             Debug.WriteLine($"ClearBrowsingCacheAsync error: {ex.Message}")
         End Try
+    End Function
+
+    ''' <summary>
+    ''' Sospende l'esecuzione di WebView2 in background per liberare risorse di memoria RAM (TODO #50).
+    ''' </summary>
+    Public Async Function TryHibernateAsync() As Task(Of Boolean)
+        If IsActive OrElse _isDisposed Then Return False
+        If WebView?.CoreWebView2 Is Nothing Then Return False
+        If _isHibernated Then Return True
+
+        Try
+            Dim suspended = Await WebView.CoreWebView2.TrySuspendAsync()
+            If suspended Then
+                IsHibernated = True
+                AppLogger.LogApp($"[TAB_HIBERNATED] account={Id}, name={Name}")
+                Return True
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"TryHibernateAsync error for account {Id}: {ex.Message}")
+        End Try
+        Return False
+    End Function
+
+    ''' <summary>
+    ''' Risveglia immediatamente l'istanza WebView2 dallo stato di sospensione (TODO #50).
+    ''' </summary>
+    Public Sub ResumeFromHibernation()
+        If WebView?.CoreWebView2 Is Nothing Then
+            IsHibernated = False
+            Return
+        End If
+        Try
+            If _isHibernated OrElse WebView.CoreWebView2.IsSuspended Then
+                WebView.CoreWebView2.Resume()
+                IsHibernated = False
+                _lastActiveTime = DateTime.UtcNow
+                AppLogger.LogApp($"[TAB_RESUMED] account={Id}, name={Name}")
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"ResumeFromHibernation error for account {Id}: {ex.Message}")
+        Finally
+            IsHibernated = False
+            _lastActiveTime = DateTime.UtcNow
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Esegue la pulizia profonda della cache preservando le sessioni utente, i cookie e i dati personali (TODO #72).
+    ''' </summary>
+    Public Async Function SmartCleanCachePreservingLoginAsync() As Task
+        ' 1. Svuota la cache a runtime tramite API WebView2 se il browser è attivo
+        If WebView?.CoreWebView2 IsNot Nothing Then
+            Await ClearBrowsingCacheAsync(clearDiskCache:=True)
+        End If
+
+        ' 2. Elimina le directory temporanee su disco sia per il profilo master sia per l'eventuale staging locale
+        Await Task.Run(Sub()
+            Try
+                Dim masterDir = NetworkProfileSync.GetMasterProfileDir(Id)
+                CleanTransientCacheFolders(masterDir, purgeDiskAndCodeCache:=True)
+
+                If _usesNetworkStaging OrElse NetworkProfileSync.IsRunningOnNetwork Then
+                    Dim stagingDir = NetworkProfileSync.GetLocalStagingProfileDir(Id)
+                    CleanTransientCacheFolders(stagingDir, purgeDiskAndCodeCache:=True)
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"SmartCleanCachePreservingLoginAsync file cleanup error: {ex.Message}")
+            End Try
+        End Sub)
     End Function
 
     ''' <summary>
