@@ -40,6 +40,9 @@
         const msg = reason ? (reason.message || String(reason)) : 'Unknown rejection';
         const stack = reason && reason.stack ? String(reason.stack).substring(0, 2000) : '';
         sendDiagnostic('UNHANDLED_REJECTION', { message: msg, stack: stack });
+        if (msg.includes('Data lost due to missing file') || msg.includes('irrecoverable') || (msg.includes('IndexedDB') && msg.includes('NotReadableError'))) {
+          sendDiagnostic('INDEXEDDB_CORRUPTED', { message: msg, stack: stack });
+        }
       } catch(e) {}
     });
 

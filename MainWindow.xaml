@@ -275,6 +275,7 @@
                                         <ContextMenu Opened="AccountTab_ContextMenuOpened">
                                             <MenuItem Header="Rename" Tag="rename" Click="AccountTabRename_Click"/>
                                             <MenuItem Header="Clean cache" Tag="clean_cache" Click="AccountTabCleanCache_Click"/>
+                                            <MenuItem Header="Repair tab" Tag="repair_tab" Click="AccountTabRepair_Click"/>
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>

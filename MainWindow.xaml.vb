@@ -323,6 +323,21 @@ Public Class MainWindow
     End Function
 
     Private Async Function ShutdownCoreAsync(exportProfiles As Boolean) As Task(Of Boolean)
+        Dim progressDlg As ShutdownProgressDialog = Nothing
+        Dim loc = _settingsController?.Localizations
+
+        ' Mostra la finestra di avanzamento della chiusura
+        Try
+            If Dispatcher.CheckAccess() Then
+                progressDlg = New ShutdownProgressDialog(loc)
+                progressDlg.Show()
+                ' Nasconde la finestra principale se visibile
+                Me.Hide()
+            End If
+        Catch ex As Exception
+            AppLogger.LogApp($"Shutdown.Dialog.Show error: {ex.Message}")
+        End Try
+
         If _dndTimer IsNot Nothing Then _dndTimer.Stop()
         If _hibernationTimer IsNot Nothing Then
             _hibernationTimer.Stop()
@@ -335,15 +350,22 @@ Public Class MainWindow
             RemoveHandler acc.ProcessFailedRecoveryRequested, AddressOf OnAccountProcessFailedRecoveryRequested
             RemoveHandler acc.PropertyChanged, AddressOf OnAccountPropertyChanged
         Next
-        ' Close all browser groups in parallel; no Sleep, Process.Kill, or cache deletion.
+
+        ' Fase 1: Chiusura ordinata WebView2 e salvataggio impostazioni/account
+        progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_settings"), "Salvataggio impostazioni e preferenze account..."))
         Dim closeTask = _accountManager.CloseAllWebViewsAsync()
         Try
             Await Task.WhenAll(_accountManager.SaveAccountsAsync(force:=True), _settingsController.FlushNowAsync())
         Catch ex As Exception
             Application.LogUnhandledException("Shutdown.Save", ex)
         End Try
+
+        progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_webviews"), "Chiusura controllata delle sessioni browser..."))
         Dim allClosed = Await closeTask
+
+        ' Fase 2: Sincronizzazione profili di rete (SMB/UNC) se abilitata
         If exportProfiles Then
+            progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_network_sync"), "Sincronizzazione profili e chat su cartella di rete..."))
             Try
                 Await _accountManager.SyncAllProfilesToNetworkAsync()
             Catch ex As Exception
@@ -356,20 +378,35 @@ Public Class MainWindow
                 If acc.CanReleaseNetworkLease Then NetworkProfileSync.ReleaseSessionLock(acc.Id)
             Next
         End If
+
+        ' Fase 3: Arresto daemon tsnet e rilascio risorse di rete
+        progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_tsnet"), "Arresto proxy di rete e rilascio risorse..."))
         Try
             Await TsnetManager.Instance.ShutdownAsync()
         Catch ex As Exception
             AppLogger.LogApp($"Shutdown.Tsnet: {ex.Message}")
         End Try
+
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False
             _trayIcon.Dispose()
             _trayIcon = Nothing
         End If
+
         Try
             ToastNotificationManagerCompat.Uninstall()
         Catch
         End Try
+
+        ' Fase 4: Chiusura completata
+        progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_complete"), "Finalizzazione e chiusura..."))
+        Try
+            If progressDlg IsNot Nothing Then
+                progressDlg.Close()
+            End If
+        Catch
+        End Try
+
         Return allClosed
     End Function
 
@@ -776,6 +813,8 @@ Public Class MainWindow
                                 mi.Header = loc.Get("rename")
                             ElseIf mi.Tag?.ToString() = "clean_cache" Then
                                 mi.Header = loc.Get("account_clean_cache")
+                            ElseIf mi.Tag?.ToString() = "repair_tab" Then
+                                mi.Header = loc.Get("account_repair_tab")
                             End If
                         End If
                     Next
@@ -812,6 +851,35 @@ Public Class MainWindow
         Catch ex As Exception
             Debug.WriteLine($"AccountTabCleanCache_Click error: {ex.Message}")
             Application.LogUnhandledException("MainWindow.AccountTabCleanCache_Click", ex)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Ripristina lo storage locale della scheda (IndexedDB e service worker) e ricarica la pagina per risolvere schermate bianche o corruzioni dei dati.
+    ''' </summary>
+    Private Async Sub AccountTabRepair_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim menuItem = CType(sender, MenuItem)
+            Dim contextMenu = CType(menuItem.Parent, ContextMenu)
+            Dim btn = CType(contextMenu.PlacementTarget, Button)
+            Dim acc = CType(btn.DataContext, AppAccounts)
+            If acc Is Nothing Then Return
+
+            Dim loc = _settingsController?.Localizations
+            Dim confirmTitle = If(loc IsNot Nothing, loc.Get("account_repair_confirm_title"), "Ripara Scheda")
+            Dim confirmMsg = If(loc IsNot Nothing, loc.Get("account_repair_confirm_msg"), "Questa operazione ripristinerà il database locale e la cache dei service worker della scheda, quindi ricaricherà la pagina per risolvere schermate bianche o corruzioni dei dati. Continuare?")
+            If MessageBox.Show(confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question) <> MessageBoxResult.Yes Then
+                Return
+            End If
+
+            Await acc.RecoverFromCorruptedStorageAsync()
+
+            Dim okTitle = If(loc IsNot Nothing, loc.Get("account_repair_success_title"), "Riparazione Completata")
+            Dim okMsg = If(loc IsNot Nothing, loc.Get("account_repair_success_msg"), "Lo storage della scheda è stato riparato e la pagina è stata ricaricata.")
+            MessageBox.Show(okMsg, okTitle, MessageBoxButton.OK, MessageBoxImage.Information)
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTabRepair_Click error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.AccountTabRepair_Click", ex)
         End Try
     End Sub
 

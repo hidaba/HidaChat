@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.4-beta] - 2026-10-14
+
+### Pre-release / Beta — Dialog di Avanzamento Salvataggio e Chiusura, Risoluzione Pagina Bianca Telegram/WhatsApp e Riparazione Schede
+- **Finestra / Dialog di Avanzamento durante il Salvataggio e Chiusura dell'Applicazione (`ShutdownProgressDialog.xaml`, `ShutdownProgressDialog.xaml.vb`, `MainWindow.xaml.vb` — TODO #74)**:
+  - **Dialog Grafico Dedicato di Chiusura**: Creata la finestra non invasiva `ShutdownProgressDialog` con stile visivo scuro nativo HidaChat/WhatsApp, sempre in primo piano, ProgressBar animata indeterminata e messaggio dinamico per informare l'utente delle attività di I/O e persistenza in corso.
+  - **Tracciamento Fasi di Shutdown**: All'uscita dall'applicazione (`ExitApplication`), la schermata principale viene immediatamente nascosta e viene mostrato l'avanzamento dettagliato per ciascuna sotto-fase:
+    1. Salvataggio impostazioni e preferenze account;
+    2. Dismissione controllata dei processi WebView2;
+    3. Sincronizzazione atomica dei profili e delle sessioni su percorsi SMB/UNC (se abilitata);
+    4. Chiusura del proxy di rete `tsnetd` e rilascio lock di sessione e filesystem;
+    5. Finalizzazione ordinata e rilascio del Mutex applicativo.
+- **Risoluzione Pagina Bianca Telegram Web e Corruzione Blob IndexedDB (`notification.js`, `AppAccounts.vb`)**:
+  - **Rilevamento e Diagnostica Avanzata (`INDEXEDDB_CORRUPTED`)**: Intercettata nello script di bootstrap (`notification.js`) l'eccezione critica di Chromium `NotReadableError: Data lost due to missing file. Affected record should be considered irrecoverable` generata in caso di mancata persistenza dei blob `tt-data` su disco in seguito ad arresti anomali.
+  - **Auto-Recovery Automatico a Caldo (`RecoverFromCorruptedStorageAsync`)**: Implementata la procedura automatica di auto-riparazione che, alla rilevazione di errori irreversibili nel database locale, invoca `ClearBrowsingDataAsync` per eliminare in modo mirato e pulito `IndexedDb`, `ServiceWorkers` e `CacheStorage` ricreando una banca dati sana e ricaricando istantaneamente la pagina, preservando integralmente `localStorage`, cookie di sessione e credenziali.
+  - **Protezione CacheStorage nella Pulizia Cache (`CleanTransientCacheFolders`)**: Rimosse le cartelle `Service Worker\CacheStorage` e `ScriptCache` dalla rimozione a freddo per prevenire la desincronizzazione tra i file PWA e le tabelle IndexedDB di Telegram e WhatsApp.
+- **Strumento Manuale "Ripara Scheda" da Menu Contestuale (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Aggiunta la voce "Ripara scheda (ripristina database corrotto)" nel menu contestuale col tasto destro sulla scheda dell'account per consentire all'utente di forzare il reset del database locale e della cache web in caso di blocco o schermata bianca persistente.
+- **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+  - Sincronizzate le nuove chiavi per la riparazione scheda (`account_repair_*`) e per tutte le fasi del dialog di chiusura (`shutdown_dialog_*`, `shutdown_stage_*`) in tutti i 5 dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+
 ## [1.2.3-beta] - 2026-10-13
 
 ### Pre-release / Beta — Ibernazione Intelligente Schede Inattive, Limitazione Cache Chromium e Pulizia Selettiva Preservando il Login

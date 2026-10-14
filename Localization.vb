@@ -624,7 +624,19 @@ Public Class AppLocalizations
         {"smart_clean_cache_success_title", "Cache Cleaned"},
         {"smart_clean_cache_success_msg", "Cache cleanup completed successfully! Account sessions and logins were preserved."},
         {"account_clean_cache", "Clean account cache"},
-        {"hibernated_badge_tooltip", "Tab hibernated (auto-resumes on click)"}
+        {"hibernated_badge_tooltip", "Tab hibernated (auto-resumes on click)"},
+        {"account_repair_tab", "Repair tab (reset corrupted database)"},
+        {"account_repair_confirm_title", "Repair Tab"},
+        {"account_repair_confirm_msg", "This will repair the tab's local database and service worker cache, then reload the page to fix white screens and data corruption. Continue?"},
+        {"account_repair_success_title", "Repair Completed"},
+        {"account_repair_success_msg", "The tab's storage has been repaired and the page has been reloaded."},
+        {"shutdown_dialog_title", "Closing HidaChat"},
+        {"shutdown_dialog_header", "Saving data and closing..."},
+        {"shutdown_stage_settings", "Saving settings and account preferences..."},
+        {"shutdown_stage_webviews", "Gracefully terminating web browser processes..."},
+        {"shutdown_stage_network_sync", "Synchronizing profiles and chat sessions to network share..."},
+        {"shutdown_stage_tsnet", "Stopping network proxy and releasing lock leases..."},
+        {"shutdown_stage_complete", "Finalizing and closing..."}
     }
 
 
@@ -767,7 +779,19 @@ Public Class AppLocalizations
         {"smart_clean_cache_success_title", "Pulizia Completata"},
         {"smart_clean_cache_success_msg", "Pulizia cache completata con successo! Le sessioni degli account sono state preservate."},
         {"account_clean_cache", "Pulisci cache account"},
-        {"hibernated_badge_tooltip", "Scheda ibernata (risveglio automatico al click)"}
+        {"hibernated_badge_tooltip", "Scheda ibernata (risveglio automatico al click)"},
+        {"account_repair_tab", "Ripara scheda (ripristina database corrotto)"},
+        {"account_repair_confirm_title", "Ripara Scheda"},
+        {"account_repair_confirm_msg", "Questa operazione ripristinerà il database locale e la cache dei service worker della scheda, quindi ricaricherà la pagina per risolvere schermate bianche o corruzioni dei dati. Continuare?"},
+        {"account_repair_success_title", "Riparazione Completata"},
+        {"account_repair_success_msg", "Lo storage della scheda è stato riparato e la pagina è stata ricaricata."},
+        {"shutdown_dialog_title", "Chiusura di HidaChat"},
+        {"shutdown_dialog_header", "Salvataggio dati e chiusura in corso..."},
+        {"shutdown_stage_settings", "Salvataggio impostazioni e preferenze account..."},
+        {"shutdown_stage_webviews", "Chiusura controllata delle sessioni browser..."},
+        {"shutdown_stage_network_sync", "Sincronizzazione profili e chat su cartella di rete..."},
+        {"shutdown_stage_tsnet", "Arresto proxy di rete e rilascio risorse..."},
+        {"shutdown_stage_complete", "Finalizzazione e chiusura..."}
     }
 
 
@@ -910,7 +934,19 @@ Public Class AppLocalizations
         {"smart_clean_cache_success_title", "Cache Nettoyé"},
         {"smart_clean_cache_success_msg", "Nettoyage du cache terminé avec succès ! Les sessions de compte ont été préservées."},
         {"account_clean_cache", "Nettoyer le cache du compte"},
-        {"hibernated_badge_tooltip", "Onglet en veille (reprise automatique au clic)"}
+        {"hibernated_badge_tooltip", "Onglet en veille (reprise automatique au clic)"},
+        {"account_repair_tab", "Réparer l'onglet (réinitialiser base de données)"},
+        {"account_repair_confirm_title", "Réparer l'onglet"},
+        {"account_repair_confirm_msg", "Cette opération réinitialisera la base de données locale et le cache des service workers de l'onglet, puis rechargera la page pour corriger les écrans blancs. Continuer ?"},
+        {"account_repair_success_title", "Réparation terminée"},
+        {"account_repair_success_msg", "Le stockage de l'onglet a été réparé et la page a été rechargée."},
+        {"shutdown_dialog_title", "Fermeture de HidaChat"},
+        {"shutdown_dialog_header", "Enregistrement des données et fermeture..."},
+        {"shutdown_stage_settings", "Enregistrement des paramètres et préférences..."},
+        {"shutdown_stage_webviews", "Arrêt contrôlé des processus de navigation..."},
+        {"shutdown_stage_network_sync", "Synchronisation des profils et discussions sur le réseau..."},
+        {"shutdown_stage_tsnet", "Arrêt du proxy réseau et libération des verrous..."},
+        {"shutdown_stage_complete", "Finalisation et fermeture..."}
     }
 
 
@@ -1053,7 +1089,19 @@ Public Class AppLocalizations
         {"smart_clean_cache_success_title", "Caché Limpiada"},
         {"smart_clean_cache_success_msg", "¡Limpieza de caché completada con éxito! Las sesiones de cuenta se han conservado."},
         {"account_clean_cache", "Limpiar caché de la cuenta"},
-        {"hibernated_badge_tooltip", "Pestaña hibernada (se reactiva automáticamente al hacer clic)"}
+        {"hibernated_badge_tooltip", "Pestaña hibernada (se reactiva automáticamente al hacer clic)"},
+        {"account_repair_tab", "Reparar pestaña (restablecer base de datos)"},
+        {"account_repair_confirm_title", "Reparar Pestaña"},
+        {"account_repair_confirm_msg", "Esta operación restablecerá la base de datos local y la caché de los service workers de la pestaña, y luego recargará la página para solucionar pantallas blancas. ¿Continuar?"},
+        {"account_repair_success_title", "Reparación Completada"},
+        {"account_repair_success_msg", "El almacenamiento de la pestaña se ha reparado y la página se ha recargado."},
+        {"shutdown_dialog_title", "Cerrando HidaChat"},
+        {"shutdown_dialog_header", "Guardando datos y cerrando..."},
+        {"shutdown_stage_settings", "Guardando ajustes y preferencias de cuentas..."},
+        {"shutdown_stage_webviews", "Cierre controlado de los procesos de navegación..."},
+        {"shutdown_stage_network_sync", "Sincronizando perfiles y chats en la red..."},
+        {"shutdown_stage_tsnet", "Deteniendo proxy de red y liberando bloqueos..."},
+        {"shutdown_stage_complete", "Finalizando y cerrando..."}
     }
 
 
@@ -1196,7 +1244,19 @@ Public Class AppLocalizations
         {"smart_clean_cache_success_title", "Cache Bereinigt"},
         {"smart_clean_cache_success_msg", "Cache-Bereinigung erfolgreich abgeschlossen! Kontositzungen wurden beibehalten."},
         {"account_clean_cache", "Kontocache leeren"},
-        {"hibernated_badge_tooltip", "Tab im Ruhezustand (wird beim Klicken automatisch fortgesetzt)"}
+        {"hibernated_badge_tooltip", "Tab im Ruhezustand (wird beim Klicken automatisch fortgesetzt)"},
+        {"account_repair_tab", "Tab reparieren (beschädigte Datenbank zurücksetzen)"},
+        {"account_repair_confirm_title", "Tab Reparieren"},
+        {"account_repair_confirm_msg", "Dadurch werden die lokale Datenbank und der Service-Worker-Cache des Tabs zurückgesetzt und die Seite neu geladen, um weiße Seiten zu beheben. Fortfahren?"},
+        {"account_repair_success_title", "Reparatur Abgeschlossen"},
+        {"account_repair_success_msg", "Der Tab-Speicher wurde repariert und die Seite wurde neu geladen."},
+        {"shutdown_dialog_title", "HidaChat wird beendet"},
+        {"shutdown_dialog_header", "Daten werden gespeichert und beendet..."},
+        {"shutdown_stage_settings", "Einstellungen und Kontokonfigurationen werden gespeichert..."},
+        {"shutdown_stage_webviews", "Browser-Prozesse werden geordnet beendet..."},
+        {"shutdown_stage_network_sync", "Profile und Chats werden mit Netzwerkfreigabe synchronisiert..."},
+        {"shutdown_stage_tsnet", "Netzwerk-Proxy wird gestoppt und Sperren freigegeben..."},
+        {"shutdown_stage_complete", "Abschluss und Beendigung..."}
     }
 
 

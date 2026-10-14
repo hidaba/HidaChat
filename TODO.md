@@ -553,5 +553,52 @@
   6. *Opzione nelle Impostazioni*: Checkbox dedicata e stringhe sincronizzate in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
 - **Impatto**: Alto | **Sforzo**: Medio-Alto
 
+## 74. Finestra / Dialog di avanzamento durante il salvataggio e chiusura dell'applicazione [COMPLETATO]
+- **File**: `ShutdownProgressDialog.xaml`, `ShutdownProgressDialog.xaml.vb`, `MainWindow.xaml.vb`, `Localization.vb`
+- **Problema / Esigenza**: Quando l'utente chiude l'applicazione, vengono eseguite operazioni asincrone critiche in background (sincronizzazione dei profili verso percorsi di rete SMB/UNC, flush e salvataggio delle impostazioni `settings.json`, rilascio lock `data/.lock` e lock di sessione, dismissione controllata dei processi WebView2 e spegnimento del nodo/proxy tsnet). Senza un feedback visivo immediato, l'utente potrebbe percepire l'applicazione come bloccata o tentare di forzarne la chiusura dal Task Manager, causando potenziale troncamento del salvataggio o file lock pendenti.
+- **Implementazione completata**:
+  - Creata la finestra grafica dedicata `ShutdownProgressDialog` (`WindowStyle="None"`, trasparente con bordo arrotondato e design scuro WhatsApp, `Topmost="True"`, ProgressBar indeterminata e indicatore di fase).
+  - Gestite e notificate in tempo reale le fasi di spegnimento durante `ShutdownCoreAsync`:
+    1. Salvataggio impostazioni e preferenze account;
+    2. Chiusura controllata delle istanze browser WebView2;
+    3. Sincronizzazione profili e chat su percorsi di rete (SMB/UNC) se abilitata;
+    4. Arresto controllato del proxy Tailscale `tsnetd` e rilascio lock di sessione/directory;
+    5. Finalizzazione e chiusura ordinata dell'applicazione.
+  - Sincronizzate le stringhe e le descrizioni degli stati in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+- **Impatto**: Medio-Alto | **Sforzo**: Medio
+
+## 75. Rilevamento pagina bianca su profili Hermes / OpenClaw e controllo stato connessione Tailscale
+- **File**: `AppAccounts.vb`, `MainWindow.xaml.vb`, `TsnetManager.vb`, `Localization.vb`
+- **Problema / Esigenza**: I profili di tipo Hermes e OpenClaw comunicano frequentemente con istanze e web server ospitati su nodi Tailscale (sia tramite il nodo tsnet integrato nell'applicazione, sia tramite Tailscale client installato nel sistema operativo o reverse proxy locale). Se la rete Tailscale non è connessa, il nodo remoto è spento o tsnet non ha completato l'avvio/autenticazione, la WebView2 mostra una schermata bianca (o errore di mancata risoluzione/connessione rifiutata), disorientando l'utente.
+- **Implementazione proposta**:
+  - Monitorare la navigazione dei profili Hermes e OpenClaw tramite `NavigationCompleted` e controlli di timeout del DOM / HTTP status code (rilevamento fallimenti di rete, errori DNS/connessione o pagina bianca persistente senza caricamento dell'interfaccia).
+  - In caso di mancato caricamento o pagina bianca, verificare lo stato della connettività Tailscale:
+    - Verificare lo stato del modulo tsnet embedded (`TsnetManager.State = TsnetState.Running` o controlli di handshake proxy);
+    - Verificare la raggiungibilità dell'endpoint Tailscale o lo stato di Tailscale su Windows (CLI o ping dell'host nodo);
+  - Se Tailscale risulta non connesso o irraggiungibile, mostrare un popup/dialog informativo chiaro e localizzato (in tutte le 5 lingue supportate) che invita l'utente a verificare il collegamento Tailscale (es. *"Impossibile caricare il profilo Hermes/OpenClaw: la connessione Tailscale non risulta attiva. Verifica che Tailscale sia avviato e connesso, quindi riprova."*), con opzione per riprovare il caricamento non appena la connessione viene ripristinata.
+- **Impatto**: Alto | **Sforzo**: Medio
+
+## 76. Controllo integrità storage/IndexedDB all'avvio con ProgressBar di ripristino dati corrotti
+- **File**: `Application.xaml.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `AppAccounts.vb`, `AccountManager.vb`, eventuale finestra/dialog dedicato (es. `StorageRecoveryProgressDialog.xaml` o overlay in `MainWindow`)
+- **Problema / Esigenza**: 
+  - In seguito a chiusure improvvise, crash hardware, blocchi di sistema o spegnimenti forzati del PC durante la scrittura dei dati, i database IndexedDB di Chromium (come `tt-data` di Telegram Web A o i database Signal/LevelDB di WhatsApp Web) possono incorrere nella perdita di file blob su disco pur mantenendo i riferimenti attivi nei file di log/manifest di LevelDB.
+  - Al successivo avvio, Chromium lancia l'eccezione irreversibile `NotReadableError: Data lost due to missing file. Affected record should be considered irrecoverable`. Le web app (in particolare Telegram Web) non gestiscono questa Promise rejection durante il bootstrap iniziale e interrompono l'esecuzione JavaScript prima del montaggio del DOM, lasciando all'utente una schermata completamente bianca ("pagina bianca").
+- **Implementazione proposta**:
+  1. *Controllo Preventivo all'Avvio / Caricamento Profilo*:
+     - Prima o durante l'apertura dei profili WebView2, verificare l'integrità strutturale della cartella `EBWebView\Default\IndexedDB` di ciascun account configurato;
+     - Verificare la coerenza delle directory `.indexeddb.blob` rispetto ai manifest `.leveldb` o intercettare tempestivamente al caricamento l'eccezione `Data lost due to missing file` / `INDEXEDDB_CORRUPTED`.
+  2. *Feedback Visivo con Finestra / ProgressBar di Recupero*:
+     - Se viene rilevata un'incoerenza o corruzione irreversibile dello storage locale, mostrare immediatamente all'utente una finestra o dialog overlay con ProgressBar (es. *"Rilevata corruzione dello storage locale per {account}. Ripristino dati e rigenerazione database in corso..."* con ProgressBar animata / indeterminata e dettagli di avanzamento);
+     - Impedire che l'utente veda una schermata bianca disorientante o consideri l'applicazione bloccata.
+  3. *Esecuzione del Ripristino Mirato (come effettuato nella fix)*:
+     - Eseguire la rimozione pulita delle cartelle IndexedDB/ServiceWorker corrotte (`https_web.telegram.org_0.indexeddb.*` o tramite `ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.IndexedDb Or ServiceWorkers Or CacheStorage)`);
+     - Salvaguardare integralmente `Local Storage`, file di preferenze, token DPAPI, cookie di sessione e credenziali d'accesso;
+     - Rigenerare la struttura dati pulita e ricaricare la pagina WebView2.
+  4. *Conclusione e Feedback*:
+     - Ad operazione completata con successo, chiudere automaticamente la ProgressBar e presentare l'interfaccia dell'account regolarmente montata e funzionante;
+     - Localizzare tutti i messaggi, testi e titoli della ProgressBar in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+- **Impatto**: Alto | **Sforzo**: Medio
+
+
 
 

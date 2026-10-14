@@ -687,9 +687,7 @@ Public Class AppAccounts
         If purgeDiskAndCodeCache Then
             relativeDirsToClean.AddRange({
                 "EBWebView\Default\Cache",
-                "EBWebView\Default\Code Cache",
-                "EBWebView\Default\Service Worker\CacheStorage",
-                "EBWebView\Default\Service Worker\ScriptCache"
+                "EBWebView\Default\Code Cache"
             })
         End If
 
@@ -1332,7 +1330,7 @@ Public Class AppAccounts
                 ElseIf channel = "TranslationChannel" Then
                     Await HandleTranslationMessageAsync(root)
                 ElseIf channel = "DiagnosticChannel" Then
-                    HandleDiagnosticMessage(root)
+                    Await HandleDiagnosticMessageAsync(root)
                 End If
             End Using
         Catch ex As Exception
@@ -1343,7 +1341,7 @@ Public Class AppAccounts
     ''' <summary>
     ''' Elabora i messaggi diagnostici provenienti dagli script JavaScript iniettati nella WebView2.
     ''' </summary>
-    Private Sub HandleDiagnosticMessage(root As JsonElement)
+    Private Async Function HandleDiagnosticMessageAsync(root As JsonElement) As Task
         Try
             Dim subType = ""
             Dim typeNode As JsonElement = Nothing
@@ -1357,7 +1355,12 @@ Public Class AppAccounts
 
             AppLogger.LogWhatsApp($"[{Id}] [{subType}] {detailsText}")
 
-            If subType = "POPUP_ERROR_DETECTED" Then
+            If subType = "INDEXEDDB_CORRUPTED" OrElse
+               detailsText.IndexOf("Data lost due to missing file", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               detailsText.IndexOf("irrecoverable", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                AppLogger.LogApp($"[INDEXEDDB_CORRUPTION_DETECTED] account={Id}, name={Name}; triggering automatic storage recovery.")
+                Await RecoverFromCorruptedStorageAsync()
+            ElseIf subType = "POPUP_ERROR_DETECTED" Then
                 AppLogger.Log("whatsapp_errors.log", "POPUP_ERROR", $"[ACCOUNT: {Id} - {Name}] ERRORE DIALOG WHATSAPP: {detailsText}")
             ElseIf subType = "INDEXEDDB_DELETE_ATTEMPT" Then
                 AppLogger.Log("whatsapp_errors.log", "INDEXEDDB_DELETE", $"[ACCOUNT: {Id} - {Name}] TENTATIVO CANCELLAZIONE DATABASE: {detailsText}")
@@ -1365,9 +1368,9 @@ Public Class AppAccounts
                 AppLogger.LogWhatsApp($"[ACCOUNT: {Id} - {Name}] WebSocket Chiuso: {detailsText}")
             End If
         Catch ex As Exception
-            Debug.WriteLine($"HandleDiagnosticMessage error: {ex.Message}")
+            Debug.WriteLine($"HandleDiagnosticMessageAsync error: {ex.Message}")
         End Try
-    End Sub
+    End Function
 
     ''' <summary>
     ''' Gestisce la ricezione o chiusura delle notifiche dai messaggi IPC e attiva le notifiche Toast o Popup della UI.
@@ -1886,6 +1889,37 @@ Public Class AppAccounts
                 Debug.WriteLine($"SmartCleanCachePreservingLoginAsync file cleanup error: {ex.Message}")
             End Try
         End Sub)
+    End Function
+
+    Private _lastStorageRecoveryUtc As DateTime = DateTime.MinValue
+
+    ''' <summary>
+    ''' Ripristina automaticamente lo storage IndexedDB e i Service Worker in caso di corruzione irreversibile 
+    ''' dei file blob su disco (errore Chromium "Data lost due to missing file. Affected record should be considered irrecoverable")
+    ''' o schermata bianca provocata da database locale incoerente.
+    ''' </summary>
+    Public Async Function RecoverFromCorruptedStorageAsync() As Task
+        If _isDisposed OrElse _stopRequested Then Return
+        If DateTime.UtcNow - _lastStorageRecoveryUtc < TimeSpan.FromSeconds(20) Then
+            AppLogger.LogApp($"[STORAGE_RECOVERY_RATE_LIMIT] account={Id}; recovery request throttled.")
+            Return
+        End If
+        _lastStorageRecoveryUtc = DateTime.UtcNow
+
+        Try
+            AppLogger.LogApp($"[STORAGE_RECOVERY_START] account={Id}, name={Name}, platform={Platform}")
+            If WebView?.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.Profile IsNot Nothing Then
+                Dim dataKinds = CoreWebView2BrowsingDataKinds.IndexedDb Or
+                                CoreWebView2BrowsingDataKinds.ServiceWorkers Or
+                                CoreWebView2BrowsingDataKinds.CacheStorage
+                Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(dataKinds)
+                AppLogger.LogApp($"[STORAGE_RECOVERY_CLEARED] account={Id}")
+                WebView.CoreWebView2.Reload()
+                AppLogger.LogApp($"[STORAGE_RECOVERY_RELOADED] account={Id}")
+            End If
+        Catch ex As Exception
+            AppLogger.LogApp($"[STORAGE_RECOVERY_FAILED] account={Id}: {ex.Message}")
+        End Try
     End Function
 
     ''' <summary>

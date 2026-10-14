@@ -374,8 +374,8 @@ Public Class SettingsController
     End Property
 
     ' --- Limitazione Cache Chromium via AdditionalBrowserArguments (TODO #71) ---
-    Private _diskCacheLimitMb As Integer = 256
-    ''' <summary>Limite in megabyte della cache su disco di Chromium per profilo (default: 256 MB, 0 = illimitata).</summary>
+    Private _diskCacheLimitMb As Integer = 0
+    ''' <summary>Limite in megabyte della cache su disco di Chromium per profilo (default: 0 = illimitata; configurabile dall'utente nelle Impostazioni).</summary>
     Public Property DiskCacheLimitMb As Integer
         Get
             Return _diskCacheLimitMb
@@ -884,7 +884,7 @@ Public Class SettingsController
         _enableNetworkProfileStaging = GetBoolSetting(settings, "enableNetworkProfileStaging", True)
         _enableTabHibernation = GetBoolSetting(settings, "enableTabHibernation", True)
         _tabHibernationMinutes = GetIntSetting(settings, "tabHibernationMinutes", 30)
-        _diskCacheLimitMb = GetIntSetting(settings, "diskCacheLimitMb", 256)
+        _diskCacheLimitMb = GetIntSetting(settings, "diskCacheLimitMb", 0)
 
         _isDndEnabled = GetBoolSetting(settings, "isDndEnabled", False)
         If settings.ContainsKey("dndDurationMode") AndAlso settings("dndDurationMode") IsNot Nothing Then
