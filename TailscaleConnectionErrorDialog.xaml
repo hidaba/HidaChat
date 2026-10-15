@@ -1,0 +1,123 @@
+<Window x:Class="TailscaleConnectionErrorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HidaChat"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Width="470" Height="250">
+    <Border Background="#111b21"
+            BorderBrush="#00a884"
+            BorderThickness="1.5"
+            CornerRadius="12"
+            Padding="22">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="25" ShadowDepth="0" Opacity="0.6" Color="#000000"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Titolo e Header con icona di rete/Tailscale -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="38" Height="38" CornerRadius="19" Background="#1f2c34" Margin="0,0,14,0" VerticalAlignment="Center">
+                    <Path Data="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M11,16H13V18H11V16M11,6H13V14H11V6Z"
+                          Fill="#FFD54F" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtTitle"
+                               Text="HidaChat — Stato Connessione Tailscale"
+                               Foreground="#e9edef"
+                               FontSize="14"
+                               FontWeight="Bold"/>
+                    <TextBlock x:Name="TxtHeader"
+                               Text="Impossibile caricare il profilo"
+                               Foreground="#8696a0"
+                               FontSize="12"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Messaggio diagnostico chiaro ed esplicativo -->
+            <TextBlock Grid.Row="1"
+                       x:Name="TxtMessage"
+                       Text="Verifica della connettività alla rete Tailscale in corso..."
+                       Foreground="#d1d7db"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       LineHeight="18"
+                       VerticalAlignment="Center"
+                       Margin="0,10,0,10"/>
+
+            <!-- Pulsanti di azione: Riprova, Accedi a Tailscale, Impostazioni, Chiudi -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button x:Name="BtnLogin"
+                        Content="Accedi a Tailscale"
+                        Click="BtnLogin_Click"
+                        Background="#0084ff"
+                        Foreground="#ffffff"
+                        FontWeight="SemiBold"
+                        Padding="12,6"
+                        Margin="0,0,8,0"
+                        Visibility="Collapsed">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button x:Name="BtnSettings"
+                        Content="Impostazioni"
+                        Click="BtnSettings_Click"
+                        Background="#202c33"
+                        Foreground="#e9edef"
+                        FontWeight="Normal"
+                        Padding="12,6"
+                        Margin="0,0,8,0">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button x:Name="BtnClose"
+                        Content="Chiudi"
+                        Click="BtnClose_Click"
+                        Background="#202c33"
+                        Foreground="#8696a0"
+                        Padding="12,6"
+                        Margin="0,0,8,0">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button x:Name="BtnRetry"
+                        Content="Riprova"
+                        Click="BtnRetry_Click"
+                        Background="#00a884"
+                        Foreground="#ffffff"
+                        FontWeight="Bold"
+                        Padding="14,6">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

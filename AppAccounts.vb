@@ -656,6 +656,7 @@ Public Class AppAccounts
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
     Private _webResourceRequestedHandler As EventHandler(Of CoreWebView2WebResourceRequestedEventArgs)
     Private _processFailedHandler As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
+    Private _settings As SettingsController
 
     ''' <summary>Percorso base per il salvataggio dei profili WebView2 isolati degli account.</summary>
     Public Shared ReadOnly Property SharedDataDirectory As String
@@ -758,6 +759,14 @@ Public Class AppAccounts
     End Property
 
     <JsonIgnore>
+    Public ReadOnly Property ProfilePath As String
+        Get
+            If Not String.IsNullOrEmpty(_profilePath) Then Return _profilePath
+            Return NetworkProfileSync.GetEffectiveProfileDir(Id, enableStaging:=True)
+        End Get
+    End Property
+
+    <JsonIgnore>
     Public ReadOnly Property CanReleaseNetworkLease As Boolean
         Get
             Return _isDisposed AndAlso (BrowserProfileReleased OrElse Not _environmentCreationStarted)
@@ -791,6 +800,7 @@ Public Class AppAccounts
     Private Async Function SetupWebViewInternalAsync(settings As SettingsController, onNotificationChanged As Action(Of String, Boolean)) As Task
         If WebView Is Nothing Then Return
         _isDisposed = False
+        _settings = settings
 
         If _browserLifetime IsNot Nothing Then
             If Not Await _browserLifetime.WaitForExitAsync() Then
@@ -822,6 +832,14 @@ Public Class AppAccounts
         Directory.CreateDirectory(profileDir)
         AppLogger.LogApp($"[PROFILE_OPEN] account={Id}, requested={profileDir}, staging={_usesNetworkStaging}")
         ' No automatic cache deletion or orphan substitution when reopening a profile.
+
+        ' Controllo preventivo dell'integrità strutturale dello storage IndexedDB a freddo (TODO #76)
+        Dim corruptionCheck = StorageIntegrityService.CheckIndexedDbCorruption(profileDir)
+        If corruptionCheck.IsCorrupted Then
+            AppLogger.LogApp($"[PREVENTIVE_CORRUPTION_DETECTED] account={Id}, name={Name}, reason={corruptionCheck.Reason}")
+            Dim ownerWin = Application.Current?.Windows.OfType(Of MainWindow)().FirstOrDefault()
+            Await StorageIntegrityService.PerformStorageRecoveryWithDialogAsync(Me, settings?.Localizations, ownerWin)
+        End If
 
         Try
             Dim options As New CoreWebView2EnvironmentOptions()
@@ -1050,6 +1068,33 @@ Public Class AppAccounts
                     If _isDisposed OrElse WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
 
                     AppLogger.LogApp($"[NavigationCompleted] Account {Id} ({Name}) - IsSuccess={e.IsSuccess}, WebErrorStatus={e.WebErrorStatus}, Uri={WebView?.Source}")
+
+                    If IsOpenClaw OrElse IsHermes Then
+                        If Not e.IsSuccess Then
+                            Await HandleHermesOpenClawNavigationFailureAsync(e.WebErrorStatus.ToString(), settings)
+                            Return
+                        Else
+                            ' Controllo pagina bianca o errore proxy 502/504 (TODO #75)
+                            Try
+                                Dim checkJs = "(function() { try { var b = document.body; if (!b) return { isBlank: true, reason: 'no_body' }; var t = (b.innerText || '').trim(); var c = b.childElementCount; var title = (document.title || '').trim(); if (c === 0 && t.length === 0) return { isBlank: true, reason: 'empty_body' }; if (title.indexOf('502 Bad Gateway') >= 0 || title.indexOf('504 Gateway Timeout') >= 0 || t.indexOf('502 Bad Gateway') === 0 || t.indexOf('504 Gateway Timeout') === 0) return { isBlank: true, reason: 'proxy_gateway_error' }; return { isBlank: false }; } catch(e) { return { isBlank: false }; } })()"
+                                Dim jsonResult = Await WebView.CoreWebView2.ExecuteScriptAsync(checkJs)
+                                If Not String.IsNullOrWhiteSpace(jsonResult) AndAlso jsonResult <> "null" Then
+                                    Using doc = JsonDocument.Parse(jsonResult)
+                                        Dim isBlankNode As JsonElement = Nothing
+                                        If doc.RootElement.TryGetProperty("isBlank", isBlankNode) AndAlso isBlankNode.GetBoolean() Then
+                                            Dim reasonNode As JsonElement = Nothing
+                                            doc.RootElement.TryGetProperty("reason", reasonNode)
+                                            Dim r = If(reasonNode.ValueKind <> JsonValueKind.Undefined, reasonNode.GetString(), "blank_page")
+                                            Await HandleHermesOpenClawNavigationFailureAsync(r, settings)
+                                            Return
+                                        End If
+                                    End Using
+                                End If
+                            Catch exCheck As Exception
+                                Debug.WriteLine($"Error checking blank page on Hermes/OpenClaw: {exCheck.Message}")
+                            End Try
+                        End If
+                    End If
 
                     If e.IsSuccess Then
                         If Not IsOpenClaw AndAlso Not IsHermes Then
@@ -1359,7 +1404,7 @@ Public Class AppAccounts
                detailsText.IndexOf("Data lost due to missing file", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
                detailsText.IndexOf("irrecoverable", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 AppLogger.LogApp($"[INDEXEDDB_CORRUPTION_DETECTED] account={Id}, name={Name}; triggering automatic storage recovery.")
-                Await RecoverFromCorruptedStorageAsync()
+                Await RecoverFromCorruptedStorageAsync(showProgressDialog:=True, loc:=_settings?.Localizations)
             ElseIf subType = "POPUP_ERROR_DETECTED" Then
                 AppLogger.Log("whatsapp_errors.log", "POPUP_ERROR", $"[ACCOUNT: {Id} - {Name}] ERRORE DIALOG WHATSAPP: {detailsText}")
             ElseIf subType = "INDEXEDDB_DELETE_ATTEMPT" Then
@@ -1896,9 +1941,9 @@ Public Class AppAccounts
     ''' <summary>
     ''' Ripristina automaticamente lo storage IndexedDB e i Service Worker in caso di corruzione irreversibile 
     ''' dei file blob su disco (errore Chromium "Data lost due to missing file. Affected record should be considered irrecoverable")
-    ''' o schermata bianca provocata da database locale incoerente.
+    ''' o schermata bianca provocata da database locale incoerente, mostrando il dialog con ProgressBar (TODO #76).
     ''' </summary>
-    Public Async Function RecoverFromCorruptedStorageAsync() As Task
+    Public Async Function RecoverFromCorruptedStorageAsync(Optional showProgressDialog As Boolean = True, Optional loc As AppLocalizations = Nothing) As Task
         If _isDisposed OrElse _stopRequested Then Return
         If DateTime.UtcNow - _lastStorageRecoveryUtc < TimeSpan.FromSeconds(20) Then
             AppLogger.LogApp($"[STORAGE_RECOVERY_RATE_LIMIT] account={Id}; recovery request throttled.")
@@ -1908,17 +1953,67 @@ Public Class AppAccounts
 
         Try
             AppLogger.LogApp($"[STORAGE_RECOVERY_START] account={Id}, name={Name}, platform={Platform}")
-            If WebView?.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.Profile IsNot Nothing Then
-                Dim dataKinds = CoreWebView2BrowsingDataKinds.IndexedDb Or
-                                CoreWebView2BrowsingDataKinds.ServiceWorkers Or
-                                CoreWebView2BrowsingDataKinds.CacheStorage
-                Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(dataKinds)
-                AppLogger.LogApp($"[STORAGE_RECOVERY_CLEARED] account={Id}")
-                WebView.CoreWebView2.Reload()
-                AppLogger.LogApp($"[STORAGE_RECOVERY_RELOADED] account={Id}")
+            Dim effectiveLoc = If(loc, _settings?.Localizations)
+            If showProgressDialog Then
+                Dim ownerWin = Application.Current?.Windows.OfType(Of MainWindow)().FirstOrDefault()
+                Await StorageIntegrityService.PerformStorageRecoveryWithDialogAsync(Me, effectiveLoc, ownerWin)
+            Else
+                If WebView?.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.Profile IsNot Nothing Then
+                    Dim dataKinds = CoreWebView2BrowsingDataKinds.IndexedDb Or
+                                    CoreWebView2BrowsingDataKinds.ServiceWorkers Or
+                                    CoreWebView2BrowsingDataKinds.CacheStorage
+                    Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(dataKinds)
+                    AppLogger.LogApp($"[STORAGE_RECOVERY_CLEARED] account={Id}")
+                    WebView.CoreWebView2.Reload()
+                    AppLogger.LogApp($"[STORAGE_RECOVERY_RELOADED] account={Id}")
+                End If
             End If
         Catch ex As Exception
             AppLogger.LogApp($"[STORAGE_RECOVERY_FAILED] account={Id}: {ex.Message}")
+        End Try
+    End Function
+
+    Private _isHandlingTailscaleFailure As Boolean = False
+    Private _lastTailscaleErrorPromptUtc As DateTime = DateTime.MinValue
+
+    ''' <summary>
+    ''' Rileva fallimenti di rete, pagina bianca o errori gateway per profili Hermes e OpenClaw
+    ''' ed interroga lo stato di connettività Tailscale mostrando un dialogo informativo e localizzato (TODO #75).
+    ''' </summary>
+    Public Async Function HandleHermesOpenClawNavigationFailureAsync(failureReason As String, settings As SettingsController) As Task
+        If _isDisposed OrElse _stopRequested OrElse _isHandlingTailscaleFailure Then Return
+        If DateTime.UtcNow - _lastTailscaleErrorPromptUtc < TimeSpan.FromSeconds(10) Then Return
+        _lastTailscaleErrorPromptUtc = DateTime.UtcNow
+        _isHandlingTailscaleFailure = True
+
+        Try
+            AppLogger.LogApp($"[HERMES_OPENCLAW_NAV_FAIL] account={Id}, name={Name}, platform={Platform}, reason={failureReason}, url={ServerUrl}, tsnet={TailscaleIntegration}")
+            Dim loc = settings?.Localizations
+
+            ' Verifica dettagliata dello stato di Tailscale e della destinazione
+            Dim diagStatus = Await TsnetManager.Instance.CheckTailscaleConnectivityAsync(ServerUrl, TailscaleIntegration, LocalProxyPort)
+
+            If Not diagStatus.IsConnected Then
+                Await Application.Current.Dispatcher.InvokeAsync(Async Function()
+                    Dim ownerWin = Application.Current.Windows.OfType(Of MainWindow)().FirstOrDefault()
+                    Dim dialog As New TailscaleConnectionErrorDialog(loc, Name, Platform, diagStatus.StatusKey, diagStatus.Details, diagStatus.LoginUrl)
+                    If ownerWin IsNot Nothing AndAlso ownerWin.IsVisible Then
+                        dialog.Owner = ownerWin
+                    End If
+
+                    dialog.ShowDialog()
+                    If dialog.RetryRequested Then
+                        AppLogger.LogApp($"[HERMES_OPENCLAW_RETRY] account={Id}; user requested retry.")
+                        Await ReloadAsync(forceUpdateProxy:=True)
+                    ElseIf dialog.OpenSettingsRequested AndAlso ownerWin IsNot Nothing Then
+                        ownerWin.OpenSettingsWindow()
+                    End If
+                End Function)
+            End If
+        Catch ex As Exception
+            AppLogger.LogApp($"HandleHermesOpenClawNavigationFailureAsync error: {ex.Message}")
+        Finally
+            _isHandlingTailscaleFailure = False
         End Try
     End Function
 

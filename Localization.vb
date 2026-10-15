@@ -636,7 +636,25 @@ Public Class AppLocalizations
         {"shutdown_stage_webviews", "Gracefully terminating web browser processes..."},
         {"shutdown_stage_network_sync", "Synchronizing profiles and chat sessions to network share..."},
         {"shutdown_stage_tsnet", "Stopping network proxy and releasing lock leases..."},
-        {"shutdown_stage_complete", "Finalizing and closing..."}
+        {"shutdown_stage_complete", "Finalizing and closing..."},
+        {"tailscale_dialog_title", "Tailscale Connection Status"},
+        {"tailscale_dialog_header", "Unable to load {platform}: {name}"},
+        {"tailscale_error_tsnet_needs_login", "The embedded Tailscale node requires authentication. Please log in to connect to your Tailnet and access the service."},
+        {"tailscale_error_tsnet_stopped", "The embedded Tailscale service (tsnet) is not running or failed to initialize."},
+        {"tailscale_error_node_unreachable", "Tailscale connection is active, but the remote host '{host}' is unreachable or offline. Please check that the remote device is powered on and connected to your Tailnet."},
+        {"tailscale_error_client_disconnected", "The Tailscale client is not running or disconnected on this computer. Please launch and connect Tailscale, then try again."},
+        {"tailscale_error_generic_failure", "Unable to reach the server '{host}'. A network or connection timeout error occurred."},
+        {"tailscale_btn_retry", "Retry"},
+        {"tailscale_btn_login", "Log in to Tailscale"},
+        {"tailscale_btn_settings", "Open Settings"},
+        {"tailscale_btn_close", "Close"},
+        {"storage_recovery_dialog_title", "Storage Integrity Recovery"},
+        {"storage_recovery_dialog_header", "Repairing local storage and database..."},
+        {"storage_recovery_stage_checking", "Checking IndexedDB and storage integrity for {account}..."},
+        {"storage_recovery_stage_detected", "Storage corruption detected for {account}. Rebuilding database..."},
+        {"storage_recovery_stage_repairing", "Purging corrupted IndexedDB/ServiceWorker caches (preserving logins)..."},
+        {"storage_recovery_stage_reloading", "Reloading web view and mounting clean database..."},
+        {"storage_recovery_stage_completed", "Storage recovery completed successfully!"}
     }
 
 
@@ -791,7 +809,25 @@ Public Class AppLocalizations
         {"shutdown_stage_webviews", "Chiusura controllata delle sessioni browser..."},
         {"shutdown_stage_network_sync", "Sincronizzazione profili e chat su cartella di rete..."},
         {"shutdown_stage_tsnet", "Arresto proxy di rete e rilascio risorse..."},
-        {"shutdown_stage_complete", "Finalizzazione e chiusura..."}
+        {"shutdown_stage_complete", "Finalizzazione e chiusura..."},
+        {"tailscale_dialog_title", "Stato Connessione Tailscale"},
+        {"tailscale_dialog_header", "Impossibile caricare {platform}: {name}"},
+        {"tailscale_error_tsnet_needs_login", "Il nodo Tailscale integrato richiede l'autenticazione. Effettua il login per connetterti alla tua Tailnet e accedere al servizio."},
+        {"tailscale_error_tsnet_stopped", "Il servizio Tailscale integrato (tsnet) non è in esecuzione o non è riuscito ad avviarsi."},
+        {"tailscale_error_node_unreachable", "La connessione Tailscale è attiva, ma l'host remoto '{host}' non è raggiungibile o è spento. Verifica che il dispositivo remoto sia acceso e connesso alla tua Tailnet."},
+        {"tailscale_error_client_disconnected", "Il client Tailscale non risulta attivo o connesso su questo computer. Avvia e connetti Tailscale, quindi riprova."},
+        {"tailscale_error_generic_failure", "Impossibile raggiungere il server '{host}'. Si è verificato un errore di rete o timeout di connessione."},
+        {"tailscale_btn_retry", "Riprova"},
+        {"tailscale_btn_login", "Accedi a Tailscale"},
+        {"tailscale_btn_settings", "Apri Impostazioni"},
+        {"tailscale_btn_close", "Chiudi"},
+        {"storage_recovery_dialog_title", "Ripristino Integrità Storage"},
+        {"storage_recovery_dialog_header", "Ripristino storage locale e database in corso..."},
+        {"storage_recovery_stage_checking", "Verifica integrità IndexedDB e storage per {account}..."},
+        {"storage_recovery_stage_detected", "Rilevata corruzione dello storage per {account}. Rigenerazione database..."},
+        {"storage_recovery_stage_repairing", "Pulizia cache IndexedDB/ServiceWorker corrotte (sessioni salvaguardate)..."},
+        {"storage_recovery_stage_reloading", "Ricaricamento vista web e inizializzazione database pulito..."},
+        {"storage_recovery_stage_completed", "Ripristino storage completato con successo!"}
     }
 
 
@@ -946,7 +982,25 @@ Public Class AppLocalizations
         {"shutdown_stage_webviews", "Arrêt contrôlé des processus de navigation..."},
         {"shutdown_stage_network_sync", "Synchronisation des profils et discussions sur le réseau..."},
         {"shutdown_stage_tsnet", "Arrêt du proxy réseau et libération des verrous..."},
-        {"shutdown_stage_complete", "Finalisation et fermeture..."}
+        {"shutdown_stage_complete", "Finalisation et fermeture..."},
+        {"tailscale_dialog_title", "État de la connexion Tailscale"},
+        {"tailscale_dialog_header", "Impossible de charger {platform} : {name}"},
+        {"tailscale_error_tsnet_needs_login", "Le nœud Tailscale intégré nécessite une authentification. Veuillez vous connecter à votre Tailnet pour accéder au service."},
+        {"tailscale_error_tsnet_stopped", "Le service Tailscale intégré (tsnet) n'est pas en cours d'exécution ou n'a pas pu démarrer."},
+        {"tailscale_error_node_unreachable", "La connexion Tailscale est active, mais l'hôte distant '{host}' est inaccessible ou éteint. Veuillez vérifier que l'appareil distant est allumé et connecté à votre Tailnet."},
+        {"tailscale_error_client_disconnected", "Le client Tailscale n'est pas actif ou déconnecté sur cet ordinateur. Veuillez démarrer et connecter Tailscale, puis réessayez."},
+        {"tailscale_error_generic_failure", "Impossible d'atteindre le serveur '{host}'. Une erreur réseau ou un délai d'attente s'est produit."},
+        {"tailscale_btn_retry", "Réessayer"},
+        {"tailscale_btn_login", "Se connecter à Tailscale"},
+        {"tailscale_btn_settings", "Ouvrir les Paramètres"},
+        {"tailscale_btn_close", "Fermer"},
+        {"storage_recovery_dialog_title", "Récupération de l'intégrité du stockage"},
+        {"storage_recovery_dialog_header", "Réparation du stockage local et de la base de données..."},
+        {"storage_recovery_stage_checking", "Vérification de l'intégrité d'IndexedDB et du stockage pour {account}..."},
+        {"storage_recovery_stage_detected", "Corruption du stockage détectée pour {account}. Reconstruction de la base de données..."},
+        {"storage_recovery_stage_repairing", "Nettoyage des caches IndexedDB/ServiceWorker corrompus (sessions préservées)..."},
+        {"storage_recovery_stage_reloading", "Rechargement de la vue web et initialisation d'une base saine..."},
+        {"storage_recovery_stage_completed", "Récupération du stockage terminée avec succès !"}
     }
 
 
@@ -1101,7 +1155,25 @@ Public Class AppLocalizations
         {"shutdown_stage_webviews", "Cierre controlado de los procesos de navegación..."},
         {"shutdown_stage_network_sync", "Sincronizando perfiles y chats en la red..."},
         {"shutdown_stage_tsnet", "Deteniendo proxy de red y liberando bloqueos..."},
-        {"shutdown_stage_complete", "Finalizando y cerrando..."}
+        {"shutdown_stage_complete", "Finalizando y cerrando..."},
+        {"tailscale_dialog_title", "Estado de la conexión Tailscale"},
+        {"tailscale_dialog_header", "No se puede cargar {platform}: {name}"},
+        {"tailscale_error_tsnet_needs_login", "El nodo Tailscale integrado requiere autenticación. Inicie sesión para conectarse a su Tailnet y acceder al servicio."},
+        {"tailscale_error_tsnet_stopped", "El servicio Tailscale integrado (tsnet) no se está ejecutando o no pudo iniciarse."},
+        {"tailscale_error_node_unreachable", "La conexión Tailscale está activa, pero el host remoto '{host}' no es accesible o está apagado. Compruebe que el dispositivo remoto esté encendido y conectado a su Tailnet."},
+        {"tailscale_error_client_disconnected", "El cliente Tailscale no está activo o desconectado en este equipo. Inicie y conecte Tailscale, y luego vuelva a intentarlo."},
+        {"tailscale_error_generic_failure", "No se puede acceder al servidor '{host}'. Se produjo un error de red o de tiempo de espera."},
+        {"tailscale_btn_retry", "Reintentar"},
+        {"tailscale_btn_login", "Iniciar sesión en Tailscale"},
+        {"tailscale_btn_settings", "Abrir Ajustes"},
+        {"tailscale_btn_close", "Cerrar"},
+        {"storage_recovery_dialog_title", "Recuperación de integridad de almacenamiento"},
+        {"storage_recovery_dialog_header", "Reparando almacenamiento local y base de datos..."},
+        {"storage_recovery_stage_checking", "Comprobando la integridad de IndexedDB y almacenamiento para {account}..."},
+        {"storage_recovery_stage_detected", "Corrupción de almacenamiento detectada para {account}. Reconstruyendo base de datos..."},
+        {"storage_recovery_stage_repairing", "Limpiando cachés corruptas de IndexedDB/ServiceWorker (sesiones preservadas)..."},
+        {"storage_recovery_stage_reloading", "Recargando vista web e inicializando base de datos limpia..."},
+        {"storage_recovery_stage_completed", "¡Recuperación de almacenamiento completada con éxito!"}
     }
 
 
@@ -1256,7 +1328,25 @@ Public Class AppLocalizations
         {"shutdown_stage_webviews", "Browser-Prozesse werden geordnet beendet..."},
         {"shutdown_stage_network_sync", "Profile und Chats werden mit Netzwerkfreigabe synchronisiert..."},
         {"shutdown_stage_tsnet", "Netzwerk-Proxy wird gestoppt und Sperren freigegeben..."},
-        {"shutdown_stage_complete", "Abschluss und Beendigung..."}
+        {"shutdown_stage_complete", "Abschluss und Beendigung..."},
+        {"tailscale_dialog_title", "Tailscale-Verbindungsstatus"},
+        {"tailscale_dialog_header", "{platform} kann nicht geladen werden: {name}"},
+        {"tailscale_error_tsnet_needs_login", "Der integrierte Tailscale-Knoten erfordert eine Authentifizierung. Bitte melden Sie sich bei Ihrem Tailnet an, um auf den Dienst zuzugreifen."},
+        {"tailscale_error_tsnet_stopped", "Der integrierte Tailscale-Dienst (tsnet) wird nicht ausgeführt oder konnte nicht gestartet werden."},
+        {"tailscale_error_node_unreachable", "Die Tailscale-Verbindung ist aktiv, aber der Remote-Host '{host}' ist nicht erreichbar oder ausgeschaltet. Bitte überprüfen Sie, ob das Remote-Gerät eingeschaltet und mit Ihrem Tailnet verbunden ist."},
+        {"tailscale_error_client_disconnected", "Der Tailscale-Client ist auf diesem Computer nicht aktiv oder getrennt. Bitte starten und verbinden Sie Tailscale und versuchen Sie es erneut."},
+        {"tailscale_error_generic_failure", "Der Server '{host}' konnte nicht erreicht werden. Ein Netzwerk- oder Verbindungs-Timeout ist aufgetreten."},
+        {"tailscale_btn_retry", "Wiederholen"},
+        {"tailscale_btn_login", "Bei Tailscale anmelden"},
+        {"tailscale_btn_settings", "Einstellungen öffnen"},
+        {"tailscale_btn_close", "Schließen"},
+        {"storage_recovery_dialog_title", "Wiederherstellung der Speicherintegrität"},
+        {"storage_recovery_dialog_header", "Lokaler Speicher und Datenbank werden repariert..."},
+        {"storage_recovery_stage_checking", "Überprüfung der IndexedDB- und Speicherintegrität für {account}..."},
+        {"storage_recovery_stage_detected", "Speicherbeschädigung für {account} erkannt. Datenbank wird neu aufgebaut..."},
+        {"storage_recovery_stage_repairing", "Bereinigung beschädigter IndexedDB/ServiceWorker-Caches (Sitzungen beibehalten)..."},
+        {"storage_recovery_stage_reloading", "Webansicht wird neu geladen und saubere Datenbank initialisiert..."},
+        {"storage_recovery_stage_completed", "Speicherwiederherstellung erfolgreich abgeschlossen!"}
     }
 
 

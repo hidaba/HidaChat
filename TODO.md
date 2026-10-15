@@ -567,38 +567,105 @@
   - Sincronizzate le stringhe e le descrizioni degli stati in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
 - **Impatto**: Medio-Alto | **Sforzo**: Medio
 
-## 75. Rilevamento pagina bianca su profili Hermes / OpenClaw e controllo stato connessione Tailscale
-- **File**: `AppAccounts.vb`, `MainWindow.xaml.vb`, `TsnetManager.vb`, `Localization.vb`
+## ~~75. Rilevamento pagina bianca su profili Hermes / OpenClaw e controllo stato connessione Tailscale~~ [COMPLETATO] ✅
+- **File**: `AppAccounts.vb`, `MainWindow.xaml.vb`, `TsnetManager.vb`, `TailscaleConnectionErrorDialog.xaml`, `TailscaleConnectionErrorDialog.xaml.vb`, `Localization.vb`
 - **Problema / Esigenza**: I profili di tipo Hermes e OpenClaw comunicano frequentemente con istanze e web server ospitati su nodi Tailscale (sia tramite il nodo tsnet integrato nell'applicazione, sia tramite Tailscale client installato nel sistema operativo o reverse proxy locale). Se la rete Tailscale non è connessa, il nodo remoto è spento o tsnet non ha completato l'avvio/autenticazione, la WebView2 mostra una schermata bianca (o errore di mancata risoluzione/connessione rifiutata), disorientando l'utente.
-- **Implementazione proposta**:
-  - Monitorare la navigazione dei profili Hermes e OpenClaw tramite `NavigationCompleted` e controlli di timeout del DOM / HTTP status code (rilevamento fallimenti di rete, errori DNS/connessione o pagina bianca persistente senza caricamento dell'interfaccia).
-  - In caso di mancato caricamento o pagina bianca, verificare lo stato della connettività Tailscale:
-    - Verificare lo stato del modulo tsnet embedded (`TsnetManager.State = TsnetState.Running` o controlli di handshake proxy);
-    - Verificare la raggiungibilità dell'endpoint Tailscale o lo stato di Tailscale su Windows (CLI o ping dell'host nodo);
-  - Se Tailscale risulta non connesso o irraggiungibile, mostrare un popup/dialog informativo chiaro e localizzato (in tutte le 5 lingue supportate) che invita l'utente a verificare il collegamento Tailscale (es. *"Impossibile caricare il profilo Hermes/OpenClaw: la connessione Tailscale non risulta attiva. Verifica che Tailscale sia avviato e connesso, quindi riprova."*), con opzione per riprovare il caricamento non appena la connessione viene ripristinata.
+- **Implementazione completata**:
+  - Monitoraggio attivo della navigazione dei profili Hermes e OpenClaw in `NavigationCompleted` con rilevamento fallimenti di rete (`IsSuccess = False`, errori DNS/connessione) e controllo automatico post-caricamento del DOM tramite script di introspezione (rilevamento pagina bianca persistente `empty_body` o errori gateway `502 Bad Gateway` / `504 Gateway Timeout`).
+  - Implementato in `TsnetManager.vb` il metodo di diagnostica approfondita `CheckTailscaleConnectivityAsync`:
+    - Verifica dello stato del modulo tsnet embedded (`NeedsLogin`, `Stopped`, o handshake HTTP/proxy con `X-HidaChat-Local-Token` verso `127.0.0.1:{port}`);
+    - Verifica raggiungibilità TCP dell'endpoint remoto Tailscale e rilevamento della presenza del client nativo Tailscale su Windows.
+  - Creata la finestra di dialogo modale dedicata `TailscaleConnectionErrorDialog` con stile scuro WhatsApp:
+    - Messaggio esplicativo chiaro e diagnosi dettagliata (tsnet richiede login, tsnet fermo, host remoto non raggiungibile, o client Tailscale disconnesso nel sistema);
+    - Pulsanti di azione interattivi: "Riprova" (ricarica automatica della scheda con refresh della rotta), "Accedi a Tailscale" (apre direttamente l'URL di autenticazione del nodo se richiesto), "Impostazioni" (apertura delle preferenze di HidaChat), "Chiudi".
+  - Sincronizzate tutte le stringhe, titoli e pulsanti in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
 - **Impatto**: Alto | **Sforzo**: Medio
 
-## 76. Controllo integrità storage/IndexedDB all'avvio con ProgressBar di ripristino dati corrotti
-- **File**: `Application.xaml.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `AppAccounts.vb`, `AccountManager.vb`, eventuale finestra/dialog dedicato (es. `StorageRecoveryProgressDialog.xaml` o overlay in `MainWindow`)
+## ~~76. Controllo integrità storage/IndexedDB all'avvio con ProgressBar di ripristino dati corrotti~~ [COMPLETATO] ✅
+- **File**: `StorageIntegrityService.vb`, `StorageRecoveryProgressDialog.xaml`, `StorageRecoveryProgressDialog.xaml.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb`, `Localization.vb`
 - **Problema / Esigenza**: 
   - In seguito a chiusure improvvise, crash hardware, blocchi di sistema o spegnimenti forzati del PC durante la scrittura dei dati, i database IndexedDB di Chromium (come `tt-data` di Telegram Web A o i database Signal/LevelDB di WhatsApp Web) possono incorrere nella perdita di file blob su disco pur mantenendo i riferimenti attivi nei file di log/manifest di LevelDB.
   - Al successivo avvio, Chromium lancia l'eccezione irreversibile `NotReadableError: Data lost due to missing file. Affected record should be considered irrecoverable`. Le web app (in particolare Telegram Web) non gestiscono questa Promise rejection durante il bootstrap iniziale e interrompono l'esecuzione JavaScript prima del montaggio del DOM, lasciando all'utente una schermata completamente bianca ("pagina bianca").
-- **Implementazione proposta**:
+- **Implementazione completata**:
   1. *Controllo Preventivo all'Avvio / Caricamento Profilo*:
-     - Prima o durante l'apertura dei profili WebView2, verificare l'integrità strutturale della cartella `EBWebView\Default\IndexedDB` di ciascun account configurato;
-     - Verificare la coerenza delle directory `.indexeddb.blob` rispetto ai manifest `.leveldb` o intercettare tempestivamente al caricamento l'eccezione `Data lost due to missing file` / `INDEXEDDB_CORRUPTED`.
+     - Creato il servizio `StorageIntegrityService.vb` con metodo `CheckIndexedDbCorruption(profileDir)` che analizza strutturalmente le cartelle `EBWebView\Default\IndexedDB\*.indexeddb.leveldb` prima dell'avvio di WebView2 (verifica esistenza ed integrità di `CURRENT`, validità e non-vacuità del file `MANIFEST-*` referenziato, e integrità delle directory blob associate).
   2. *Feedback Visivo con Finestra / ProgressBar di Recupero*:
-     - Se viene rilevata un'incoerenza o corruzione irreversibile dello storage locale, mostrare immediatamente all'utente una finestra o dialog overlay con ProgressBar (es. *"Rilevata corruzione dello storage locale per {account}. Ripristino dati e rigenerazione database in corso..."* con ProgressBar animata / indeterminata e dettagli di avanzamento);
-     - Impedire che l'utente veda una schermata bianca disorientante o consideri l'applicazione bloccata.
-  3. *Esecuzione del Ripristino Mirato (come effettuato nella fix)*:
-     - Eseguire la rimozione pulita delle cartelle IndexedDB/ServiceWorker corrotte (`https_web.telegram.org_0.indexeddb.*` o tramite `ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.IndexedDb Or ServiceWorkers Or CacheStorage)`);
-     - Salvaguardare integralmente `Local Storage`, file di preferenze, token DPAPI, cookie di sessione e credenziali d'accesso;
-     - Rigenerare la struttura dati pulita e ricaricare la pagina WebView2.
-  4. *Conclusione e Feedback*:
-     - Ad operazione completata con successo, chiudere automaticamente la ProgressBar e presentare l'interfaccia dell'account regolarmente montata e funzionante;
-     - Localizzare tutti i messaggi, testi e titoli della ProgressBar in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+     - Creata la finestra grafica dedicata `StorageRecoveryProgressDialog` (`WindowStyle="None"`, trasparente con bordo arrotondato e stile scuro nativo, `Topmost="True"`, ProgressBar indeterminata e indicatore di fase dinamico).
+  3. *Esecuzione del Ripristino Mirato*:
+     - Procedura automatizzata `PerformStorageRecoveryWithDialogAsync`: rimozione pulita delle cartelle IndexedDB/ServiceWorker corrotte salvaguardando integralmente `Local Storage`, file di preferenze, token DPAPI, cookie di sessione e credenziali d'accesso.
+     - Integrazione completa sia all'avvio preventivo a freddo, sia a caldo tramite evento diagnostico `INDEXEDDB_CORRUPTED` in `HandleDiagnosticMessageAsync`, sia dallo strumento "Ripara Scheda" del menu contestuale.
+  4. *Conclusione e Localizzazione*:
+     - Chiusura automatica della ProgressBar e ricaricamento della pagina ad operazione conclusa;
+     - Localizzazione completa dei messaggi e degli stati in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
 - **Impatto**: Alto | **Sforzo**: Medio
 
 
+## 77. [P1] Il proxy permette di saltare l’autenticazione locale
+- **File**: `tsnetd/main.go`, circa righe 318–348
+- **Problema / Esigenza**: La condizione che riconosce una richiesta WebSocket la considera automaticamente autorizzata. Basta quindi la presenza di `Sec-WebSocket-Key`, anche senza un handshake valido, per evitare il controllo del token. Il ramo autorizzato imposta inoltre il cookie contenente il token locale. Nella prova isolata, una richiesta senza credenziali ottiene 403; aggiungendo soltanto quell’header passa il controllo e riceve il cookie. Il problema riguarda chi riesce a raggiungere il listener locale: non significa che il servizio sia direttamente esposto a tutta Internet, né elimina automaticamente l’eventuale autenticazione del backend.
+- **Fix da implementare**: Autenticare anche gli handshake WebSocket mediante token o cookie di sessione; verificare l’Origin originale prima della sua riscrittura. La presenza di header WebSocket non deve costituire un’autorizzazione.
+- **Test di accettazione**: Richieste HTTP e WebSocket senza credenziali devono fallire, anche con header WebSocket contraffatti. Un handshake autenticato deve continuare a funzionare.
+- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Medio
 
+## 78. [P1] I token vengono aggiunti alle richieste verso qualsiasi porta localhost
+- **File**: `AppAccounts.vb`, circa righe 1129–1140, metodo `EnsureLocalProxyAsync()`
+- **Problema / Esigenza**: Il filtro utilizzato è `http://127.0.0.1:*/*`. Alle richieste intercettate vengono aggiunti il token locale e, quando disponibile, il Bearer token dell’account. Non viene verificato che la porta sia effettivamente quella assegnata al proxy di quell’account. Una richiesta verso un altro servizio locale può quindi ricevere credenziali che non gli appartengono. I filtri WebView2 sono wildcard sull’URI, non controlli di autorizzazione.
+- **Fix da implementare**: Restringere il filtro alla porta assegnata e verificare comunque dentro l’handler la corrispondenza esatta di schema, host e porta. Aggiornare e rimuovere i filtri quando cambia la destinazione.
+- **Test di accettazione**: Una risorsa richiesta alla porta corretta riceve gli header; una richiesta a un’altra porta locale non deve riceverne nessuno.
+- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Basso-Medio
 
+## 79. [P1] L’invio massivo può spedire una bozza e dichiarare un falso successo
+- **File**: `BulkSenderEngine.vb`, circa righe 175–250 e 265–341
+- **Problema / Esigenza**: Su Telegram il messaggio previsto viene inserito soltanto se il campo è vuoto: una bozza preesistente può essere inviata al suo posto. Inoltre, su entrambe le piattaforme, il risultato diventa SENT dopo un click o un evento tastiera, senza verificare che il client abbia realmente accettato il messaggio. Manca anche una verifica esplicita dell’identità della chat prima dell’invio. Le prove con DOM simulato confermano sia l’invio della bozza sia il ritorno SENT senza alcuna conferma effettiva.
+- **Fix da implementare**: Verificare destinatario e testo prima dell’azione; in presenza di una bozza, fermarsi senza sovrascriverla silenziosamente. Attendere poi una conferma osservabile del client, distinguendola dalla consegna al destinatario.
+- **Test di accettazione**: Bozza esistente, navigazione lenta, chat precedente ancora visibile e pressione di Invio ignorata non devono produrre un falso “Inviato”.
+- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Medio
+
+## 80. [P1] Stop e riavvio possono sovrapporre due esecuzioni dell’invio massivo
+- **File**: `BulkSenderWindow.xaml.vb`, circa righe 343–438; `BulkSenderEngine.vb`, metodi `Cancel()` e `RunAsync()`
+- **Problema / Esigenza**: Il pulsante Stop richiede l’annullamento e riabilita immediatamente Avvio, senza attendere la conclusione dell’esecuzione precedente. Quest’ultima può ancora trovarsi dentro una chiamata asincrona. Inoltre, anche un’esecuzione interrotta passa dal riepilogo “Completato”, che porta la barra al 100%.
+- **Fix da implementare**: Introdurre uno stato “Arresto in corso” e un `CancelAsync()` che attenda il task attivo. Il motore deve impedire esecuzioni concorrenti indipendentemente dalla UI. Separare gli esiti Completed, Cancelled e Failed.
+- **Test di accettazione**: Premere Stop durante una chiamata JavaScript e tentare subito un nuovo avvio. Non devono partire due elaborazioni sulla stessa WebView; il riepilogo deve conservare i conteggi reali e indicare l’interruzione.
+- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Basso-Medio
+
+## 81. [P1] Un blocco di tsnetd può impedire indefinitamente la chiusura
+- **File**: `TsnetManager.vb`, circa righe 247–263 e 386–420
+- **Problema / Esigenza**: `SendCommandAsync()` attende il semaforo e una riga da stdout senza timeout. `ShutdownAsync()` chiama questo metodo prima di arrivare a `WaitForExit(2000)`. Di conseguenza, se il daemon resta vivo ma non risponde, il limite di due secondi non viene mai raggiunto. Anche un comando precedente bloccato può trattenere il semaforo e impedire l’invio di shutdown.
+- **Fix da implementare**: Applicare un timeout cancellabile all’intera operazione, compresa l’acquisizione del semaforo. Lo shutdown deve avere una scadenza complessiva indipendente dal canale comandi. Alla scadenza, chiudere il canale e gestire il processo senza lasciare letture pendenti.
+- **Test di accettazione**: Usare un daemon di prova che non risponde più su stdout. Chiusura e aggiornamento devono terminare o fallire con un errore chiaro entro il limite previsto, non restare appesi.
+- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Medio
+
+## 82. [P2] La verifica dei certificati HTTPS viene disattivata
+- **File**: `tsnetd/main.go`, circa righe 259–269; `SettingsWindow.xaml.vb`, circa righe 320–322
+- **Problema / Esigenza**: Nel transport del proxy viene impostato `InsecureSkipVerify = true`; il test di connessione usa inoltre una callback che accetta sempre il certificato. La verifica HTTPS del servizio viene quindi aggirata nei percorsi interessati. In Go questa impostazione disabilita la normale verifica della catena e del nome del server. La protezione del tunnel Tailscale è distinta dalla verifica dell’identità HTTPS del servizio.
+- **Fix da implementare**: Validazione standard come comportamento predefinito. Per server con certificati privati, consentire una CA esplicita o il pinning; evitare un bypass globale e silenzioso.
+- **Test di accettazione**: Un certificato scaduto, non attendibile o con hostname errato deve produrre un errore TLS distinguibile da un semplice problema di raggiungibilità.
+- **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio
+
+## 83. [P2] “Test connessione” mostra Online anche quando il servizio non funziona
+- **File**: `SettingsWindow.xaml.vb`, circa righe 295–348, metodo `BtnTestConnection_Click()`
+- **Problema / Esigenza**: Dopo `GetAsync()` il codice assegna `isOnline = True` senza controllare lo status HTTP. Anche 401, 403, 500 e 502 possono quindi produrre l’indicazione verde. Per OpenClaw, inoltre, questo test non aggiunge il Bearer token: l’header viene impostato soltanto nel ramo Hermes.
+- **Fix da implementare**: Distinguere almeno raggiungibilità, autenticazione e disponibilità del servizio. Usare un endpoint appropriato per la piattaforma e non considerare riuscito il test solo perché è arrivata una risposta HTTP.
+- **Test di accettazione**: Verificare risposte 200, 401, 403, 500, 502 e timeout. Credenziali errate e backend irraggiungibile devono dare indicazioni diverse, entrambe diverse da “connessione riuscita”.
+- **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+## 84. [P2] Il parser CSV rompe i messaggi multilinea e può scegliere il separatore sbagliato
+- **File**: `ExcelContactService.vb`, circa righe 122–131 e 200–238
+- **Problema / Esigenza**: Il file viene letto per righe fisiche e ciascuna riga viene analizzata separatamente. Un campo tra virgolette contenente un ritorno a capo viene quindi spezzato. Il rilevamento del delimitatore, inoltre, conta anche virgole e punti e virgola dentro il testo quotato. Nelle prove isolate, un contatto con un messaggio su due righe produce una riga aggiuntiva; un CSV separato da virgole viene interpretato come separato da `;` quando il messaggio ne contiene abbastanza.
+- **Fix da implementare**: Usare un parser che legga record completi, mantenendo lo stato delle virgolette tra le righe. Rilevare il separatore fuori dai campi quotati e consentire una scelta esplicita quando il risultato è ambiguo (conforme RFC 4180).
+- **Test di accettazione**: Messaggi multilinea, virgolette escape e punteggiatura devono lasciare invariati numero di contatti e contenuto del messaggio.
+- **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+## 85. [P2] La traduzione batch può associare il testo tradotto al messaggio sbagliato
+- **File**: `Localization.vb`, circa righe 364–430, metodo `TranslateBatchAsync()`
+- **Problema / Esigenza**: I messaggi vengono uniti con un separatore testuale `###` e successivamente divisi usando lo stesso separatore. Non viene verificato che il numero delle parti restituito corrisponda al numero dei messaggi. Le associazioni ottenute vengono poi inserite nella cache (es. messaggio contenente `###` che sfasa gli indici).
+- **Fix da implementare**: Preferire risposte strutturate con un identificatore per elemento. Finché si usa un separatore testuale, controllare collisioni e numero delle parti; in caso di incongruenza ripiegare sulle traduzioni individuali, senza memorizzare risultati ambigui.
+- **Test di accettazione**: Un messaggio contenente `###`, un separatore alterato e un errore HTTP non devono contaminare la cache.
+- **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+## 86. [P2] La pulizia dell’updater può cancellare una sessione di aggiornamento ancora attiva
+- **File**: `UpdateChecker.vb`, circa righe 516–545 e successive
+- **Problema / Esigenza**: La pulizia viene avviata con `Task.Run()` e non attesa. Cerca tutte le cartelle e gli archivi con i prefissi degli aggiornamenti, senza distinguere quelli vecchi da quelli attivi. Se la pulizia parte in ritardo, può interferire con i file appena creati. Due copie portabili in cartelle diverse, ma con lo stesso `%TEMP%`, possono inoltre cancellarsi reciprocamente i file temporanei.
+- **Fix da implementare**: Identificare prima le sessioni effettivamente obsolete, escludere sempre quella corrente e proteggere quelle attive con un lock. Evitare aggiornamenti concorrenti della stessa installazione.
+- **Test di accettazione**: Ritardare artificialmente la pulizia e avviare due aggiornamenti da copie distinte. Nessuna sessione deve eliminare file ancora usati dall’altra.
+- **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio

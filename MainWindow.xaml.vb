@@ -872,7 +872,7 @@ Public Class MainWindow
                 Return
             End If
 
-            Await acc.RecoverFromCorruptedStorageAsync()
+            Await acc.RecoverFromCorruptedStorageAsync(showProgressDialog:=True, loc:=loc)
 
             Dim okTitle = If(loc IsNot Nothing, loc.Get("account_repair_success_title"), "Riparazione Completata")
             Dim okMsg = If(loc IsNot Nothing, loc.Get("account_repair_success_msg"), "Lo storage della scheda è stato riparato e la pagina è stata ricaricata.")
@@ -990,8 +990,8 @@ Public Class MainWindow
 
             Await ApplyWpfThemeAsync()
 
-            ' Ricarica e sincronizza le schede OpenClaw con le nuove impostazioni di rete/Tailscale
-            For Each acc In _accountManager.Accounts.Where(Function(a) a.IsOpenClaw)
+            ' Ricarica e sincronizza le schede OpenClaw ed Hermes con le nuove impostazioni di rete/Tailscale
+            For Each acc In _accountManager.Accounts.Where(Function(a) a.IsOpenClaw OrElse a.IsHermes)
                 Await acc.ReloadAsync(True)
             Next
         Catch ex As Exception
@@ -1004,6 +1004,13 @@ Public Class MainWindow
                 MessageBoxImage.Error
             )
         End Try
+    End Sub
+
+    ''' <summary>
+    ''' Apre la finestra delle impostazioni programmaticamente (TODO #75).
+    ''' </summary>
+    Public Sub OpenSettingsWindow()
+        BtnSettings_Click(BtnSettings, New RoutedEventArgs())
     End Sub
 
     ''' <summary>

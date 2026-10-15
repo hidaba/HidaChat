@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.5-beta] - 2026-10-15
+
+### Pre-release / Beta — Rilevamento Pagina Bianca Hermes/OpenClaw con Controllo Connessione Tailscale e Ripristino Storage IndexedDB con ProgressBar
+- **Rilevamento Pagina Bianca su Profili Hermes / OpenClaw e Controllo Stato Connessione Tailscale (`AppAccounts.vb`, `MainWindow.xaml.vb`, `TsnetManager.vb`, `TailscaleConnectionErrorDialog.xaml`, `TailscaleConnectionErrorDialog.xaml.vb` — TODO #75)**:
+  - **Monitoraggio Attivo Navigazione e Diagnosi DOM**: Monitorata la navigazione dei profili Hermes e OpenClaw in `NavigationCompleted` con intercettazione tempestiva di errori di rete (`IsSuccess = False`, errori DNS e di connessione) ed esecuzione di script di introspezione DOM post-caricamento per rilevare pagine bianche persistenti (`empty_body`) o risposte di errore del reverse proxy (`502 Bad Gateway`, `504 Gateway Timeout`).
+  - **Diagnostica Connettività Tailscale Integrata (`CheckTailscaleConnectivityAsync`)**: Implementata la verifica multilivello della connettività Tailscale:
+    - Controllo stato nodo tsnet embedded (`NeedsLogin`, `Stopped`, o handshake di reverse proxy con token locale `X-HidaChat-Local-Token` verso porta loopback dedicata);
+    - Rilevamento disponibilità dell'istanza client Tailscale su Windows e test di raggiungibilità TCP del target endpoint;
+    - Differenziazione puntuale delle cause di mancato caricamento (autenticazione richiesta, proxy locale inattivo, nodo remoto offline/spento, o client Tailscale non avviato).
+  - **Dialog Grafico Informativo Dedicato (`TailscaleConnectionErrorDialog`)**: Creata una finestra modale in tema scuro nativo con indicazione esplicita della causa del mancato caricamento e pulsanti interattivi per:
+    - "Riprova": ricarica della scheda con refresh della rotta proxy locale;
+    - "Accedi a Tailscale": apertura immediata della pagina web di login al nodo tsnet;
+    - "Impostazioni": apertura delle preferenze applicative;
+    - "Chiudi".
+- **Controllo Preventivo Integrità Storage/IndexedDB all'Avvio e Dialog di Ripristino con ProgressBar (`StorageIntegrityService.vb`, `StorageRecoveryProgressDialog.xaml`, `StorageRecoveryProgressDialog.xaml.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb` — TODO #76)**:
+  - **Controllo Preventivo a Freddo (`CheckIndexedDbCorruption`)**: Prima dell'avvio del runtime WebView2, verifica l'integrità strutturale dei database LevelDB nella directory `EBWebView\Default\IndexedDB` (validità del puntatore `CURRENT`, esistenza e non-vacuità del manifest `MANIFEST-*`, consistenza delle cartelle `.indexeddb.blob`), prevenendo l'eccezione irreversibile `NotReadableError: Data lost due to missing file` prima che causi una pagina bianca.
+  - **Finestra con ProgressBar di Ripristino (`StorageRecoveryProgressDialog`)**: Creata la finestra grafica modale con ProgressBar indeterminata in stile WhatsApp che informa l'utente durante la riparazione e rigenerazione del database corrotto.
+  - **Ripristino Selettivo e Non Distruttivo (`PerformStorageRecoveryWithDialogAsync`)**: Rimozione pulita dei database IndexedDB e della cache Service Worker corrotti, preservando integralmente `Local Storage`, cookie di sessione, token DPAPI e credenziali. Integrato sia all'avvio a freddo, sia a caldo tramite evento `INDEXEDDB_CORRUPTED`, sia dallo strumento "Ripara Scheda".
+- **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+  - Sincronizzate 18 nuove chiavi di localizzazione per i dialog Tailscale (`tailscale_dialog_*`, `tailscale_error_*`, `tailscale_btn_*`) e per le fasi di recupero storage (`storage_recovery_*`) in tutti e 5 i dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+
 ## [1.2.4-beta] - 2026-10-14
 
 ### Pre-release / Beta — Dialog di Avanzamento Salvataggio e Chiusura, Risoluzione Pagina Bianca Telegram/WhatsApp e Riparazione Schede

@@ -457,7 +457,143 @@ Public Class TsnetManager
         End Try
     End Function
 
+    ''' <summary>
+    ''' Verifica la connettività verso la rete Tailscale e l'endpoint remoto (TODO #75).
+    ''' Restituisce la diagnosi dettagliata (es. tsnet richiede login, tsnet fermo, nodo non raggiungibile, o client Tailscale non attivo).
+    ''' </summary>
+    Public Async Function CheckTailscaleConnectivityAsync(targetUrl As String, isUsingTsnet As Boolean, Optional localProxyPort As Integer = 0) As Task(Of TailscaleConnectivityStatus)
+        Dim result As New TailscaleConnectivityStatus()
+        Dim host = ""
+        Dim port = 80
+
+        Try
+            Dim uri As Uri = Nothing
+            If Uri.TryCreate(targetUrl, UriKind.Absolute, uri) Then
+                host = uri.Host
+                port = uri.Port
+            Else
+                Dim raw = targetUrl.Replace("http://", "").Replace("https://", "").Split("/"c)(0)
+                If raw.Contains(":"c) Then
+                    Dim parts = raw.Split(":"c)
+                    host = parts(0)
+                    Integer.TryParse(parts(1), port)
+                Else
+                    host = raw
+                End If
+            End If
+        Catch
+            host = targetUrl
+        End Try
+
+        result.Details = host
+
+        If isUsingTsnet Then
+            Try
+                Await CheckStatusAsync()
+            Catch
+            End Try
+
+            If String.Equals(NodeState, "NeedsLogin", StringComparison.OrdinalIgnoreCase) Then
+                result.IsConnected = False
+                result.StatusKey = "tailscale_tsnet_needs_login"
+                result.LoginUrl = _loginUrl
+                Return result
+            End If
+
+            If Not IsRunning Then
+                result.IsConnected = False
+                result.StatusKey = "tailscale_tsnet_stopped"
+                Return result
+            End If
+
+            ' Il nodo tsnet locale è Running. Verifichiamo la raggiungibilità dell'endpoint tramite proxy o socket
+            If localProxyPort > 0 Then
+                Try
+                    Using handler As New System.Net.Http.SocketsHttpHandler()
+                        handler.SslOptions.RemoteCertificateValidationCallback = Function(m, c, ch, p) True
+                        Using client As New System.Net.Http.HttpClient(handler)
+                            client.Timeout = TimeSpan.FromSeconds(3.5)
+                            If Not String.IsNullOrEmpty(_localToken) Then
+                                client.DefaultRequestHeaders.Add("X-HidaChat-Local-Token", _localToken)
+                            End If
+                            Using response = Await client.GetAsync($"http://127.0.0.1:{localProxyPort}/", System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
+                                Dim code = CInt(response.StatusCode)
+                                If code = 502 OrElse code = 504 Then
+                                    result.IsConnected = False
+                                    result.StatusKey = "tailscale_node_unreachable"
+                                    Return result
+                                Else
+                                    result.IsConnected = True
+                                    result.StatusKey = "tailscale_ok"
+                                    Return result
+                                End If
+                            End Using
+                        End Using
+                    End Using
+                Catch exHttp As Exception
+                    result.IsConnected = False
+                    result.StatusKey = "tailscale_node_unreachable"
+                    Return result
+                End Try
+            End If
+
+            result.IsConnected = True
+            result.StatusKey = "tailscale_ok"
+            Return result
+        Else
+            ' Connessione diretta o client Tailscale nativo di sistema operativo Windows
+            Dim canConnect = False
+            Try
+                Using tcp As New System.Net.Sockets.TcpClient()
+                    Dim connectTask = tcp.ConnectAsync(host, port)
+                    Dim completed = Await Task.WhenAny(connectTask, Task.Delay(3000))
+                    If completed Is connectTask AndAlso tcp.Connected Then
+                        canConnect = True
+                    End If
+                End Using
+            Catch
+                canConnect = False
+            End Try
+
+            If canConnect Then
+                result.IsConnected = True
+                result.StatusKey = "tailscale_ok"
+                Return result
+            End If
+
+            ' Connessione fallita: verifica se il client Tailscale Windows è attivo nel sistema
+            Dim tailscaleClientFound = False
+            Try
+                Dim procs = Process.GetProcessesByName("tailscale").Concat(Process.GetProcessesByName("tailscaled")).ToArray()
+                If procs.Length > 0 Then
+                    tailscaleClientFound = True
+                End If
+            Catch
+            End Try
+
+            If Not tailscaleClientFound Then
+                result.IsConnected = False
+                result.StatusKey = "tailscale_client_disconnected"
+            Else
+                result.IsConnected = False
+                result.StatusKey = "tailscale_node_unreachable"
+            End If
+
+            Return result
+        End If
+    End Function
+
     Private Sub NotifyPropertyChanged(propertyName As String)
         RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(propertyName))
     End Sub
+End Class
+
+''' <summary>
+''' Stato diagnostico della connettività Tailscale (TODO #75).
+''' </summary>
+Public Class TailscaleConnectivityStatus
+    Public Property IsConnected As Boolean = False
+    Public Property StatusKey As String = ""
+    Public Property Details As String = ""
+    Public Property LoginUrl As String = ""
 End Class
