@@ -293,7 +293,7 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Retry-After", "2")
 			w.WriteHeader(http.StatusBadGateway)
-			fmt.Fprintf(w, `<!DOCTYPE html>
+			fmt.Fprint(w, `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -335,52 +335,7 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 		}
 	}
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		valid := false
-		isWs := strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || r.Header.Get("Sec-WebSocket-Key") != ""
-
-		if cmd.LocalToken == "" || isWs {
-			valid = true
-		} else {
-			if r.Header.Get("X-HidaChat-Local-Token") == cmd.LocalToken {
-				valid = true
-			}
-			if !valid && r.URL.Query().Get("__htok") == cmd.LocalToken {
-				valid = true
-			}
-			if !valid {
-				if c, err := r.Cookie("__htok"); err == nil && c.Value == cmd.LocalToken {
-					valid = true
-				}
-			}
-		}
-
-		if !valid {
-			http.Error(w, "Forbidden: Invalid HidaChat Local Token", http.StatusForbidden)
-			return
-		}
-
-		// Rilascia sempre il cookie per le richieste successive
-		if cmd.LocalToken != "" {
-			http.SetCookie(w, &http.Cookie{
-				Name:     "__htok",
-				Value:    cmd.LocalToken,
-				Path:     "/",
-				SameSite: http.SameSiteLaxMode,
-			})
-		}
-
-		// Attendi che il nodo Tailscale sia pronto prima di inoltrare la richiesta (fino a 15s)
-		select {
-		case <-tsReady:
-		case <-time.After(15 * time.Second):
-			log.Printf("[tsnetd][proxy] warning: tsReady timeout, proceeding anyway")
-		case <-r.Context().Done():
-			return
-		}
-
-		proxy.ServeHTTP(w, r)
-	})
+	handler := createProxyHandler(proxy, cmd.LocalToken, port, targetURL, tsReady)
 
 	srv := &http.Server{
 		Handler: handler,
@@ -419,4 +374,86 @@ func handleRemoveRoute(accountId string) {
 	} else {
 		writeJSON(RouteResp{AccountId: accountId, Success: true})
 	}
+}
+
+// isAllowedOrigin verifica che l'Origin appartenga all'istanza locale o all'endpoint target atteso.
+func isAllowedOrigin(originStr string, proxyPort int, target *url.URL) bool {
+	if originStr == "" {
+		return true
+	}
+	u, err := url.Parse(originStr)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "127.0.0.1" || strings.EqualFold(host, "localhost") || host == "::1" {
+		p := u.Port()
+		if p == fmt.Sprintf("%d", proxyPort) || (p == "" && (proxyPort == 80 || proxyPort == 443)) {
+			return true
+		}
+		return false
+	}
+	if target != nil && strings.EqualFold(u.Host, target.Host) {
+		return true
+	}
+	return false
+}
+
+// checkLocalAuth verifica che la richiesta contenga un token locale valido (header, query o cookie).
+func checkLocalAuth(r *http.Request, localToken string) bool {
+	if localToken == "" {
+		return true
+	}
+	if r.Header.Get("X-HidaChat-Local-Token") == localToken {
+		return true
+	}
+	if r.URL.Query().Get("__htok") == localToken {
+		return true
+	}
+	if c, err := r.Cookie("__htok"); err == nil && c.Value == localToken {
+		return true
+	}
+	return false
+}
+
+// createProxyHandler costruisce l'handler HTTP/WebSocket con autenticazione locale e verifica Origin.
+func createProxyHandler(proxy http.Handler, localToken string, proxyPort int, targetURL *url.URL, tsReady <-chan struct{}) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 1. Verifica autenticazione locale del token (obbligatoria sia per HTTP che per WebSocket, TODO #77)
+		if !checkLocalAuth(r, localToken) {
+			http.Error(w, "Forbidden: Invalid HidaChat Local Token", http.StatusForbidden)
+			return
+		}
+
+		// 2. Verifica dell'Origin originale prima della riscrittura (prevenzione CSWSH e bypass cross-origin, TODO #77)
+		origin := r.Header.Get("Origin")
+		if origin != "" && !isAllowedOrigin(origin, proxyPort, targetURL) {
+			http.Error(w, "Forbidden: Invalid Origin", http.StatusForbidden)
+			return
+		}
+
+		// Rilascia sempre il cookie per le richieste successive (HttpOnly per prevenire furto token da JS)
+		if localToken != "" {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "__htok",
+				Value:    localToken,
+				Path:     "/",
+				SameSite: http.SameSiteLaxMode,
+				HttpOnly: true,
+			})
+		}
+
+		// Attendi che il nodo Tailscale sia pronto prima di inoltrare la richiesta (fino a 15s)
+		if tsReady != nil {
+			select {
+			case <-tsReady:
+			case <-time.After(15 * time.Second):
+				log.Printf("[tsnetd][proxy] warning: tsReady timeout, proceeding anyway")
+			case <-r.Context().Done():
+				return
+			}
+		}
+
+		proxy.ServeHTTP(w, r)
+	})
 }

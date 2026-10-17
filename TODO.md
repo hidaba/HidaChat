@@ -600,12 +600,15 @@
 - **Impatto**: Alto | **Sforzo**: Medio
 
 
-## 77. [P1] Il proxy permette di saltare l’autenticazione locale
-- **File**: `tsnetd/main.go`, circa righe 318–348
-- **Problema / Esigenza**: La condizione che riconosce una richiesta WebSocket la considera automaticamente autorizzata. Basta quindi la presenza di `Sec-WebSocket-Key`, anche senza un handshake valido, per evitare il controllo del token. Il ramo autorizzato imposta inoltre il cookie contenente il token locale. Nella prova isolata, una richiesta senza credenziali ottiene 403; aggiungendo soltanto quell’header passa il controllo e riceve il cookie. Il problema riguarda chi riesce a raggiungere il listener locale: non significa che il servizio sia direttamente esposto a tutta Internet, né elimina automaticamente l’eventuale autenticazione del backend.
-- **Fix da implementare**: Autenticare anche gli handshake WebSocket mediante token o cookie di sessione; verificare l’Origin originale prima della sua riscrittura. La presenza di header WebSocket non deve costituire un’autorizzazione.
-- **Test di accettazione**: Richieste HTTP e WebSocket senza credenziali devono fallire, anche con header WebSocket contraffatti. Un handshake autenticato deve continuare a funzionare.
-- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Medio
+## ~~77. [P1] Il proxy permette di saltare l’autenticazione locale~~ [COMPLETATO] ✅
+- **File**: `tsnetd/main.go`, `tsnetd/main_test.go`
+- **Problema / Esigenza**: La condizione che riconosce una richiesta WebSocket la considerava automaticamente autorizzata (`isWs`). Bastava quindi la presenza di `Sec-WebSocket-Key`, anche senza un handshake valido o credenziali, per evitare il controllo del token ed ottenere nel Set-Cookie il token locale segreto.
+- **Implementazione completata**:
+  - Rimosso qualsiasi bypass basato sulla presenza di header WebSocket (`Sec-WebSocket-Key` o `Upgrade: websocket`): sia le richieste HTTP che gli handshake WebSocket devono autenticarsi rigorosamente tramite header `X-HidaChat-Local-Token`, query parameter `__htok` o cookie `__htok`.
+  - Verifica preventiva dell'Origin originale (`isAllowedOrigin`) prima della riscrittura o inoltro al backend: l'Origin deve corrispondere all'endpoint locale (`127.0.0.1:{port}`, `localhost:{port}`, `[::1]:{port}`) o all'endpoint target Tailscale atteso; qualsiasi Origin esterno malevolo o 'null' viene respinto con `403 Forbidden: Invalid Origin`, prevenendo Cross-Site WebSocket Hijacking (CSWSH) e attacchi cross-origin.
+  - Rafforzato il cookie locale impostando `HttpOnly: true` e `SameSite: Lax` per prevenire l'esfiltrazione del token da script della pagina.
+  - Creati test unitari completi in `tsnetd/main_test.go` per verificare che richieste HTTP e WebSocket senza credenziali falliscano (anche con header contraffatti), che Origin non autorizzati vengano bloccati e che handshake autenticati continuino a funzionare.
+- **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Medio
 
 ## 78. [P1] I token vengono aggiunti alle richieste verso qualsiasi porta localhost
 - **File**: `AppAccounts.vb`, circa righe 1129–1140, metodo `EnsureLocalProxyAsync()`

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.6-beta] - 2026-10-17
+
+### Pre-release / Beta — Autenticazione Obbligatoria Handshake WebSocket e Verifica Preventiva Origin nel Proxy tsnetd
+- **Sicurezza Proxy Locale tsnetd: Eliminazione Bypass Autenticazione WebSocket e Protezione Origin (`tsnetd/main.go`, `tsnetd/main_test.go` — TODO #77)**:
+  - **Eliminazione Bypass WebSocket su Token Locale (`checkLocalAuth`)**: Rimosso il bypass dell'autenticazione che consentiva a qualsiasi richiesta con header `Sec-WebSocket-Key` o `Upgrade: websocket` di accedere senza token ed ottenere nel cookie di risposta `__htok` il segreto locale. Tutte le richieste, sia HTTP che WebSocket, devono ora presentare credenziali valide (header `X-HidaChat-Local-Token`, parametro query `__htok` o cookie `__htok`).
+  - **Verifica Preventiva Origin e Protezione CSWSH (`isAllowedOrigin`)**: Introdotta la convalida rigorosa dell'intestazione `Origin` prima di qualsiasi inoltro o riscrittura. Sono ammessi esclusivamente host locali autorizzati (`127.0.0.1:{port}`, `localhost:{port}`, `[::1]:{port}`) o l'host endpoint Tailscale di destinazione. Eventuali richieste con Origin non autorizzato (inclusi `null` e siti web esterni) vengono respinte immediatamente con `403 Forbidden: Invalid Origin`, azzerando il rischio di Cross-Site WebSocket Hijacking (CSWSH) e attacchi cross-origin da browser esterni.
+  - **Rafforzamento Flag Cookie di Sessione**: Il cookie di autenticazione `__htok` viene ora emesso con i flag di sicurezza `HttpOnly: true` e `SameSite: Lax`, inibendo l'accesso e l'esfiltrazione del token da script malevoli eseguiti nel contesto della pagina web.
+  - **Suite di Test Unitari Dedicata (`tsnetd/main_test.go`)**: Implementati test automatizzati per validare il fallimento di richieste prive di credenziali, il blocco di handshake WebSocket contraffatti, il respingimento di Origin malevoli e il corretto funzionamento end-to-end delle sessioni autorizzate.
+
 ## [1.2.5-beta] - 2026-10-15
 
 ### Pre-release / Beta — Rilevamento Pagina Bianca Hermes/OpenClaw con Controllo Connessione Tailscale e Ripristino Storage IndexedDB con ProgressBar
