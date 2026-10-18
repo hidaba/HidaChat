@@ -553,7 +553,7 @@
   6. *Opzione nelle Impostazioni*: Checkbox dedicata e stringhe sincronizzate in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
 - **Impatto**: Alto | **Sforzo**: Medio-Alto
 
-## 74. Finestra / Dialog di avanzamento durante il salvataggio e chiusura dell'applicazione [COMPLETATO]
+## ~~74. Finestra / Dialog di avanzamento durante il salvataggio e chiusura dell'applicazione~~ [COMPLETATO] ✅
 - **File**: `ShutdownProgressDialog.xaml`, `ShutdownProgressDialog.xaml.vb`, `MainWindow.xaml.vb`, `Localization.vb`
 - **Problema / Esigenza**: Quando l'utente chiude l'applicazione, vengono eseguite operazioni asincrone critiche in background (sincronizzazione dei profili verso percorsi di rete SMB/UNC, flush e salvataggio delle impostazioni `settings.json`, rilascio lock `data/.lock` e lock di sessione, dismissione controllata dei processi WebView2 e spegnimento del nodo/proxy tsnet). Senza un feedback visivo immediato, l'utente potrebbe percepire l'applicazione come bloccata o tentare di forzarne la chiusura dal Task Manager, causando potenziale troncamento del salvataggio o file lock pendenti.
 - **Implementazione completata**:
@@ -610,12 +610,15 @@
   - Creati test unitari completi in `tsnetd/main_test.go` per verificare che richieste HTTP e WebSocket senza credenziali falliscano (anche con header contraffatti), che Origin non autorizzati vengano bloccati e che handshake autenticati continuino a funzionare.
 - **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Medio
 
-## 78. [P1] I token vengono aggiunti alle richieste verso qualsiasi porta localhost
-- **File**: `AppAccounts.vb`, circa righe 1129–1140, metodo `EnsureLocalProxyAsync()`
-- **Problema / Esigenza**: Il filtro utilizzato è `http://127.0.0.1:*/*`. Alle richieste intercettate vengono aggiunti il token locale e, quando disponibile, il Bearer token dell’account. Non viene verificato che la porta sia effettivamente quella assegnata al proxy di quell’account. Una richiesta verso un altro servizio locale può quindi ricevere credenziali che non gli appartengono. I filtri WebView2 sono wildcard sull’URI, non controlli di autorizzazione.
-- **Fix da implementare**: Restringere il filtro alla porta assegnata e verificare comunque dentro l’handler la corrispondenza esatta di schema, host e porta. Aggiornare e rimuovere i filtri quando cambia la destinazione.
-- **Test di accettazione**: Una risorsa richiesta alla porta corretta riceve gli header; una richiesta a un’altra porta locale non deve riceverne nessuno.
-- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Basso-Medio
+## ~~78. [P1] I token vengono aggiunti alle richieste verso qualsiasi porta localhost~~ [COMPLETATO] ✅
+- **File**: `LocalAuthPolicy.vb`, `AppAccounts.vb`, `SettingsWindow.xaml.vb`, `Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj`
+- **Problema / Esigenza**: Il filtro utilizzato era `http://127.0.0.1:*/*`. Alle richieste intercettate venivano aggiunti il token locale e, quando disponibile, il Bearer token dell’account senza verificare che la porta fosse effettivamente quella assegnata al proxy di quell’account. Una richiesta verso un altro servizio locale poteva quindi ricevere credenziali che non gli appartenevano.
+- **Implementazione completata**:
+  - Creato il modulo `LocalAuthPolicy.vb` con il metodo di convalida rigorosa `ShouldAttachCredentials(requestUriStr, expectedScheme, expectedHost, expectedPort)` che verifica l'esatta corrispondenza di schema, host e porta prima dell'iniezione dei token, e `BuildFilterPattern` che vincola il pattern di filtro WebView2 alla porta TCP assegnata (`http://127.0.0.1:{port}/*`).
+  - Refactoring completo di `EnsureLocalProxyAsync`, `UpdateWebResourceAuthFilter` e `RemoveWebResourceAuthFilter` in `AppAccounts.vb`: rimozione controllata dei vecchi filtri (`CoreWebView2.RemoveWebResourceRequestedFilter`) e distacco handler al variare di porta, target `ServerUrl`, credenziali o stato Tailscale (`TailscaleIntegration`).
+  - Validazione rigorosa sia per il proxy locale tsnet (`127.0.0.1:{LocalProxyPort}` per `X-HidaChat-Local-Token` e `Bearer`) sia per connessioni gateway dirette (porta e authority esatte di `ServerUrl`).
+  - Creata suite di test unitari automatizzati in `Tests/SessionTests.vb` che valida l'accettazione su porta corretta e il respingimento su porte differenti, host non coincidenti, schemi errati e tentativi di spoofing o subdomain attack.
+- **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Basso-Medio
 
 ## 79. [P1] L’invio massivo può spedire una bozza e dichiarare un falso successo
 - **File**: `BulkSenderEngine.vb`, circa righe 175–250 e 265–341

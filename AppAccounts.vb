@@ -152,6 +152,9 @@ Public Class AppAccounts
                 _serverUrl = cleanVal
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ServerUrl)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+                If Not TailscaleIntegration Then
+                    UpdateWebResourceAuthFilter()
+                End If
             End If
         End Set
     End Property
@@ -169,6 +172,7 @@ Public Class AppAccounts
                 _authToken = cleanVal
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthToken)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+                UpdateWebResourceAuthFilter()
             End If
         End Set
     End Property
@@ -185,6 +189,9 @@ Public Class AppAccounts
                 _tailscaleIntegration = value
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(TailscaleIntegration)))
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+                If Not _tailscaleIntegration Then
+                    UpdateWebResourceAuthFilter()
+                End If
             End If
         End Set
     End Property
@@ -657,6 +664,14 @@ Public Class AppAccounts
     Private _webResourceRequestedHandler As EventHandler(Of CoreWebView2WebResourceRequestedEventArgs)
     Private _processFailedHandler As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
     Private _settings As SettingsController
+
+    ' Filtro WebResourceRequested per autorizzazione porte e token locali/gateway (TODO #78)
+    Private _activeProxyFilterPattern As String = Nothing
+    Private _activeProxyExpectedScheme As String = Nothing
+    Private _activeProxyExpectedHost As String = Nothing
+    Private _activeProxyExpectedPort As Integer = 0
+    Private _activeRequiresLocalToken As Boolean = False
+    Private _activeRequiresAuthToken As Boolean = False
 
     ''' <summary>Percorso base per il salvataggio dei profili WebView2 isolati degli account.</summary>
     Public Shared ReadOnly Property SharedDataDirectory As String
@@ -1158,26 +1173,10 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
-            If (IsOpenClaw OrElse IsHermes) AndAlso Not String.IsNullOrWhiteSpace(AuthToken) AndAlso Not TailscaleIntegration Then
-                Try
-                    Dim targetUri As Uri = Nothing
-                    Dim filterPattern = "*://*/*"
-                    If Uri.TryCreate(ServerUrl, UriKind.Absolute, targetUri) Then
-                        filterPattern = $"{targetUri.Scheme}://{targetUri.Authority}/*"
-                    End If
-                    WebView.CoreWebView2.AddWebResourceRequestedFilter(filterPattern, CoreWebView2WebResourceContext.All)
-                    AddHandler WebView.CoreWebView2.WebResourceRequested, Sub(sender, reqArgs)
-                        If Not reqArgs.Request.Headers.Contains("Authorization") Then
-                            reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
-                        End If
-                    End Sub
-                Catch ex As Exception
-                    Debug.WriteLine($"Failed to set gateway auth filter: {ex.Message}")
-                End Try
-            End If
-
             If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
                 Await EnsureLocalProxyAsync(forceUpdate:=True)
+            ElseIf IsOpenClaw OrElse IsHermes Then
+                UpdateWebResourceAuthFilter()
             End If
 
             ThrowIfSetupStopped()
@@ -1249,7 +1248,7 @@ Public Class AppAccounts
     End Function
 
     ''' <summary>
-    ''' Assicura che la rotta tsnet sia registrata ed attiva per questo account, configurando il filtro WebView2 se necessario.
+    ''' Assicura che la rotta tsnet sia registrata ed attiva per questo account, configurando il filtro WebView2 con porta vincolata (TODO #78).
     ''' </summary>
     Public Async Function EnsureLocalProxyAsync(Optional forceUpdate As Boolean = False) As Task(Of Integer)
         If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
@@ -1260,28 +1259,135 @@ Public Class AppAccounts
                 If port > 0 Then
                     LocalProxyPort = port
                     LocalProxyUrl = $"http://127.0.0.1:{port}"
-                    If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
-                        If _webResourceRequestedHandler Is Nothing Then
-                            WebView.CoreWebView2.AddWebResourceRequestedFilter("http://127.0.0.1:*/*", CoreWebView2WebResourceContext.All)
-                            _webResourceRequestedHandler = Sub(sender, reqArgs)
-                                reqArgs.Request.Headers.SetHeader("X-HidaChat-Local-Token", TsnetManager.Instance.LocalToken)
-                                If (IsOpenClaw OrElse IsHermes) AndAlso Not String.IsNullOrWhiteSpace(AuthToken) Then
-                                    If Not reqArgs.Request.Headers.Contains("Authorization") Then
-                                        reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
-                                    End If
-                                End If
-                            End Sub
-                            AddHandler WebView.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
-                        End If
-                    End If
+                    UpdateWebResourceAuthFilter()
                     Return port
                 End If
             Catch ex As Exception
                 Debug.WriteLine($"Error establishing tsnet route for account {Id}: {ex.Message}")
             End Try
+        Else
+            UpdateWebResourceAuthFilter()
         End If
         Return 0
     End Function
+
+    ''' <summary>
+    ''' Rimuove il filtro WebResourceRequested attivo e il relativo handler dalla WebView2 (TODO #78).
+    ''' </summary>
+    Public Sub RemoveWebResourceAuthFilter()
+        Try
+            Dim wv = WebView
+            If wv?.CoreWebView2 IsNot Nothing Then
+                If Not String.IsNullOrEmpty(_activeProxyFilterPattern) Then
+                    Try
+                        wv.CoreWebView2.RemoveWebResourceRequestedFilter(_activeProxyFilterPattern, CoreWebView2WebResourceContext.All)
+                    Catch ex As Exception
+                        Debug.WriteLine($"Failed to remove web resource filter '{_activeProxyFilterPattern}': {ex.Message}")
+                    End Try
+                End If
+
+                If _webResourceRequestedHandler IsNot Nothing Then
+                    Try
+                        RemoveHandler wv.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
+                    Catch ex As Exception
+                        Debug.WriteLine($"Failed to remove WebResourceRequested handler: {ex.Message}")
+                    End Try
+                End If
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"RemoveWebResourceAuthFilter error for account {Id}: {ex.Message}")
+        Finally
+            _webResourceRequestedHandler = Nothing
+            _activeProxyFilterPattern = Nothing
+            _activeProxyExpectedScheme = Nothing
+            _activeProxyExpectedHost = Nothing
+            _activeProxyExpectedPort = 0
+            _activeRequiresLocalToken = False
+            _activeRequiresAuthToken = False
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Configura o aggiorna in modo rigoroso il filtro WebResourceRequested e la verifica puntuale
+    ''' di schema, host e porta per l'iniezione dei token (X-HidaChat-Local-Token e Bearer AuthToken),
+    ''' rimuovendo i vecchi filtri quando cambia la destinazione ed impedendo la fuga di credenziali
+    ''' verso altre porte localhost o host non autorizzati (TODO #78).
+    ''' </summary>
+    Public Sub UpdateWebResourceAuthFilter()
+        If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return
+
+        RemoveWebResourceAuthFilter()
+
+        If Not (IsOpenClaw OrElse IsHermes) Then Return
+
+        Dim scheme As String = Nothing
+        Dim host As String = Nothing
+        Dim port As Integer = 0
+        Dim reqLocalToken As Boolean = False
+        Dim reqAuthToken As Boolean = Not String.IsNullOrWhiteSpace(AuthToken)
+
+        If TailscaleIntegration Then
+            If LocalProxyPort <= 0 Then Return
+            scheme = "http"
+            host = "127.0.0.1"
+            port = LocalProxyPort
+            reqLocalToken = True
+        ElseIf reqAuthToken Then
+            Dim targetUri As Uri = Nothing
+            If Not Uri.TryCreate(ServerUrl, UriKind.Absolute, targetUri) Then Return
+            scheme = targetUri.Scheme
+            host = targetUri.Host
+            port = targetUri.Port
+            reqLocalToken = False
+        Else
+            Return
+        End If
+
+        Dim pattern = LocalAuthPolicy.BuildFilterPattern(scheme, host, port)
+        If String.IsNullOrEmpty(pattern) Then Return
+
+        Try
+            _activeProxyFilterPattern = pattern
+            _activeProxyExpectedScheme = scheme
+            _activeProxyExpectedHost = host
+            _activeProxyExpectedPort = port
+            _activeRequiresLocalToken = reqLocalToken
+            _activeRequiresAuthToken = reqAuthToken
+
+            WebView.CoreWebView2.AddWebResourceRequestedFilter(_activeProxyFilterPattern, CoreWebView2WebResourceContext.All)
+
+            _webResourceRequestedHandler = Sub(sender, reqArgs)
+                Try
+                    If Not LocalAuthPolicy.ShouldAttachCredentials(reqArgs.Request.Uri, _activeProxyExpectedScheme, _activeProxyExpectedHost, _activeProxyExpectedPort) Then
+                        Return
+                    End If
+
+                    ' Aggiungi il token locale tsnet solo se atteso per la rotta proxy locale (TODO #78)
+                    If _activeRequiresLocalToken Then
+                        Dim localTok = TsnetManager.Instance.LocalToken
+                        If Not String.IsNullOrEmpty(localTok) Then
+                            reqArgs.Request.Headers.SetHeader("X-HidaChat-Local-Token", localTok)
+                        End If
+                    End If
+
+                    ' Aggiungi l'header Bearer token dell'account solo se configurato
+                    If _activeRequiresAuthToken AndAlso Not String.IsNullOrWhiteSpace(AuthToken) Then
+                        If Not reqArgs.Request.Headers.Contains("Authorization") Then
+                            reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
+                        End If
+                    End If
+                Catch exHandler As Exception
+                    Debug.WriteLine($"Error in WebResourceRequested handler for account {Id}: {exHandler.Message}")
+                End Try
+            End Sub
+
+            AddHandler WebView.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
+            AppLogger.LogApp($"[AUTH_FILTER_CONFIGURED] account={Id}, pattern={pattern}, host={host}, port={port}, tsnet={TailscaleIntegration}")
+        Catch ex As Exception
+            Debug.WriteLine($"UpdateWebResourceAuthFilter error for account {Id}: {ex.Message}")
+            AppLogger.LogApp($"[AUTH_FILTER_ERROR] account={Id}: {ex.Message}")
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Ricarica forzatamente l'account garantendo che la rotta locale tsnet (se attiva) sia allineata e naviga a WebUrl.
@@ -1302,6 +1408,7 @@ Public Class AppAccounts
     Public Sub SetPlatform(newPlatform As String)
         If Not String.Equals(_platform, newPlatform, StringComparison.OrdinalIgnoreCase) Then
             Platform = newPlatform
+            UpdateWebResourceAuthFilter()
             If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
                 WebView.CoreWebView2.Navigate(WebUrl)
             End If
@@ -2092,10 +2199,7 @@ Public Class AppAccounts
                             RemoveHandler wv.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
                             _navigationCompletedHandler = Nothing
                         End If
-                        If _webResourceRequestedHandler IsNot Nothing Then
-                            RemoveHandler wv.CoreWebView2.WebResourceRequested, _webResourceRequestedHandler
-                            _webResourceRequestedHandler = Nothing
-                        End If
+                        RemoveWebResourceAuthFilter()
                     Catch
                         ' Se il CoreWebView2 è in stato invalidato a causa di un crash, la rimozione degli handler potrebbe sollevare eccezioni
                     End Try

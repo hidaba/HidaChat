@@ -10,6 +10,7 @@
     <Compile Include="../SessionRecoveryPolicy.vb" Link="SessionRecoveryPolicy.vb" />
     <Compile Include="../ColdProfileCopy.vb" Link="ColdProfileCopy.vb" />
     <Compile Include="../NetworkProfileSync.vb" Link="NetworkProfileSync.vb" />
+    <Compile Include="../LocalAuthPolicy.vb" Link="LocalAuthPolicy.vb" />
     <Compile Include="SessionTests.vb" />
   </ItemGroup>
 </Project>

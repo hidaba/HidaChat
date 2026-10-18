@@ -316,6 +316,7 @@ Public Class SettingsWindow
             ElseIf Not acc.TailscaleIntegration Then
                 acc.LocalProxyUrl = ""
                 Await TsnetManager.Instance.RemoveRouteAsync(acc.Id)
+                acc.UpdateWebResourceAuthFilter()
                 acc.WebView?.CoreWebView2?.Navigate(acc.WebUrl)
             End If
             UpdateTsnetUI()

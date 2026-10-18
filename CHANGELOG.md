@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.7-beta] - 2026-10-18
+
+### Pre-release / Beta — Restrizione Filtri Porta e Validazione Rigorosa Host e Schema per Credenziali Localhost
+- **Sicurezza Filtri WebView2 e Protezione Credenziali Localhost (`LocalAuthPolicy.vb`, `AppAccounts.vb`, `SettingsWindow.xaml.vb`, `Tests/SessionTests.vb` — TODO #78)**:
+  - **Modulo di Convalida Rigorosa `LocalAuthPolicy`**: Introdotto il modulo di convalida `LocalAuthPolicy.vb` per la verifica puntuale di schema, host e porta prima dell'iniezione dei token di sicurezza (`X-HidaChat-Local-Token` e Bearer `Authorization`).
+  - **Restrizione Filtro su Porta TCP Esatta (`BuildFilterPattern`)**: Eliminato il filtro generico wildcard `http://127.0.0.1:*/*` in favore di pattern strettamente vincolati alla porta assegnata (`http://127.0.0.1:{port}/*`), azzerando l'intercettazione accidentale di richieste destinate ad altri servizi locali o porte aperte su `127.0.0.1`.
+  - **Verifica Esatta Schema, Host e Porta nell'Handler**: Aggiunto il controllo applicativo puntuale in `WebResourceRequested` per validare che l'URI richiesto corrisponda in modo identico allo schema (HTTP/HTTPS), all'host (`127.0.0.1` o hostname del gateway) e alla porta designata per quello specifico account, rifiutando qualsiasi mismatch, tentativo di spoofing o subdomain attack.
+  - **Aggiornamento e Rimozione Dinamica dei Filtri (`UpdateWebResourceAuthFilter`, `RemoveWebResourceAuthFilter`)**: Implementata la rimozione pulita e tempestiva (`CoreWebView2.RemoveWebResourceRequestedFilter`) dei filtri attivi al cambio di configurazione (porta, URL server, token, abilitazione/disabilitazione Tailscale o chiusura/disposizione account), evitando handler pendenti o filtri orfani in memoria.
+  - **Test di Regressione Automatizzati (`SessionTests.vb`)**: Aggiunti 12 nuovi test di validazione unitaria per verificare l'accettazione su porta autorizzata e il respingimento immediato su porte differenti, host non autorizzati, schemi non conformi e URI malformati.
+
 ## [1.2.6-beta] - 2026-10-17
 
 ### Pre-release / Beta — Autenticazione Obbligatoria Handshake WebSocket e Verifica Preventiva Origin nel Proxy tsnetd
