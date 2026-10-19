@@ -5,8 +5,10 @@
     <RootNamespace>HidaChat</RootNamespace>
     <OptionStrict>On</OptionStrict>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>NO_WPF=True</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../PlatformDefinition.vb" Link="PlatformDefinition.vb" />
     <Compile Include="../SessionRecoveryPolicy.vb" Link="SessionRecoveryPolicy.vb" />
     <Compile Include="../ColdProfileCopy.vb" Link="ColdProfileCopy.vb" />
     <Compile Include="../NetworkProfileSync.vb" Link="NetworkProfileSync.vb" />

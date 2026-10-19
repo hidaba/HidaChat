@@ -75,7 +75,7 @@ Public Class BulkSenderEngine
         Dim selectedContacts = contacts.Where(Function(c) c.Selected).ToList()
         If selectedContacts.Count = 0 Then Return
 
-        Dim isTelegram = platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase)
+        Dim isTelegram = (PlatformRegistry.Get(platform).Platform = ChatPlatform.Telegram)
 
         _isRunning = True
         _isPaused = False

@@ -494,10 +494,16 @@
   - Implementato un sistema di tracciamento e logging portabile thread-safe su file `data/updates.log` (con rotazione automatica al superamento di 1 MB), sostituendo le invocazioni dirette di `Debug.WriteLine`.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
-## 68. Piattaforme: da stringhe a modello tipizzato
-- **File**: `AccountManager.vb`, `AppAccounts.vb`, `SettingsWindow.xaml.vb`
-- **Problema**: La gestione delle piattaforme è basata su stringhe non tipizzate (`"WhatsApp"`, `"Telegram"`, `"OpenClaw"`, `"Hermes"`). Sebbene le voci #53 e #54 siano già state integrate implementando le rispettive piattaforme, la configurazione degli URL, icone SVG, colori, script iniettati e regole host è articolata attraverso lunghe serie di condizioni `If / ElseIf` e flag booleani sparsi (`IsOpenClaw`, `IsHermes`, `IsTelegram`, `IsWhatsApp`).
-- **Fix**: Introdurre un'astrazione tipizzata come enum `ChatPlatform` o classe `PlatformDefinition` (responsabile di URL predefiniti, icone, palette colori, script di tema/notifiche/traduzioni e host consentiti per `NewWindowRequested`), garantendo la compatibilità con il valore stringa già persistito in `settings.json`. Refactoring architetturale propedeutico all'estensione verso nuove piattaforme (#51 come Teams, Slack, Discord).
+## ~~68. Piattaforme: da stringhe a modello tipizzato~~ ✅
+- **File**: `PlatformDefinition.vb`, `AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb`, `MessagePopup.xaml.vb`, `Tests/SessionTests.vb`
+- **Problema**: La gestione delle piattaforme era basata su stringhe non tipizzate (`"WhatsApp"`, `"Telegram"`, `"OpenClaw"`, `"Hermes"`). Sebbene le voci #53 e #54 fossero già state integrate implementando le rispettive piattaforme, la configurazione degli URL, icone SVG, colori, script iniettati e regole host era articolata attraverso lunghe serie di condizioni `If / ElseIf` e flag booleani sparsi (`IsOpenClaw`, `IsHermes`, `IsTelegram`, `IsWhatsApp`).
+- **Fix Implementato**:
+  - Creata l'astrazione tipizzata `PlatformDefinition` e l'enumerazione `ChatPlatform` (`WhatsApp`, `Telegram`, `OpenClaw`, `Hermes`);
+  - Implementate le classi concrete `WhatsAppPlatformDefinition`, `TelegramPlatformDefinition`, `OpenClawPlatformDefinition` e `HermesPlatformDefinition` che incapsulano URL predefiniti, porte proxy locali, colori brand/tema hex, percorsi SVG icone, controlli di autorizzazione origine (`IsAuthorizedOrigin`), gestione finestre interne (`IsAllowedNewWindowHost`), risoluzione deep-link (`ResolveDeepLink`) e script JS di bootstrap e temi;
+  - Creato il registro centrale thread-safe `PlatformRegistry` per la risoluzione e l'estensione dinamica delle piattaforme;
+  - Refactoring completo di `AppAccounts.vb` per delegare alla definizione della piattaforma (`PlatformDefinition`) le logiche di rendering visivo, URL, proxy locale e script, mantenendo al contempo la proprietà `Platform As String` compatibile al 100% con `settings.json` e XAML data binding;
+  - Refactoring di `AccountManager.vb`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb` e `MessagePopup.xaml.vb` eliminando catene rigide di `If/ElseIf` string-based;
+  - Aggiunti test di regressione unitari dedicati in `Tests/SessionTests.vb` per la risoluzione per enum e stringa, fallback, porte proxy, deep-link e autorizzazione origini.
 - **Impatto**: Alto | **Sforzo**: Medio
 
 ## 69. Traduzione: privacy e backend self-hosted
@@ -675,3 +681,175 @@
 - **Fix da implementare**: Identificare prima le sessioni effettivamente obsolete, escludere sempre quella corrente e proteggere quelle attive con un lock. Evitare aggiornamenti concorrenti della stessa installazione.
 - **Test di accettazione**: Ritardare artificialmente la pulizia e avviare due aggiornamenti da copie distinte. Nessuna sessione deve eliminare file ancora usati dall’altra.
 - **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio
+
+## 87. Finestra grafica dedicata per l'aggiornamento con stato di avanzamento (eliminazione script .ps1 / .bat)
+- **File**: `UpdateChecker.vb`, `UpdateProgressWindow.xaml` / `UpdateProgressWindow.xaml.vb` (o eseguibile helper compatto standalone `HidaChat.Updater.exe`), `Localization.vb`
+- **Problema / Esigenza**:
+  - Attualmente il flusso di aggiornamento OTA si appoggia a script temporanei generati al volo (`.bat` o precedentemente ipotizzati `.ps1`) avviati tramite interprete/processo di shell Windows.
+  - L'uso di script esterni presenta notevoli criticità e limiti:
+    1. Assenza di feedback visivo grafico moderno per l'utente, che rischia di vedere finestre nere del prompt dei comandi / console oppure nessun indicatore chiaro mentre l'applicazione principale si chiude per consentire la sostituzione dei file;
+    2. Vulnerabilità ai blocchi euristici degli antivirus o alle policy di esecuzione restrittive del sistema operativo (es. restrizioni su script PowerShell `.ps1` o comandi batch non firmati);
+    3. Rischio che l'utente ritenga l'applicazione terminata o bloccata e tenti di riavviarla manualmente prima che la copia dei file e la sovrascrittura siano completate.
+- **Fix da implementare**:
+  1. *Eliminazione definitiva di script esterni (`.ps1` e `.bat`)*:
+     - Rimuovere completamente la generazione e l'esecuzione di script `.ps1` o `.bat`.
+     - Gestire l'intero ciclo di aggiornamento tramite codice compilato nativo (.NET / WPF) o un piccolo processo helper compilato dedicato (es. `HidaChat.Updater.exe` o finestra modale interna con handoff a processo secondario) completamente autonomo e privo di dipendenze da interpreti shell esterni.
+  2. *Finestra grafica con indicatore di avanzamento (Progress Dialog)*:
+     - Creare una finestra grafica dedicata con interfaccia scura moderna e stile coerente con HidaChat (in linea con `ShutdownProgressDialog` e `StorageRecoveryProgressDialog`).
+     - Barra di avanzamento (ProgressBar determinata con percentuale di completamento e MB scaricati durante il download; ProgressBar fluida/indeterminata durante verifica hash ed estrazione/copia file).
+     - Visualizzazione chiara e in tempo reale delle fasi dell'aggiornamento:
+       - *Scaricamento del pacchetto di aggiornamento da GitHub*;
+       - *Verifica integrità crittografica SHA-256 e firma Authenticode*;
+       - *Chiusura ordinata e attesa rilascio risorse dei processi HidaChat e WebView2*;
+       - *Estrazione e sovrascrittura sicura dei file dell'applicazione* (preservando rigorosamente la cartella dati `data/` al 100% portabile);
+       - *Riavvio automatico di HidaChat*.
+  3. *Gestione degli errori e resilienza*:
+     - In caso di errore durante una qualsiasi fase (timeout download, discrepanza checksum SHA-256, lock I/O su file in uso), mostrare un messaggio chiaro e localizzato all'interno della finestra grafica con pulsante "Annulla" o "Riprova", senza mai corrompere l'installazione o chiudersi silenziosamente.
+  4. *Localizzazione multilingua integrale*:
+     - Aggiungere e sincronizzare tutti i testi, messaggi di avanzamento e titoli delle fasi nei 5 dizionari ufficiali (`Localization.vb`: Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Test di accettazione**:
+  - Eseguire la procedura di aggiornamento e verificare che appaia la finestra grafica con barra di progresso e cambio di stato visibile;
+  - Verificare che non venga eseguito né creato alcun file script `.ps1` o `.bat` nella cartella `%TEMP%` o altrove;
+  - Verificare il corretto handoff: chiusura dell'app principale, copia dei file, riavvio automatico e preservazione integrale di tutti i dati in `data/`.
+- **Priorità**: P2 | **Impatto**: Alto | **Sforzo**: Medio
+
+---
+
+# FIX & BUG ROADMAP (Sessioni, Aggiornamenti OTA & Resilienza)
+
+## 88. [P1] Timeout di 15 s sul download dello ZIP e buffering in RAM dell'archivio (UpdateChecker.vb)
+- **File**: `UpdateChecker.vb` (metodo `PerformUpdateFromGitHubAsync`)
+- **Problema / Esigenza**: `_httpClient.Timeout = 15s` vale per tutte le richieste eseguite con il client HTTP predefinito, compreso `GetByteArrayAsync(downloadUrl)` (o scaricamento dell'asset zip). Con un archivio di aggiornamento da decine o centinaia di MB su connessioni lente o instabili, l'operazione fallisce sistematicamente con l'eccezione `"A task was canceled"` (timeout). Inoltre, scaricare l'intero payload con `GetByteArrayAsync` carica decine di MB direttamente nella memoria RAM prima della scrittura.
+- **Fix da implementare**:
+  - Utilizzare un client dedicato (`_downloadClient`) configurato con `Timeout = Timeout.InfiniteTimeSpan` e proteggere la richiesta con un `CancellationTokenSource` temporizzato a qualche minuto (es. 5–10 minuti).
+  - Effettuare il download in streaming progressivo direttamente su file temporaneo su disco utilizzando `HttpCompletionOption.ResponseHeadersRead` con buffer di copia (`src.CopyToAsync(dst)`).
+  - Calcolare l'hash di verifica direttamente dallo stream del file su disco tramite `SHA256.HashDataAsync(File.OpenRead(tempZipPath))`.
+- **Test di accettazione**: Simulare un download con larghezza di banda limitata (tempo di trasferimento > 15s); il download deve completarsi con successo senza eccezioni di timeout e con footprint RAM minimo e costante.
+- **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
+
+## 89. [P1] Possibile perdita di tutte le sessioni su errore di deserializzazione (AccountManager.LoadAccountsAsync)
+- **File**: `AccountManager.vb` (metodo `LoadAccountsAsync`)
+- **Problema / Esigenza**: Se la deserializzazione dell'elenco `accounts` fallisce (ad esempio a causa di un campo con tipo errato, JSON corrotto, modifiche manuali dell'utente o formati tra versioni differenti), il blocco `Catch` ricade nell'invocazione di `CreateDefaultAccountAsync()`. Quest'ultimo chiama `SaveAccountsAsync(force:=True)`, sovrascrivendo l'intero file `settings.json` con un unico account predefinito. Al successivo riavvio o ciclo di manutenzione, `CleanupUnusedProfilesAsync` elimina tutte le cartelle `WV2Profile_*` non più censite nella configurazione, provocando la distruzione irreversibile di tutte le sessioni di login di WhatsApp, Telegram, OpenClaw ed Hermes.
+- **Fix da implementare**:
+  - Nel blocco `Catch` di deserializzazione di `LoadAccountsAsync`, creare immediatamente una copia di salvataggio `settings.json.bak` prima di qualsiasi altra operazione.
+  - Impostare un flag di sicurezza `_loadFailed = True` a livello di gestore.
+  - Inibire sia il salvataggio forzato (`SaveAccountsAsync`) sia la pulizia dei profili (`CleanupUnusedProfilesAsync`) quando `_loadFailed` è attivo.
+  - Mostrare all'utente una finestra di dialogo di avviso/errore per segnalare la corruzione del file di configurazione, invitando al ripristino o alla correzione manuale anziché azzerare silenziosamente gli account.
+- **Test di accettazione**: Introdurre un errore di sintassi o tipo incompatibile nel blocco `accounts` di `settings.json`. All'avvio il file originale deve essere salvaguardato in `settings.json.bak`, nessun profilo su disco deve essere cancellato o sovrascritto, e deve apparire un avviso esplicito.
+- **Priorità**: P1 (Gravità alta) | **Impatto**: Critico | **Sforzo**: Medio
+
+## 90. [P1] MigrateOrphanProfile cancella o sovrascrive un profilo valido
+- **File**: `AccountManager.vb` (metodo `MigrateOrphanProfile`)
+- **Problema / Esigenza**: Se sul filesystem coesistono sia la cartella `WV2Profile_` (profilo orfano o legacy senza ID specificato) sia la cartella `WV2Profile_{id}` associata al primo account, una logica di migrazione errata o distruttiva rischia di eliminare il profilo valido del primo account per spostarvi sopra la cartella orfana, causando la perdita della sessione reale e attiva dell'utente.
+- **Fix da implementare**:
+  - All'interno di `MigrateOrphanProfile`, verificare preliminarmente l'esistenza della cartella di destinazione `WV2Profile_{id}` (e di eventuali snapshot `.previous`).
+  - Se la cartella di destinazione esiste già, interrompere immediatamente la migrazione (`Continue For` / `Return`), lasciando intatto il profilo valido esistente.
+  - Lasciare che la cartella orfana venga gestita in sicurezza dai meccanismi di cleanup non distruttivi o conservata come backup.
+- **Test di accettazione**: Creare manualmente sia `data/webview/WV2Profile_` che `data/webview/WV2Profile_{id}` con file differenti. All'avvio dell'applicazione, il contenuto di `WV2Profile_{id}` deve rimanere inalterato e non essere sostituito o cancellato dall'orfano.
+- **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso
+
+## 91. [P1] Marker di versione scritto prima della copia robocopy e residui temporanei dello script batch
+- **File**: `UpdateChecker.vb` (metodo `PerformUpdateFromGitHubAsync`, `WriteLocalVersionMarker`)
+- **Problema / Esigenza**:
+  1. `WriteLocalVersionMarker` viene invocato dal codice VB prima che lo script batch completi la sostituzione dei file: se il comando robocopy fallisce o viene interrotto, il file `.app_version` dichiara comunque la nuova versione anche se i file dell'applicazione non sono stati aggiornati. Inoltre lo script batch riscrive già il marker dopo una copia riuscita, rendendo la chiamata preventiva in VB inutile e dannosa, con incongruenza tra formati (es. `0.7.1` in VB vs `v0.7.1` nel batch).
+  2. Lo script `update.bat` viene creato all'interno di `tempDir`. Se l'archivio ZIP contiene `HidaChat.exe` alla radice, `sourceDir = tempDir`: robocopy copia quindi anche `update.bat` nella cartella di installazione dell'applicazione.
+  3. La cartella temporanea estratta `tempDir` (potenzialmente centinaia di MB) non viene cancellata al termine dell'aggiornamento, lasciando spazio occupato inutilmente.
+- **Fix da implementare**:
+  - Rimuovere la chiamata a `WriteLocalVersionMarker` dal flusso VB, delegando la scrittura del marker unicamente allo script batch (o al processo updater) solo a seguito di robocopy completato con esito favorevole (`%RC% < 8`). Unificare il formato della versione.
+  - Posizionare lo script batch in `Path.GetTempPath()` all'esterno sia di `tempDir` sia di `sourceDir`, evitando che robocopy lo includa nella cartella di destinazione.
+  - Aggiungere a fine script la rimozione forzata della directory temporanea estratta (`rd /s /q "<tempDir>"`) e del file zip temporaneo.
+- **Test di accettazione**: Eseguire una procedura di aggiornamento: verificare che `update.bat` non sia presente nella cartella di installazione finale, che `tempDir` venga completamente rimossa al termine e che il marker `.app_version` non venga scritto se la copia robocopy fallisce.
+- **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
+
+## 92. [P2] Script batch di aggiornamento fragile (parentesi nei percorsi, unità root USB e gestione errori)
+- **File**: `UpdateChecker.vb` (generazione batch in `PerformUpdateFromGitHubAsync`)
+- **Problema / Esigenza**:
+  1. All'interno del blocco `if %RC% GEQ 8 ( ... )`, il comando `echo ... {logFile}` non racchiude il percorso tra virgolette doppie. In un percorso con parentesi come `C:\Program Files (x86)\...`, la parentesi chiusa `)` chiude anticipatamente il blocco `if`, causando un errore di sintassi cmd e il fallimento dello script.
+  2. Se l'applicazione è alla radice di un drive USB (es. `E:\HidaChat.exe`, scenario esplicitamente supportato dal README per uso portabile), `installDir` risulta essere `E:\`. In robocopy la notazione `"E:\"` viene interpretata come virgoletta escapata (`\"`), rompendo il comando. È necessario normalizzare con `installDir.TrimEnd("\""c) & "\."`.
+  3. In caso di errore robocopy, lo script esegue `exit /b 1` senza un comando `pause`: la console si chiude istantaneamente senza che l'utente possa leggere l'errore e l'applicazione non viene riavviata, lasciando l'utente senza interfaccia.
+  4. L'uso di `taskkill /f /im HidaChat.exe` termina forzatamente qualsiasi istanza di HidaChat in esecuzione anziché verificare il PID del processo chiamante.
+- **Fix da implementare**:
+  - Racchiudere sempre tra virgolette doppie i percorsi espansi nei comandi echo del batch (`echo ... "%logFile%"` o `"%LOG%"`).
+  - Gestire le radici disco normalizzando il percorso di destinazione per robocopy con `installDir.TrimEnd("\""c) & "\."`.
+  - In caso di errore nel batch (`%RC% GEQ 8`), inserire una `pause` prima di uscire o rilanciare l'applicazione originale in modalità di emergenza per non lasciare l'utente con l'app terminata.
+  - Attendere la chiusura ordinata verificando specificamente il PID (`tasklist /fi "PID eq {Environment.ProcessId}"`) anziché ricorrere a terminazioni forzate su tutti i processi.
+- **Test di accettazione**: Eseguire un aggiornamento con percorso contenente parentesi tonde (es. `C:\Program Files (x86)\HidaChat`) e da radice drive (`E:\`). Verificare la corretta esecuzione di robocopy e, a fronte di un errore forzato, la presenza del messaggio leggibile prima della chiusura.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso-Medio
+
+## 93. [P2] Verifica SHA-256: falsi mismatch con file multipli e fail-open se manca il checksum
+- **File**: `UpdateChecker.vb` (metodo `ExtractSha256FromText`)
+- **Problema / Esigenza**: Se il nome del file ZIP non viene individuato esattamente nel testo del checksum (ad esempio perché indicato come `./HidaChat.zip` o con prefissi di percorso), un fallback che preleva la prima stringa esadecimale da 64 caratteri del testo rischia di estrarre un hash non pertinente (ad esempio l'hash di un altro archivio in un file `SHA256SUMS` multi-asset o un commit SHA nelle note di rilascio), bloccando l'aggiornamento per falso "mismatch". Se invece non viene trovato alcun hash e non viene applicato un fail-closed rigoroso, l'update rischierebbe di procedere senza alcun controllo di integrità.
+- **Fix da implementare**:
+  - Normalizzare il matching del filename rimuovendo prefissi relativi come `./` o caratteri escape `*`.
+  - Se è stato specificato un `filename`, ignorare il fallback generico arbitrario o accettarlo esclusivamente se nel testo è presente un unico e inequivocabile hash da 64 caratteri.
+  - Applicare rigorosamente la policy Fail-Closed: se nessun checksum valido e univoco viene individuato per il file scaricato, bloccare l'aggiornamento e informare l'utente con un messaggio di errore chiaro.
+- **Test di accettazione**: Fornire un file `SHA256SUMS` contenente gli hash di più file e verificare che venga estratto solo l'hash associato allo zip di HidaChat. Verificare che l'assenza di checksum blocchi l'aggiornamento con avviso e senza tentare l'installazione non verificata.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso-Medio
+
+## 94. [P2] Controllo manuale aggiornamenti privo di feedback all'utente su errori di rete o assenza asset
+- **File**: `UpdateChecker.vb` (metodi `CheckForUpdatesAsync`, `FetchGitHubReleaseInfoAsync`)
+- **Problema / Esigenza**: Quando l'utente preme esplicitamente il pulsante "Verifica aggiornamenti" (`force = True`), se l'API di GitHub risponde con un errore (rate limit 403, offline, endpoint non raggiungibile) oppure se la release remota non ha un archivio ZIP allegato tra gli asset, l'esecuzione termina con un semplice `Debug.WriteLine`. L'utente non riceve alcun feedback visivo e il pulsante appare non funzionante.
+- **Fix da implementare**:
+  - Quando `force = True`, mostrare sempre una finestra di dialogo esplicita nei tre casi critici:
+    1. Eccezione o mancata connettività di rete;
+    2. Risposta HTTP non positiva dalle API GitHub (compreso rate limit 403 e 404);
+    3. Nuova versione individuata ma priva di asset ZIP valido per l'aggiornamento.
+- **Test di accettazione**: Eseguire il controllo manuale con rete disconnessa o simulando una risposta 403 da GitHub: deve apparire una MessageBox informativa con spiegazione dell'errore anziché una chiusura silenziosa.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
+
+## 95. [P2] Confronto errato delle versioni pre-release/beta e selezione della release remota
+- **File**: `UpdateChecker.vb` (metodi `ComparePrerelease`, `IsNewerVersion`, `FetchGitHubReleaseInfoAsync`)
+- **Problema / Esigenza**:
+  1. Il confronto lessicografico `String.Compare("beta10", "beta2")` produce il risultato non corretto `beta10 < beta2` poiché il carattere '1' precede '2', impedendo il rilevamento di release beta con numerazione a più cifre.
+  2. Nel canale beta, l'endpoint GitHub restituisce una lista di release: il codice seleziona la prima release dell'elenco per data, che potrebbe non corrispondere alla versione con numero semantico più alto in caso di release non sequenziali o hotfix.
+- **Fix da implementare**:
+  - Implementare un parsing conforme allo standard SemVer 2.0: suddividere i token alfanumerici e numerici nei tag di pre-release, confrontando i segmenti composti unicamente da cifre con comparazione numerica (`Integer.TryParse`) e i segmenti alfanumerici con comparazione lessicografica.
+  - Nel canale beta, analizzare tutte le release fornite dall'API aventi uno ZIP allegato e selezionare quella con la versione semantica massima reale, anziché limitarsi alla prima riga temporale.
+- **Test di accettazione**: Validare che `v1.2.10-beta` risulti correttamente più recente di `v1.2.2-beta`. Con una lista di release GitHub fuori ordine temporale, verificare che venga selezionata la versione semantica più elevata.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Medio
+
+## 96. [P3] CleanupUnusedProfilesAsync esegue cancellazione ricorsiva sincrona nel thread UI con possibile freeze all'avvio
+- **File**: `AccountManager.vb` (metodo `CleanupUnusedProfilesAsync`)
+- **Problema / Esigenza**: Il metodo ha firma asincrona ma, se invocato direttamente o se esegue `Directory.Delete(..., True)` in modo sincrono nel contesto del thread principale all'avvio, può causare blocchi e freeze dell'interfaccia utente in presenza di profili Chromium voluminosi (migliaia di file di cache, LevelDB e blob) o contesi temporaneamente.
+- **Fix da implementare**:
+  - Eseguire l'intera enumerazione ed eliminazione ricorsiva all'interno di `Task.Run` fuori dal thread UI.
+  - Adottare un helper di retry con backoff progressivo (es. `DeleteDirectoryWithRetryAsync`, pattern analogo a TODO #37 / #72) per gestire eventuali lock temporanei senza mai bloccare la reattività della finestra principale.
+- **Test di accettazione**: Creare profili orfani con migliaia di file nella cartella profili; all'avvio dell'applicazione la UI deve apparire istantaneamente fluida e priva di blocchi durante il cleanup in background.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso-Medio | **Sforzo**: Basso
+
+## 97. [P3] Mancata notifica PropertyChanged di CanAddAccount in LoadAccountsAsync e CreateDefaultAccountAsync
+- **File**: `AccountManager.vb` (metodi `LoadAccountsAsync`, `CreateDefaultAccountAsync`)
+- **Problema / Esigenza**: Al termine del caricamento da `settings.json` o nella creazione dell'account predefinito, la mancata emissione tempestiva di `NotifyPropertyChanged(NameOf(CanAddAccount))` può lasciare il pulsante di aggiunta account abilitato nell'interfaccia anche se sono già presenti 3 account (limite massimo predefinito).
+- **Fix da implementare**: Assicurarsi che in tutti i percorsi di completamento di `LoadAccountsAsync` e `CreateDefaultAccountAsync` vengano sollevati `NotifyPropertyChanged(NameOf(CanAddAccount))`, `NotifyPropertyChanged(NameOf(HasExcessAccounts))` e `NotifyPropertyChanged(NameOf(ExcessAccountsCount))`.
+- **Test di accettazione**: Avviare l'applicazione con 3 account già censiti e verificare che il pulsante "+" risulti immediatamente disabilitato all'avvio.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
+
+## 98. [P3] Mancanza di controlli di validità e null-safety in UpdateAccountNameAsync e RemoveAccountAsync
+- **File**: `AccountManager.vb` (metodi `UpdateAccountNameAsync`, `RemoveAccountAsync`)
+- **Problema / Esigenza**:
+  1. `UpdateAccountNameAsync` accetta stringhe vuote, composte solo da spazi o nomi duplicati già in uso da altri account, degradando la leggibilità delle schede.
+  2. `RemoveAccountAsync` accede a `_currentAccount.Id` senza verifica preventiva `_currentAccount IsNot Nothing`, con potenziale rischio di `NullReferenceException` se la selezione corrente è in uno stato transitorio o non inizializzato.
+- **Fix da implementare**:
+  - In `UpdateAccountNameAsync`, validare `newName`: scartare o rifiutare stringhe vuote/spazi (`String.IsNullOrWhiteSpace`) e nomi già esistenti nella collezione `_accounts`.
+  - In `RemoveAccountAsync`, inserire il controllo di null-safety su `_currentAccount` prima di accedere alla proprietà `Id`.
+- **Test di accettazione**: Verificare che tentativi di rinominare un account con nome vuoto o duplicato vengano ignorati e che la rimozione di un account con `_currentAccount` nullo non sollevi eccezioni.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
+
+## 99. [P3] Messaggi MessageBox in UpdateChecker.vb hardcoded in italiano anziché multilingua (Localization.vb)
+- **File**: `UpdateChecker.vb`, `Localization.vb`
+- **Problema / Esigenza**: Diverse finestre di dialogo e messaggi di avviso/errore in `UpdateChecker.vb` contengono stringhe fisse in lingua italiana, non rispettando la lingua selezionata dall'utente nell'applicazione (EN, IT, FR, ES, DE).
+- **Fix da implementare**:
+  - Rivedere tutti i richiami a `ShowMessageBox` e `ShowMessageBoxConfirm` in `UpdateChecker.vb`.
+  - Aggiungere e sincronizzare le chiavi di traduzione corrispondenti in tutti i 5 dizionari ufficiali di `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+  - Utilizzare `loc.Get(...)` per recuperare titoli e testi localizzati in base alla lingua impostata.
+- **Test di accettazione**: Cambiare la lingua dell'applicazione in inglese o francese; verificare che tutti i popup di `UpdateChecker.vb` appaiano tradotti nella lingua scelta.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
+
+## 100. [P3] Dichiarazione di variabile locale non utilizzata subDirs in UpdateChecker.vb
+- **File**: `UpdateChecker.vb`
+- **Problema / Esigenza**: In `UpdateChecker.vb` è presente (o residua) la riga `Dim subDirs = Directory.GetDirectories(tempDir)` non utilizzata, che genera warning del compilatore e provoca un'inutile operazione di I/O sul filesystem durante l'estrazione.
+- **Fix da implementare**: Rimuovere la riga di dichiarazione orfana `Dim subDirs = ...` dal codice di `UpdateChecker.vb`.
+- **Test di accettazione**: Compilazione pulita senza warning relativi a variabili non utilizzate nel file.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Minimo
+
+

@@ -120,15 +120,11 @@ Public Class BulkSenderWindow
 #End Region
 
     Private Sub ApplyPlatformVisuals()
-        If _account IsNot Nothing AndAlso _account.IsTelegram Then
-            HeaderTitleText.Text = $"Invio Massivo Personalizzato (Telegram - {_account.Name})"
-            HeaderPlatformIcon.Data = Geometry.Parse(_account.PlatformIconData)
-            HeaderPlatformIcon.Fill = BrushCache.GetBrush("#24A1DE")
-        Else
-            Dim accName = If(_account IsNot Nothing, $" (WhatsApp - {_account.Name})", " (WhatsApp)")
-            HeaderTitleText.Text = $"Invio Massivo Personalizzato{accName}"
-            HeaderPlatformIcon.Fill = BrushCache.GetBrush("#00a884")
-        End If
+        Dim def = PlatformRegistry.Get(_platform)
+        Dim accSuffix = If(_account IsNot Nothing, $" - {_account.Name}", "")
+        HeaderTitleText.Text = $"Invio Massivo Personalizzato ({def.DisplayName}{accSuffix})"
+        HeaderPlatformIcon.Data = Geometry.Parse(def.IconSvgPath)
+        HeaderPlatformIcon.Fill = def.ThemeBrush
     End Sub
 
     Private Sub ApplyTheme()
@@ -387,13 +383,14 @@ Public Class BulkSenderWindow
             Return
         End If
 
+        Dim def = PlatformRegistry.Get(_platform)
         If _webView Is Nothing OrElse _webView.CoreWebView2 Is Nothing Then
-            Dim appName = If(_platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp")
+            Dim appName = def.DisplayName
             MessageBox.Show($"La sessione di {appName} Web non è attiva o inizializzata. Assicurati che {appName} sia connesso nella finestra principale.", $"{appName} Non Pronto", MessageBoxButton.OK, MessageBoxImage.Warning)
             Return
         End If
 
-        Dim isTelegram = _platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase)
+        Dim isTelegram = (def.Platform = ChatPlatform.Telegram)
         If isTelegram Then
             Dim validTg = selected.Where(Function(c) Not String.IsNullOrEmpty(c.CleanUsername) OrElse Not String.IsNullOrEmpty(c.CleanPhone)).ToList()
             If validTg.Count = 0 Then

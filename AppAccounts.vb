@@ -23,61 +23,63 @@ Public Class AppAccounts
     <JsonPropertyName("id")>
     Public Property Id As String
 
-    Private _platform As String = "WhatsApp"
+    Private _platformType As ChatPlatform = ChatPlatform.WhatsApp
+
+    ''' <summary>Tipo di piattaforma tipizzato come enum (TODO #68).</summary>
+    <JsonIgnore>
+    Public Property PlatformType As ChatPlatform
+        Get
+            Return _platformType
+        End Get
+        Set(value As ChatPlatform)
+            SetPlatform(value)
+        End Set
+    End Property
+
     ''' <summary>Tipo di piattaforma ("WhatsApp", "Telegram", "OpenClaw" o "Hermes").</summary>
     <JsonPropertyName("platform")>
     Public Property Platform As String
         Get
-            If String.IsNullOrWhiteSpace(_platform) Then Return "WhatsApp"
-            Return _platform
+            Return PlatformDefinition.Id
         End Get
         Set(value As String)
-            Dim cleanVal = If(String.IsNullOrWhiteSpace(value), "WhatsApp", value)
-            If _platform <> cleanVal Then
-                _platform = cleanVal
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(Platform)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsWhatsApp)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsTelegram)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsOpenClaw)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsHermes)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OpenClawSettingsVisibility)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HermesSettingsVisibility)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AgentSettingsVisibility)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformIconData)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformColorBrush)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthTokenLabel)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ServerUrlTooltip)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthTokenTooltip)))
-                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
-            End If
+            SetPlatform(PlatformRegistry.FromKey(value))
         End Set
+    End Property
+
+    ''' <summary>Definizione ricca e tipizzata della piattaforma corrente (TODO #68).</summary>
+    <JsonIgnore>
+    Public ReadOnly Property PlatformDefinition As PlatformDefinition
+        Get
+            Return PlatformRegistry.Get(_platformType)
+        End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property IsHermes As Boolean
         Get
-            Return Platform.Equals("Hermes", StringComparison.OrdinalIgnoreCase)
+            Return _platformType = ChatPlatform.Hermes
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property IsOpenClaw As Boolean
         Get
-            Return Platform.Equals("OpenClaw", StringComparison.OrdinalIgnoreCase)
+            Return _platformType = ChatPlatform.OpenClaw
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property IsTelegram As Boolean
         Get
-            Return Platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase)
+            Return _platformType = ChatPlatform.Telegram
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property IsWhatsApp As Boolean
         Get
-            Return Not IsTelegram AndAlso Not IsOpenClaw AndAlso Not IsHermes
+            Return _platformType = ChatPlatform.WhatsApp
         End Get
     End Property
 
@@ -98,40 +100,28 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property AgentSettingsVisibility As Visibility
         Get
-            Return If(IsOpenClaw OrElse IsHermes, Visibility.Visible, Visibility.Collapsed)
+            Return If(PlatformDefinition.IsAiGateway, Visibility.Visible, Visibility.Collapsed)
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property AuthTokenLabel As String
         Get
-            If IsHermes Then
-                Return "API Key / Auth Token:"
-            Else
-                Return "Gateway Auth Token:"
-            End If
+            Return PlatformDefinition.AuthTokenLabel
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property ServerUrlTooltip As String
         Get
-            If IsHermes Then
-                Return "Es: http://127.0.0.1:9119 o https://node.tailnet.ts.net"
-            Else
-                Return "Es: http://127.0.0.1:18789 o https://node.tailnet.ts.net"
-            End If
+            Return PlatformDefinition.ServerUrlTooltip
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property AuthTokenTooltip As String
         Get
-            If IsHermes Then
-                Return "Token o API Key per Hermes Agent / Dashboard"
-            Else
-                Return "Token segreto OpenClaw gateway"
-            End If
+            Return PlatformDefinition.AuthTokenTooltip
         End Get
     End Property
 
@@ -141,12 +131,12 @@ Public Class AppAccounts
     Public Property ServerUrl As String
         Get
             If String.IsNullOrWhiteSpace(_serverUrl) Then
-                Return If(IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+                Return PlatformDefinition.DefaultUrl
             End If
             Return _serverUrl
         End Get
         Set(value As String)
-            Dim defaultUrl = If(IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+            Dim defaultUrl = PlatformDefinition.DefaultUrl
             Dim cleanVal = If(String.IsNullOrWhiteSpace(value), defaultUrl, value.Trim())
             If _serverUrl <> cleanVal Then
                 _serverUrl = cleanVal
@@ -259,8 +249,8 @@ Public Class AppAccounts
     <JsonIgnore>
     Public ReadOnly Property WebUrl As String
         Get
-            If IsOpenClaw OrElse IsHermes Then
-                Dim defaultUrl = If(IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+            If PlatformDefinition.IsAiGateway Then
+                Dim defaultUrl = PlatformDefinition.DefaultUrl
                 Dim base = If(TailscaleIntegration AndAlso Not String.IsNullOrEmpty(LocalProxyUrl), LocalProxyUrl, ServerUrl)
                 If String.IsNullOrWhiteSpace(base) Then base = defaultUrl
                 If Not base.StartsWith("http://", StringComparison.OrdinalIgnoreCase) AndAlso Not base.StartsWith("https://", StringComparison.OrdinalIgnoreCase) Then
@@ -273,46 +263,23 @@ Public Class AppAccounts
                     base = $"{base}{sep}__htok={Uri.EscapeDataString(TsnetManager.Instance.LocalToken)}"
                 End If
                 Return base
-            ElseIf IsTelegram Then
-                Return "https://web.telegram.org/a/"
             Else
-                Return "https://web.whatsapp.com/"
+                Return PlatformDefinition.DefaultUrl
             End If
         End Get
     End Property
 
-    Private Shared ReadOnly WhatsAppBrush As Brush = BrushCache.GetBrush("#25d366")
-    Private Shared ReadOnly TelegramBrush As Brush = BrushCache.GetBrush("#24A1DE")
-    Private Shared ReadOnly OpenClawBrush As Brush = BrushCache.GetBrush("#FF5722")
-    Private Shared ReadOnly HermesBrush As Brush = BrushCache.GetBrush("#00B0FF")
-
     <JsonIgnore>
     Public ReadOnly Property PlatformIconData As String
         Get
-            If IsHermes Then
-                Return "M12,2A3,3 0 0,0 9,5C9,5.27 9.04,5.53 9.1,5.78C6.67,6.34 5.09,8.5 5,11C3.12,11.36 1.74,12.82 1.3,14.7C0.85,16.63 1.45,18.66 2.87,20.08L3.58,19.37C2.4,18.19 1.9,16.5 2.27,14.92C2.64,13.35 3.82,12.13 5.38,11.83L6,11.71V11C6,8.68 7.5,6.67 9.71,6.13L10.5,5.94L10.15,5.2C10.05,5 10,4.76 10,4.5A2,2 0 0,1 12,2.5A2,2 0 0,1 14,4.5C14,4.76 13.95,5 13.85,5.2L13.5,5.94L14.29,6.13C16.5,6.67 18,8.68 18,11V11.71L18.62,11.83C20.18,12.13 21.36,13.35 21.73,14.92C22.1,16.5 21.6,18.19 20.42,19.37L21.13,20.08C22.55,18.66 23.15,16.63 22.7,14.7C22.26,12.82 20.88,11.36 19,11C18.91,8.5 17.33,6.34 14.9,5.78C14.96,5.53 15,5.27 15,5A3,3 0 0,0 12,2M12,7A5,5 0 0,1 17,12V14A5,5 0 0,1 12,19A5,5 0 0,1 7,14V12A5,5 0 0,1 12,7M10,13A1,1 0 0,0 9,14A1,1 0 0,0 10,15A1,1 0 0,0 11,14A1,1 0 0,0 10,13M14,13A1,1 0 0,0 13,14A1,1 0 0,0 14,15A1,1 0 0,0 15,14A1,1 0 0,0 14,13Z"
-            ElseIf IsOpenClaw Then
-                Return "M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"
-            ElseIf IsTelegram Then
-                Return "M9.78 18.65L10.06 14.42L17.74 7.5C18.08 7.19 17.67 7.04 17.22 7.31L7.74 13.3L3.64 12C2.76 11.75 2.75 11.14 3.84 10.7L19.81 4.54C20.54 4.21 21.24 4.72 20.97 5.84L18.25 18.67C18.05 19.6 17.5 19.82 16.73 19.38L12.58 16.32L10.58 18.25C10.36 18.47 10.17 18.65 9.78 18.65Z"
-            Else
-                Return "M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M8.53 7.33C8.37 7.33 8.1 7.39 7.87 7.64C7.65 7.89 7.02 8.48 7.02 9.68C7.02 10.88 7.9 12.03 8.02 12.19C8.14 12.35 9.73 14.81 12.18 15.86C12.76 16.11 13.22 16.26 13.57 16.37C14.16 16.56 14.69 16.53 15.11 16.47C15.59 16.4 16.58 15.87 16.78 15.3C16.98 14.73 16.98 14.24 16.92 14.14C16.86 14.04 16.7 13.98 16.45 13.85C16.2 13.73 14.97 13.12 14.74 13.04C14.52 12.96 14.35 12.92 14.19 13.17C14.03 13.41 13.56 13.98 13.42 14.14C13.28 14.31 13.13 14.33 12.89 14.21C12.64 14.08 11.84 13.82 10.89 12.97C10.15 12.31 9.65 11.5 9.51 11.25C9.36 11.01 9.5 10.87 9.62 10.75C9.73 10.64 9.87 10.45 10 10.31C10.13 10.16 10.17 10.06 10.25 9.9C10.33 9.73 10.29 9.59 10.23 9.47C10.17 9.35 9.7 8.19 9.5 7.72C9.31 7.26 9.12 7.32 8.97 7.31C8.84 7.31 8.68 7.33 8.53 7.33Z"
-            End If
+            Return PlatformDefinition.IconSvgPath
         End Get
     End Property
 
     <JsonIgnore>
     Public ReadOnly Property PlatformColorBrush As Brush
         Get
-            If IsHermes Then
-                Return HermesBrush
-            ElseIf IsOpenClaw Then
-                Return OpenClawBrush
-            ElseIf IsTelegram Then
-                Return TelegramBrush
-            Else
-                Return WhatsAppBrush
-            End If
+            Return PlatformDefinition.ThemeBrush
         End Get
     End Property
 
@@ -756,6 +723,14 @@ Public Class AppAccounts
         BridgeToken = GenerateBridgeToken()
     End Sub
 
+    Public Sub New(id As String, name As String, isActive As Boolean, platformType As ChatPlatform)
+        Me.Id = id
+        Me.Name = name
+        Me.IsActive = isActive
+        Me.PlatformType = platformType
+        BridgeToken = GenerateBridgeToken()
+    End Sub
+
     Private _initTask As Task = Nothing
     Private _closeTask As Task(Of Boolean)
     Private _stopRequested As Boolean
@@ -972,8 +947,9 @@ Public Class AppAccounts
             ThrowIfSetupStopped()
             Dim healthScript = EmbeddedScriptLoader.GetEmbeddedString("session-health.js").Replace("$$BRIDGE_TOKEN$$", JsonSerializer.Serialize(BridgeToken))
             Dim initScript = healthScript & vbCrLf & NotificationJsScripts.GetNotificationOverrideJS(BridgeToken)
-            If IsTelegram Then
-                initScript &= vbCrLf & ThemeJsScripts.TelegramInitJS
+            Dim extraInitScript = PlatformDefinition.GetInitScript(BridgeToken)
+            If Not String.IsNullOrEmpty(extraInitScript) Then
+                initScript &= vbCrLf & extraInitScript
             End If
             Await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(initScript)
             ThrowIfSetupStopped()
@@ -982,15 +958,10 @@ Public Class AppAccounts
                 If String.IsNullOrEmpty(e.Uri) Then Return
                 If e.Uri.StartsWith("about:blank", StringComparison.OrdinalIgnoreCase) Then Return
 
-                If e.Uri.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
+                Dim resolvedTarget = PlatformDefinition.ResolveDeepLink(e.Uri)
+                If Not String.IsNullOrEmpty(resolvedTarget) Then
                     e.Cancel = True
-                    Dim target = ResolveTelegramUrl(e.Uri)
-                    WebView.CoreWebView2.Navigate(target)
-                    Return
-                ElseIf IsTelegram AndAlso (e.Uri.StartsWith("https://t.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("http://t.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("https://telegram.me/", StringComparison.OrdinalIgnoreCase) OrElse e.Uri.StartsWith("http://telegram.me/", StringComparison.OrdinalIgnoreCase)) Then
-                    e.Cancel = True
-                    Dim target = ResolveTelegramUrl(e.Uri)
-                    WebView.CoreWebView2.Navigate(target)
+                    WebView.CoreWebView2.Navigate(resolvedTarget)
                     Return
                 End If
 
@@ -1016,13 +987,11 @@ Public Class AppAccounts
                         Return
                     End If
 
-                    If uriStr.StartsWith("tg:", StringComparison.OrdinalIgnoreCase) Then
-                        If IsTelegram Then
-                            e.Handled = True
-                            Dim target = ResolveTelegramUrl(uriStr)
-                            WebView.CoreWebView2.Navigate(target)
-                            Return
-                        End If
+                    Dim resolvedTarget = PlatformDefinition.ResolveDeepLink(uriStr)
+                    If Not String.IsNullOrEmpty(resolvedTarget) Then
+                        e.Handled = True
+                        WebView.CoreWebView2.Navigate(resolvedTarget)
+                        Return
                     End If
 
                     Dim uri As Uri = Nothing
@@ -1031,22 +1000,11 @@ Public Class AppAccounts
                         Return
                     End If
 
-                    ' Se è un deep link Telegram verso canale/chat (#41)
-                    If IsTelegram AndAlso (uri.Host.Equals("t.me", StringComparison.OrdinalIgnoreCase) OrElse uri.Host.EndsWith(".t.me", StringComparison.OrdinalIgnoreCase) OrElse uri.Host.Equals("telegram.me", StringComparison.OrdinalIgnoreCase) OrElse uri.Host.EndsWith(".telegram.me", StringComparison.OrdinalIgnoreCase)) Then
+                    ' Consenti navigazione interna se l'host è autorizzato per la piattaforma (es. gateway OpenClaw/Hermes)
+                    If PlatformDefinition.IsAllowedNewWindowHost(uri, ServerUrl) Then
                         e.Handled = True
-                        Dim target = ResolveTelegramUrl(uriStr)
-                        WebView.CoreWebView2.Navigate(target)
+                        WebView.CoreWebView2.Navigate(uriStr)
                         Return
-                    End If
-
-                    ' Per OpenClaw o Hermes, consenti navigazione interna solo per lo stesso host
-                    If IsOpenClaw OrElse IsHermes Then
-                        Dim baseUri As Uri = Nothing
-                        If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) AndAlso String.Equals(uri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) Then
-                            e.Handled = True
-                            WebView.CoreWebView2.Navigate(uriStr)
-                            Return
-                        End If
                     End If
 
                     ' Qualsiasi altro link esterno o target="_blank" (inclusi link whatsapp.com/faq o esterni in chat)
@@ -1084,7 +1042,7 @@ Public Class AppAccounts
 
                     AppLogger.LogApp($"[NavigationCompleted] Account {Id} ({Name}) - IsSuccess={e.IsSuccess}, WebErrorStatus={e.WebErrorStatus}, Uri={WebView?.Source}")
 
-                    If IsOpenClaw OrElse IsHermes Then
+                    If PlatformDefinition.IsAiGateway Then
                         If Not e.IsSuccess Then
                             Await HandleHermesOpenClawNavigationFailureAsync(e.WebErrorStatus.ToString(), settings)
                             Return
@@ -1112,7 +1070,7 @@ Public Class AppAccounts
                     End If
 
                     If e.IsSuccess Then
-                        If Not IsOpenClaw AndAlso Not IsHermes Then
+                        If Not PlatformDefinition.IsAiGateway Then
                             ' Iniezione di sicurezza/fallback di notification.js se non precedentemente caricato
                             Try
                                 If WebView?.CoreWebView2 IsNot Nothing Then
@@ -1125,19 +1083,9 @@ Public Class AppAccounts
                             If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return
 
                             Dim brightnessDark = settings.IsDarkThemeEffective
-
-                            If IsTelegram Then
-                                If brightnessDark Then
-                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramDarkModeJS)
-                                Else
-                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.TelegramLightModeJS)
-                                End If
-                            Else
-                                If brightnessDark Then
-                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.DarkModeJS)
-                                Else
-                                    Await WebView.CoreWebView2.ExecuteScriptAsync(ThemeJsScripts.LightModeJS)
-                                End If
+                            Dim themeScript = PlatformDefinition.GetThemeScript(brightnessDark)
+                            If Not String.IsNullOrEmpty(themeScript) Then
+                                Await WebView.CoreWebView2.ExecuteScriptAsync(themeScript)
                             End If
 
                             If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return
@@ -1173,9 +1121,9 @@ Public Class AppAccounts
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
 
-            If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
+            If TailscaleIntegration AndAlso PlatformDefinition.RequiresLocalProxy Then
                 Await EnsureLocalProxyAsync(forceUpdate:=True)
-            ElseIf IsOpenClaw OrElse IsHermes Then
+            ElseIf PlatformDefinition.RequiresLocalProxy Then
                 UpdateWebResourceAuthFilter()
             End If
 
@@ -1251,9 +1199,9 @@ Public Class AppAccounts
     ''' Assicura che la rotta tsnet sia registrata ed attiva per questo account, configurando il filtro WebView2 con porta vincolata (TODO #78).
     ''' </summary>
     Public Async Function EnsureLocalProxyAsync(Optional forceUpdate As Boolean = False) As Task(Of Integer)
-        If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
+        If TailscaleIntegration AndAlso PlatformDefinition.RequiresLocalProxy Then
             Try
-                Dim defaultPort = If(IsHermes, 18900, 18800)
+                Dim defaultPort = PlatformDefinition.DefaultPort
                 Dim preferred = If(LocalProxyPort > 0, LocalProxyPort, defaultPort)
                 Dim port = Await TsnetManager.Instance.EnsureRouteAsync(Id, ServerUrl, preferredPort:=preferred, forceUpdate:=forceUpdate)
                 If port > 0 Then
@@ -1318,7 +1266,7 @@ Public Class AppAccounts
 
         RemoveWebResourceAuthFilter()
 
-        If Not (IsOpenClaw OrElse IsHermes) Then Return
+        If Not PlatformDefinition.RequiresLocalProxy Then Return
 
         Dim scheme As String = Nothing
         Dim host As String = Nothing
@@ -1395,7 +1343,7 @@ Public Class AppAccounts
     Public Async Function ReloadAsync(Optional forceUpdateProxy As Boolean = True) As Task
         If WebView Is Nothing OrElse WebView.CoreWebView2 Is Nothing Then Return
 
-        If TailscaleIntegration AndAlso (IsOpenClaw OrElse IsHermes) Then
+        If TailscaleIntegration AndAlso PlatformDefinition.RequiresLocalProxy Then
             Await EnsureLocalProxyAsync(forceUpdate:=forceUpdateProxy)
         End If
 
@@ -1403,11 +1351,28 @@ Public Class AppAccounts
     End Function
 
     ''' <summary>
-    ''' Imposta una nuova piattaforma per l'account e ricarica la WebView2 con l'URL corrispondente.
+    ''' Imposta una nuova piattaforma per l'account (tipizzata tramite enum ChatPlatform) e ricarica la WebView2 con l'URL corrispondente (TODO #68).
     ''' </summary>
-    Public Sub SetPlatform(newPlatform As String)
-        If Not String.Equals(_platform, newPlatform, StringComparison.OrdinalIgnoreCase) Then
-            Platform = newPlatform
+    Public Sub SetPlatform(newPlatform As ChatPlatform)
+        If _platformType <> newPlatform Then
+            _platformType = newPlatform
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(Platform)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformType)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformDefinition)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsWhatsApp)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsTelegram)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsOpenClaw)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsHermes)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OpenClawSettingsVisibility)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(HermesSettingsVisibility)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AgentSettingsVisibility)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformIconData)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformColorBrush)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthTokenLabel)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ServerUrlTooltip)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AuthTokenTooltip)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(WebUrl)))
+
             UpdateWebResourceAuthFilter()
             If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
                 WebView.CoreWebView2.Navigate(WebUrl)
@@ -1416,32 +1381,17 @@ Public Class AppAccounts
     End Sub
 
     ''' <summary>
-    ''' Valida se l'origine URI specificata (e.Source) corrisponde alla piattaforma o host autorizzato per questo account (#62).
+    ''' Imposta una nuova piattaforma per l'account tramite chiave stringa e ricarica la WebView2 (TODO #68).
+    ''' </summary>
+    Public Sub SetPlatform(newPlatformStr As String)
+        SetPlatform(PlatformRegistry.FromKey(newPlatformStr))
+    End Sub
+
+    ''' <summary>
+    ''' Valida se l'origine URI specificata (e.Source) corrisponde alla piattaforma o host autorizzato per questo account (#62, #68).
     ''' </summary>
     Public Function IsAuthorizedOrigin(sourceUri As String) As Boolean
-        If String.IsNullOrWhiteSpace(sourceUri) Then Return False
-
-        Dim uri As Uri = Nothing
-        If Not Uri.TryCreate(sourceUri, UriKind.Absolute, uri) Then Return False
-
-        Dim host = uri.Host.ToLowerInvariant()
-
-        If IsTelegram Then
-            Return host = "web.telegram.org" OrElse host.EndsWith(".telegram.org")
-        ElseIf IsOpenClaw OrElse IsHermes Then
-            ' Per OpenClaw o Hermes, l'origine autorizzata è l'host del ServerUrl configurato oppure localhost / 127.0.0.1 se via tsnet
-            If host = "127.0.0.1" OrElse host = "localhost" Then Return True
-            If Not String.IsNullOrWhiteSpace(ServerUrl) Then
-                Dim baseUri As Uri = Nothing
-                If Uri.TryCreate(ServerUrl, UriKind.Absolute, baseUri) Then
-                    Return String.Equals(host, baseUri.Host, StringComparison.OrdinalIgnoreCase)
-                End If
-            End If
-            Return False
-        Else
-            ' WhatsApp (default)
-            Return host = "web.whatsapp.com" OrElse host.EndsWith(".whatsapp.com")
-        End If
+        Return PlatformDefinition.IsAuthorizedOrigin(sourceUri, ServerUrl)
     End Function
 
     ''' <summary>
@@ -1923,7 +1873,7 @@ Public Class AppAccounts
     ''' Notifica alla WebView2 l'aggiornamento della lingua di destinazione per le traduzioni messaggi.
     ''' </summary>
     Public Async Function UpdateWebviewLanguageAsync(langCode As String, langName As String, translateTooltipLabel As String, enableHover As Boolean) As Task
-        If IsOpenClaw OrElse IsHermes Then Return
+        If Not PlatformDefinition.SupportsTranslation Then Return
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
                 Dim jsonLangCode = JsonSerializer.Serialize(If(langCode, "en"))
@@ -1943,13 +1893,12 @@ Public Class AppAccounts
     ''' Applica lo script per la sincronizzazione del tema (Scuro o Chiaro) all'interno della WebView2.
     ''' </summary>
     Public Async Function ApplyThemeAsync(isDark As Boolean) As Task
-        If IsOpenClaw OrElse IsHermes Then Return
+        If Not PlatformDefinition.SupportsThemeScript Then Return
         If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing Then
             Try
-                If IsTelegram Then
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(If(isDark, ThemeJsScripts.TelegramDarkModeJS, ThemeJsScripts.TelegramLightModeJS))
-                Else
-                    Await WebView.CoreWebView2.ExecuteScriptAsync(If(isDark, ThemeJsScripts.DarkModeJS, ThemeJsScripts.LightModeJS))
+                Dim script = PlatformDefinition.GetThemeScript(isDark)
+                If Not String.IsNullOrEmpty(script) Then
+                    Await WebView.CoreWebView2.ExecuteScriptAsync(script)
                 End If
             Catch ex As Exception
                 Debug.WriteLine($"Failed to apply theme for account {Id}: {ex.Message}")

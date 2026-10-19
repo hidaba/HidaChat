@@ -954,7 +954,7 @@ Public Class MainWindow
 
         ' Inizializza o ripristina se necessario e porta in primo piano il controllo WebView2 per il nuovo account
         Await EnsureWebViewAsync(newAccount)
-        If newAccount.IsOpenClaw AndAlso newAccount.TailscaleIntegration AndAlso String.IsNullOrEmpty(newAccount.LocalProxyUrl) Then
+        If newAccount.PlatformDefinition.RequiresLocalProxy AndAlso newAccount.TailscaleIntegration AndAlso String.IsNullOrEmpty(newAccount.LocalProxyUrl) Then
             Await newAccount.ReloadAsync(True)
         End If
         Dim newAccNeedsRecovery As Boolean = False
@@ -990,8 +990,8 @@ Public Class MainWindow
 
             Await ApplyWpfThemeAsync()
 
-            ' Ricarica e sincronizza le schede OpenClaw ed Hermes con le nuove impostazioni di rete/Tailscale
-            For Each acc In _accountManager.Accounts.Where(Function(a) a.IsOpenClaw OrElse a.IsHermes)
+            ' Ricarica e sincronizza le schede con reverse proxy con le nuove impostazioni di rete/Tailscale
+            For Each acc In _accountManager.Accounts.Where(Function(a) a.PlatformDefinition.RequiresLocalProxy)
                 Await acc.ReloadAsync(True)
             Next
         Catch ex As Exception
@@ -1038,7 +1038,7 @@ Public Class MainWindow
     ''' </summary>
     Private Sub BtnBulkSender_Click(sender As Object, e As RoutedEventArgs)
         Dim activeAcc = _accountManager.CurrentAccount
-        If activeAcc IsNot Nothing AndAlso activeAcc.IsOpenClaw Then
+        If activeAcc IsNot Nothing AndAlso Not activeAcc.PlatformDefinition.SupportsBulkSender Then
             MessageBox.Show(
                 "L'inviatore massivo messaggi (Bulk Sender) è supportato esclusivamente per WhatsApp e Telegram.",
                 "Piattaforma Non Supportata",
@@ -1048,7 +1048,7 @@ Public Class MainWindow
             Return
         End If
         If activeAcc Is Nothing OrElse activeAcc.WebView Is Nothing OrElse activeAcc.WebView.CoreWebView2 Is Nothing Then
-            Dim platformName = If(activeAcc IsNot Nothing AndAlso activeAcc.IsTelegram, "Telegram", "WhatsApp")
+            Dim platformName = If(activeAcc IsNot Nothing, activeAcc.PlatformDefinition.DisplayName, "WhatsApp")
             MessageBox.Show(
                 $"Nessuna sessione di {platformName} Web attiva o pronta." & vbCrLf &
                 $"Assicurati che la scheda {platformName} sia caricata e connessa.",
@@ -1084,7 +1084,7 @@ Public Class MainWindow
         Dim activeAcc = _accountManager.CurrentAccount
         If activeAcc IsNot Nothing Then
             Try
-                If activeAcc.IsOpenClaw Then
+                If activeAcc.PlatformDefinition.RequiresLocalProxy Then
                     Await activeAcc.ReloadAsync(True)
                 ElseIf activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing AndAlso Not activeAcc.IsCrashed Then
                     activeAcc.WebView.CoreWebView2.Reload()
@@ -1291,16 +1291,10 @@ Public Class MainWindow
             If String.IsNullOrWhiteSpace(status) Then
                 status = _settingsController.Localizations.Get("contact_online")
             End If
-            OnlineStatusText.Text = status
-            If current.IsTelegram Then
-                OnlineIndicatorBorder.Background = BrushCache.GetBrush("#152d3d")
-                OnlineDot.Fill = BrushCache.GetBrush("#24A1DE")
-                OnlineStatusText.Foreground = BrushCache.GetBrush("#24A1DE")
-            Else
-                OnlineIndicatorBorder.Background = BrushCache.GetBrush("#1b3d2f")
-                OnlineDot.Fill = BrushCache.GetBrush("#25d366")
-                OnlineStatusText.Foreground = BrushCache.GetBrush("#25d366")
-            End If
+            Dim def = current.PlatformDefinition
+            OnlineIndicatorBorder.Background = BrushCache.GetBrush(If(def.Platform = ChatPlatform.Telegram, "#152d3d", "#1b3d2f"))
+            OnlineDot.Fill = def.ThemeBrush
+            OnlineStatusText.Foreground = def.ThemeBrush
             OnlineIndicatorBorder.Visibility = Visibility.Visible
         Else
             OnlineIndicatorBorder.Visibility = Visibility.Collapsed

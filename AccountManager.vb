@@ -192,25 +192,15 @@ Public Class AccountManager
                         End If
                     Next
 
-                    Dim baseProxyPort = 18800
                     For Each acc In accountsData
-                        If acc.IsOpenClaw Then
+                        If acc.PlatformDefinition.RequiresLocalProxy Then
                             If acc.LocalProxyPort <= 0 Then
-                                While usedPorts.Contains(baseProxyPort)
-                                    baseProxyPort += 1
+                                Dim targetPort = acc.PlatformDefinition.DefaultPort
+                                While usedPorts.Contains(targetPort)
+                                    targetPort += 1
                                 End While
-                                acc.LocalProxyPort = baseProxyPort
-                                usedPorts.Add(baseProxyPort)
-                                needsSave = True
-                            End If
-                        ElseIf acc.IsHermes Then
-                            If acc.LocalProxyPort <= 0 Then
-                                Dim hermesPort = 18900
-                                While usedPorts.Contains(hermesPort)
-                                    hermesPort += 1
-                                End While
-                                acc.LocalProxyPort = hermesPort
-                                usedPorts.Add(hermesPort)
+                                acc.LocalProxyPort = targetPort
+                                usedPorts.Add(targetPort)
                                 needsSave = True
                             End If
                         End If
@@ -573,7 +563,7 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Aggiunge un nuovo account specificando facoltativamente il nome e la piattaforma (WhatsApp o Telegram).
+    ''' Aggiunge un nuovo account specificando facoltativamente il nome e la piattaforma (WhatsApp, Telegram, OpenClaw o Hermes).
     ''' </summary>
     Public Async Function AddAccountAsync(Optional name As String = Nothing, Optional platform As String = "WhatsApp") As Task(Of Boolean)
         If Not CanAddAccount Then
@@ -582,11 +572,12 @@ Public Class AccountManager
         End If
 
         Dim accountId = AppAccounts.GenerateId()
-        Dim cleanPlatform = If(String.IsNullOrWhiteSpace(platform), "WhatsApp", platform)
+        Dim def = PlatformRegistry.Get(platform)
+        Dim cleanPlatform = def.Id
+        Dim platformLabel = def.DisplayName
         
         Dim accountName = name
         If String.IsNullOrWhiteSpace(accountName) Then
-            Dim platformLabel = If(String.Equals(cleanPlatform, "Hermes", StringComparison.OrdinalIgnoreCase), "Hermes", If(String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase), "OpenClaw", If(String.Equals(cleanPlatform, "Telegram", StringComparison.OrdinalIgnoreCase), "Telegram", "WhatsApp")))
             Dim existingNames = _accounts.Select(Function(a) a.Name).ToHashSet()
             For i As Integer = 1 To MaxAccounts + 1
                 Dim candidate = $"{platformLabel} {i}"
@@ -601,17 +592,10 @@ Public Class AccountManager
         End If
         
         Dim newAccount As New AppAccounts(accountId, accountName, False, cleanPlatform)
-        If String.Equals(cleanPlatform, "Hermes", StringComparison.OrdinalIgnoreCase) Then
-            newAccount.ServerUrl = "http://127.0.0.1:9119"
+        If def.RequiresLocalProxy Then
+            newAccount.ServerUrl = def.DefaultUrl
             Dim usedPorts = _accounts.Where(Function(a) a.LocalProxyPort > 0).Select(Function(a) a.LocalProxyPort).ToHashSet()
-            Dim portCandidate = 18900
-            While usedPorts.Contains(portCandidate)
-                portCandidate += 1
-            End While
-            newAccount.LocalProxyPort = portCandidate
-        ElseIf String.Equals(cleanPlatform, "OpenClaw", StringComparison.OrdinalIgnoreCase) Then
-            Dim usedPorts = _accounts.Where(Function(a) a.LocalProxyPort > 0).Select(Function(a) a.LocalProxyPort).ToHashSet()
-            Dim portCandidate = 18800
+            Dim portCandidate = def.DefaultPort
             While usedPorts.Contains(portCandidate)
                 portCandidate += 1
             End While
@@ -627,6 +611,13 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(HasExcessAccounts))
         NotifyPropertyChanged(NameOf(ExcessAccountsCount))
         Return True
+    End Function
+
+    ''' <summary>
+    ''' Aggiunge un nuovo account specificando la piattaforma tipizzata tramite enum ChatPlatform (TODO #68).
+    ''' </summary>
+    Public Async Function AddAccountAsync(platformType As ChatPlatform, Optional name As String = Nothing) As Task(Of Boolean)
+        Return Await AddAccountAsync(name:=name, platform:=PlatformRegistry.Get(platformType).Id)
     End Function
 
     ''' <summary>

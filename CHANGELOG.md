@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.8-beta] - 2026-10-19
+
+### Pre-release / Beta — Astrazione Tipizzata Piattaforme ChatPlatform e Modello PlatformDefinition
+- **Astrazione Tipizzata Piattaforme e Modello Extensible (`PlatformDefinition.vb`, `AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb`, `MessagePopup.xaml.vb`, `Tests/SessionTests.vb` — TODO #68)**:
+  - **Enumerazione Tipizzata `ChatPlatform`**: Creata l'enumerazione formale `ChatPlatform` (`WhatsApp`, `Telegram`, `OpenClaw`, `Hermes`) per superare la precedente gestione basata esclusivamente su stringhe arbitrarie (`"WhatsApp"`, `"Telegram"`, `"OpenClaw"`, `"Hermes"`).
+  - **Gerarchia di Classi `PlatformDefinition`**: Introdotta la classe base astratta `PlatformDefinition` e le implementazioni concrete (`WhatsAppPlatformDefinition`, `TelegramPlatformDefinition`, `OpenClawPlatformDefinition`, `HermesPlatformDefinition`) che incapsulano e centralizzano:
+    - Metadati e porte di rete: ID serializzato, DisplayName, URL predefiniti (`DefaultUrl`) e porte TCP per proxy locale tsnet (`DefaultPort`);
+    - Elementi visivi e stile: colori tema esadecimali (`ThemeColorHex`), pennelli congelati WPF (`ThemeBrush`) e tracciati vettoriali SVG per le icone (`IconSvgPath`);
+    - Flag e capacità: `IsAiGateway`, `RequiresLocalProxy`, `SupportsBulkSender`, `SupportsThemeScript`, `SupportsTranslation`;
+    - Politiche di sicurezza e navigazione: convalida delle origini autorizzate HTTPS (`IsAuthorizedOrigin`), allowlist per finestre interne (`IsAllowedNewWindowHost`) e risoluzione trasparente dei deep link Telegram (`ResolveDeepLink`);
+    - Script iniettati: script di bootstrap DocumentCreated (`GetInitScript`) e sincronizzazione tema scuro/chiaro (`GetThemeScript`).
+  - **Registro Centrale Thread-Safe `PlatformRegistry`**: Implementato il modulo `PlatformRegistry` per la risoluzione deterministica e bidirezionale da enum e da stringa (con supporto a chiavi case-insensitive, DisplayName e fallback sicuro su WhatsApp), predisponendo l'architettura all'aggiunta rapida di ulteriori piattaforme future.
+  - **Refactoring Architetturale e Compatibilità 100%**:
+    - `AppAccounts.vb`: Rimossi flag e serie di `If/ElseIf`, delegando direttamente a `PlatformDefinition`. Mantenuta la proprietà `Platform As String` backed da `PlatformDefinition.Id` per garantire la retrocompatibilità totale con i file `settings.json` esistenti e il binding XAML;
+    - `AccountManager.vb`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb` e `MessagePopup.xaml.vb`: Rimossi controlli cablati su stringhe in favore dei metodi e proprietà tipizzate del registro e delle definizioni;
+    - `Tests/SessionTests.vb`: Integrati test di regressione unitari dedicati (per un totale di 123 asserzioni automatiche con 0 errori) a copertura di enum, registry, risoluzione stringhe e fallback, porte proxy, deep-link e autorizzazione origini.
+
 ## [1.2.7-beta] - 2026-10-18
 
 ### Pre-release / Beta — Restrizione Filtri Porta e Validazione Rigorosa Host e Schema per Credenziali Localhost

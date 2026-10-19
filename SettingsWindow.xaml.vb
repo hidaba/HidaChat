@@ -275,11 +275,11 @@ Public Class SettingsWindow
         Dim txt = CType(sender, TextBox)
         Dim acc = CType(txt.DataContext, AppAccounts)
         If acc IsNot Nothing Then
-            Dim defaultUrl = If(acc.IsHermes, "http://127.0.0.1:9119", "http://127.0.0.1:18789")
+            Dim defaultUrl = acc.PlatformDefinition.DefaultUrl
             Dim newUrl = If(String.IsNullOrWhiteSpace(txt.Text), defaultUrl, txt.Text.Trim())
             If acc.ServerUrl <> newUrl Then
                 acc.ServerUrl = newUrl
-                If acc.TailscaleIntegration AndAlso (acc.IsOpenClaw OrElse acc.IsHermes) Then
+                If acc.TailscaleIntegration AndAlso acc.PlatformDefinition.RequiresLocalProxy Then
                     Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
                 End If
                 Await _accountManager.SaveAccountsAsync()
@@ -310,7 +310,7 @@ Public Class SettingsWindow
         If acc IsNot Nothing Then
             acc.TailscaleIntegration = chk.IsChecked.GetValueOrDefault()
             Await _accountManager.SaveAccountsAsync()
-            If acc.TailscaleIntegration AndAlso (acc.IsOpenClaw OrElse acc.IsHermes) Then
+            If acc.TailscaleIntegration AndAlso acc.PlatformDefinition.RequiresLocalProxy Then
                 Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
                 acc.WebView?.CoreWebView2?.Navigate(acc.WebUrl)
             ElseIf Not acc.TailscaleIntegration Then
@@ -359,7 +359,7 @@ Public Class SettingsWindow
                     If Not String.IsNullOrEmpty(localToken) Then
                         client.DefaultRequestHeaders.Add("X-HidaChat-Local-Token", localToken)
                     End If
-                    If acc.IsHermes AndAlso Not String.IsNullOrWhiteSpace(acc.AuthToken) Then
+                    If acc.PlatformDefinition.RequiresLocalProxy AndAlso Not String.IsNullOrWhiteSpace(acc.AuthToken) Then
                         client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {acc.AuthToken}")
                     End If
                     Using response = Await client.GetAsync(targetUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
@@ -490,7 +490,7 @@ Public Class SettingsWindow
 
         Dim targetAcc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
         If targetAcc IsNot Nothing AndAlso Not String.Equals(targetAcc.Platform, newPlatform, StringComparison.OrdinalIgnoreCase) Then
-            targetAcc.SetPlatform(newPlatform)
+            targetAcc.SetPlatform(PlatformRegistry.FromKey(newPlatform))
             Await _accountManager.SaveAccountsAsync()
         End If
     End Sub
@@ -519,28 +519,28 @@ Public Class SettingsWindow
             .Header = locStrings.Get("add_whatsapp_account")
         }
         AddHandler itemWhatsApp.Click, Async Sub()
-            Await AddAccountSettingsWithPlatformAsync("WhatsApp")
+            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.WhatsApp)
         End Sub
 
         Dim itemTelegram As New MenuItem With {
             .Header = locStrings.Get("add_telegram_account")
         }
         AddHandler itemTelegram.Click, Async Sub()
-            Await AddAccountSettingsWithPlatformAsync("Telegram")
+            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Telegram)
         End Sub
 
         Dim itemOpenClaw As New MenuItem With {
             .Header = locStrings.Get("add_openclaw_account")
         }
         AddHandler itemOpenClaw.Click, Async Sub()
-            Await AddAccountSettingsWithPlatformAsync("OpenClaw")
+            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.OpenClaw)
         End Sub
 
         Dim itemHermes As New MenuItem With {
             .Header = locStrings.Get("add_hermes_account")
         }
         AddHandler itemHermes.Click, Async Sub()
-            Await AddAccountSettingsWithPlatformAsync("Hermes")
+            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Hermes)
         End Sub
 
         menu.Items.Add(itemWhatsApp)
@@ -563,8 +563,8 @@ Public Class SettingsWindow
         End If
     End Sub
 
-    Private Async Function AddAccountSettingsWithPlatformAsync(platform As String) As Task
-        Dim success = Await _accountManager.AddAccountAsync(platform:=platform)
+    Private Async Function AddAccountSettingsWithPlatformAsync(platform As ChatPlatform) As Task
+        Dim success = Await _accountManager.AddAccountAsync(platformType:=platform)
         If success Then
             _cachedAccountBorders = Nothing
             _cachedAccountTextBoxes = Nothing
@@ -572,6 +572,10 @@ Public Class SettingsWindow
             AccountsList.ItemsSource = _accountManager.Accounts
         End If
         UpdateAccountsUIState()
+    End Function
+
+    Private Async Function AddAccountSettingsWithPlatformAsync(platformStr As String) As Task
+        Await AddAccountSettingsWithPlatformAsync(PlatformRegistry.FromKey(platformStr))
     End Function
 
     ''' <summary>
