@@ -1,4 +1,5 @@
 Imports System.ComponentModel
+Imports System.Threading
 Imports System.Windows.Media
 Imports System.Windows.Threading
 
@@ -48,6 +49,28 @@ Public Class SettingsWindow
             ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
             ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
             ChkShowMessagePopup.IsChecked = _settingsController.ShowMessagePopup
+            ChkTranslationPrivacyConsent.IsChecked = _settingsController.TranslationPrivacyConsent
+
+            ' 3b. Imposta provider di traduzione e campi di configurazione (TODO #69)
+            Dim targetProvider = If(String.IsNullOrWhiteSpace(_settingsController.TranslationProvider), "google", _settingsController.TranslationProvider.ToLowerInvariant())
+            For Each item As ComboBoxItem In ComboTranslationProvider.Items
+                If item.Tag IsNot Nothing AndAlso item.Tag.ToString().ToLowerInvariant() = targetProvider Then
+                    ComboTranslationProvider.SelectedItem = item
+                    Exit For
+                End If
+            Next
+            If ComboTranslationProvider.SelectedItem Is Nothing AndAlso ComboTranslationProvider.Items.Count > 0 Then
+                ComboTranslationProvider.SelectedIndex = 0
+            End If
+
+            TxtLibreTranslateUrl.Text = _settingsController.TranslationLibreTranslateUrl
+            TxtLibreTranslateApiKey.Text = _settingsController.TranslationLibreTranslateApiKey
+            TxtOllamaUrl.Text = _settingsController.TranslationOllamaUrl
+            TxtOllamaModel.Text = _settingsController.TranslationOllamaModel
+            TxtOpenAiUrl.Text = _settingsController.TranslationOpenAiUrl
+            TxtOpenAiModel.Text = _settingsController.TranslationOpenAiModel
+            TxtOpenAiApiKey.Text = _settingsController.TranslationOpenAiApiKey
+            UpdateTranslationPanelsVisibility()
             
             ' 4. Imposta lo stato della Checkbox Canale Beta
             ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
@@ -246,6 +269,10 @@ Public Class SettingsWindow
             Case "ChkShowMessagePopup"
                 _settingsController.ShowMessagePopup = chk.IsChecked.Value
                 Await _settingsController.SaveSettingAsync("showMessagePopup", chk.IsChecked.Value)
+            Case "ChkTranslationPrivacyConsent"
+                _settingsController.TranslationPrivacyConsent = chk.IsChecked.Value
+                Await _settingsController.SaveSettingAsync("translationPrivacyConsent", chk.IsChecked.Value)
+                TranslationCacheService.Instance.PrivacyConsentAccepted = chk.IsChecked.Value
         End Select
 
         ' Notifica le WebView2 sui cambiamenti del pulsante hover
@@ -261,6 +288,118 @@ Public Class SettingsWindow
                 Next
             End If
         End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce il cambio del fornitore di traduzione selezionato (TODO #69).
+    ''' </summary>
+    Private Async Sub ComboTranslationProvider_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
+        If _isInitializing Then Return
+        Dim item = CType(ComboTranslationProvider.SelectedItem, ComboBoxItem)
+        If item IsNot Nothing AndAlso item.Tag IsNot Nothing Then
+            Dim providerId = item.Tag.ToString().ToLowerInvariant()
+            _settingsController.TranslationProvider = providerId
+            Await _settingsController.SaveSettingAsync("translationProvider", providerId)
+            UpdateTranslationPanelsVisibility()
+            If TxtTranslationTestStatus IsNot Nothing Then
+                TxtTranslationTestStatus.Text = ""
+            End If
+        End If
+    End Sub
+
+    Private Sub UpdateTranslationPanelsVisibility()
+        Dim providerId = If(_settingsController?.TranslationProvider, "google").ToLowerInvariant()
+        If PanelLibreTranslate IsNot Nothing Then
+            PanelLibreTranslate.Visibility = If(providerId = "libretranslate", Visibility.Visible, Visibility.Collapsed)
+        End If
+        If PanelOllama IsNot Nothing Then
+            PanelOllama.Visibility = If(providerId = "ollama", Visibility.Visible, Visibility.Collapsed)
+        End If
+        If PanelOpenAi IsNot Nothing Then
+            PanelOpenAi.Visibility = If(providerId = "openai", Visibility.Visible, Visibility.Collapsed)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Salva le modifiche ai parametri di configurazione dei provider self-hosted/locali (TODO #69).
+    ''' </summary>
+    Private Async Sub TranslationConfig_Changed(sender As Object, e As RoutedEventArgs)
+        If _isInitializing Then Return
+        If TxtLibreTranslateUrl IsNot Nothing Then
+            _settingsController.TranslationLibreTranslateUrl = TxtLibreTranslateUrl.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationLibreTranslateUrl", _settingsController.TranslationLibreTranslateUrl)
+        End If
+        If TxtLibreTranslateApiKey IsNot Nothing Then
+            _settingsController.TranslationLibreTranslateApiKey = TxtLibreTranslateApiKey.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationLibreTranslateApiKey", _settingsController.TranslationLibreTranslateApiKey)
+        End If
+        If TxtOllamaUrl IsNot Nothing Then
+            _settingsController.TranslationOllamaUrl = TxtOllamaUrl.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationOllamaUrl", _settingsController.TranslationOllamaUrl)
+        End If
+        If TxtOllamaModel IsNot Nothing Then
+            _settingsController.TranslationOllamaModel = TxtOllamaModel.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationOllamaModel", _settingsController.TranslationOllamaModel)
+        End If
+        If TxtOpenAiUrl IsNot Nothing Then
+            _settingsController.TranslationOpenAiUrl = TxtOpenAiUrl.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationOpenAiUrl", _settingsController.TranslationOpenAiUrl)
+        End If
+        If TxtOpenAiModel IsNot Nothing Then
+            _settingsController.TranslationOpenAiModel = TxtOpenAiModel.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationOpenAiModel", _settingsController.TranslationOpenAiModel)
+        End If
+        If TxtOpenAiApiKey IsNot Nothing Then
+            _settingsController.TranslationOpenAiApiKey = TxtOpenAiApiKey.Text.Trim()
+            Await _settingsController.SaveSettingAsync("translationOpenAiApiKey", _settingsController.TranslationOpenAiApiKey)
+        End If
+        _settingsController.ApplyTranslationConfig()
+    End Sub
+
+    ''' <summary>
+    ''' Esegue il test di connettività verso il fornitore di traduzione attualmente configurato (TODO #69).
+    ''' </summary>
+    Private Async Sub BtnTestTranslationProvider_Click(sender As Object, e As RoutedEventArgs)
+        If BtnTestTranslationProvider Is Nothing OrElse TxtTranslationTestStatus Is Nothing Then Return
+        
+        Dim loc = _settingsController.Localizations
+        BtnTestTranslationProvider.IsEnabled = False
+        TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&H86, &H96, &HA0))
+        TxtTranslationTestStatus.Text = loc.Get("connection_testing")
+
+        Try
+            ' Assicura che i campi attuali siano applicati prima del test
+            TranslationConfig_Changed(Nothing, Nothing)
+            Dim provider = TranslationCacheService.Instance.ActiveProvider
+            If provider Is Nothing Then
+                provider = GoogleTranslationProvider.Instance
+            End If
+
+            Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(8))
+                Dim testRes = Await provider.TestConnectionAsync(cts.Token)
+                If testRes.Success Then
+                    TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&H0, &HA8, &H84))
+                    Dim args As New Dictionary(Of String, String) From {
+                        {"latency", testRes.LatencyMs.ToString()}
+                    }
+                    TxtTranslationTestStatus.Text = loc.Get("translation_test_success", args)
+                Else
+                    TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&HEA, &H0, &H38))
+                    Dim args As New Dictionary(Of String, String) From {
+                        {"error", If(Not String.IsNullOrEmpty(testRes.Message), testRes.Message, "Unreachable")}
+                    }
+                    TxtTranslationTestStatus.Text = loc.Get("translation_test_failure", args)
+                End If
+            End Using
+        Catch ex As Exception
+            TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&HEA, &H0, &H38))
+            Dim args As New Dictionary(Of String, String) From {
+                {"error", ex.Message}
+            }
+            TxtTranslationTestStatus.Text = loc.Get("translation_test_failure", args)
+        Finally
+            BtnTestTranslationProvider.IsEnabled = True
+        End Try
     End Sub
 
     Private Async Sub TxtAccountName_LostFocus(sender As Object, e As RoutedEventArgs)
@@ -801,6 +940,36 @@ Public Class SettingsWindow
         ChkTranslateMessageButton.Content = loc.Get("translate_message_button")
         ChkFullPageTranslation.Content = loc.Get("full_page_translation")
         ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")
+        If ChkTranslationPrivacyConsent IsNot Nothing Then
+            ChkTranslationPrivacyConsent.Content = loc.Get("translation_privacy_consent_checkbox")
+        End If
+        If LabelTranslationProvider IsNot Nothing Then
+            LabelTranslationProvider.Text = loc.Get("translation_provider")
+        End If
+        If LabelLibreTranslateUrl IsNot Nothing Then
+            LabelLibreTranslateUrl.Text = loc.Get("translation_url")
+        End If
+        If LabelLibreTranslateApiKey IsNot Nothing Then
+            LabelLibreTranslateApiKey.Text = loc.Get("translation_api_key")
+        End If
+        If LabelOllamaUrl IsNot Nothing Then
+            LabelOllamaUrl.Text = loc.Get("translation_url")
+        End If
+        If LabelOllamaModel IsNot Nothing Then
+            LabelOllamaModel.Text = loc.Get("translation_model")
+        End If
+        If LabelOpenAiUrl IsNot Nothing Then
+            LabelOpenAiUrl.Text = loc.Get("translation_url")
+        End If
+        If LabelOpenAiModel IsNot Nothing Then
+            LabelOpenAiModel.Text = loc.Get("translation_model")
+        End If
+        If LabelOpenAiApiKey IsNot Nothing Then
+            LabelOpenAiApiKey.Text = loc.Get("translation_api_key")
+        End If
+        If BtnTestTranslationProvider IsNot Nothing Then
+            BtnTestTranslationProvider.Content = loc.Get("translation_test_btn")
+        End If
         SectionNotifications.Text = loc.Get("notifications")
         ChkShowMessagePopup.Content = loc.Get("show_message_popup")
         LabelDndMode.Text = loc.Get("dnd_mode")

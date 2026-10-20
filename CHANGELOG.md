@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.9-beta] - 2026-10-20
+
+### Pre-release / Beta — Supporto Multi-Provider Traduzioni (LibreTranslate, Ollama, OpenAI) e Privacy Opt-In Obbligatorio
+- **Privacy Opt-In e Architettura Multi-Provider di Traduzione (`TranslationProvider.vb`, `Localization.vb`, `SettingsController.vb`, `TranslationPrivacyConsentDialog.xaml`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `AppAccounts.vb`, `Scripts/translation.js`, `Tests/SessionTests.vb` — TODO #69)**:
+  - **Architettura Tipizzata e Interfaccia `ITranslationProvider`**: Creata l'interfaccia `ITranslationProvider` con supporto unificato a traduzioni singole (`TranslateSingleAsync`), traduzioni batch (`TranslateBatchAsync`) e test di connettività (`TestConnectionAsync`), integrata tramite il registro dinamico `TranslationProviderRegistry`:
+    - `GoogleTranslationProvider`: Provider cloud predefinito con gestione robusta dei chunk e fallback automatico a elementi singoli in caso di collisioni o disallineamenti di split;
+    - `LibreTranslateProvider`: Supporto a backend self-hosted / on-premise LibreTranslate (default `http://localhost:5000`) con traduzione singola, array nativi batch e autenticazione opzionale via API key;
+    - `OllamaTranslationProvider`: Supporto per LLM locali in esecuzione su Ollama (default `http://localhost:11434`, modello configurabile come `llama3.2`), prompt ottimizzati e sanitizzazione automatica delle risposte (rimozione apici e blocchi markdown);
+    - `OpenAiTranslationProvider`: Integrazione trasparente con LM Studio, LocalAI, vLLM, OpenAI API e altri endpoint compatibili OpenAI (default `http://localhost:1234/v1`, modello e Bearer token opzionali).
+  - **Privacy Opt-In Obbligatorio e Finestra Modale Informativa (`TranslationPrivacyConsentDialog`)**:
+    - La funzione di traduzione è resa rigorosamente opt-in (`TranslationPrivacyConsent = False` predefinito); nessun testo lascia il computer senza preventiva autorizzazione;
+    - Al primo utilizzo della traduzione in chat viene presentata una finestra modale in tema scuro che chiarisce la differenza tra server cloud esterni (Google) e provider self-hosted locali (LibreTranslate, Ollama, LM Studio), con possibilità di autorizzare, annullare o aprire subito le Impostazioni;
+    - In caso di rifiuto, la traduzione viene arrestata in modo discreto senza trasmettere alcun pacchetto in rete.
+  - **Gestione Errori Resiliente e Feedback Discreto in Chat**:
+    - In caso di backend irraggiungibile o offline (es. container o servizio locale spento), l'applicazione non crasha e non inquina la cache con traduzioni vuote o messaggi di errore;
+    - La bolla di traduzione visualizza un messaggio d'errore discreto in corsivo con tinta dedicata (`#e57373`), informando l'utente sullo stato del provider;
+    - Nelle Impostazioni è disponibile il pulsante interattivo "Testa Connessione" con diagnostica in tempo reale e latenza di risposta.
+  - **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+    - Sincronizzate 15 nuove chiavi per informativa privacy, provider, parametri di rete e stato di connessione in tutti e 5 i dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+  - **Test di Regressione Automatizzati (`Tests/SessionTests.vb`)**:
+    - Aggiunti 33 nuovi test di validazione unitaria per la risoluzione dei provider, le impostazioni predefinite, l'Opt-In e la gestione delle eccezioni di rete (156 asserzioni automatiche, 0 fallimenti).
+
 ## [1.2.8-beta] - 2026-10-19
 
 ### Pre-release / Beta — Astrazione Tipizzata Piattaforme ChatPlatform e Modello PlatformDefinition

@@ -506,10 +506,31 @@
   - Aggiunti test di regressione unitari dedicati in `Tests/SessionTests.vb` per la risoluzione per enum e stringa, fallback, porte proxy, deep-link e autorizzazione origini.
 - **Impatto**: Alto | **Sforzo**: Medio
 
-## 69. Traduzione: privacy e backend self-hosted
-- **File**: `Localization.vb` (`TranslateSingleAsync`, `TranslateBatchAsync`, `TranslateTextHttpAsync`)
-- **Problema**: Il testo dei messaggi non ancora presente nella cache locale viene trasmesso direttamente a Google Translate (`translate.googleapis.com`): il contenuto testuale delle chat lascia il PC dell'utente senza una preventiva richiesta di autorizzazione, in contrasto con le esigenze di privacy e riservatezza.
-- **Fix**: Rendere la funzione di traduzione opt-in presentando un avviso esplicativo al primo utilizzo; definire un'interfaccia `ITranslationProvider` per supportare sia Google Translate (provider predefinito attuale) sia provider self-hosted o locali (LibreTranslate, Ollama o endpoint compatibili OpenAI con URL configurabile); restituire un messaggio d'errore chiaro e discreto qualora il provider configurato risulti irraggiungibile.
+## ~~69. Traduzione: privacy e backend self-hosted~~ ✅
+- **File**: `TranslationProvider.vb`, `Localization.vb` (`TranslateSingleDetailedAsync`, `TranslateBatchDetailedAsync`, `TranslationCacheService`), `SettingsController.vb`, `TranslationPrivacyConsentDialog.xaml`, `TranslationPrivacyConsentDialog.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `AppAccounts.vb`, `Scripts/translation.js`, `Tests/SessionTests.vb`
+- **Problema**: Il testo dei messaggi non ancora presente nella cache locale veniva trasmesso direttamente a Google Translate (`translate.googleapis.com`): il contenuto testuale delle chat lasciava il computer dell'utente senza una preventiva richiesta di autorizzazione esplicita, in contrasto con le esigenze di privacy e riservatezza dei dati aziendali o personali.
+- **Fix Implementato**:
+  - **Astrazione e Architettura Provider Unificata (`ITranslationProvider`, `TranslationProvider.vb`)**:
+    - Definita l'interfaccia tipizzata `ITranslationProvider` con metodi asincroni `TranslateSingleAsync`, `TranslateBatchAsync` e `TestConnectionAsync`;
+    - Implementato `GoogleTranslationProvider`: client HTTPS pubblico ottimizzato con chunking protetto contro split errati;
+    - Implementato `LibreTranslateProvider`: supporto completo ad istanze locali o server privati LibreTranslate con supporto sia a traduzioni singole sia ad array batch nativi e autenticazione opzionale via API key;
+    - Implementato `OllamaTranslationProvider`: integrazione diretta con LLM locali (es. `llama3.2`, `qwen2.5`) tramite API `/api/generate`, prompt ottimizzati e sanitizzazione automatica dell'output;
+    - Implementato `OpenAiTranslationProvider`: compatibilità con tutti gli endpoint chat completions compatibili OpenAI (LM Studio, LocalAI, vLLM, OpenAI, Groq) con normalizzazione automatica degli URL e header Bearer token opzionale;
+    - Creato il registro centrale `TranslationProviderRegistry` per la risoluzione e factory dei provider in base alla configurazione.
+  - **Controllo Privacy Opt-In Obbligatorio al Primo Utilizzo (`TranslationPrivacyConsentDialog.xaml`)**:
+    - La funzione di traduzione è ora rigorosamente opt-in (`TranslationPrivacyConsent = False` per impostazione predefinita);
+    - Al primo tentativo di traduzione (singola o batch), viene presentata una finestra modale in tema scuro che informa con trasparenza l'utente sulla trasmissione del testo al provider configurato, spiegando la differenza tra server cloud esterni e provider self-hosted locali/on-premise;
+    - In assenza di consenso esplicito, nessun dato lascia il computer e l'interfaccia restituisce un avviso discreto;
+    - Lo stato del consenso può essere accordato o revocato in qualsiasi momento dalle Impostazioni.
+  - **Gestione Errori Chiara e Discreta per Provider Irraggiungibile**:
+    - In caso di errore di connessione, timeout o server offline (es. container LibreTranslate o Ollama non avviato), il sistema non va in crash e non inquina la cache con traduzioni errate;
+    - Nella bolla di traduzione (`translation.js`) viene visualizzato in modo discreto il motivo del mancato recapito (es. *"Translation failed: Provider unreachable"* o *"Translation cancelled: privacy consent required"* in corsivo colorato tenue).
+  - **Pannello di Configurazione e Test Connessione in Impostazioni (`SettingsWindow.xaml`)**:
+    - Aggiunto il selettore del provider, i campi dinamici di configurazione (URL endpoint, modello, chiave API) e il pulsante interattivo "Testa Connessione" con visualizzazione in tempo reale di stato e latenza di rete in millisecondi.
+  - **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+    - Sincronizzate 15 nuove chiavi di localizzazione in tutti e 5 i dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+  - **Suite di Test Unitari Automatizzata (`Tests/SessionTests.vb`)**:
+    - Aggiunti 33 nuovi test di regressione (per un totale di 156 asserzioni automatiche con 0 errori) per validare risoluzione provider, flag self-hosted, isolamento Opt-in e gestione resiliente dei guasti di rete.
 - **Impatto**: Medio | **Sforzo**: Medio
 
 ## ~~70. Uso portabile: lock multi-PC e coerenza del README~~ ✅
@@ -851,5 +872,17 @@
 - **Fix da implementare**: Rimuovere la riga di dichiarazione orfana `Dim subDirs = ...` dal codice di `UpdateChecker.vb`.
 - **Test di accettazione**: Compilazione pulita senza warning relativi a variabili non utilizzate nel file.
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Minimo
+
+## 101. [P3] Finestra About: icona sbiadita e descrizione troncata senza a capo
+- **File**: `AboutWindow.xaml`
+- **Problema / Esigenza**:
+  1. L'icona dell'applicazione nell'header della finestra About (`<Image Source="images/icon.ico" ... />`) risulta sbiadita o a bassa fedeltà/risoluzione a causa del caricamento diretto del file `.ico` senza opzioni di rendering avanzate (o mancato impiego dell'asset PNG nitido `images/icon.png` e proprietà `RenderOptions.BitmapScalingMode="HighQuality"`).
+  2. Il testo descrittivo dell'applicazione (`TxtDescription`, *"Client desktop multi-account portabile e leggero..."*) viene tagliato orizzontalmente e non va a capo: trovandosi all'interno di uno `StackPanel` orizzontale privo di vincoli di larghezza, la proprietà `TextWrapping="Wrap"` non limita la dimensione e il testo fuoriesce dal bordo visibile della finestra.
+- **Fix da implementare**:
+  - Utilizzare la sorgente immagine ad alta definizione (es. `images/icon.png`) oppure impostare `RenderOptions.BitmapScalingMode="HighQuality"` e `UseLayoutRounding="True"` sull'icona per eliminare la resa sbiadita/sfocata.
+  - Sostituire lo `StackPanel` orizzontale contenitore con un layout che vincoli la larghezza (es. `Grid` con colonna `Auto` per l'icona e colonna `*` per i testi, oppure `DockPanel` / `MaxWidth`), consentendo a `TxtDescription` di andare a capo correttamente (`TextWrapping="Wrap"`) all'interno dell'area visibile della finestra.
+- **Test di accettazione**: Aprire la finestra "Informazioni su HidaChat": verificare che l'icona appaia nitida e con colori corretti e che il testo descrittivo vada a capo automaticamente senza essere troncato ai margini.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso-Medio | **Sforzo**: Basso
+
 
 

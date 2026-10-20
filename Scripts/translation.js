@@ -392,7 +392,7 @@
     }
   };
 
-  window.onTranslationReceived = function(transId, translatedText, isSuccess) {
+  window.onTranslationReceived = function(transId, translatedText, isSuccess, errorMsg) {
     const bubble = document.querySelector('[data-translation-id="' + transId + '"]');
     if (bubble) {
       const bodyText = bubble.querySelector('.translation-body-text');
@@ -423,7 +423,9 @@
             bodyText.innerText = translatedText;
           }
         } else {
-          bodyText.innerText = 'Translation failed';
+          bodyText.innerText = errorMsg || translatedText || 'Translation failed';
+          bodyText.style.color = '#e57373';
+          bodyText.style.fontStyle = 'italic';
         }
       }
     }

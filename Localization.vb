@@ -73,6 +73,10 @@ Public Class TranslationCacheService
     Private _dirty As Boolean = False
     Private _flushCts As CancellationTokenSource = Nothing
 
+    ' Supporto multi-provider e privacy opt-in (TODO #69)
+    Private _activeProvider As ITranslationProvider = GoogleTranslationProvider.Instance
+    Private _privacyConsentAccepted As Boolean = False
+
     Private Sub New()
     End Sub
 
@@ -103,6 +107,45 @@ Public Class TranslationCacheService
             Return dataPath
         End Get
     End Property
+
+    ''' <summary>Indica se l'utente ha esplicitamente acconsentito all'invio dei messaggi non in cache al fornitore di traduzione (TODO #69).</summary>
+    Public Property PrivacyConsentAccepted As Boolean
+        Get
+            SyncLock _cacheLock
+                Return _privacyConsentAccepted
+            End SyncLock
+        End Get
+        Set(value As Boolean)
+            SyncLock _cacheLock
+                _privacyConsentAccepted = value
+            End SyncLock
+        End Set
+    End Property
+
+    ''' <summary>Provider di traduzione attualmente configurato ed attivo (Google, LibreTranslate, Ollama, OpenAI-compatible).</summary>
+    Public Property ActiveProvider As ITranslationProvider
+        Get
+            SyncLock _cacheLock
+                Return If(_activeProvider, GoogleTranslationProvider.Instance)
+            End SyncLock
+        End Get
+        Set(value As ITranslationProvider)
+            SyncLock _cacheLock
+                _activeProvider = If(value, GoogleTranslationProvider.Instance)
+            End SyncLock
+        End Set
+    End Property
+
+    ''' <summary>
+    ''' Configura il provider e lo stato di consenso privacy del servizio di traduzione (TODO #69).
+    ''' </summary>
+    Public Sub Configure(config As TranslationConfig)
+        If config Is Nothing Then Return
+        SyncLock _cacheLock
+            _privacyConsentAccepted = config.PrivacyConsentAccepted
+            _activeProvider = TranslationProviderRegistry.CreateProvider(config, _httpClient)
+        End SyncLock
+    End Sub
 
     ''' <summary>
     ''' Imposta la lingua attiva, scarica su disco eventuali modifiche della lingua precedente,
@@ -378,28 +421,49 @@ Public Class TranslationCacheService
     End Function
 
     ''' <summary>
-    ''' Traduce un singolo testo interrogando preventivamente la cache su disco/RAM prima di effettuare chiamate HTTP.
+    ''' Traduce un singolo testo restituendo il risultato dettagliato (successo, testo tradotto, messaggio d'errore).
+    ''' Rispetta rigorosamente il vincolo di Privacy Opt-In (TODO #69): se il consenso non è concesso, nessun dato lascia il computer.
     ''' </summary>
-    Public Async Function TranslateSingleAsync(text As String, targetLang As String) As Task(Of String)
-        If String.IsNullOrEmpty(text) Then Return text
+    Public Async Function TranslateSingleDetailedAsync(text As String, targetLang As String, Optional cancellationToken As CancellationToken = Nothing) As Task(Of TranslationResult)
+        If String.IsNullOrEmpty(text) Then Return TranslationResult.Succeeded(text)
 
         Dim cached As String = Nothing
         If TryGetCachedMessage(text, targetLang, cached) AndAlso Not String.IsNullOrEmpty(cached) Then
-            Return cached
+            Return TranslationResult.Succeeded(cached)
         End If
 
-        Dim translated = Await TranslateTextHttpAsync(text, targetLang)
-        If Not String.IsNullOrEmpty(translated) AndAlso translated <> text Then
-            CacheMessage(text, translated, targetLang)
+        ' Verifica Privacy Opt-in: se non autorizzato, non invia richieste di rete
+        If Not PrivacyConsentAccepted Then
+            Return TranslationResult.Failed("PRIVACY_CONSENT_REQUIRED", text)
         End If
-        Return translated
+
+        Dim provider = ActiveProvider
+        Try
+            Dim res = Await provider.TranslateSingleAsync(text, targetLang, cancellationToken)
+            If res.Success AndAlso Not String.IsNullOrEmpty(res.TranslatedText) AndAlso res.TranslatedText <> text Then
+                CacheMessage(text, res.TranslatedText, targetLang)
+            End If
+            Return res
+        Catch ex As Exception
+            Debug.WriteLine($"[TranslationCacheService] Translation error via {provider.DisplayName}: {ex.Message}")
+            Return TranslationResult.Failed($"Provider unreachable: {ex.Message}", text)
+        End Try
     End Function
 
     ''' <summary>
-    ''' Traduce un elenco di testi estraendo ed inviando a Google Translate solo le frasi non ancora in cache.
+    ''' Traduce un singolo testo interrogando preventivamente la cache su disco/RAM prima di effettuare chiamate al provider configurato.
     ''' </summary>
-    Public Async Function TranslateBatchAsync(texts As List(Of String), targetLang As String) As Task(Of List(Of String))
-        If texts Is Nothing OrElse texts.Count = 0 Then Return New List(Of String)()
+    Public Async Function TranslateSingleAsync(text As String, targetLang As String) As Task(Of String)
+        Dim res = Await TranslateSingleDetailedAsync(text, targetLang)
+        Return If(res.Success AndAlso Not String.IsNullOrEmpty(res.TranslatedText), res.TranslatedText, text)
+    End Function
+
+    ''' <summary>
+    ''' Traduce un elenco di testi inviando al fornitore configurato solo le frasi non ancora in cache.
+    ''' Rispetta il vincolo di Privacy Opt-In: in assenza di autorizzazione, nessun dato viene trasmesso (TODO #69).
+    ''' </summary>
+    Public Async Function TranslateBatchDetailedAsync(texts As List(Of String), targetLang As String, Optional cancellationToken As CancellationToken = Nothing) As Task(Of TranslationBatchResult)
+        If texts Is Nothing OrElse texts.Count = 0 Then Return TranslationBatchResult.Succeeded(New List(Of String)())
 
         Dim results As New List(Of String)(New String(texts.Count - 1) {})
         Dim missingIndices As New List(Of Integer)()
@@ -418,60 +482,61 @@ Public Class TranslationCacheService
 
         ' Se tutti i testi erano già memorizzati in cache, ritorna immediatamente senza accessi di rete!
         If missingTexts.Count = 0 Then
-            Return results
+            Return TranslationBatchResult.Succeeded(results)
         End If
 
-        Try
-            Dim combinedMissing = String.Join(vbLf & "###" & vbLf, missingTexts)
-            Dim httpResult = Await TranslateTextHttpAsync(combinedMissing, targetLang)
-            
-            Dim parts = httpResult.Split(New String() {vbLf & "###" & vbLf, vbLf & " ###" & vbLf, vbLf & "### " & vbLf}, StringSplitOptions.None)
-            Dim newCacheEntries As New List(Of KeyValuePair(Of String, String))()
-
-            For j As Integer = 0 To missingIndices.Count - 1
-                Dim origIndex = missingIndices(j)
-                Dim translatedPart = If(j < parts.Length AndAlso Not String.IsNullOrEmpty(parts(j)), parts(j), missingTexts(j))
-                results(origIndex) = translatedPart
-                newCacheEntries.Add(New KeyValuePair(Of String, String)(missingTexts(j), translatedPart))
-            Next
-
-            CacheMessagesBatch(newCacheEntries, targetLang)
-        Catch ex As Exception
-            Debug.WriteLine($"[TranslationCacheService] Batch translation HTTP error: {ex.Message}")
+        ' Controllo Privacy Opt-in (TODO #69)
+        If Not PrivacyConsentAccepted Then
             For j As Integer = 0 To missingIndices.Count - 1
                 results(missingIndices(j)) = missingTexts(j)
             Next
-        End Try
+            Return TranslationBatchResult.Failed("PRIVACY_CONSENT_REQUIRED", results)
+        End If
 
-        Return results
+        Dim provider = ActiveProvider
+        Try
+            Dim batchRes = Await provider.TranslateBatchAsync(missingTexts, targetLang, cancellationToken)
+            If batchRes.Success Then
+                Dim newCacheEntries As New List(Of KeyValuePair(Of String, String))()
+                For j As Integer = 0 To missingIndices.Count - 1
+                    Dim origIndex = missingIndices(j)
+                    Dim translatedPart = If(j < batchRes.Translations.Count AndAlso Not String.IsNullOrEmpty(batchRes.Translations(j)), batchRes.Translations(j), missingTexts(j))
+                    results(origIndex) = translatedPart
+                    If translatedPart <> missingTexts(j) Then
+                        newCacheEntries.Add(New KeyValuePair(Of String, String)(missingTexts(j), translatedPart))
+                    End If
+                Next
+
+                If newCacheEntries.Count > 0 Then
+                    CacheMessagesBatch(newCacheEntries, targetLang)
+                End If
+                Return TranslationBatchResult.Succeeded(results)
+            Else
+                For j As Integer = 0 To missingIndices.Count - 1
+                    results(missingIndices(j)) = missingTexts(j)
+                Next
+                Return TranslationBatchResult.Failed(batchRes.ErrorMessage, results)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"[TranslationCacheService] Batch translation provider error ({provider.DisplayName}): {ex.Message}")
+            For j As Integer = 0 To missingIndices.Count - 1
+                results(missingIndices(j)) = missingTexts(j)
+            Next
+            Return TranslationBatchResult.Failed($"Provider error: {ex.Message}", results)
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Traduce un elenco di testi estraendo ed inviando al provider solo le frasi non ancora in cache.
+    ''' </summary>
+    Public Async Function TranslateBatchAsync(texts As List(Of String), targetLang As String) As Task(Of List(Of String))
+        Dim res = Await TranslateBatchDetailedAsync(texts, targetLang)
+        Return res.Translations
     End Function
 
     Private Async Function TranslateTextHttpAsync(text As String, targetLang As String) As Task(Of String)
-        If String.IsNullOrEmpty(text) Then Return text
-        Try
-            Dim encodedText = Uri.EscapeDataString(text)
-            Dim url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={targetLang}&dt=t&q={encodedText}"
-            
-            Dim response = Await _httpClient.GetStringAsync(url)
-            Using doc As JsonDocument = JsonDocument.Parse(response)
-                Dim root = doc.RootElement
-                If root.ValueKind = JsonValueKind.Array AndAlso root.GetArrayLength() > 0 Then
-                    Dim firstArray = root(0)
-                    If firstArray.ValueKind = JsonValueKind.Array Then
-                        Dim sb As New StringBuilder()
-                        For Each part In firstArray.EnumerateArray()
-                            If part.ValueKind = JsonValueKind.Array AndAlso part.GetArrayLength() > 0 Then
-                                sb.Append(part(0).GetString())
-                            End If
-                        Next
-                        Return sb.ToString()
-                    End If
-                End If
-            End Using
-        Catch ex As Exception
-            Debug.WriteLine($"[TranslationCacheService] HTTP Translation error for ""{text}"": {ex.Message}")
-        End Try
-        Return text
+        Dim res = Await GoogleTranslationProvider.Instance.TranslateSingleAsync(text, targetLang, CancellationToken.None)
+        Return If(res.Success, res.TranslatedText, text)
     End Function
 End Class
 
@@ -654,7 +719,22 @@ Public Class AppLocalizations
         {"storage_recovery_stage_detected", "Storage corruption detected for {account}. Rebuilding database..."},
         {"storage_recovery_stage_repairing", "Purging corrupted IndexedDB/ServiceWorker caches (preserving logins)..."},
         {"storage_recovery_stage_reloading", "Reloading web view and mounting clean database..."},
-        {"storage_recovery_stage_completed", "Storage recovery completed successfully!"}
+        {"storage_recovery_stage_completed", "Storage recovery completed successfully!"},
+        {"translation_privacy_title", "Translation & Privacy Notice"},
+        {"translation_privacy_header", "Authorize Message Translation"},
+        {"translation_privacy_body", "To translate chat messages not yet cached locally, their text will be sent to the configured translation provider ({provider})." & vbLf & vbLf & "Cloud providers (e.g. Google Translate) transmit message content to remote servers. You can also configure a local or self-hosted provider (LibreTranslate, Ollama, LM Studio) in Settings to keep all data on your machine." & vbLf & vbLf & "Do you want to authorize message translations?"},
+        {"translation_privacy_allow", "Allow & Enable"},
+        {"translation_privacy_settings", "Configure Provider..."},
+        {"translation_consent_declined", "Translation cancelled: privacy consent required"},
+        {"translation_provider", "Translation Provider"},
+        {"translation_privacy_consent_checkbox", "I consent to sending message text to the selected translation provider"},
+        {"translation_url", "Endpoint URL:"},
+        {"translation_model", "Model Name:"},
+        {"translation_api_key", "API Key (optional):"},
+        {"translation_test_btn", "Test Connection"},
+        {"translation_test_success", "✓ Connected successfully ({latency} ms)"},
+        {"translation_test_failure", "✗ Connection failed: {error}"},
+        {"translation_provider_unreachable", "Translation failed: Provider unreachable"}
     }
 
 
@@ -827,7 +907,22 @@ Public Class AppLocalizations
         {"storage_recovery_stage_detected", "Rilevata corruzione dello storage per {account}. Rigenerazione database..."},
         {"storage_recovery_stage_repairing", "Pulizia cache IndexedDB/ServiceWorker corrotte (sessioni salvaguardate)..."},
         {"storage_recovery_stage_reloading", "Ricaricamento vista web e inizializzazione database pulito..."},
-        {"storage_recovery_stage_completed", "Ripristino storage completato con successo!"}
+        {"storage_recovery_stage_completed", "Ripristino storage completato con successo!"},
+        {"translation_privacy_title", "Informativa sulla Privacy e Traduzioni"},
+        {"translation_privacy_header", "Autorizzazione Traduzione Messaggi"},
+        {"translation_privacy_body", "Per tradurre i messaggi di chat non ancora presenti nella cache locale, il relativo testo verrà inviato al fornitore di traduzione configurato ({provider})." & vbLf & vbLf & "I provider in cloud (come Google Translate) trasmettono il contenuto dei messaggi a server remoti. Puoi anche configurare un provider locale o self-hosted (LibreTranslate, Ollama, LM Studio) nelle Impostazioni per mantenere tutti i dati sul tuo computer." & vbLf & vbLf & "Vuoi autorizzare la traduzione dei messaggi?"},
+        {"translation_privacy_allow", "Consenti e Attiva"},
+        {"translation_privacy_settings", "Configura Provider..."},
+        {"translation_consent_declined", "Traduzione annullata: consenso privacy non concesso"},
+        {"translation_provider", "Fornitore di Traduzione"},
+        {"translation_privacy_consent_checkbox", "Acconsento all'invio del testo dei messaggi al provider di traduzione selezionato"},
+        {"translation_url", "URL Endpoint:"},
+        {"translation_model", "Nome Modello:"},
+        {"translation_api_key", "Chiave API (opzionale):"},
+        {"translation_test_btn", "Testa Connessione"},
+        {"translation_test_success", "✓ Connesso con successo ({latency} ms)"},
+        {"translation_test_failure", "✗ Connessione non riuscita: {error}"},
+        {"translation_provider_unreachable", "Traduzione non riuscita: Provider non raggiungibile"}
     }
 
 
@@ -1000,7 +1095,22 @@ Public Class AppLocalizations
         {"storage_recovery_stage_detected", "Corruption du stockage détectée pour {account}. Reconstruction de la base de données..."},
         {"storage_recovery_stage_repairing", "Nettoyage des caches IndexedDB/ServiceWorker corrompus (sessions préservées)..."},
         {"storage_recovery_stage_reloading", "Rechargement de la vue web et initialisation d'une base saine..."},
-        {"storage_recovery_stage_completed", "Récupération du stockage terminée avec succès !"}
+        {"storage_recovery_stage_completed", "Récupération du stockage terminée avec succès !"},
+        {"translation_privacy_title", "Avis de Confidentialité et Traduction"},
+        {"translation_privacy_header", "Autorisation de Traduction des Messages"},
+        {"translation_privacy_body", "Pour traduire les messages de chat non encore en cache local, leur texte sera envoyé au fournisseur configuré ({provider})." & vbLf & vbLf & "Les services cloud (ex. Google Translate) transmettent le contenu à des serveurs distants. Vous pouvez aussi configurer un fournisseur local ou auto-hébergé (LibreTranslate, Ollama, LM Studio) dans les Paramètres pour préserver votre confidentialité." & vbLf & vbLf & "Souhaitez-vous autoriser la traduction des messages ?"},
+        {"translation_privacy_allow", "Autoriser et Activer"},
+        {"translation_privacy_settings", "Configurer Fournisseur..."},
+        {"translation_consent_declined", "Traduction annulée : consentement requis"},
+        {"translation_provider", "Fournisseur de Traduction"},
+        {"translation_privacy_consent_checkbox", "J'accepte d'envoyer le texte des messages au fournisseur de traduction sélectionné"},
+        {"translation_url", "URL du Point de Terminaison :"},
+        {"translation_model", "Nom du Modèle :"},
+        {"translation_api_key", "Clé API (optionnel) :"},
+        {"translation_test_btn", "Tester la Connexion"},
+        {"translation_test_success", "✓ Connexion réussie ({latency} ms)"},
+        {"translation_test_failure", "✗ Échec de la connexion : {error}"},
+        {"translation_provider_unreachable", "Traduction échouée : Fournisseur inaccessible"}
     }
 
 
@@ -1173,7 +1283,22 @@ Public Class AppLocalizations
         {"storage_recovery_stage_detected", "Corrupción de almacenamiento detectada para {account}. Reconstruyendo base de datos..."},
         {"storage_recovery_stage_repairing", "Limpiando cachés corruptas de IndexedDB/ServiceWorker (sesiones preservadas)..."},
         {"storage_recovery_stage_reloading", "Recargando vista web e inicializando base de datos limpia..."},
-        {"storage_recovery_stage_completed", "¡Recuperación de almacenamiento completada con éxito!"}
+        {"storage_recovery_stage_completed", "¡Recuperación de almacenamiento completada con éxito!"},
+        {"translation_privacy_title", "Aviso de Privacidad y Traducción"},
+        {"translation_privacy_header", "Autorizar Traducción de Mensajes"},
+        {"translation_privacy_body", "Para traducir los mensajes del chat que aún no están en la caché local, su texto se enviará al proveedor configurado ({provider})." & vbLf & vbLf & "Los proveedores en la nube (como Google Translate) transmiten el contenido a servidores remotos. También puedes configurar un proveedor local o autoalojado (LibreTranslate, Ollama, LM Studio) en Ajustes para mantener los datos en tu equipo." & vbLf & vbLf & "¿Deseas autorizar la traducción de mensajes?"},
+        {"translation_privacy_allow", "Permitir y Activar"},
+        {"translation_privacy_settings", "Configurar Proveedor..."},
+        {"translation_consent_declined", "Traducción cancelada: se requiere consentimiento"},
+        {"translation_provider", "Proveedor de Traducción"},
+        {"translation_privacy_consent_checkbox", "Doy mi consentimiento para enviar el texto de los mensajes al proveedor seleccionado"},
+        {"translation_url", "URL del Endpoint:"},
+        {"translation_model", "Nombre del Modelo:"},
+        {"translation_api_key", "Clave API (opcional):"},
+        {"translation_test_btn", "Probar Conexión"},
+        {"translation_test_success", "✓ Conectado con éxito ({latency} ms)"},
+        {"translation_test_failure", "✗ Error de conexión: {error}"},
+        {"translation_provider_unreachable", "Traducción fallida: Proveedor no disponible"}
     }
 
 
@@ -1346,7 +1471,22 @@ Public Class AppLocalizations
         {"storage_recovery_stage_detected", "Speicherbeschädigung für {account} erkannt. Datenbank wird neu aufgebaut..."},
         {"storage_recovery_stage_repairing", "Bereinigung beschädigter IndexedDB/ServiceWorker-Caches (Sitzungen beibehalten)..."},
         {"storage_recovery_stage_reloading", "Webansicht wird neu geladen und saubere Datenbank initialisiert..."},
-        {"storage_recovery_stage_completed", "Speicherwiederherstellung erfolgreich abgeschlossen!"}
+        {"storage_recovery_stage_completed", "Speicherwiederherstellung erfolgreich abgeschlossen!"},
+        {"translation_privacy_title", "Datenschutz- und Übersetzungshinweis"},
+        {"translation_privacy_header", "Nachrichtenübersetzung autorisieren"},
+        {"translation_privacy_body", "Um noch nicht lokal zwischengespeicherte Chatnachrichten zu übersetzen, wird der Text an den konfigurierten Übersetzungsdienst ({provider}) übertragen." & vbLf & vbLf & "Cloud-Dienste (wie Google Translate) übertragen Nachrichteninhalte an Remoteserver. Sie können in den Einstellungen auch einen lokalen oder selbstgehosteten Dienst (LibreTranslate, Ollama, LM Studio) einrichten, um Daten vollständig auf Ihrem PC zu behalten." & vbLf & vbLf & "Möchten Sie die Übersetzung autorisieren?"},
+        {"translation_privacy_allow", "Zulassen und Aktivieren"},
+        {"translation_privacy_settings", "Anbieter konfigurieren..."},
+        {"translation_consent_declined", "Übersetzung abgebrochen: Einwilligung erforderlich"},
+        {"translation_provider", "Übersetzungsanbieter"},
+        {"translation_privacy_consent_checkbox", "Ich stimme der Übermittlung von Nachrichtentexten an den Übersetzungsanbieter zu"},
+        {"translation_url", "Endpunkt-URL:"},
+        {"translation_model", "Modellname:"},
+        {"translation_api_key", "API-Schlüssel (optional):"},
+        {"translation_test_btn", "Verbindung testen"},
+        {"translation_test_success", "✓ Verbindung erfolgreich ({latency} ms)"},
+        {"translation_test_failure", "✗ Verbindungsfehler: {error}"},
+        {"translation_provider_unreachable", "Übersetzung fehlgeschlagen: Anbieter nicht erreichbar"}
     }
 
 
@@ -1377,10 +1517,24 @@ Public Class AppLocalizations
     End Function
 
     ''' <summary>
+    ''' Traduce un singolo testo restituendo il risultato dettagliato con eventuale messaggio d'errore (TODO #69).
+    ''' </summary>
+    Public Shared Async Function TranslateSingleDetailed(text As String, targetLang As String, Optional cancellationToken As CancellationToken = Nothing) As Task(Of TranslationResult)
+        Return Await TranslationCacheService.Instance.TranslateSingleDetailedAsync(text, targetLang, cancellationToken)
+    End Function
+
+    ''' <summary>
     ''' Traduce una lista di testi in batch con cache persistente su file (inviando solo le stringhe non ancora in cache).
     ''' </summary>
     Public Shared Async Function TranslateBatch(texts As List(Of String), targetLang As String) As Task(Of List(Of String))
         Return Await TranslationCacheService.Instance.TranslateBatchAsync(texts, targetLang)
+    End Function
+
+    ''' <summary>
+    ''' Traduce una lista di testi in batch restituendo il risultato strutturato dettagliato (TODO #69).
+    ''' </summary>
+    Public Shared Async Function TranslateBatchDetailed(texts As List(Of String), targetLang As String, Optional cancellationToken As CancellationToken = Nothing) As Task(Of TranslationBatchResult)
+        Return Await TranslationCacheService.Instance.TranslateBatchDetailedAsync(texts, targetLang, cancellationToken)
     End Function
 End Class
 

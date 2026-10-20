@@ -1430,7 +1430,7 @@ Public Class AppAccounts
                 If channel = "NotificationChannel" Then
                     Await HandleNotificationMessageAsync(root, settings, onNotificationChanged)
                 ElseIf channel = "TranslationChannel" Then
-                    Await HandleTranslationMessageAsync(root)
+                    Await HandleTranslationMessageAsync(root, settings)
                 ElseIf channel = "DiagnosticChannel" Then
                     Await HandleDiagnosticMessageAsync(root)
                 End If
@@ -1770,12 +1770,67 @@ Public Class AppAccounts
     ''' <summary>
     ''' Elabora le richieste di traduzione singole o batch provenienti dal layer JavaScript della WebView.
     ''' </summary>
-    Private Async Function HandleTranslationMessageAsync(root As JsonElement) As Task
+    Private Async Function HandleTranslationMessageAsync(root As JsonElement, settings As SettingsController) As Task
         Dim id = root.GetProperty("id").GetString()
         Dim jsonId = JsonSerializer.Serialize(id)
         Dim targetLang = root.GetProperty("targetLang").GetString()
-        
+        Dim effSettings = If(settings, _settings)
+
+        ' 1. Verifica Opt-in Privacy (TODO #69): se l'utente non ha ancora autorizzato l'invio dei messaggi, presenta il dialog informativo
         Dim isBatch = root.TryGetProperty("type", Nothing) AndAlso root.GetProperty("type").GetString() = "BATCH_TRANSLATE"
+        Dim isConsentGranted = If(effSettings IsNot Nothing, effSettings.TranslationPrivacyConsent, False)
+        If Not isConsentGranted Then
+            Dim userApproved As Boolean = False
+            Dim openSettings As Boolean = False
+
+            Await Application.Current.Dispatcher.InvokeAsync(Sub()
+                Dim loc = If(effSettings IsNot Nothing, effSettings.Localizations, Nothing)
+                Dim providerName = If(effSettings IsNot Nothing, effSettings.TranslationProviderDisplayName, "Google Translate")
+                Dim dlg As New TranslationPrivacyConsentDialog(loc, providerName)
+                Dim ownerWin = Application.Current.Windows.OfType(Of MainWindow)().FirstOrDefault(Function(w) w.IsVisible)
+                If ownerWin IsNot Nothing Then dlg.Owner = ownerWin
+                Dim res = dlg.ShowDialog()
+                If res.HasValue AndAlso res.Value = True Then
+                    userApproved = True
+                ElseIf dlg.OpenSettingsRequested Then
+                    openSettings = True
+                End If
+            End Sub)
+
+            If userApproved Then
+                If effSettings IsNot Nothing Then
+                    effSettings.TranslationPrivacyConsent = True
+                    Await effSettings.SaveSettingAsync("translationPrivacyConsent", True)
+                    TranslationCacheService.Instance.PrivacyConsentAccepted = True
+                End If
+            Else
+                If openSettings AndAlso effSettings IsNot Nothing Then
+                    Await Application.Current.Dispatcher.InvokeAsync(Sub()
+                        Dim settingsWin = Application.Current.Windows.OfType(Of SettingsWindow)().FirstOrDefault()
+                        If settingsWin Is Nothing Then
+                            settingsWin = New SettingsWindow(effSettings, Nothing)
+                            settingsWin.Show()
+                        Else
+                            settingsWin.Activate()
+                        End If
+                    End Sub)
+                End If
+
+                Dim cancelMsg = If(effSettings?.Localizations IsNot Nothing,
+                    effSettings.Localizations.Get("translation_consent_declined"),
+                    "Translation cancelled: privacy consent required")
+                Dim jsonCancel = JsonSerializer.Serialize(cancelMsg)
+
+                If isBatch Then
+                    Await SafeExecuteScriptAsync($"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, [], false, {jsonCancel}); }}")
+                Else
+                    Await SafeExecuteScriptAsync($"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {jsonCancel}, false, {jsonCancel}); }}")
+                End If
+                Return
+            End If
+        End If
+        
+        ' 2. Esecuzione traduzione con fornitore configurato
 
         If isBatch Then
             Dim success As Boolean = False
@@ -1787,9 +1842,11 @@ Public Class AppAccounts
                     texts.Add(item.GetString())
                 Next
                 
-                Dim cleanParts = Await AppLocalizations.TranslateBatch(texts, targetLang)
+                Dim batchRes = Await AppLocalizations.TranslateBatchDetailed(texts, targetLang)
+                Dim cleanParts = batchRes.Translations
                 partsJson = JsonSerializer.Serialize(cleanParts)
-                success = True
+                success = batchRes.Success
+
             Catch ex As Exception
                 Debug.WriteLine($"Error doing batch translation: {ex.Message}")
             End Try
@@ -1797,7 +1854,9 @@ Public Class AppAccounts
             If success Then
                 Await SafeExecuteScriptAsync($"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, {partsJson}, true); }}")
             Else
-                Await SafeExecuteScriptAsync($"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, [], false); }}")
+                Dim effBatchErr = If(effSettings?.Localizations IsNot Nothing, effSettings.Localizations.Get("translation_provider_unreachable"), "Translation failed")
+                Dim jsonErr = JsonSerializer.Serialize(effBatchErr)
+                Await SafeExecuteScriptAsync($"if (window.onBatchTranslationReceived) {{ window.onBatchTranslationReceived({jsonId}, [], false, {jsonErr}); }}")
             End If
         Else
             Dim success As Boolean = False
@@ -1812,8 +1871,11 @@ Public Class AppAccounts
 
                 Dim resultStr As String
                 If quotedText IsNot Nothing Then
-                    Dim transQuoted = Await AppLocalizations.TranslateSingle(quotedText, targetLang)
-                    Dim transResponse = Await AppLocalizations.TranslateSingle(text, targetLang)
+                    Dim transQuotedRes = Await AppLocalizations.TranslateSingleDetailed(quotedText, targetLang)
+                    Dim transQuoted = If(transQuotedRes.Success, transQuotedRes.TranslatedText, quotedText)
+                    Dim transResponseRes = Await AppLocalizations.TranslateSingleDetailed(text, targetLang)
+                    Dim transResponse = If(transResponseRes.Success, transResponseRes.TranslatedText, text)
+                    success = transResponseRes.Success
                     
                     Dim dict As New Dictionary(Of String, String) From {
                         {"quoted", transQuoted},
@@ -1821,11 +1883,13 @@ Public Class AppAccounts
                     }
                     resultStr = JsonSerializer.Serialize(dict)
                 Else
-                    resultStr = Await AppLocalizations.TranslateSingle(text, targetLang)
+                    Dim singleRes = Await AppLocalizations.TranslateSingleDetailed(text, targetLang)
+                    resultStr = singleRes.TranslatedText
+                    success = singleRes.Success
                 End If
                 
                 jsonResult = JsonSerializer.Serialize(resultStr)
-                success = True
+
             Catch ex As Exception
                 Debug.WriteLine($"Error doing single translation: {ex.Message}")
             End Try
@@ -1833,8 +1897,9 @@ Public Class AppAccounts
             If success Then
                 Await SafeExecuteScriptAsync($"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {jsonResult}, true); }}")
             Else
-                Dim emptyJson = JsonSerializer.Serialize(String.Empty)
-                Await SafeExecuteScriptAsync($"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {emptyJson}, false); }}")
+                Dim effErr = If(effSettings?.Localizations IsNot Nothing, effSettings.Localizations.Get("translation_provider_unreachable"), "Translation failed")
+                Dim emptyJson = JsonSerializer.Serialize(effErr)
+                Await SafeExecuteScriptAsync($"if (window.onTranslationReceived) {{ window.onTranslationReceived({jsonId}, {emptyJson}, false, {emptyJson}); }}")
             End If
         End If
     End Function

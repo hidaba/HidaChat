@@ -1,4 +1,5 @@
 Imports System
+Imports System.Collections.Generic
 Imports System.IO
 Imports System.Threading.Tasks
 
@@ -228,9 +229,87 @@ Module SessionTests
                 invalidIdRejected = True
             End Try
             Check(invalidIdRejected, "Profile ID path traversal rejected")
+            Await TestTranslationProvidersAsync()
         Finally
             NetworkProfileSync.ReleaseSessionLock("unit")
             Directory.Delete(testRoot, recursive:=True)
         End Try
+    End Function
+    Private Async Function TestTranslationProvidersAsync() As Task
+        ' 1. Display Names
+        Check(TranslationProviderRegistry.GetProviderDisplayName("google").Contains("Google"), "Google provider display name")
+        Check(TranslationProviderRegistry.GetProviderDisplayName("libretranslate").Contains("LibreTranslate"), "LibreTranslate provider display name")
+        Check(TranslationProviderRegistry.GetProviderDisplayName("ollama").Contains("Ollama"), "Ollama provider display name")
+        Check(TranslationProviderRegistry.GetProviderDisplayName("openai").Contains("OpenAI"), "OpenAI provider display name")
+        Check(TranslationProviderRegistry.GetProviderDisplayName("unknown").Contains("Google"), "Unknown provider fallback display name")
+
+        ' 2. Configuration default
+        Dim cfg As New TranslationConfig()
+        Check(Not cfg.PrivacyConsentAccepted, "Privacy consent is False by default (Opt-In enforced)")
+        Check(cfg.ProviderId = "google", "Default provider is Google")
+        Check(cfg.LibreTranslateUrl = "http://localhost:5000", "Default LibreTranslate URL is http://localhost:5000")
+        Check(cfg.OllamaUrl = "http://localhost:11434", "Default Ollama URL is http://localhost:11434")
+        Check(cfg.OpenAiUrl = "http://localhost:1234/v1", "Default OpenAI URL is http://localhost:1234/v1")
+
+        ' 3. Provider Instantiation
+        Dim pGoogle = TranslationProviderRegistry.CreateProvider(New TranslationConfig With {.ProviderId = "google"})
+        Check(TypeOf pGoogle Is GoogleTranslationProvider, "Factory creates GoogleTranslationProvider")
+        Check(Not pGoogle.IsSelfHosted, "GoogleTranslationProvider is not self-hosted")
+
+        Dim pLibre = TranslationProviderRegistry.CreateProvider(New TranslationConfig With {.ProviderId = "libretranslate"})
+        Check(TypeOf pLibre Is LibreTranslateProvider, "Factory creates LibreTranslateProvider")
+        Check(pLibre.IsSelfHosted, "LibreTranslateProvider is self-hosted")
+
+        Dim pOllama = TranslationProviderRegistry.CreateProvider(New TranslationConfig With {.ProviderId = "ollama"})
+        Check(TypeOf pOllama Is OllamaTranslationProvider, "Factory creates OllamaTranslationProvider")
+        Check(pOllama.IsSelfHosted, "OllamaTranslationProvider is self-hosted")
+
+        Dim pOpenAi = TranslationProviderRegistry.CreateProvider(New TranslationConfig With {.ProviderId = "openai", .OpenAiUrl = "http://localhost:1234/v1"})
+        Check(TypeOf pOpenAi Is OpenAiTranslationProvider, "Factory creates OpenAiTranslationProvider")
+        Check(pOpenAi.IsSelfHosted, "OpenAiTranslationProvider is self-hosted on localhost")
+
+        Dim pOpenAiRemote = New OpenAiTranslationProvider("https://api.openai.com/v1", "key", "gpt-4o")
+        Check(Not pOpenAiRemote.IsSelfHosted, "OpenAiTranslationProvider is not self-hosted on remote HTTPS")
+
+        ' 4. Empty Text Handling (No network calls)
+        Dim emptyRes = Await pGoogle.TranslateSingleAsync("", "it", Threading.CancellationToken.None)
+        Check(emptyRes.Success AndAlso emptyRes.TranslatedText = "", "Empty single text returns success with empty string")
+
+        Dim emptyBatchRes = Await pGoogle.TranslateBatchAsync(New List(Of String)(), "it", Threading.CancellationToken.None)
+        Check(emptyBatchRes.Success AndAlso emptyBatchRes.Translations.Count = 0, "Empty batch list returns success with empty list")
+
+        ' 5. Result Factory Methods
+        Dim succ = TranslationResult.Succeeded("translated")
+        Check(succ.Success AndAlso succ.TranslatedText = "translated" AndAlso succ.ErrorMessage Is Nothing, "TranslationResult.Succeeded sets properties correctly")
+        Dim fail = TranslationResult.Failed("error message", "fallback")
+        Check(Not fail.Success AndAlso fail.TranslatedText = "fallback" AndAlso fail.ErrorMessage = "error message", "TranslationResult.Failed sets properties correctly")
+
+        Dim bSucc = TranslationBatchResult.Succeeded(New List(Of String) From {"a", "b"})
+        Check(bSucc.Success AndAlso bSucc.Translations.Count = 2, "TranslationBatchResult.Succeeded sets properties correctly")
+        Dim bFail = TranslationBatchResult.Failed("batch error", New List(Of String) From {"orig"})
+        Check(Not bFail.Success AndAlso bFail.Translations.Count = 1 AndAlso bFail.ErrorMessage = "batch error", "TranslationBatchResult.Failed sets properties correctly")
+
+        ' 6. Unreachable backend error handling and discrete reporting
+        Dim unreachablePort = 59981
+        Dim deadLibre As New LibreTranslateProvider($"http://127.0.0.1:{unreachablePort}")
+        Dim deadLibreRes = Await deadLibre.TranslateSingleAsync("hello", "it", Threading.CancellationToken.None)
+        Check(Not deadLibreRes.Success, "Unreachable LibreTranslate returns Success = False")
+        Check(Not String.IsNullOrEmpty(deadLibreRes.ErrorMessage), "Unreachable LibreTranslate provides clear error message")
+
+        Dim deadOllama As New OllamaTranslationProvider($"http://127.0.0.1:{unreachablePort}")
+        Dim deadOllamaRes = Await deadOllama.TranslateSingleAsync("hello", "it", Threading.CancellationToken.None)
+        Check(Not deadOllamaRes.Success, "Unreachable Ollama returns Success = False")
+        Check(Not String.IsNullOrEmpty(deadOllamaRes.ErrorMessage), "Unreachable Ollama provides clear error message")
+
+        Dim deadOpenAi As New OpenAiTranslationProvider($"http://127.0.0.1:{unreachablePort}/v1")
+        Dim deadOpenAiRes = Await deadOpenAi.TranslateSingleAsync("hello", "it", Threading.CancellationToken.None)
+        Check(Not deadOpenAiRes.Success, "Unreachable OpenAI returns Success = False")
+        Check(Not String.IsNullOrEmpty(deadOpenAiRes.ErrorMessage), "Unreachable OpenAI provides clear error message")
+
+        Using testCts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(2))
+            Dim testConnRes = Await deadLibre.TestConnectionAsync(testCts.Token)
+            Check(Not testConnRes.Success, "TestConnection on unreachable host returns Success = False")
+            Check(Not String.IsNullOrEmpty(testConnRes.Message), "TestConnection provides descriptive failure message")
+        End Using
     End Function
 End Module

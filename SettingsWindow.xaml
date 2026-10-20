@@ -214,6 +214,59 @@
                     <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
                     <CheckBox x:Name="ChkShowTranslateAllButton" Content="Title bar translate all messages button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
 
+                    <!-- TRANSLATION PROVIDER & PRIVACY SECTION (TODO #69) -->
+                    <CheckBox x:Name="ChkTranslationPrivacyConsent" Content="I consent to sending message text to the selected translation provider" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,8,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
+
+                    <Grid Margin="0,4,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LabelTranslationProvider" Text="Translation Provider" Foreground="#aebac1" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ComboTranslationProvider" Grid.Column="1" Width="220" SelectionChanged="ComboTranslationProvider_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                            <ComboBoxItem x:Name="CbiProviderGoogle" Content="Google Translate (Cloud)" Tag="google"/>
+                            <ComboBoxItem x:Name="CbiProviderLibreTranslate" Content="LibreTranslate (Self-Hosted)" Tag="libretranslate"/>
+                            <ComboBoxItem x:Name="CbiProviderOllama" Content="Ollama (Local LLM)" Tag="ollama"/>
+                            <ComboBoxItem x:Name="CbiProviderOpenAi" Content="OpenAI-Compatible (Custom Endpoint)" Tag="openai"/>
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- LibreTranslate Config Panel -->
+                    <StackPanel x:Name="PanelLibreTranslate" Visibility="Collapsed" Margin="0,0,0,8">
+                        <TextBlock x:Name="LabelLibreTranslateUrl" Text="Endpoint URL:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtLibreTranslateUrl" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="LabelLibreTranslateApiKey" Text="API Key (optional):" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtLibreTranslateApiKey" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                    </StackPanel>
+
+                    <!-- Ollama Config Panel -->
+                    <StackPanel x:Name="PanelOllama" Visibility="Collapsed" Margin="0,0,0,8">
+                        <TextBlock x:Name="LabelOllamaUrl" Text="Endpoint URL:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtOllamaUrl" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="LabelOllamaModel" Text="Model Name:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtOllamaModel" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                    </StackPanel>
+
+                    <!-- OpenAI Config Panel -->
+                    <StackPanel x:Name="PanelOpenAi" Visibility="Collapsed" Margin="0,0,0,8">
+                        <TextBlock x:Name="LabelOpenAiUrl" Text="Endpoint URL:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtOpenAiUrl" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="LabelOpenAiModel" Text="Model Name:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtOpenAiModel" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="LabelOpenAiApiKey" Text="API Key (optional):" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TxtOpenAiApiKey" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                    </StackPanel>
+
+                    <!-- Test Provider Button & Status Indicator -->
+                    <Grid x:Name="RowTranslationTest" Margin="0,2,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnTestTranslationProvider" Content="Test Connection" Click="BtnTestTranslationProvider_Click" Style="{StaticResource ActionButtonStyle}" Height="28" Padding="12,2" FontSize="12"/>
+                        <TextBlock x:Name="TxtTranslationTestStatus" Grid.Column="1" Text="" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+
                     <!-- NOTIFICATIONS & FOCUS SECTION (TODO #47) -->
                     <TextBlock x:Name="SectionNotifications" Text="Notifications &amp; Focus" Style="{StaticResource SectionHeaderStyle}"/>
                     <CheckBox x:Name="ChkShowMessagePopup" Content="Show message popup" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>

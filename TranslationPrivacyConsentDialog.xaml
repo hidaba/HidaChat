@@ -1,0 +1,114 @@
+<Window x:Class="TranslationPrivacyConsentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HidaChat"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Width="520" Height="340">
+    <Border Background="#111b21"
+            BorderBrush="#00a884"
+            BorderThickness="1.5"
+            CornerRadius="12"
+            Padding="22">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="25" ShadowDepth="0" Opacity="0.6" Color="#000000"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Titolo e Header con icona globo/traduzione -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="40" Height="40" CornerRadius="20" Background="#1f2c34" Margin="0,0,14,0" VerticalAlignment="Center">
+                    <Path Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,4.07C7.38,4.53 4.53,7.38 4.07,11H7.13C7.43,8.4 8.79,6.13 11,4.07M13,4.07C15.21,6.13 16.57,8.4 16.87,11H19.93C19.47,7.38 16.62,4.53 13,4.07M4.07,13C4.53,16.62 7.38,19.47 11,19.93C8.79,17.87 7.43,15.6 7.13,13H4.07M13,19.93C16.62,19.47 19.47,16.62 19.93,13H16.87C16.57,15.6 15.21,17.87 13,19.93M9.13,13C9.4,14.88 10.36,16.66 12,17.84C13.64,16.66 14.6,14.88 14.87,13H9.13M9.13,11H14.87C14.6,9.12 13.64,7.34 12,6.16C10.36,7.34 9.4,9.12 9.13,11Z"
+                          Fill="#00a884" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtTitle"
+                               Text="HidaChat — Informativa sulla Privacy e Traduzioni"
+                               Foreground="#e9edef"
+                               FontSize="14"
+                               FontWeight="Bold"/>
+                    <TextBlock x:Name="TxtHeader"
+                               Text="Autorizzazione Traduzione Messaggi"
+                               Foreground="#8696a0"
+                               FontSize="12"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Testo esplicativo Privacy e Provider -->
+            <TextBlock Grid.Row="1"
+                       x:Name="TxtBody"
+                       Text="Per tradurre i messaggi non ancora in cache, il relativo testo verrà inviato al fornitore configurato..."
+                       Foreground="#d1d7db"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       LineHeight="18"
+                       VerticalAlignment="Center"
+                       Margin="0,12,0,12"/>
+
+            <!-- Pulsanti di azione: Consenti, Configura Impostazioni, Annulla -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button x:Name="BtnSettings"
+                        Content="Configura Provider..."
+                        Background="#202c33"
+                        Foreground="#00a884"
+                        BorderBrush="#00a884"
+                        BorderThickness="1"
+                        Padding="14,7"
+                        Margin="0,0,10,0"
+                        Cursor="Hand"
+                        Click="BtnSettings_Click">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button x:Name="BtnCancel"
+                        Content="Annulla"
+                        Background="#202c33"
+                        Foreground="#d1d7db"
+                        BorderBrush="#8696a0"
+                        BorderThickness="1"
+                        Padding="14,7"
+                        Margin="0,0,10,0"
+                        Cursor="Hand"
+                        Click="BtnCancel_Click">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button x:Name="BtnAllow"
+                        Content="Consenti e Attiva"
+                        Background="#00a884"
+                        Foreground="#111b21"
+                        FontWeight="Bold"
+                        BorderThickness="0"
+                        Padding="16,7"
+                        Cursor="Hand"
+                        Click="BtnAllow_Click">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

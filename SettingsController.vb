@@ -159,6 +159,171 @@ Public Class SettingsController
         End Set
     End Property
 
+    ' --- Traduzioni e Privacy (TODO #69) ---
+    Private _translationPrivacyConsent As Boolean = False
+    ''' <summary>Indica se l'utente ha esplicitamente acconsentito all'invio dei messaggi non in cache al provider di traduzione.</summary>
+    Public Property TranslationPrivacyConsent As Boolean
+        Get
+            Return _translationPrivacyConsent
+        End Get
+        Set(value As Boolean)
+            If _translationPrivacyConsent <> value Then
+                _translationPrivacyConsent = value
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationProvider As String = "google"
+    ''' <summary>Identificativo del fornitore di traduzione selezionato ("google", "libretranslate", "ollama", "openai").</summary>
+    Public Property TranslationProvider As String
+        Get
+            Return _translationProvider
+        End Get
+        Set(value As String)
+            Dim val = If(String.IsNullOrWhiteSpace(value), "google", value.Trim().ToLowerInvariant())
+            If _translationProvider <> val Then
+                _translationProvider = val
+                NotifyPropertyChanged()
+                NotifyPropertyChanged(NameOf(TranslationProviderDisplayName))
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    ''' <summary>Nome visualizzato del provider di traduzione attivo.</summary>
+    Public ReadOnly Property TranslationProviderDisplayName As String
+        Get
+            Return TranslationProviderRegistry.GetProviderDisplayName(_translationProvider)
+        End Get
+    End Property
+
+    Private _translationLibreTranslateUrl As String = "http://localhost:5000"
+    Public Property TranslationLibreTranslateUrl As String
+        Get
+            Return _translationLibreTranslateUrl
+        End Get
+        Set(value As String)
+            Dim val = If(String.IsNullOrWhiteSpace(value), "http://localhost:5000", value.Trim())
+            If _translationLibreTranslateUrl <> val Then
+                _translationLibreTranslateUrl = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationLibreTranslateApiKey As String = ""
+    Public Property TranslationLibreTranslateApiKey As String
+        Get
+            Return _translationLibreTranslateApiKey
+        End Get
+        Set(value As String)
+            Dim val = If(value, "").Trim()
+            If _translationLibreTranslateApiKey <> val Then
+                _translationLibreTranslateApiKey = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationOllamaUrl As String = "http://localhost:11434"
+    Public Property TranslationOllamaUrl As String
+        Get
+            Return _translationOllamaUrl
+        End Get
+        Set(value As String)
+            Dim val = If(String.IsNullOrWhiteSpace(value), "http://localhost:11434", value.Trim())
+            If _translationOllamaUrl <> val Then
+                _translationOllamaUrl = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationOllamaModel As String = "llama3.2"
+    Public Property TranslationOllamaModel As String
+        Get
+            Return _translationOllamaModel
+        End Get
+        Set(value As String)
+            Dim val = If(String.IsNullOrWhiteSpace(value), "llama3.2", value.Trim())
+            If _translationOllamaModel <> val Then
+                _translationOllamaModel = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationOpenAiUrl As String = "http://localhost:1234/v1"
+    Public Property TranslationOpenAiUrl As String
+        Get
+            Return _translationOpenAiUrl
+        End Get
+        Set(value As String)
+            Dim val = If(String.IsNullOrWhiteSpace(value), "http://localhost:1234/v1", value.Trim())
+            If _translationOpenAiUrl <> val Then
+                _translationOpenAiUrl = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationOpenAiApiKey As String = ""
+    Public Property TranslationOpenAiApiKey As String
+        Get
+            Return _translationOpenAiApiKey
+        End Get
+        Set(value As String)
+            Dim val = If(value, "").Trim()
+            If _translationOpenAiApiKey <> val Then
+                _translationOpenAiApiKey = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    Private _translationOpenAiModel As String = "gpt-4o-mini"
+    Public Property TranslationOpenAiModel As String
+        Get
+            Return _translationOpenAiModel
+        End Get
+        Set(value As String)
+            Dim val = If(String.IsNullOrWhiteSpace(value), "gpt-4o-mini", value.Trim())
+            If _translationOpenAiModel <> val Then
+                _translationOpenAiModel = val
+                NotifyPropertyChanged()
+                ApplyTranslationConfig()
+            End If
+        End Set
+    End Property
+
+    ''' <summary>Restituisce la configurazione completa per il motore di traduzione (TODO #69).</summary>
+    Public Function GetTranslationConfig() As TranslationConfig
+        Return New TranslationConfig With {
+            .ProviderId = _translationProvider,
+            .PrivacyConsentAccepted = _translationPrivacyConsent,
+            .LibreTranslateUrl = _translationLibreTranslateUrl,
+            .LibreTranslateApiKey = _translationLibreTranslateApiKey,
+            .OllamaUrl = _translationOllamaUrl,
+            .OllamaModel = _translationOllamaModel,
+            .OpenAiUrl = _translationOpenAiUrl,
+            .OpenAiApiKey = _translationOpenAiApiKey,
+            .OpenAiModel = _translationOpenAiModel
+        }
+    End Function
+
+    ''' <summary>Applica la configurazione al singleton di cache e provider di traduzione.</summary>
+    Public Sub ApplyTranslationConfig()
+        TranslationCacheService.Instance.Configure(GetTranslationConfig())
+    End Sub
+
     Private _showMessagePopup As Boolean = True
     ''' <summary>Indica se mostrare il popup personalizzato in basso a destra per le nuove notifiche.</summary>
     Public Property ShowMessagePopup As Boolean
@@ -886,6 +1051,17 @@ Public Class SettingsController
         _tabHibernationMinutes = GetIntSetting(settings, "tabHibernationMinutes", 30)
         _diskCacheLimitMb = GetIntSetting(settings, "diskCacheLimitMb", 0)
 
+        ' Traduzioni, Privacy e Provider (TODO #69)
+        _translationPrivacyConsent = GetBoolSetting(settings, "translationPrivacyConsent", False)
+        _translationProvider = GetStringSetting(settings, "translationProvider", "google")
+        _translationLibreTranslateUrl = GetStringSetting(settings, "translationLibreTranslateUrl", "http://localhost:5000")
+        _translationLibreTranslateApiKey = GetStringSetting(settings, "translationLibreTranslateApiKey", "")
+        _translationOllamaUrl = GetStringSetting(settings, "translationOllamaUrl", "http://localhost:11434")
+        _translationOllamaModel = GetStringSetting(settings, "translationOllamaModel", "llama3.2")
+        _translationOpenAiUrl = GetStringSetting(settings, "translationOpenAiUrl", "http://localhost:1234/v1")
+        _translationOpenAiApiKey = GetStringSetting(settings, "translationOpenAiApiKey", "")
+        _translationOpenAiModel = GetStringSetting(settings, "translationOpenAiModel", "gpt-4o-mini")
+
         _isDndEnabled = GetBoolSetting(settings, "isDndEnabled", False)
         If settings.ContainsKey("dndDurationMode") AndAlso settings("dndDurationMode") IsNot Nothing Then
             _dndDurationMode = settings("dndDurationMode").ToString()
@@ -966,8 +1142,21 @@ Public Class SettingsController
         ' Inizializza la lingua attiva mantenendo in RAM solo le traduzioni pertinenti
         Await TranslationCacheService.Instance.SetActiveLanguageAsync(_language)
         Localizations = TranslationCacheService.Instance.GetActiveLocalizations()
+        ApplyTranslationConfig()
 
         NotifyAllPropertiesChanged()
+    End Function
+
+    Private Function GetStringSetting(settings As Dictionary(Of String, Object), key As String, defaultVal As String) As String
+        If settings.ContainsKey(key) AndAlso settings(key) IsNot Nothing Then
+            Dim obj = settings(key)
+            If TypeOf obj Is JsonElement Then
+                Dim element = CType(obj, JsonElement)
+                If element.ValueKind = JsonValueKind.String Then Return element.GetString()
+            End If
+            Return obj.ToString()
+        End If
+        Return defaultVal
     End Function
 
     Private Function GetBoolSetting(settings As Dictionary(Of String, Object), key As String, defaultVal As Boolean) As Boolean
@@ -1159,6 +1348,35 @@ Public Class SettingsController
         NotifyPropertyChanged(NameOf(DiskCacheLimitMb))
         If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
         _cachedSettings("diskCacheLimitMb") = _diskCacheLimitMb
+        _dirty = True
+        Dim ignore = FlushAfterDebounceAsync()
+    End Function
+
+    ''' <summary>Salva e persiste la configurazione del provider di traduzione e del consenso privacy (TODO #69).</summary>
+    Public Async Function SaveTranslationSettingsAsync(config As TranslationConfig) As Task
+        If config Is Nothing Then Return
+        _translationPrivacyConsent = config.PrivacyConsentAccepted
+        _translationProvider = config.ProviderId
+        _translationLibreTranslateUrl = config.LibreTranslateUrl
+        _translationLibreTranslateApiKey = config.LibreTranslateApiKey
+        _translationOllamaUrl = config.OllamaUrl
+        _translationOllamaModel = config.OllamaModel
+        _translationOpenAiUrl = config.OpenAiUrl
+        _translationOpenAiApiKey = config.OpenAiApiKey
+        _translationOpenAiModel = config.OpenAiModel
+        ApplyTranslationConfig()
+        NotifyPropertyChanged("")
+
+        If _cachedSettings Is Nothing Then Await ReadSettingsAsync()
+        _cachedSettings("translationPrivacyConsent") = _translationPrivacyConsent
+        _cachedSettings("translationProvider") = _translationProvider
+        _cachedSettings("translationLibreTranslateUrl") = _translationLibreTranslateUrl
+        _cachedSettings("translationLibreTranslateApiKey") = _translationLibreTranslateApiKey
+        _cachedSettings("translationOllamaUrl") = _translationOllamaUrl
+        _cachedSettings("translationOllamaModel") = _translationOllamaModel
+        _cachedSettings("translationOpenAiUrl") = _translationOpenAiUrl
+        _cachedSettings("translationOpenAiApiKey") = _translationOpenAiApiKey
+        _cachedSettings("translationOpenAiModel") = _translationOpenAiModel
         _dirty = True
         Dim ignore = FlushAfterDebounceAsync()
     End Function
