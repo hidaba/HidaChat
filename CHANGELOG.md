@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0] - 2026-10-21
+
+### Release Stabile — Ripristino Canale Aggiornamenti Stabile e Reset Automatico Canale Beta
+- **Reset Automatico Canale di Aggiornamento Beta per Release Stabile (`SettingsMigration.vb`, `SettingsController.vb`, `Constants.vb`, `Tests/SessionTests.vb`)**:
+  - **Ripristino su Canale Stabile dei Client Esistenti**: In occasione della release stabile 1.3.0, per qualsiasi client che aveva precedentemente spuntato l'opzione "Usa canale di aggiornamento beta" (`useBetaChannel = True`), la selezione viene automaticamente rimossa e reimpostata a `False`.
+  - **Migrazione Atomica delle Configurazioni (`SettingsMigration.vb`)**: Introdotto il modulo dedicato `SettingsMigration.vb` con il metodo `ApplyBetaChannelReset130()` che:
+    - Rileva e converte in `False` la proprietà `useBetaChannel` sia nel controller in memoria che all'interno del file JSON `data/settings.json`;
+    - Salva il flag permanente `betaReset130Done = True` in modo da eseguire il reset una sola volta per la transizione alla 1.3.0;
+    - Preserva le scelte intenzionali future dell'utente, consentendo l'eventuale riabilitazione manuale del canale beta nelle Impostazioni per i successivi cicli di sviluppo senza sovrascritture indebite al riavvio.
+  - **Allineamento Immediato del Controllo Aggiornamenti OTA (`UpdateChecker.vb`)**:
+    - Con la disattivazione del flag, all'avvio dell'applicazione il sottosistema di aggiornamento interroga unicamente le release stabili ufficiali su GitHub (`/releases/latest`), evitando il download accidentale di future versioni di pre-release.
+  - **Suite di Test di Regressione Automatizzati (`Tests/SessionTests.vb`)**:
+    - Aggiunta la procedura di test `TestBetaChannelResetMigration` con 19 nuove asserzioni a copertura della conversione da `True` a `False`, idempotenza, persistenza del marker `betaReset130Done`, gestione dei `JsonElement` deserializzati e salvaguardia della riattivazione manuale da parte dell'utente (175 asserzioni totali con 0 errori).
+
 ## [1.2.9-beta] - 2026-10-20
 
 ### Pre-release / Beta — Supporto Multi-Provider Traduzioni (LibreTranslate, Ollama, OpenAI) e Privacy Opt-In Obbligatorio

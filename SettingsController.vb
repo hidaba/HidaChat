@@ -1039,6 +1039,16 @@ Public Class SettingsController
         _alwaysShowTabBar = GetBoolSetting(settings, "alwaysShowTabBar", True)
         _checkForUpdates = GetBoolSetting(settings, "checkForUpdates", True)
         _useBetaChannel = GetBoolSetting(settings, "useBetaChannel", False)
+
+        ' Migrazione canale aggiornamenti release 1.3.0:
+        ' Se il client ha marcato il canale beta, lo disattiviamo e salviamo la configurazione.
+        Dim hadBetaChannelMarked = _useBetaChannel
+        If SettingsMigration.ApplyBetaChannelReset130(settings, _useBetaChannel) Then
+            If hadBetaChannelMarked Then
+                AppLogger.LogApp("[SETTINGS_MIGRATION] Release 1.3.0: Rimosso canale di aggiornamento beta precedentemente marcato dal client (ripristinato canale stabile).")
+            End If
+            Await WriteSettingsAsync(settings)
+        End If
         _translateMessageButton = GetBoolSetting(settings, "translateMessageButton", GetBoolSetting(settings, "enableHoverTranslation", True))
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)

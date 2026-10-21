@@ -230,6 +230,7 @@ Module SessionTests
             End Try
             Check(invalidIdRejected, "Profile ID path traversal rejected")
             Await TestTranslationProvidersAsync()
+            TestBetaChannelResetMigration()
         Finally
             NetworkProfileSync.ReleaseSessionLock("unit")
             Directory.Delete(testRoot, recursive:=True)
@@ -312,4 +313,66 @@ Module SessionTests
             Check(Not String.IsNullOrEmpty(testConnRes.Message), "TestConnection provides descriptive failure message")
         End Using
     End Function
+
+    Private Sub TestBetaChannelResetMigration()
+        ' 1. Client has beta channel marked (True) and no reset marker (1.3.0 update)
+        Dim settingsWithBeta As New Dictionary(Of String, Object) From {
+            {"useBetaChannel", True},
+            {"theme", "Dark"}
+        }
+        Dim useBeta = True
+        Dim changed = SettingsMigration.ApplyBetaChannelReset130(settingsWithBeta, useBeta)
+        Check(changed, "ApplyBetaChannelReset130 returns True when migration is applied")
+        Check(Not useBeta, "useBetaChannel is set to False when client had it marked")
+        Check(TypeOf settingsWithBeta("useBetaChannel") Is Boolean AndAlso Not CBool(settingsWithBeta("useBetaChannel")), "settings('useBetaChannel') is set to False in dictionary")
+        Check(TypeOf settingsWithBeta("betaReset130Done") Is Boolean AndAlso CBool(settingsWithBeta("betaReset130Done")), "settings('betaReset130Done') is recorded as True")
+        Check(CStr(settingsWithBeta("theme")) = "Dark", "Unrelated settings are preserved during reset")
+
+        ' 2. Client has beta channel NOT marked (False) on 1.3.0 update
+        Dim settingsWithoutBeta As New Dictionary(Of String, Object) From {
+            {"useBetaChannel", False}
+        }
+        Dim useBetaFalse = False
+        Dim changed2 = SettingsMigration.ApplyBetaChannelReset130(settingsWithoutBeta, useBetaFalse)
+        Check(changed2, "ApplyBetaChannelReset130 returns True to record reset marker")
+        Check(Not useBetaFalse, "useBetaChannel remains False")
+        Check(TypeOf settingsWithoutBeta("betaReset130Done") Is Boolean AndAlso CBool(settingsWithoutBeta("betaReset130Done")), "settings('betaReset130Done') is recorded as True")
+
+        ' 3. Subsequent launches after 1.3.0 reset has already run (betaReset130Done is True)
+        Dim settingsAlreadyReset As New Dictionary(Of String, Object) From {
+            {"useBetaChannel", False},
+            {"betaReset130Done", True}
+        }
+        Dim useBetaSubsequent = False
+        Dim changed3 = SettingsMigration.ApplyBetaChannelReset130(settingsAlreadyReset, useBetaSubsequent)
+        Check(Not changed3, "ApplyBetaChannelReset130 returns False when already executed")
+        Check(Not useBetaSubsequent, "useBetaChannel remains unchanged")
+
+        ' 4. Client deliberately opts into beta again after 1.3.0 update
+        Dim settingsReEnabledBeta As New Dictionary(Of String, Object) From {
+            {"useBetaChannel", True},
+            {"betaReset130Done", True}
+        }
+        Dim useBetaReEnabled = True
+        Dim changed4 = SettingsMigration.ApplyBetaChannelReset130(settingsReEnabledBeta, useBetaReEnabled)
+        Check(Not changed4, "ApplyBetaChannelReset130 does NOT wipe intentional user opt-in on subsequent runs")
+        Check(useBetaReEnabled, "useBetaChannel remains True when user intentionally enabled it after 1.3.0 reset")
+        Check(CBool(settingsReEnabledBeta("useBetaChannel")), "settings('useBetaChannel') remains True")
+
+        ' 5. JSON deserialization with JsonElement (real-world settings.json scenario)
+        Dim jsonText = "{""useBetaChannel"": true, ""theme"": ""Light""}"
+        Dim parsedSettings = System.Text.Json.JsonSerializer.Deserialize(Of Dictionary(Of String, Object))(jsonText)
+        Dim useBetaJson = True
+        Dim changed5 = SettingsMigration.ApplyBetaChannelReset130(parsedSettings, useBetaJson)
+        Check(changed5, "ApplyBetaChannelReset130 correctly processes deserialized JsonElement settings")
+        Check(Not useBetaJson, "useBetaChannel variable is reset to False from JsonElement")
+        Check(TypeOf parsedSettings("useBetaChannel") Is Boolean AndAlso Not CBool(parsedSettings("useBetaChannel")), "settings('useBetaChannel') is replaced with boolean False")
+        Check(TypeOf parsedSettings("betaReset130Done") Is Boolean AndAlso CBool(parsedSettings("betaReset130Done")), "betaReset130Done is set to boolean True")
+
+        ' 6. Null settings dictionary handling
+        Dim useBetaNull = True
+        Dim changedNull = SettingsMigration.ApplyBetaChannelReset130(Nothing, useBetaNull)
+        Check(Not changedNull, "ApplyBetaChannelReset130 safely returns False on null settings")
+        Check(useBetaNull, "useBetaChannel variable unaffected on null settings")
+    End Sub
 End Module
