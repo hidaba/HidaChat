@@ -838,22 +838,10 @@ Public Class AppAccounts
                 options.Language = effectiveLang
             End If
 
-            Dim browserArgsList As New List(Of String)()
-            Dim disabledFeatures As New List(Of String) From {"Translate", "MediaRouter"}
-            If settings.EnableSpellcheck Then
-                browserArgsList.Add($"--enable-features=Spellcheck --lang={effectiveLang}")
-            Else
-                disabledFeatures.Add("Spellcheck")
-            End If
-            browserArgsList.Add($"--disable-features={String.Join(",", disabledFeatures)}")
-
-            ' Limitazione cache Chromium via AdditionalBrowserArguments (TODO #71)
-            If settings IsNot Nothing AndAlso settings.DiskCacheLimitMb > 0 Then
-                Dim diskCacheBytes As Long = CLng(settings.DiskCacheLimitMb) * 1024L * 1024L
-                browserArgsList.Add($"--disk-cache-size={diskCacheBytes}")
-            End If
-
-            options.AdditionalBrowserArguments = String.Join(" ", browserArgsList).Trim()
+            ' Politiche di avvio e ottimizzazione cache/risorse Chromium via AdditionalBrowserArguments (TODO #71 & #102)
+            Dim diskLimitMb = If(settings IsNot Nothing, settings.DiskCacheLimitMb, BrowserArgumentsPolicy.DefaultDiskCacheLimitMb)
+            Dim enableSpellcheck = If(settings IsNot Nothing, settings.EnableSpellcheck, True)
+            options.AdditionalBrowserArguments = BrowserArgumentsPolicy.BuildAdditionalBrowserArguments(diskLimitMb, enableSpellcheck, effectiveLang)
 
             _environmentCreationStarted = True
             Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)

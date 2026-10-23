@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.1-beta] - 2026-10-23
+
+### Pre-release / Beta — Limitazione Hard Limit Cache e Ottimizzazione Risorse Chromium via AdditionalBrowserArguments
+- **Contenimento Cache su Disco e Ottimizzazione Risorse WebView2 (`BrowserArgumentsPolicy.vb`, `AppAccounts.vb`, `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Tests/SessionTests.vb` — TODO #102)**:
+  - **Modulo Centralizzato `BrowserArgumentsPolicy`**: Introdotto il modulo dedicato `BrowserArgumentsPolicy.vb` per la costruzione deterministica dei flag da riga di comando per Chromium (`BuildAdditionalBrowserArguments`), superando la dispersione e applicando le policy all'avvio di ogni scheda.
+  - **Hard Limit Cache HTTP su Disco**: Imposto tetto massimo predefinito a 50 MB (`--disk-cache-size=52428800`), configurabile nelle Impostazioni tramite `DiskCacheLimitMb` con la nuova opzione rapida "50 MB (Compatto)" e fallback dinamico a cache illimitata su selezione utente (0 MB).
+  - **Tetto Rigido Cache Media Audio/Video**: Introdotto hard limit fisso di 20 MB (`--media-cache-size=20971520`) per audio e video playback, impedendo il rigonfiamento incontrollato dei dati temporanei nei profili WhatsApp e Telegram.
+  - **Scarto Aggressivo Cache Obsoleta**: Abilitato il flag `--aggressive-cache-discard` per rilasciare tempestivamente blocchi e file di cache non più necessari.
+  - **Inibizione Shader Cache GPU su Disco**: Integrato il flag `--disable-gpu-shader-disk-cache` per impedire la scrittura e l'accumulo cumulativo su disco delle directory `GPUCache`, `GrShaderCache`, `ShaderCache`, `GraphiteDawnCache` e `DawnCache`.
+  - **Blocco Download Componenti e Telemetria in Background**: Aggiunti i flag `--disable-component-update` (previene il download silente di estensioni e moduli CRX) e `--disable-background-networking` (blocca richieste di telemetria e modelli Edge non richiesti).
+  - **Disabilitazione Feature Ridondanti**: Rimosso il download in background di modelli e hint di ottimizzazione remoti tramite `--disable-features=Translate,MediaRouter,OptimizationGuideModelDownloading,OptimizationHintsFetching` (con disabilitazione coordinata di `Spellcheck` qualora non attivo).
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunti 32 nuovi controlli di regressione unitari dedicati alla validazione degli switch di avvio, calcolo byte cache, opzione illimitata e feature abilitate/disabilitate (totale 207 asserzioni automatiche con 0 errori).
 ## [1.3.0] - 2026-10-21
 
 ### Release Stabile — Ripristino Canale Aggiornamenti Stabile e Reset Automatico Canale Beta

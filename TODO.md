@@ -884,5 +884,174 @@
 - **Test di accettazione**: Aprire la finestra "Informazioni su HidaChat": verificare che l'icona appaia nitida e con colori corretti e che il testo descrittivo vada a capo automaticamente senza essere troncato ai margini.
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso-Medio | **Sforzo**: Basso
 
+## ~~102. [P2] Limitare la cache WebView2 alla fonte tramite AdditionalBrowserArguments~~ ✅
+- **File**: BrowserArgumentsPolicy.vb, AppAccounts.vb, SettingsController.vb, SettingsWindow.xaml, SettingsWindow.xaml.vb, Tests/SessionTests.vb
+- **Descrizione**: Implementata la limitazione hard limit della cache su disco e disabilitazione di componenti Chromium/Edge superflui via AdditionalBrowserArguments.
+- **Implementazione**:
+  - Creato il modulo BrowserArgumentsPolicy.vb con il costruttore deterministico BuildAdditionalBrowserArguments(diskCacheLimitMb, enableSpellcheck, effectiveLang).
+  - Imposto hard limit default per cache HTTP (--disk-cache-size=52428800, 50 MB, configurabile tramite SettingsController.DiskCacheLimitMb con nuova opzione "50 MB (Compatto)" e fallback a 0 per illimitata).
+  - Imposto hard limit per cache audio/video --media-cache-size=20971520 (20 MB).
+  - Attivato flag di eliminazione immediata della cache obsoleta --aggressive-cache-discard.
+  - Disabilitato il salvataggio su disco degli shader GPU --disable-gpu-shader-disk-cache (prevenendo l'accumulo in GPUCache, GrShaderCache, ecc.).
+  - Bloccato il download in background di aggiornamenti componenti CRX --disable-component-update.
+  - Bloccata la telemetria e modelli di sfondo Edge --disable-background-networking.
+  - Disabilitate le feature non necessarie --disable-features=Translate,MediaRouter,OptimizationGuideModelDownloading,OptimizationHintsFetching (oltre a Spellcheck se non abilitato).
+  - Integrata suite di test automatizzati in Tests/SessionTests.vb (207 asserzioni con 0 fallimenti).
+- **File**: `MainWindow.xaml.vb`, `AccountManager.vb`
+- **Problema / Esigenza**: All'inizializzazione del `CoreWebView2Environment`, Chromium può accumulare centinaia di megabyte di cache su disco e scaricare componenti Edge/Chromium non necessari (incluso il traduttore nativo di Chromium, superfluo dato che HidaChat include già il proprio motore in `JsScripts.vb` / `Scripts/translation.js`, oltre a modelli di ottimizzazione e telemetria in background).
+- **Soluzione proposta / Fix da implementare**:
+  Passare argomenti di avvio specifici a Chromium tramite la proprietà `AdditionalBrowserArguments` di `CoreWebView2EnvironmentOptions` per imporre un tetto massimo (hard limit) su disco ed escludere componenti ridondanti:
+  ```vb
+  Imports Microsoft.Web.WebView2.Core
+
+  Public Async Function CreateOptimizedEnvironmentAsync(userDataFolder As String) As Task(Of CoreWebView2Environment)
+      ' Argomenti Chromium per limitare drasticamente lo spazio su disco
+      Dim args As String = String.Join(" ", {
+          "--disk-cache-size=52428800",        ' Max 50 MB di cache HTTP per profilo
+          "--media-cache-size=20971520",       ' Max 20 MB di cache audio/video
+          "--aggressive-cache-discard",        ' Scarta subito la cache vecchia
+          "--disable-gpu-shader-disk-cache",   ' Non salvare gli shader GPU su disco
+          "--disable-component-update",        ' Blocca il download di componenti CRX in background
+          "--disable-background-networking",   ' Evita download di telemetria/modelli Edge
+          "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,Translate"
+      })
+
+      Dim options As New CoreWebView2EnvironmentOptions(
+          additionalBrowserArguments:=args,
+          language:=Nothing,
+          targetCompatibleBrowserVersion:=Nothing,
+          allowSingleSignOnUsingOSPrimaryAccount:=False
+      )
+
+      Return Await CoreWebView2Environment.CreateAsync(Nothing, userDataFolder, options)
+  End Function
+  ```
+- **Test di accettazione**: Verificare all'avvio che le istanze WebView2 vengano inizializzate con i flag specificati, che la cache HTTP non ecceda il tetto prefissato e che la navigazione su WhatsApp e Telegram resti pienamente funzionante.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Basso
+
+## 103. [P2] Condivisione di un unico CoreWebView2Environment con profili nativi (ProfileName)
+- **File**: `AccountManager.vb`, `MainWindow.xaml.vb`
+- **Problema / Esigenza**: La creazione di percorsi cartella isolati separati per ciascun account (`data/webview/account_1`, `data/webview/account_2`, ecc.) con un `CoreWebView2Environment` differente per ciascuna scheda moltiplica per ogni account tutti i file di sistema, log e binari interni di Chromium (`EBWebView`).
+- **Soluzione proposta / Fix da implementare**:
+  Utilizzare una sola cartella dati base condivisa (`data/webview`) con un singolo `CoreWebView2Environment`, separando gli account tramite i profili nativi di WebView2 con `CoreWebView2ControllerOptions.ProfileName`:
+  ```vb
+  ' Usa lo stesso _sharedEnvironment ("data/webview") per tutte le tab:
+  Dim controllerOptions = _sharedEnvironment.CreateCoreWebView2ControllerOptions()
+  controllerOptions.ProfileName = $"Account_{account.Id}" ' Es. "Account_1", "Account_2"
+  controllerOptions.IsInPrivateModeEnabled = False
+
+  Await webView.EnsureCoreWebView2Async(_sharedEnvironment, controllerOptions)
+  ```
+  In questo modo Cookie, IndexedDB e LocalStorage rimangono isolati al 100% (in sottocartelle del profilo), mentre l'infrastruttura motore viene allocata una sola volta, con notevole risparmio di RAM e spazio su disco.
+- **Test di accettazione**: Aprire più account contemporaneamente (es. WhatsApp 1 e WhatsApp 2) verificando che le sessioni non entrino in conflitto, che i cookie/IndexedDB rimangano separati e che la cartella `EBWebView` non duplichi i file di sistema.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
+
+## 104. [P2] Pulizia chirurgica a caldo della cache con ClearBrowsingDataAsync senza deautenticare gli account
+- **File**: `SettingsWindow.xaml.vb`, `AccountManager.vb`
+- **Problema / Esigenza**: Durante l'uso prolungato, WebView2 accumula centinaia di megabyte di `DiskCache` e `CacheStorage` (Service Worker cache). I metodi tradizionali di cancellazione cartella rischiano di spazzare via Cookie, LocalStorage e IndexedDB provocando il logout forzato da WhatsApp Web e Telegram Web.
+- **Soluzione proposta / Fix da implementare**:
+  Fornire una funzione di compattazione a caldo richiamabile manualmente (es. pulsante "Ottimizza Spazio" nelle Impostazioni) o su base periodica programmata, invocando `CoreWebView2.Profile.ClearBrowsingDataAsync` solo sui dati rigenerabili:
+  ```vb
+  Imports Microsoft.Web.WebView2.Core
+
+  Public Async Function CompactWebViewProfileAsync(webView As Microsoft.Web.WebView2.Wpf.WebView2) As Task
+      If webView?.CoreWebView2?.Profile Is Nothing Then Return
+
+      ' Selezioniamo SOLO le cache rigenerabili, escludendo Cookies, LocalStorage e IndexedDB!
+      Dim dataKinds As CoreWebView2BrowsingDataKinds =
+          CoreWebView2BrowsingDataKinds.DiskCache Or
+          CoreWebView2BrowsingDataKinds.CacheStorage
+
+      Await webView.CoreWebView2.Profile.ClearBrowsingDataAsync(dataKinds)
+  End Function
+  ```
+- **Test di accettazione**: Invocare la pulizia a caldo su una sessione attiva di WhatsApp Web con messaggi aperti; verificare che la dimensione della cache su disco si riduca sensibilmente e che la sessione non venga disconnessa (nessuna richiesta di nuovo QR code al riavvio/refresh).
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso
+
+## 105. [P2] Routine di pulizia automatica cartelle spazzatura all'avvio
+- **File**: `Application.xaml.vb`, `AccountManager.vb`
+- **Problema / Esigenza**: All'avvio dell'applicazione, prima che i processi `msedgewebview2.exe` vengano instanziati e blocchino i file su disco, rimangono file e sottocartelle temporanee create da crash, diagnostica o shader che occupano spazio non necessario nella cartella `data/webview`.
+- **Soluzione proposta / Fix da implementare**:
+  Eseguire prima dell'inizializzazione dei controlli WebView2 la rimozione sicura delle cartelle temporanee che non contengono mai informazioni di login o sessione:
+  ```vb
+  Imports System.IO
+
+  Public Sub CleanWebViewJunkFolders(baseDataPath As String)
+      If Not Directory.Exists(baseDataPath) Then Return
+
+      ' Cartelle sicure da eliminare al 100% (non contengono mai dati di login)
+      Dim junkFolderNames As String() = {
+          "Crashpad",
+          "GrShaderCache",
+          "ShaderCache",
+          "GraphiteDawnCache",
+          "DawnCache",
+          "GPUCache",
+          "Code Cache",
+          "Cache",
+          "BrowserMetrics",
+          "component_crx_cache",
+          "OptimizationGuidePredictionModels",
+          "Safe Browsing"
+      }
+
+      Try
+          For Each dirPath In Directory.EnumerateDirectories(baseDataPath, "*", SearchOption.AllDirectories)
+              Dim dirName As String = Path.GetFileName(dirPath)
+              If junkFolderNames.Contains(dirName, StringComparer.OrdinalIgnoreCase) Then
+                  Try
+                      Directory.Delete(dirPath, recursive:=True)
+                  Catch
+                      ' Ignora se un file è bloccato o già rimosso
+                  End Try
+              End If
+          Next
+
+          ' Elimina anche eventuali file .dmp o .pma (metriche e crash dump)
+          For Each filePath In Directory.EnumerateFiles(baseDataPath, "*.*", SearchOption.AllDirectories)
+              Dim ext As String = Path.GetExtension(filePath).ToLowerInvariant()
+              If ext = ".dmp" OrElse ext = ".pma" OrElse ext = ".old" Then
+                  Try
+                      File.Delete(filePath)
+                  Catch
+                  End Try
+              End If
+          Next
+      Catch ex As Exception
+          ' Log opzionale
+      End Try
+  End Sub
+  ```
+  *Attenzione alle cartelle IndexedDB*: WhatsApp memorizza i file multimediali scaricati in `IndexedDB\https_web.whatsapp.com_0.indexeddb.blob`, mentre i token crittografici e di sessione Signal si trovano nella gemella `.leveldb`. La cartella `.leveldb` non deve mai essere rimossa per evitare la perdita della sessione utente.
+- **Test di accettazione**: Simulare la presenza di file `.dmp`, `.pma` e cartelle `Crashpad` o `GPUCache` nella cartella dati; verificare all'avvio che vengano rimosse senza toccare `.leveldb` o i cookie e che l'avvio prosegua regolarmente.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
+
+## 106. [P3] Compressione trasparente NTFS (compact.exe) per la cartella dati portabile
+- **File**: `Application.xaml.vb`, `AccountManager.vb`
+- **Problema / Esigenza**: La cartella `data/webview` contiene file altamente comprimibili (database LevelDB, JSON, JavaScript, log di testo). Comprimere la cartella in un archivio ZIP/7z in chiusura e decomprimerla all'avvio comporterebbe sensibili ritardi di avvio e il rischio critico di corruzione in caso di crash o arresto improvviso del sistema.
+- **Soluzione proposta / Fix da implementare**:
+  Abilitare la compressione trasparente a livello di filesystem NTFS direttamente sulla cartella `data/` alla sua creazione eseguendo l'utility nativa `compact.exe` in background:
+  ```vb
+  Imports System.Diagnostics
+  Imports System.IO
+
+  Public Sub EnableNtfsCompression(folderPath As String)
+      If Not Directory.Exists(folderPath) Then Directory.CreateDirectory(folderPath)
+
+      ' Esegue il comando nativo di Windows compact.exe in background sulla cartella data
+      Dim psi As New ProcessStartInfo("compact.exe", $"/C /S:""{folderPath}"" /I /Q") With {
+          .CreateNoWindow = True,
+          .UseShellExecute = False,
+          .WindowStyle = ProcessWindowStyle.Hidden
+      }
+      Using proc = Process.Start(psi)
+          ' Non serve bloccare il thread principale
+      End Using
+  End Sub
+  ```
+  *Nota*: Su supporti rimovibili formattati in FAT32/exFAT (es. chiavette USB portabili), il parametro `/I` permette a `compact.exe` di ignorare silenziosamente l'operazione senza generare errori o bloccare l'esecuzione.
+- **Test di accettazione**: Su disco NTFS, verificare che le proprietà della cartella `data/webview` presentino l'attributo "Compresso" attivo, con una riduzione di spazio occupato su disco di circa il 40-50% senza impatto negativo sulle prestazioni di lettura/scrittura di WebView2.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Medio | **Sforzo**: Basso
+
 
 

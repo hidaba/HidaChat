@@ -141,7 +141,7 @@ Public Class SettingsWindow
                 End If
             Next
             If ComboDiskCacheLimit.SelectedItem Is Nothing AndAlso ComboDiskCacheLimit.Items.Count > 0 Then
-                ComboDiskCacheLimit.SelectedIndex = 1
+                ComboDiskCacheLimit.SelectedIndex = 0
             End If
 
             ' 5. Collega l'elenco degli account

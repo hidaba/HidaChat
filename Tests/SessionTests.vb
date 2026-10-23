@@ -231,6 +231,7 @@ Module SessionTests
             Check(invalidIdRejected, "Profile ID path traversal rejected")
             Await TestTranslationProvidersAsync()
             TestBetaChannelResetMigration()
+            TestBrowserArgumentsPolicy()
         Finally
             NetworkProfileSync.ReleaseSessionLock("unit")
             Directory.Delete(testRoot, recursive:=True)
@@ -315,6 +316,7 @@ Module SessionTests
     End Function
 
     Private Sub TestBetaChannelResetMigration()
+            TestBrowserArgumentsPolicy()
         ' 1. Client has beta channel marked (True) and no reset marker (1.3.0 update)
         Dim settingsWithBeta As New Dictionary(Of String, Object) From {
             {"useBetaChannel", True},
@@ -374,5 +376,32 @@ Module SessionTests
         Dim changedNull = SettingsMigration.ApplyBetaChannelReset130(Nothing, useBetaNull)
         Check(Not changedNull, "ApplyBetaChannelReset130 safely returns False on null settings")
         Check(useBetaNull, "useBetaChannel variable unaffected on null settings")
+    End Sub
+
+    Private Sub TestBrowserArgumentsPolicy()
+        ' 1. Default arguments (50 MB limit, spellcheck enabled, Italian language)
+        Dim defaultArgs = BrowserArgumentsPolicy.BuildAdditionalBrowserArguments(BrowserArgumentsPolicy.DefaultDiskCacheLimitMb, True, "it-IT")
+        Check(defaultArgs.Contains("--disk-cache-size=52428800"), "Default cache limit sets --disk-cache-size=52428800 (50 MB)")
+        Check(defaultArgs.Contains($"--media-cache-size={BrowserArgumentsPolicy.MediaCacheSizeBytes}"), "--media-cache-size=20971520 is present")
+        Check(defaultArgs.Contains("--aggressive-cache-discard"), "--aggressive-cache-discard is present")
+        Check(defaultArgs.Contains("--disable-gpu-shader-disk-cache"), "--disable-gpu-shader-disk-cache is present")
+        Check(defaultArgs.Contains("--disable-component-update"), "--disable-component-update is present")
+        Check(defaultArgs.Contains("--disable-background-networking"), "--disable-background-networking is present")
+        Check(defaultArgs.Contains("Translate"), "Translate feature is disabled")
+        Check(defaultArgs.Contains("OptimizationGuideModelDownloading"), "OptimizationGuideModelDownloading is disabled")
+        Check(defaultArgs.Contains("OptimizationHintsFetching"), "OptimizationHintsFetching is disabled")
+        Check(defaultArgs.Contains("--enable-features=Spellcheck --lang=it-IT"), "Spellcheck feature enabled with active language")
+
+        ' 2. Custom disk cache limit (e.g. 256 MB)
+        Dim customArgs = BrowserArgumentsPolicy.BuildAdditionalBrowserArguments(256, False, "")
+        Check(customArgs.Contains("--disk-cache-size=268435456"), "Custom cache limit 256 MB sets 268435456 bytes")
+        Check(customArgs.Contains("Spellcheck"), "Spellcheck feature disabled when enableSpellcheck is False")
+        Check(Not customArgs.Contains("--enable-features=Spellcheck"), "--enable-features=Spellcheck omitted when disabled")
+
+        ' 3. Unlimited cache (0 MB)
+        Dim unlimitedArgs = BrowserArgumentsPolicy.BuildAdditionalBrowserArguments(0, True, "en-US")
+        Check(Not unlimitedArgs.Contains("--disk-cache-size"), "--disk-cache-size omitted when limit is 0 (unlimited)")
+        Check(unlimitedArgs.Contains($"--media-cache-size={BrowserArgumentsPolicy.MediaCacheSizeBytes}"), "Media cache limit preserved even with unlimited HTTP cache")
+        Check(unlimitedArgs.Contains("--aggressive-cache-discard"), "Aggressive cache discard preserved with unlimited HTTP cache")
     End Sub
 End Module

@@ -15,6 +15,7 @@
     <Compile Include="../LocalAuthPolicy.vb" Link="LocalAuthPolicy.vb" />
     <Compile Include="../TranslationProvider.vb" Link="TranslationProvider.vb" />
     <Compile Include="../SettingsMigration.vb" Link="SettingsMigration.vb" />
+    <Compile Include="../BrowserArgumentsPolicy.vb" Link="BrowserArgumentsPolicy.vb" />
     <Compile Include="SessionTests.vb" />
   </ItemGroup>
 </Project>

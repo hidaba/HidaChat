@@ -537,6 +537,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="LabelDiskCacheLimit" Text="Chromium disk cache limit:" Foreground="#aebac1" VerticalAlignment="Center"/>
                         <ComboBox x:Name="ComboDiskCacheLimit" Grid.Column="1" Width="180" SelectionChanged="ComboDiskCacheLimit_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
+                            <ComboBoxItem Content="50 MB (Compatto)" Tag="50"/>
                             <ComboBoxItem Content="128 MB" Tag="128"/>
                             <ComboBoxItem Content="256 MB (Consigliato)" Tag="256"/>
                             <ComboBoxItem Content="512 MB" Tag="512"/>
