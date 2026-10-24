@@ -234,11 +234,17 @@
 - **Funzionalità Implementate**: Sezione dedicata nelle **Impostazioni** con toggle di attivazione/disattivazione `ChkEnableSpellcheck`, selettore lingua dizionario `ComboSpellcheckLanguage` (Automatico da lingua app, Italiano `it-IT`, English `en-US`, Français `fr-FR`, Español `es-ES`, Deutsch `de-DE`), persistenza in `settings.json` e configurazione dinamica dei parametri Chromium (`--enable-features=Spellcheck`, `--lang=...`).
 - **Impatto**: Medio | **Sforzo**: Basso
 
-## 45. Utility Bar & Gestione Rapida Audio / Dispositivi
+## ~~45. Utility Bar & Gestione Rapida Audio / Dispositivi~~ ✅
 - **Descrizione**: Aggiungere opzioni di utilità rapida nella barra del titolo o nel menu contestuale delle schede:
   - **Mute/Unmute rapido** dell'audio dell'account corrente (`CoreWebView2.IsMuted = True/False`).
   - **Indicatore multimediale** (icona altoparlante sulla scheda quando un account sta riproducendo note vocali, notifiche sonore o video).
   - Scorciatoia rapida "Copia link chat" o "Cancella cache account".
+- **Funzionalità Implementate**:
+  - Pulsante dedicato `BtnMuteActiveTab` nella barra del titolo con icona dinamica (altoparlante attivo `#00a884` quando in riproduzione o `#8696a0`, barrato in magenta `#ec4899` se silenziato) e scorciatoia globale `Ctrl+M`.
+  - Pulsante dedicato `BtnCopyLink` nella barra del titolo e scorciatoia globale `Ctrl+Shift+C` per copiare istantaneamente il link/URL della chat o dell'istanza attiva negli appunti con feedback Toast discreto (`MessagePopup`).
+  - Indicatore multimediale interattivo `TabMediaButton` integrato su ogni singola scheda: mostra `🔊` in caso di audio/video in riproduzione o `🔇` se l'account è silenziato, con possibilità di silenziare/riattivare l'audio con un singolo click diretto senza abbandonare la scheda attiva.
+  - Voci dedicate nel menu contestuale delle schede (`AccountTab_ContextMenuOpened`): toggle contestuale dinamico "Disattiva/Attiva audio scheda" (`account_mute_tab` / `account_unmute_tab`), "Copia link chat / URL" (`account_copy_link`) e pulizia mirata cache (`account_clean_cache`).
+  - Supporto multilingua completo nei 5 dizionari ufficiali (`Localization.vb`: EN, IT, FR, ES, DE) e test di regressione unitari.
 - **Impatto**: Medio | **Sforzo**: Basso-Medio
 
 ## 46. Modalità Privacy / Anti-Sbircio (Blur Mode / Screen Share Shield)
@@ -1026,30 +1032,15 @@
 - **Test di accettazione**: Simulare la presenza di file `.dmp`, `.pma` e cartelle `Crashpad` o `GPUCache` nella cartella dati; verificare all'avvio che vengano rimosse senza toccare `.leveldb` o i cookie e che l'avvio prosegua regolarmente.
 - **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
 
-## 106. [P3] Compressione trasparente NTFS (compact.exe) per la cartella dati portabile
-- **File**: `Application.xaml.vb`, `AccountManager.vb`
+## ~~106. [P3] Compressione trasparente NTFS (compact.exe) per la cartella dati portabile~~ ✅
+- **File**: `NtfsCompressionPolicy.vb`, `Application.xaml.vb`, `AccountManager.vb`, `Tests/SessionTests.vb`
 - **Problema / Esigenza**: La cartella `data/webview` contiene file altamente comprimibili (database LevelDB, JSON, JavaScript, log di testo). Comprimere la cartella in un archivio ZIP/7z in chiusura e decomprimerla all'avvio comporterebbe sensibili ritardi di avvio e il rischio critico di corruzione in caso di crash o arresto improvviso del sistema.
-- **Soluzione proposta / Fix da implementare**:
-  Abilitare la compressione trasparente a livello di filesystem NTFS direttamente sulla cartella `data/` alla sua creazione eseguendo l'utility nativa `compact.exe` in background:
-  ```vb
-  Imports System.Diagnostics
-  Imports System.IO
-
-  Public Sub EnableNtfsCompression(folderPath As String)
-      If Not Directory.Exists(folderPath) Then Directory.CreateDirectory(folderPath)
-
-      ' Esegue il comando nativo di Windows compact.exe in background sulla cartella data
-      Dim psi As New ProcessStartInfo("compact.exe", $"/C /S:""{folderPath}"" /I /Q") With {
-          .CreateNoWindow = True,
-          .UseShellExecute = False,
-          .WindowStyle = ProcessWindowStyle.Hidden
-      }
-      Using proc = Process.Start(psi)
-          ' Non serve bloccare il thread principale
-      End Using
-  End Sub
-  ```
-  *Nota*: Su supporti rimovibili formattati in FAT32/exFAT (es. chiavette USB portabili), il parametro `/I` permette a `compact.exe` di ignorare silenziosamente l'operazione senza generare errori o bloccare l'esecuzione.
+- **Funzionalità Implementate**:
+  - Modulo dedicato `NtfsCompressionPolicy.vb` con metodo `EnableNtfsCompression(folderPath)` e costruttore argomenti `BuildCompactArguments` (`/C /S:"..." /I /Q`).
+  - Invocazione non bloccante in background di `compact.exe` all'avvio in `Application.xaml.vb` sulla cartella principale `data/` al momento dell'acquisizione del folder lock.
+  - Invocazione automatica in `AccountManager.LoadAccountsAsync()` sulla directory condivisa `data/webview`.
+  - Gestione sicura di filesystem rimovibili (FAT32/exFAT): il parametro `/I` ignora silenziosamente filesystem non supportati senza errori o ritardi.
+  - Test automatizzati unitari in `Tests/SessionTests.vb` a copertura di validazione parametri CLI, gestione percorsi null/whitespace e creazione directory.
 - **Test di accettazione**: Su disco NTFS, verificare che le proprietà della cartella `data/webview` presentino l'attributo "Compresso" attivo, con una riduzione di spazio occupato su disco di circa il 40-50% senza impatto negativo sulle prestazioni di lettura/scrittura di WebView2.
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Medio | **Sforzo**: Basso
 

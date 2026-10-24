@@ -181,6 +181,18 @@
                     </Button>
 
                     <!-- Reload Active Tab Button -->
+                    <Button x:Name="BtnMuteActiveTab" Click="BtnMuteActiveTab_Click" Width="32" Height="32" Margin="0,0,5,0" ToolTip="Disattiva/Attiva audio (Ctrl+M)" Style="{StaticResource HeaderIconButtonStyle}">
+                        <Path x:Name="MuteActiveTabIcon" 
+                              Data="M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16.02C15.48,15.28 16.5,13.76 16.5,12M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.01,19.86 21,16.28 21,12C21,7.72 18.01,4.14 14,3.23Z" 
+                              Fill="#8696a0" Width="16" Height="16" Stretch="Fill"/>
+                    </Button>
+
+                    <!-- Copy Active Chat Link / URL (TODO #45) -->
+                    <Button x:Name="BtnCopyLink" Click="BtnCopyLink_Click" Width="32" Height="32" Margin="0,0,5,0" ToolTip="Copia link chat" Style="{StaticResource HeaderIconButtonStyle}">
+                        <Path Data="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" 
+                              Fill="#8696a0" Width="16" Height="16" Stretch="Fill"/>
+                    </Button>
+
                     <Button x:Name="BtnReloadActiveTab" Click="BtnReloadActiveTab_Click" Width="32" Height="32" Margin="0,0,5,0" ToolTip="Reload active tab" Style="{StaticResource HeaderIconButtonStyle}">
                         <Path Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" 
                               Fill="#8696a0" Width="16" Height="16" Stretch="Fill"/>
@@ -265,6 +277,30 @@
                                                  Visibility="{Binding OnlineDotVisibility}" 
                                                  ToolTip="{Binding ContactOnlineStatusText}"/>
 
+                                         <!-- Indicatore Multimediale Audio / Mute (TODO #45) -->
+                                        <Button x:Name="TabMediaButton"
+                                                Click="TabMediaButton_Click"
+                                                Tag="{Binding Id}"
+                                                ToolTip="{Binding MediaIndicatorTooltip}"
+                                                Visibility="{Binding MediaIndicatorVisibility}"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Padding="2,0"
+                                                Margin="4,0,0,0"
+                                                Cursor="Hand"
+                                                VerticalAlignment="Center">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="Transparent">
+                                                        <ContentPresenter/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock Text="{Binding MediaIndicatorIcon}"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"/>
+                                        </Button>
+
                                         <!-- Indicatore Scheda Ibernata (TODO #50) -->
                                         <TextBlock Text="💤" FontSize="10" Margin="4,0,0,0" 
                                                    VerticalAlignment="Center" 
@@ -273,6 +309,9 @@
                                     </StackPanel>
                                     <Button.ContextMenu>
                                         <ContextMenu Opened="AccountTab_ContextMenuOpened">
+                                            <MenuItem Header="Mute tab" Tag="mute_toggle" Click="AccountTabMute_Click"/>
+                                            <MenuItem Header="Copy link" Tag="copy_link" Click="AccountTabCopyLink_Click"/>
+                                            <Separator/>
                                             <MenuItem Header="Rename" Tag="rename" Click="AccountTabRename_Click"/>
                                             <MenuItem Header="Clean cache" Tag="clean_cache" Click="AccountTabCleanCache_Click"/>
                                             <MenuItem Header="Repair tab" Tag="repair_tab" Click="AccountTabRepair_Click"/>

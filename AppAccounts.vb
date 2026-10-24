@@ -630,7 +630,129 @@ Public Class AppAccounts
     Private _navigationCompletedHandler As EventHandler(Of CoreWebView2NavigationCompletedEventArgs)
     Private _webResourceRequestedHandler As EventHandler(Of CoreWebView2WebResourceRequestedEventArgs)
     Private _processFailedHandler As EventHandler(Of CoreWebView2ProcessFailedEventArgs)
+    Private _isDocumentPlayingAudioChangedHandler As EventHandler(Of Object)
+    Private _isMutedChangedHandler As EventHandler(Of Object)
     Private _settings As SettingsController
+
+    Private _isMuted As Boolean = False
+    ''' <summary>
+    ''' Indica se l'audio dell'account corrente è silenziato a livello di CoreWebView2 (TODO #45).
+    ''' </summary>
+    <JsonIgnore>
+    Public Property IsMuted As Boolean
+        Get
+            If WebView?.CoreWebView2 IsNot Nothing Then
+                Return WebView.CoreWebView2.IsMuted
+            End If
+            Return _isMuted
+        End Get
+        Set(value As Boolean)
+            _isMuted = value
+            If WebView?.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.IsMuted <> value Then
+                WebView.CoreWebView2.IsMuted = value
+            End If
+            NotifyPropertyChanged(NameOf(IsMuted))
+            NotifyPropertyChanged(NameOf(MediaIndicatorVisibility))
+            NotifyPropertyChanged(NameOf(MediaIndicatorIcon))
+            NotifyPropertyChanged(NameOf(MediaIndicatorTooltip))
+        End Set
+    End Property
+
+    Private _isPlayingAudio As Boolean = False
+    ''' <summary>
+    ''' Indica se l'account sta attualmente riproducendo note vocali, notifiche sonore o video (TODO #45).
+    ''' </summary>
+    <JsonIgnore>
+    Public Property IsPlayingAudio As Boolean
+        Get
+            If WebView?.CoreWebView2 IsNot Nothing Then
+                Return WebView.CoreWebView2.IsDocumentPlayingAudio
+            End If
+            Return _isPlayingAudio
+        End Get
+        Private Set(value As Boolean)
+            If _isPlayingAudio <> value Then
+                _isPlayingAudio = value
+                NotifyPropertyChanged(NameOf(IsPlayingAudio))
+                NotifyPropertyChanged(NameOf(MediaIndicatorVisibility))
+                NotifyPropertyChanged(NameOf(MediaIndicatorIcon))
+                NotifyPropertyChanged(NameOf(MediaIndicatorTooltip))
+            End If
+        End Set
+    End Property
+
+    ''' <summary>
+    ''' Visibilità dell'indicatore multimediale/audio sulla scheda dell'account (TODO #45).
+    ''' Visibile se l'audio è silenziato oppure se è attualmente in riproduzione.
+    ''' </summary>
+    <JsonIgnore>
+    Public ReadOnly Property MediaIndicatorVisibility As Visibility
+        Get
+            If IsMuted OrElse IsPlayingAudio Then
+                Return Visibility.Visible
+            End If
+            Return Visibility.Collapsed
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Icona testuale / glifo dell'indicatore multimediale sulla scheda.
+    ''' </summary>
+    <JsonIgnore>
+    Public ReadOnly Property MediaIndicatorIcon As String
+        Get
+            If IsMuted Then
+                Return "🔇"
+            ElseIf IsPlayingAudio Then
+                Return "🔊"
+            Else
+                Return String.Empty
+            End If
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Tooltip localizzato dell'indicatore multimediale sulla scheda.
+    ''' </summary>
+    <JsonIgnore>
+    Public ReadOnly Property MediaIndicatorTooltip As String
+        Get
+            Dim loc = _settings?.Localizations
+            If IsMuted Then
+                Return If(loc IsNot Nothing, loc.Get("media_muted_tooltip"), "Audio disattivato (clicca per riattivare)")
+            ElseIf IsPlayingAudio Then
+                Return If(loc IsNot Nothing, loc.Get("media_playing_tooltip"), "Riproduzione audio in corso (clicca per disattivare)")
+            Else
+                Return String.Empty
+            End If
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Inverte lo stato di muting dell'account (TODO #45).
+    ''' </summary>
+    Public Sub ToggleMute()
+        IsMuted = Not IsMuted
+    End Sub
+
+    ''' <summary>
+    ''' Aggiorna lo stato di notifica proprietà audio in seguito ad eventi CoreWebView2 (TODO #45).
+    ''' </summary>
+    Friend Sub UpdateAudioState()
+        If WebView?.CoreWebView2 IsNot Nothing Then
+            _isMuted = WebView.CoreWebView2.IsMuted
+            _isPlayingAudio = WebView.CoreWebView2.IsDocumentPlayingAudio
+        End If
+        NotifyPropertyChanged(NameOf(IsMuted))
+        NotifyPropertyChanged(NameOf(IsPlayingAudio))
+        NotifyPropertyChanged(NameOf(MediaIndicatorVisibility))
+        NotifyPropertyChanged(NameOf(MediaIndicatorIcon))
+        NotifyPropertyChanged(NameOf(MediaIndicatorTooltip))
+    End Sub
+
+    Private Sub NotifyPropertyChanged(propertyName As String)
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(propertyName))
+    End Sub
 
     ' Filtro WebResourceRequested per autorizzazione porte e token locali/gateway (TODO #78)
     Private _activeProxyFilterPattern As String = Nothing
@@ -1108,6 +1230,30 @@ Public Class AppAccounts
                 End Try
             End Sub
             AddHandler WebView.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
+
+            ' Gestione audio e indicatori multimediali per scheda (TODO #45)
+            _isDocumentPlayingAudioChangedHandler = Sub(sender, e)
+                Try
+                    Application.Current?.Dispatcher?.BeginInvoke(Sub()
+                        UpdateAudioState()
+                    End Sub)
+                Catch ex As Exception
+                    ' Ignora se in fase di shutdown
+                End Try
+            End Sub
+            AddHandler WebView.CoreWebView2.IsDocumentPlayingAudioChanged, _isDocumentPlayingAudioChangedHandler
+
+            _isMutedChangedHandler = Sub(sender, e)
+                Try
+                    Application.Current?.Dispatcher?.BeginInvoke(Sub()
+                        UpdateAudioState()
+                    End Sub)
+                Catch ex As Exception
+                    ' Ignora se in fase di shutdown
+                End Try
+            End Sub
+            AddHandler WebView.CoreWebView2.IsMutedChanged, _isMutedChangedHandler
+            UpdateAudioState()
 
             If TailscaleIntegration AndAlso PlatformDefinition.RequiresLocalProxy Then
                 Await EnsureLocalProxyAsync(forceUpdate:=True)
@@ -2200,6 +2346,14 @@ Public Class AppAccounts
                         If _navigationCompletedHandler IsNot Nothing Then
                             RemoveHandler wv.CoreWebView2.NavigationCompleted, _navigationCompletedHandler
                             _navigationCompletedHandler = Nothing
+                        End If
+                        If _isDocumentPlayingAudioChangedHandler IsNot Nothing Then
+                            RemoveHandler wv.CoreWebView2.IsDocumentPlayingAudioChanged, _isDocumentPlayingAudioChangedHandler
+                            _isDocumentPlayingAudioChangedHandler = Nothing
+                        End If
+                        If _isMutedChangedHandler IsNot Nothing Then
+                            RemoveHandler wv.CoreWebView2.IsMutedChanged, _isMutedChangedHandler
+                            _isMutedChangedHandler = Nothing
                         End If
                         RemoveWebResourceAuthFilter()
                     Catch

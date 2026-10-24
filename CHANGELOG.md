@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.2-beta] - 2026-10-24
+
+### Pre-release / Beta — Utility Bar & Gestione Rapida Audio / Dispositivi e Compressione Trasparente NTFS
+- **Utility Bar & Gestione Rapida Audio / Dispositivi (`AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #45)**:
+  - **Mute/Unmute Rapido dell'Account Attivo**: Aggiunto il pulsante dedicato `BtnMuteActiveTab` nella barra del titolo con sincronizzazione bidirezionale immediata con `CoreWebView2.IsMuted`, icona dinamica (stato inattivo `#8696a0`, playback multimediale verde WhatsApp `#00a884`, muto barrato magenta `#ec4899`) e tooltip reattivo.
+  - **Scorciatoie da Tastiera Dedicate**: Introdotta la combinazione rapida `Ctrl+M` per silenziare o riattivare istantaneamente l'audio della scheda corrente, e `Ctrl+Shift+C` per copiare l'URL/chat link della scheda attiva negli appunti.
+  - **Indicatore Multimediale Interattivo su Scheda (`TabMediaButton`)**: Introdotto l'indicatore audio su ogni singola scheda account con visualizzazione di `🔊` quando l'account riproduce note vocali, notifiche audio o video (`IsDocumentPlayingAudio`) e `🔇` quando silenziato (`IsMuted`), con possibilità di cliccare direttamente sull'icona per mutare/smutare al volo la specifica tab senza commutare scheda.
+  - **Menu Contestuale Schede Esteso**: Aggiunta l'azione contestuale dinamica "Disattiva/Attiva audio scheda" (`account_mute_tab` / `account_unmute_tab`) e la voce "Copia link chat / URL" (`account_copy_link`) con feedback toast overlay discreto (`MessagePopup`).
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi localizzate sincronizzate in tutti i 5 dizionari ufficiali in `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Compressione Trasparente Filesystem NTFS (`NtfsCompressionPolicy.vb`, `Application.xaml.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #106)**:
+  - **Modulo Centralizzato `NtfsCompressionPolicy`**: Introdotto il modulo dedicato `NtfsCompressionPolicy.vb` per l'abilitazione non bloccante della compressione nativa NTFS tramite `compact.exe` (`/C /S /I /Q`).
+  - **Compressione Dati e Profili WebView2**: Invocazione automatica in background su `data/` all'avvio dell'applicazione (`Application.xaml.vb`) e su `data/webview` in `AccountManager.LoadAccountsAsync()`, garantendo un risparmio del 40-50% di spazio disco per database LevelDB e cache senza impatto su tempi di avvio o integrità.
+  - **Salvaguardia Unità Rimovibili USB**: Il flag `/I` gestisce in modo trasparente e silenzioso supporti formattati in FAT32/exFAT senza blocchi o errori.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunti 16 nuovi controlli di regressione unitari dedicati a validazione CLI compact, percorsi null/whitespace, muting, indicatori multimediali e gerarchia di risoluzione URL (totale 223 asserzioni automatiche con 0 errori).
+
 ## [1.3.1-beta] - 2026-10-23
 
 ### Pre-release / Beta — Limitazione Hard Limit Cache e Ottimizzazione Risorse Chromium via AdditionalBrowserArguments

@@ -193,6 +193,7 @@ Public Class MainWindow
             ' Profiles are copied only after confirmed browser exit; no periodic live sync.
 
             UpdateOnlineIndicator()
+            UpdateMuteActiveTabState()
             CheckNetworkDriveWarning()
             VersionText.Text = "v" & Constants.AppVersion
         Catch ex As Exception
@@ -805,15 +806,26 @@ Public Class MainWindow
             Dim cm = TryCast(sender, ContextMenu)
             If cm IsNot Nothing Then
                 Dim loc = _settingsController?.Localizations
+                Dim btn = TryCast(cm.PlacementTarget, Button)
+                Dim acc = TryCast(btn?.DataContext, AppAccounts)
                 If loc IsNot Nothing Then
                     For Each item In cm.Items
                         Dim mi = TryCast(item, MenuItem)
                         If mi IsNot Nothing Then
-                            If mi.Tag?.ToString() = "rename" Then
+                            Dim tagStr = mi.Tag?.ToString()
+                            If tagStr = "mute_toggle" Then
+                                If acc IsNot Nothing AndAlso acc.IsMuted Then
+                                    mi.Header = loc.Get("account_unmute_tab")
+                                Else
+                                    mi.Header = loc.Get("account_mute_tab")
+                                End If
+                            ElseIf tagStr = "copy_link" Then
+                                mi.Header = loc.Get("account_copy_link")
+                            ElseIf tagStr = "rename" Then
                                 mi.Header = loc.Get("rename")
-                            ElseIf mi.Tag?.ToString() = "clean_cache" Then
+                            ElseIf tagStr = "clean_cache" Then
                                 mi.Header = loc.Get("account_clean_cache")
-                            ElseIf mi.Tag?.ToString() = "repair_tab" Then
+                            ElseIf tagStr = "repair_tab" Then
                                 mi.Header = loc.Get("account_repair_tab")
                             End If
                         End If
@@ -822,6 +834,64 @@ Public Class MainWindow
             End If
         Catch ex As Exception
             Debug.WriteLine($"AccountTab_ContextMenuOpened error: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Attiva o disattiva l'audio della scheda selezionata dal menu contestuale (TODO #45).
+    ''' </summary>
+    Private Sub AccountTabMute_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim menuItem = CType(sender, MenuItem)
+            Dim contextMenu = CType(menuItem.Parent, ContextMenu)
+            Dim btn = CType(contextMenu.PlacementTarget, Button)
+            Dim acc = CType(btn.DataContext, AppAccounts)
+            If acc IsNot Nothing Then
+                acc.ToggleMute()
+                UpdateMuteActiveTabState()
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTabMute_Click error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.AccountTabMute_Click", ex)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Copia negli appunti di sistema l'URL corrente della chat o della scheda selezionata (TODO #45).
+    ''' </summary>
+    Private Sub AccountTabCopyLink_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim menuItem = CType(sender, MenuItem)
+            Dim contextMenu = CType(menuItem.Parent, ContextMenu)
+            Dim btn = CType(contextMenu.PlacementTarget, Button)
+            Dim acc = CType(btn.DataContext, AppAccounts)
+            If acc IsNot Nothing Then
+                CopyAccountLinkToClipboard(acc)
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"AccountTabCopyLink_Click error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.AccountTabCopyLink_Click", ex)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Click diretto sull'indicatore multimediale della scheda per invertire lo stato di muting senza cambiare tab (TODO #45).
+    ''' </summary>
+    Private Sub TabMediaButton_Click(sender As Object, e As RoutedEventArgs)
+        e.Handled = True
+        Try
+            Dim btn = TryCast(sender, Button)
+            Dim accountId = btn?.Tag?.ToString()
+            If Not String.IsNullOrEmpty(accountId) Then
+                Dim acc = _accountManager?.Accounts?.FirstOrDefault(Function(a) a.Id = accountId)
+                If acc IsNot Nothing Then
+                    acc.ToggleMute()
+                    UpdateMuteActiveTabState()
+                End If
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"TabMediaButton_Click error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.TabMediaButton_Click", ex)
         End Try
     End Sub
 
@@ -927,6 +997,9 @@ Public Class MainWindow
             If sameAccNeedsRecovery Then
                 Await RecreateAccountWebViewAsync(prevAccount)
             End If
+            UpdateOnlineIndicator()
+            UpdateMuteActiveTabState()
+            UpdateMuteActiveTabState()
             Return
         End If
 
@@ -975,6 +1048,7 @@ Public Class MainWindow
         End If
 
         UpdateOnlineIndicator()
+        UpdateMuteActiveTabState()
     End Function
 
     ''' <summary>
@@ -1074,6 +1148,99 @@ Public Class MainWindow
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
             )
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Aggiorna l'icona, il colore e il tooltip del pulsante di mute rapido nella barra del titolo (TODO #45).
+    ''' </summary>
+    Private Sub UpdateMuteActiveTabState()
+        Dim curAcc = _accountManager?.CurrentAccount
+        Dim loc = _settingsController?.Localizations
+        If curAcc Is Nothing OrElse curAcc.WebView?.CoreWebView2 Is Nothing Then
+            If MuteActiveTabIcon IsNot Nothing Then
+                MuteActiveTabIcon.Data = Geometry.Parse("M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16.02C15.48,15.28 16.5,13.76 16.5,12M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.01,19.86 21,16.28 21,12C21,7.72 18.01,4.14 14,3.23Z")
+                MuteActiveTabIcon.Fill = BrushCache.GetBrush("#8696a0")
+            End If
+            If BtnMuteActiveTab IsNot Nothing Then
+                BtnMuteActiveTab.ToolTip = If(loc IsNot Nothing, loc.Get("mute_active_tab_tooltip"), "Disattiva/Attiva audio (Ctrl+M)")
+            End If
+            If BtnCopyLink IsNot Nothing Then
+                BtnCopyLink.ToolTip = If(loc IsNot Nothing, loc.Get("copy_chat_link_tooltip"), "Copia link chat")
+            End If
+            Return
+        End If
+
+        If curAcc.IsMuted Then
+            If MuteActiveTabIcon IsNot Nothing Then
+                MuteActiveTabIcon.Data = Geometry.Parse("M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.45 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L4.27,3M19,12C19,12.82 18.85,13.61 18.59,14.34L20.12,15.87C20.68,14.7 21,13.39 21,12C21,7.72 18.01,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M14,7.97V9.75L16.44,12.19C16.48,12.13 16.5,12.07 16.5,12C16.5,10.23 15.48,8.71 14,7.97Z")
+                MuteActiveTabIcon.Fill = BrushCache.GetBrush("#ec4899")
+            End If
+            If BtnMuteActiveTab IsNot Nothing Then
+                BtnMuteActiveTab.ToolTip = If(loc IsNot Nothing, loc.Get("account_unmute_tab"), "Attiva audio scheda") & " (Ctrl+M)"
+            End If
+        Else
+            If MuteActiveTabIcon IsNot Nothing Then
+                MuteActiveTabIcon.Data = Geometry.Parse("M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16.02C15.48,15.28 16.5,13.76 16.5,12M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.01,19.86 21,16.28 21,12C21,7.72 18.01,4.14 14,3.23Z")
+                MuteActiveTabIcon.Fill = If(curAcc.IsPlayingAudio, BrushCache.GetBrush("#00a884"), BrushCache.GetBrush("#8696a0"))
+            End If
+            If BtnMuteActiveTab IsNot Nothing Then
+                BtnMuteActiveTab.ToolTip = If(loc IsNot Nothing, loc.Get("account_mute_tab"), "Disattiva audio scheda") & " (Ctrl+M)"
+            End If
+        End If
+        If BtnCopyLink IsNot Nothing Then
+            BtnCopyLink.ToolTip = If(loc IsNot Nothing, loc.Get("copy_chat_link_tooltip"), "Copia link chat")
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce il click sul pulsante Mute nella barra del titolo (TODO #45).
+    ''' </summary>
+    Private Sub BtnMuteActiveTab_Click(sender As Object, e As RoutedEventArgs)
+        Dim curAcc = _accountManager?.CurrentAccount
+        If curAcc IsNot Nothing Then
+            curAcc.ToggleMute()
+            UpdateMuteActiveTabState()
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Gestisce il click sul pulsante Copia Link chat nella barra del titolo (TODO #45).
+    ''' </summary>
+    Private Sub BtnCopyLink_Click(sender As Object, e As RoutedEventArgs)
+        Dim curAcc = _accountManager?.CurrentAccount
+        If curAcc IsNot Nothing Then
+            CopyAccountLinkToClipboard(curAcc)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Copia l'URL o il deep-link della scheda specificata negli appunti di sistema (TODO #45).
+    ''' </summary>
+    Private Sub CopyAccountLinkToClipboard(acc As AppAccounts)
+        If acc Is Nothing Then Return
+        Try
+            Dim targetUrl As String = Nothing
+            If acc.WebView?.CoreWebView2 IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(acc.WebView.CoreWebView2.Source) Then
+                targetUrl = acc.WebView.CoreWebView2.Source
+            ElseIf Not String.IsNullOrWhiteSpace(acc.ServerUrl) Then
+                targetUrl = acc.ServerUrl
+            Else
+                targetUrl = acc.PlatformDefinition?.DefaultUrl
+            End If
+
+            If Not String.IsNullOrWhiteSpace(targetUrl) Then
+                Clipboard.SetText(targetUrl)
+                Dim loc = _settingsController?.Localizations
+                Dim msg = If(loc IsNot Nothing, loc.Get("chat_link_copied"), "Link copiato negli appunti!")
+                If _settingsController IsNot Nothing AndAlso _settingsController.ShowMessagePopup Then
+                    Dim popup As New MessagePopup(acc.Id, acc.Name, msg, acc.Platform)
+                    popup.Show()
+                End If
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"CopyAccountLinkToClipboard error: {ex.Message}")
+            Application.LogUnhandledException("MainWindow.CopyAccountLinkToClipboard", ex)
         End Try
     End Sub
 
@@ -1231,8 +1398,10 @@ Public Class MainWindow
                 Next
             ElseIf e.PropertyName = NameOf(SettingsController.Language) Then
                 UpdateOnlineIndicator()
+            UpdateMuteActiveTabState()
                 UpdateDndState()
                 UpdateAddAccountButtonState()
+                UpdateMuteActiveTabState()
             ElseIf e.PropertyName = NameOf(SettingsController.IsDndEnabled) OrElse e.PropertyName = NameOf(SettingsController.DndUntil) OrElse e.PropertyName = NameOf(SettingsController.DndDurationMode) OrElse e.PropertyName = NameOf(SettingsController.IsDndActive) Then
                 UpdateDndState()
             End If
@@ -1253,8 +1422,11 @@ Public Class MainWindow
             UpdateAddAccountButtonState()
             HookAccountEvents()
             UpdateOnlineIndicator()
+            UpdateMuteActiveTabState()
         ElseIf e.PropertyName = NameOf(AccountManager.CurrentAccount) Then
             UpdateOnlineIndicator()
+            UpdateMuteActiveTabState()
+            UpdateMuteActiveTabState()
         End If
     End Sub
 
@@ -1277,6 +1449,13 @@ Public Class MainWindow
             Dim acc = TryCast(sender, AppAccounts)
             If acc IsNot Nothing AndAlso _accountManager?.CurrentAccount IsNot Nothing AndAlso acc.Id = _accountManager.CurrentAccount.Id Then
                 UpdateOnlineIndicator()
+            UpdateMuteActiveTabState()
+            End If
+        ElseIf e.PropertyName = NameOf(AppAccounts.IsMuted) OrElse
+               e.PropertyName = NameOf(AppAccounts.IsPlayingAudio) Then
+            Dim acc = TryCast(sender, AppAccounts)
+            If acc IsNot Nothing AndAlso _accountManager?.CurrentAccount IsNot Nothing AndAlso acc.Id = _accountManager.CurrentAccount.Id Then
+                UpdateMuteActiveTabState()
             End If
         End If
     End Sub
@@ -1539,6 +1718,27 @@ Public Class MainWindow
         If e.Key = Key.F1 OrElse (isCtrl AndAlso isShift AndAlso e.Key = Key.A) Then
             e.Handled = True
             OpenAboutWindow()
+            Return
+        End If
+
+        ' 8. Mute / Unmute audio scheda attiva (Ctrl+M) (TODO #45)
+        If isCtrl AndAlso Not isShift AndAlso Not isAlt AndAlso e.Key = Key.M Then
+            e.Handled = True
+            Dim curAcc = _accountManager?.CurrentAccount
+            If curAcc IsNot Nothing Then
+                curAcc.ToggleMute()
+                UpdateMuteActiveTabState()
+            End If
+            Return
+        End If
+
+        ' 9. Copia link chat attiva negli appunti (Ctrl+Shift+C) (TODO #45)
+        If isCtrl AndAlso isShift AndAlso Not isAlt AndAlso e.Key = Key.C Then
+            e.Handled = True
+            Dim curAcc = _accountManager?.CurrentAccount
+            If curAcc IsNot Nothing Then
+                CopyAccountLinkToClipboard(curAcc)
+            End If
             Return
         End If
     End Sub

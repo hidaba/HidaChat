@@ -162,6 +162,8 @@ Public Class AccountManager
     ''' Se nessun account è memorizzato, crea un account predefinito.
     ''' </summary>
     Public Async Function LoadAccountsAsync() As Task
+        ' Abilita preventivamente la compressione trasparente NTFS sulla cartella profili WebView2 (TODO #106)
+        EnableNtfsCompression(AppAccounts.SharedDataDirectory)
         Dim settings = Await _settingsController.ReadSettingsAsync()
         
         Dim isConfigValid = _settingsController.IsLoadedFromValidConfig
@@ -757,6 +759,12 @@ Public Class AccountManager
             End If
             _disposed = True
         End If
+    End Sub
+    ''' <summary>
+    ''' Abilita la compressione trasparente a livello di filesystem NTFS sulla cartella specificata (TODO #106).
+    ''' </summary>
+    Public Shared Sub EnableNtfsCompression(folderPath As String)
+        NtfsCompressionPolicy.EnableNtfsCompression(folderPath)
     End Sub
 End Class
 

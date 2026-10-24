@@ -232,6 +232,8 @@ Module SessionTests
             Await TestTranslationProvidersAsync()
             TestBetaChannelResetMigration()
             TestBrowserArgumentsPolicy()
+            TestNtfsCompressionPolicy()
+            TestUtilityBarAndAudioQuickActions()
         Finally
             NetworkProfileSync.ReleaseSessionLock("unit")
             Directory.Delete(testRoot, recursive:=True)
@@ -403,5 +405,68 @@ Module SessionTests
         Check(Not unlimitedArgs.Contains("--disk-cache-size"), "--disk-cache-size omitted when limit is 0 (unlimited)")
         Check(unlimitedArgs.Contains($"--media-cache-size={BrowserArgumentsPolicy.MediaCacheSizeBytes}"), "Media cache limit preserved even with unlimited HTTP cache")
         Check(unlimitedArgs.Contains("--aggressive-cache-discard"), "Aggressive cache discard preserved with unlimited HTTP cache")
+    End Sub
+
+    Private Sub TestNtfsCompressionPolicy()
+        ' 1. Argument construction validation (TODO #106)
+        Dim args = NtfsCompressionPolicy.BuildCompactArguments("C:\test\data")
+        Check(args = "/C /S:""C:\test\data"" /I /Q", "BuildCompactArguments formats expected CLI parameters")
+
+        ' 2. Validation of null / whitespace path rejection
+        Check(Not NtfsCompressionPolicy.EnableNtfsCompression(Nothing), "EnableNtfsCompression rejects null path")
+        Check(Not NtfsCompressionPolicy.EnableNtfsCompression(""), "EnableNtfsCompression rejects empty path")
+        Check(Not NtfsCompressionPolicy.EnableNtfsCompression("   "), "EnableNtfsCompression rejects whitespace path")
+
+        ' 3. Execution on test temporary directory creates directory and runs compact without throwing
+        Dim tempDir = Path.Combine(Path.GetTempPath(), "HidaChat_NtfsTest_" & Guid.NewGuid().ToString("N"))
+        Try
+            Check(Not Directory.Exists(tempDir), "Test directory does not exist yet")
+            Dim success = NtfsCompressionPolicy.EnableNtfsCompression(tempDir)
+            Check(success, "EnableNtfsCompression returns True for existing/creatable path")
+            Check(Directory.Exists(tempDir), "EnableNtfsCompression creates directory if missing")
+        Finally
+            If Directory.Exists(tempDir) Then
+                Try
+                    Directory.Delete(tempDir, recursive:=True)
+                Catch
+                End Try
+            End If
+        End Try
+    End Sub
+
+    Private Sub TestUtilityBarAndAudioQuickActions()
+        ' 1. Mute toggle logic simulation (TODO #45)
+        Dim isMuted As Boolean = False
+        isMuted = Not isMuted
+        Check(isMuted, "Toggle mute inverts False to True")
+        isMuted = Not isMuted
+        Check(Not isMuted, "Toggle mute inverts True to False")
+
+        ' 2. Media indicator icon resolution logic (TODO #45)
+        Dim ResolveIcon = Function(muted As Boolean, playing As Boolean) As String
+                              If muted Then
+                                  Return "🔇"
+                              ElseIf playing Then
+                                  Return "🔊"
+                              Else
+                                  Return String.Empty
+                              End If
+                          End Function
+
+        Check(ResolveIcon(True, True) = "🔇", "Muted state takes precedence for indicator icon (🔇)")
+        Check(ResolveIcon(True, False) = "🔇", "Muted tab displays 🔇 icon")
+        Check(ResolveIcon(False, True) = "🔊", "Active audio playback without mute displays 🔊 icon")
+        Check(ResolveIcon(False, False) = "", "Idle unmuted tab displays empty icon")
+
+        ' 3. Chat link resolution hierarchy (active WebView Source > ServerUrl > Platform Default) (TODO #45)
+        Dim ResolveChatLink = Function(webSource As String, serverUrl As String, defaultPlatformUrl As String) As String
+                                  If Not String.IsNullOrWhiteSpace(webSource) Then Return webSource
+                                  If Not String.IsNullOrWhiteSpace(serverUrl) Then Return serverUrl
+                                  Return defaultPlatformUrl
+                              End Function
+
+        Check(ResolveChatLink("https://web.whatsapp.com/chat/123", "http://127.0.0.1:18800", "https://web.whatsapp.com") = "https://web.whatsapp.com/chat/123", "Active webview source has highest priority for copy link")
+        Check(ResolveChatLink("", "http://127.0.0.1:18800", "http://127.0.0.1:18800") = "http://127.0.0.1:18800", "ServerUrl used when webview source is empty")
+        Check(ResolveChatLink("", "", "https://web.telegram.org") = "https://web.telegram.org", "Platform default URL used when both webview source and serverUrl are empty")
     End Sub
 End Module

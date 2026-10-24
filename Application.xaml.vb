@@ -37,6 +37,9 @@ Class Application
                 Directory.CreateDirectory(dataDir)
             End If
 
+            ' Abilita la compressione trasparente a livello di filesystem NTFS sulla cartella data (TODO #106)
+            NtfsCompressionPolicy.EnableNtfsCompression(dataDir)
+
             ' Apertura in scrittura esclusiva ma con FileShare.Read per consentire a un'istanza concorrente
             ' di leggere i metadati dell'istanza bloccante e visualizzare una notifica informativa.
             _folderLockStream = New FileStream(_folderLockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read)
