@@ -206,8 +206,8 @@ if (-not $SkipGitHub) {
             }
             Write-Host "Git commit message: $commitMsg"
             git commit -m $commitMsg
-            git push origin master
         }
+        git push origin master
     } finally {
         Pop-Location
     }
