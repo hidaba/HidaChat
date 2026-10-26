@@ -1,4 +1,4 @@
-Imports System.Diagnostics
+﻿Imports System.Diagnostics
 Imports System.IO
 Imports System.Text
 Imports System.Text.Json
@@ -102,6 +102,17 @@ Class Application
     ''' Invocato all'avvio dell'applicazione. Inizializza il lock di cartella e il Mutex per impedire l'esecuzione concorrente.
     ''' </summary>
     Protected Overrides Sub OnStartup(e As StartupEventArgs)
+        ' Intercettazione comandi speciali di aggiornamento OTA nativo (TODO #87)
+        Dim args = e.Args
+        If args IsNot Nothing AndAlso args.Length >= 4 AndAlso args(0).Equals("--apply-update", StringComparison.OrdinalIgnoreCase) Then
+            HandleApplyUpdateStartup(args)
+            Return
+        End If
+
+        If args IsNot Nothing AndAlso args.Length >= 2 AndAlso args(0).Equals("--cleanup-update", StringComparison.OrdinalIgnoreCase) Then
+            HandleCleanupUpdateStartup(args)
+        End If
+
         ' Registrazione listener globali per eccezioni non gestite (TODO #63)
         AddHandler Me.DispatcherUnhandledException, AddressOf OnDispatcherUnhandledException
         AddHandler TaskScheduler.UnobservedTaskException, AddressOf OnUnobservedTaskException
@@ -322,5 +333,178 @@ Class Application
         ReleaseSingleInstanceMutex()
         MyBase.OnExit(e)
     End Sub
-End Class
 
+    ''' <summary>
+    ''' Gestisce la modalitÃ  helper di aggiornamento compilata nativa (.NET/WPF) con eliminazione definitiva di script batch (TODO #87).
+    ''' </summary>
+    Private Sub HandleApplyUpdateStartup(args As String())
+        Dim callerPid As Integer = 0
+        If args.Length > 1 Then Integer.TryParse(args(1), callerPid)
+        Dim sourceDir = If(args.Length > 2, args(2), "")
+        Dim installDir = If(args.Length > 3, args(3), "")
+        Dim version = If(args.Length > 4, args(4), "")
+        Dim langCode = If(args.Length > 5, args(5), "en")
+        Dim tempZipPath = If(args.Length > 6, args(6), "")
+
+        Dim loc = AppLocalizations.CreateForLanguage(langCode)
+        Dim dialog As New UpdateProgressDialog(loc, version)
+        dialog.SetIndeterminate(True)
+        dialog.Show()
+
+        Task.Run(Sub()
+            Try
+                ' 1. Attendi che il processo chiamante esca
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_closing"), "Chiusura di HidaChat e preparazione sostituzione file..."))
+                If callerPid > 0 Then
+                    Try
+                        Dim caller = Process.GetProcessById(callerPid)
+                        Dim retries As Integer = 0
+                        While Not caller.HasExited AndAlso retries < 40
+                            Thread.Sleep(250)
+                            retries += 1
+                        End While
+                    Catch ex As ArgumentException
+                        ' Processo giÃ  terminato
+                    End Try
+                End If
+
+                Thread.Sleep(500)
+
+                ' 2. Copia dei file aggiornati (preservando rigorosamente la cartella portabile data/)
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_copying"), "Applicazione aggiornamento e sostituzione file..."))
+                CopyUpdateFiles(sourceDir, installDir)
+
+                ' 3. Scrittura del marcatore di versione
+                Dim markerPath = Path.Combine(installDir, ".app_version")
+                Try
+                    File.WriteAllText(markerPath, "v" & version.TrimStart("v"c))
+                Catch
+                End Try
+
+                ' 4. Riavvio dell'applicazione aggiornata
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_restarting"), "Aggiornamento completato. Riavvio di HidaChat in corso..."))
+                Thread.Sleep(500)
+
+                Dim targetExe = Path.Combine(installDir, "HidaChat.exe")
+                Dim cleanupArgs = $"--cleanup-update ""{sourceDir}"" ""{tempZipPath}"""
+                Process.Start(New ProcessStartInfo With {
+                    .FileName = targetExe,
+                    .Arguments = cleanupArgs,
+                    .UseShellExecute = True
+                })
+
+                dialog.Dispatcher.Invoke(Sub()
+                    dialog.Close()
+                    Environment.Exit(0)
+                End Sub)
+
+            Catch ex As Exception
+                Dim errMsg = ex.Message
+                dialog.Dispatcher.Invoke(Sub()
+                    dialog.SetIndeterminate(False)
+                    dialog.UpdateStatus("Errore durante l'aggiornamento: " & errMsg)
+                    MessageBox.Show(
+                        "Errore durante l'applicazione dell'aggiornamento:" & vbCrLf & vbCrLf & errMsg,
+                        "HidaChat Update Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error
+                    )
+                    dialog.Close()
+                    Environment.Exit(1)
+                End Sub)
+            End Try
+        End Sub)
+
+        Dim frame As New DispatcherFrame()
+        AddHandler dialog.Closed, Sub() frame.Continue = False
+        Dispatcher.PushFrame(frame)
+    End Sub
+
+    ''' <summary>
+    ''' Copia ricorsivamente i file di aggiornamento dalla cartella estratta a quella di installazione,
+    ''' escludendo tassativamente la cartella 'data/' per garantire la portabilitÃ  al 100% (TODO #87).
+    ''' </summary>
+    Private Shared Sub CopyUpdateFiles(sourceDir As String, installDir As String)
+        If Not Directory.Exists(sourceDir) Then
+            Throw New DirectoryNotFoundException($"Directory sorgente '{sourceDir}' non trovata.")
+        End If
+        If Not Directory.Exists(installDir) Then
+            Directory.CreateDirectory(installDir)
+        End If
+
+        Dim allDirs = Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories)
+        For Each dirPath In allDirs
+            Dim relDir = Path.GetRelativePath(sourceDir, dirPath)
+            If relDir.Equals("data", StringComparison.OrdinalIgnoreCase) OrElse
+               relDir.StartsWith("data" & Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) OrElse
+               relDir.StartsWith("data/", StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+
+            Dim targetDirPath = Path.Combine(installDir, relDir)
+            If Not Directory.Exists(targetDirPath) Then
+                Directory.CreateDirectory(targetDirPath)
+            End If
+        Next
+
+        Dim allFiles = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories)
+        For Each filePath In allFiles
+            Dim relFile = Path.GetRelativePath(sourceDir, filePath)
+            If relFile.Equals("data", StringComparison.OrdinalIgnoreCase) OrElse
+               relFile.StartsWith("data" & Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) OrElse
+               relFile.StartsWith("data/", StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+            If relFile.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+
+            Dim targetFilePath = Path.Combine(installDir, relFile)
+            Dim targetFileDir = Path.GetDirectoryName(targetFilePath)
+            If Not Directory.Exists(targetFileDir) Then
+                Directory.CreateDirectory(targetFileDir)
+            End If
+
+            Dim copied As Boolean = False
+            Dim lastEx As Exception = Nothing
+            For attempt As Integer = 1 To 10
+                Try
+                    File.Copy(filePath, targetFilePath, overwrite:=True)
+                    copied = True
+                    Exit For
+                Catch ex As IOException
+                    lastEx = ex
+                    Thread.Sleep(200)
+                Catch ex As UnauthorizedAccessException
+                    lastEx = ex
+                    Thread.Sleep(200)
+                End Try
+            Next
+
+            If Not copied AndAlso lastEx IsNot Nothing Then
+                Throw New IOException($"Impossibile aggiornare '{relFile}': {lastEx.Message}", lastEx)
+            End If
+        Next
+    End Sub
+
+    ''' <summary>
+    ''' Bonifica asincrona in background dei file e cartelle temporanee di aggiornamento (TODO #87).
+    ''' </summary>
+    Private Shared Sub HandleCleanupUpdateStartup(args As String())
+        Dim cleanupDir = If(args.Length > 1, args(1), "")
+        Dim cleanupZip = If(args.Length > 2, args(2), "")
+        Task.Run(Sub()
+            Try
+                Thread.Sleep(2500)
+                If Not String.IsNullOrWhiteSpace(cleanupZip) AndAlso File.Exists(cleanupZip) Then
+                    File.Delete(cleanupZip)
+                End If
+                If Not String.IsNullOrWhiteSpace(cleanupDir) AndAlso Directory.Exists(cleanupDir) Then
+                    Directory.Delete(cleanupDir, True)
+                End If
+            Catch
+            End Try
+        End Sub)
+    End Sub
+
+End Class

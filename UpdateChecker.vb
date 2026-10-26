@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.IO.Compression
 Imports System.Net.Http
 Imports System.Net.Http.Headers
@@ -567,8 +567,8 @@ Public Class UpdateChecker
         Dim updateSessionId = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") & "_" & Guid.NewGuid().ToString("N").Substring(0, 8)
         Dim tempZipPath = Path.Combine(Path.GetTempPath(), $"HidaChat_Update_{updateSessionId}.zip")
         Dim tempDir = Path.Combine(Path.GetTempPath(), $"HidaChat_Update_{updateSessionId}")
-        Dim batchPath = Path.Combine(Path.GetTempPath(), $"hidachat_update_{updateSessionId}.bat")
         Dim updateLaunched As Boolean = False
+        Dim dialog As UpdateProgressDialog = Nothing
 
         ' Pulizia asincrona preventiva e non bloccante di eventuali residui di aggiornamenti precedenti
         Dim cleanupBgTask = Task.Run(Sub()
@@ -586,12 +586,6 @@ Public Class UpdateChecker
                     Catch
                     End Try
                 Next
-                For Each batchFilePath In Directory.EnumerateFiles(tempPath, "hidachat_update_*.bat")
-                    Try
-                        System.IO.File.Delete(batchFilePath)
-                    Catch
-                    End Try
-                Next
             Catch
             End Try
         End Sub)
@@ -601,21 +595,76 @@ Public Class UpdateChecker
         Catch
         End Try
 
+        ' Mostra la finestra di avanzamento grafica (TODO #87)
+        If Application.Current IsNot Nothing AndAlso Application.Current.Dispatcher IsNot Nothing Then
+            If Application.Current.Dispatcher.CheckAccess() Then
+                dialog = New UpdateProgressDialog(loc, latestVersion)
+                dialog.Show()
+            Else
+                Application.Current.Dispatcher.Invoke(Sub()
+                    dialog = New UpdateProgressDialog(loc, latestVersion)
+                    dialog.Show()
+                End Sub)
+            End If
+        End If
+
         Try
-            ' 2. Scarica lo ZIP da GitHub tramite streaming su disco con timeout esteso a 10 minuti (Punto 56)
+            ' 2. Scarica lo ZIP da GitHub tramite streaming su disco con indicatore di progresso in tempo reale (TODO #87)
             Log($"Downloading update zip (streaming) from: {downloadUrl}")
             Using cts As New CancellationTokenSource(TimeSpan.FromMinutes(10))
                 Dim ct = cts.Token
                 Using resp = Await _downloadClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct)
                     resp.EnsureSuccessStatusCode()
+
+                    Dim totalBytes = resp.Content.Headers.ContentLength.GetValueOrDefault(-1L)
                     Using src = Await resp.Content.ReadAsStreamAsync(ct),
                           dst = File.Create(tempZipPath)
-                        Await src.CopyToAsync(dst, ct)
+
+                        Dim buffer(81919) As Byte
+                        Dim totalRead As Long = 0
+                        Dim lastUiUpdate As DateTime = DateTime.MinValue
+
+                        While True
+                            Dim bytesRead = Await src.ReadAsync(buffer, 0, buffer.Length, ct)
+                            If bytesRead = 0 Then Exit While
+                            Await dst.WriteAsync(buffer, 0, bytesRead, ct)
+                            totalRead += bytesRead
+
+                            Dim now = DateTime.UtcNow
+                            If (now - lastUiUpdate).TotalMilliseconds > 80 OrElse (totalBytes > 0 AndAlso totalRead = totalBytes) Then
+                                lastUiUpdate = now
+                                If dialog IsNot Nothing Then
+                                    If totalBytes > 0 Then
+                                        Dim pct = (CDbl(totalRead) / CDbl(totalBytes)) * 100.0
+                                        Dim mbRead = (totalRead / (1024.0 * 1024.0)).ToString("F1")
+                                        Dim mbTotal = (totalBytes / (1024.0 * 1024.0)).ToString("F1")
+                                        Dim info = If(loc IsNot Nothing,
+                                            loc.Get("update_stage_download_progress", New Dictionary(Of String, String) From {
+                                                {"downloadedMb", mbRead},
+                                                {"totalMb", mbTotal},
+                                                {"percent", Math.Floor(pct).ToString()}
+                                            }),
+                                            $"Scaricati {mbRead} MB di {mbTotal} MB ({Math.Floor(pct)}%)")
+                                        dialog.SetProgress(pct, progressText:=info)
+                                    Else
+                                        Dim mbRead = (totalRead / (1024.0 * 1024.0)).ToString("F1")
+                                        dialog.SetProgress(-1, progressText:=$"{mbRead} MB")
+                                    End If
+                                End If
+                            End If
+                        End While
                     End Using
                 End Using
             End Using
         Catch ex As Exception
             Log($"Download failed or timed out: {ex.Message}")
+            If dialog IsNot Nothing Then
+                Try
+                    dialog.Close()
+                Catch
+                End Try
+                dialog = Nothing
+            End If
             Dim dlErrMsg = If(loc IsNot Nothing,
                 loc.Get("update_download_error", New Dictionary(Of String, String) From {{"error", ex.Message}}),
                 "Download dell'aggiornamento non riuscito o timeout superato:" & vbCrLf & vbCrLf & ex.Message)
@@ -633,7 +682,12 @@ Public Class UpdateChecker
         End Try
 
         Try
-            ' 3. Verifica di integrità crittografica (SHA-256 calcolato direttamente dal file)
+            ' 3. Verifica di integritÃ  crittografica (SHA-256 calcolato direttamente dal file)
+            If dialog IsNot Nothing Then
+                dialog.SetIndeterminate(True)
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_verifying"), "Verifica integritÃ  crittografica SHA-256 e firma..."), "")
+            End If
+
             Dim computedSha256 As String
             Using fs = File.OpenRead(tempZipPath)
                 computedSha256 = Await ComputeSha256Async(fs)
@@ -642,16 +696,23 @@ Public Class UpdateChecker
 
             If Not String.Equals(computedSha256, expectedHash, StringComparison.OrdinalIgnoreCase) Then
                 Log($"SHA-256 mismatch! Computed: {computedSha256}, Expected: {expectedHash}")
+                If dialog IsNot Nothing Then
+                    Try
+                        dialog.Close()
+                    Catch
+                    End Try
+                    dialog = Nothing
+                End If
                 Dim mismatchMsg = If(loc IsNot Nothing,
                     loc.Get("update_checksum_mismatch", New Dictionary(Of String, String) From {{"computed", computedSha256}, {"expected", expectedHash}}),
-                    "Verifica di integrità fallita!" & vbCrLf & vbCrLf &
+                    "Verifica di integritÃ  fallita!" & vbCrLf & vbCrLf &
                     "L'impronta crittografica SHA-256 del file di aggiornamento scaricato non corrisponde a quella attesa:" & vbCrLf & vbCrLf &
                     $"Hash calcolato: {computedSha256}" & vbCrLf &
                     $"Hash atteso:    {expectedHash}" & vbCrLf & vbCrLf &
-                    "L'aggiornamento è stato interrotto per garantire la sicurezza del sistema.")
+                    "L'aggiornamento Ã¨ stato interrotto per garantire la sicurezza del sistema.")
                 ShowMessageBox(
                     mismatchMsg,
-                    If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
+                    If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore IntegritÃ  Aggiornamento"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
                 )
@@ -661,6 +722,10 @@ Public Class UpdateChecker
             End If
 
             ' 4. Estrai l'archivio temporaneo in una cartella di sessione univoca
+            If dialog IsNot Nothing Then
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_extracting"), "Estrazione dei file di aggiornamento..."), "")
+            End If
+
             If Directory.Exists(tempDir) Then
                 Try
                     Directory.Delete(tempDir, True)
@@ -683,13 +748,20 @@ Public Class UpdateChecker
                     Log($"Authenticode signature detected: Valid={auth.IsValid}, Signer={auth.SignerName}")
                     If Not auth.IsValid Then
                         Log("Security abort: Authenticode signature is present but INVALID.")
+                        If dialog IsNot Nothing Then
+                            Try
+                                dialog.Close()
+                            Catch
+                            End Try
+                            dialog = Nothing
+                        End If
                         Dim sigErrMsg = If(loc IsNot Nothing,
                             loc.Get("update_signature_invalid"),
                             "Verifica della firma digitale fallita sull'eseguibile di aggiornamento." & vbCrLf & vbCrLf &
-                            "L'installazione è stata interrotta per garantire la sicurezza del sistema.")
+                            "L'installazione Ã¨ stata interrotta per garantire la sicurezza del sistema.")
                         ShowMessageBox(
                             sigErrMsg,
-                            If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore Integrità Aggiornamento"),
+                            If(loc IsNot Nothing, loc.Get("update_integrity_failed_title"), "Errore IntegritÃ  Aggiornamento"),
                             MessageBoxButton.OK,
                             MessageBoxImage.Error
                         )
@@ -700,51 +772,17 @@ Public Class UpdateChecker
                 End If
             End If
 
-            ' NOTA PUNTO 57: WriteLocalVersionMarker rimosso da qui! Il marker viene scritto esclusivamente dallo script batch DOPO robocopy con successo.
+            ' 5. Handoff al processo compilato di aggiornamento (.NET / WPF) con eliminazione definitiva di script .bat / .ps1 (TODO #87)
+            If dialog IsNot Nothing Then
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_closing"), "Chiusura di HidaChat e preparazione sostituzione file..."), "")
+            End If
 
-            ' 5. Crea ed esegui lo script batch di sostituzione file (posizionato fuori da sourceDir per non essere copiato da robocopy)
-            Dim logFile = Path.Combine(installDir, ".update_log.txt")
-            Dim sbBatch As New System.Text.StringBuilder()
+            Dim updaterExe = Path.Combine(sourceDir, "HidaChat.exe")
+            If Not File.Exists(updaterExe) Then
+                Throw New FileNotFoundException("HidaChat.exe non trovato nella cartella dell'aggiornamento estratto.", updaterExe)
+            End If
 
-            sbBatch.AppendLine("@echo off")
-            sbBatch.AppendLine("title Aggiornamento HidaChat...")
-            sbBatch.AppendLine($"set LOG=""{logFile}""")
-            sbBatch.AppendLine("echo [%date% %time%] Starting update > %LOG%")
-            sbBatch.AppendLine("set RETRY=0")
-            sbBatch.AppendLine(":waitloop")
-            sbBatch.AppendLine("echo [%date% %time%] Waiting for HidaChat.exe to exit... >> %LOG%")
-            sbBatch.AppendLine("timeout /t 2 /nobreak > nul")
-            sbBatch.AppendLine($"tasklist /fi ""PID eq {Environment.ProcessId}"" /nh 2>>%LOG% | find ""{Environment.ProcessId}"" >nul")
-            sbBatch.AppendLine("if errorlevel 1 goto continue")
-            sbBatch.AppendLine("set /a RETRY=RETRY+1")
-            sbBatch.AppendLine("if %RETRY% GEQ 30 (")
-            sbBatch.AppendLine("    echo [%date% %time%] Update aborted: process still running. No forced termination. >> %LOG%")
-            sbBatch.AppendLine("    exit /b 1")
-            sbBatch.AppendLine(")")
-            sbBatch.AppendLine("goto waitloop")
-            sbBatch.AppendLine(":continue")
-            sbBatch.AppendLine("echo [%date% %time%] Process exited, copying files... >> %LOG%")
-            sbBatch.AppendLine($"robocopy ""{sourceDir}"" ""{installDir}"" /e /is /it /r:3 /w:2 /xd ""{Path.Combine(sourceDir, "data")}"" ""{Path.Combine(installDir, "data")}"" >> %LOG%")
-            sbBatch.AppendLine("set RC=%ERRORLEVEL%")
-            sbBatch.AppendLine("echo [%date% %time%] Robocopy exit code: %RC% >> %LOG%")
-            sbBatch.AppendLine("if %RC% GEQ 8 (")
-            sbBatch.AppendLine("    echo [%date% %time%] ERRORE: robocopy failed >> %LOG%")
-            sbBatch.AppendLine($"    echo Copia file fallita. Verifica il log: {logFile}")
-            sbBatch.AppendLine("    exit /b 1")
-            sbBatch.AppendLine(")")
-            sbBatch.AppendLine($"echo v{latestVersion}>""{installDir}\.app_version""")
-            sbBatch.AppendLine("echo [%date% %time%] Version marker written >> %LOG%")
-            sbBatch.AppendLine("cd /d ""%TEMP%""")
-            sbBatch.AppendLine($"if exist ""{tempDir}"" rmdir /s /q ""{tempDir}"" >> %LOG% 2>&1")
-            sbBatch.AppendLine($"if exist ""{tempZipPath}"" del /f /q ""{tempZipPath}"" >> %LOG% 2>&1")
-            sbBatch.AppendLine("echo [%date% %time%] Launching app... >> %LOG%")
-            sbBatch.AppendLine($"start """" ""{installDir}\HidaChat.exe""")
-            sbBatch.AppendLine("echo [%date% %time%] Done >> %LOG%")
-            sbBatch.AppendLine("del ""%~f0""")
-
-            File.WriteAllText(batchPath, sbBatch.ToString())
-
-            ' 2. Salva lo stato dell'applicazione e rilascia le risorse (impostazioni e account)
+            ' 6. Salva lo stato dell'applicazione e rilascia le risorse (impostazioni, tsnetd e account)
             Dim mainWin As MainWindow = Nothing
             If Application.Current IsNot Nothing Then
                 If Application.Current.Dispatcher.CheckAccess() Then
@@ -773,18 +811,39 @@ Public Class UpdateChecker
                 Throw New IOException("Update cancelled: the main window is not available for orderly shutdown.")
             End If
 
-            ' Start the updater ONLY after the browser groups have really exited.
+            ' Chiudi il dialog del processo chiamante prima del passaggio di consegne
+            If dialog IsNot Nothing Then
+                Try
+                    dialog.Close()
+                Catch
+                End Try
+                dialog = Nothing
+            End If
+
+            ' Avvia il processo updater autonomo passando i parametri necessari
+            Dim langCode = If(loc?.CurrentLanguage, "en")
+            Dim updaterArgs = $"--apply-update {Environment.ProcessId} ""{sourceDir}"" ""{installDir}"" ""{latestVersion}"" ""{langCode}"" ""{tempZipPath}"""
+            Log($"Starting updater process: {updaterExe} {updaterArgs}")
+
             Process.Start(New ProcessStartInfo With {
-                .FileName = batchPath,
+                .FileName = updaterExe,
+                .Arguments = updaterArgs,
                 .UseShellExecute = True
             })
             updateLaunched = True
 
-            ' The browser is already closed. Exit only this host process for file replacement.
+            ' Il browser e i dati sono giÃ  salvati e chiusi. Termina solo questo processo per consentire la sostituzione.
             Environment.Exit(0)
 
         Catch ex As Exception
             Log($"Update execution failed: {ex.Message}")
+            If dialog IsNot Nothing Then
+                Try
+                    dialog.Close()
+                Catch
+                End Try
+                dialog = Nothing
+            End If
             Dim installErrMsg = If(loc IsNot Nothing,
                 loc.Get("update_install_error", New Dictionary(Of String, String) From {{"error", ex.Message}}),
                 "Errore durante l'installazione dell'aggiornamento: " & ex.Message)
@@ -796,6 +855,13 @@ Public Class UpdateChecker
                 MessageBoxImage.Error
             )
         Finally
+            If dialog IsNot Nothing Then
+                Try
+                    dialog.Close()
+                Catch
+                End Try
+                dialog = Nothing
+            End If
             If Application.Current IsNot Nothing Then
                 Try
                     If Application.Current.Dispatcher.CheckAccess() Then
@@ -815,10 +881,6 @@ Public Class UpdateChecker
                 End Try
                 Try
                     If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
-                Catch
-                End Try
-                Try
-                    If File.Exists(batchPath) Then File.Delete(batchPath)
                 Catch
                 End Try
             End If

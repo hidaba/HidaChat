@@ -709,7 +709,7 @@
 - **Test di accettazione**: Ritardare artificialmente la pulizia e avviare due aggiornamenti da copie distinte. Nessuna sessione deve eliminare file ancora usati dall’altra.
 - **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio
 
-## 87. Finestra grafica dedicata per l'aggiornamento con stato di avanzamento (eliminazione script .ps1 / .bat)
+## ~~87. Finestra grafica dedicata per l'aggiornamento con stato di avanzamento (eliminazione script .ps1 / .bat)~~ [COMPLETATO] ✅
 - **File**: `UpdateChecker.vb`, `UpdateProgressWindow.xaml` / `UpdateProgressWindow.xaml.vb` (o eseguibile helper compatto standalone `HidaChat.Updater.exe`), `Localization.vb`
 - **Problema / Esigenza**:
   - Attualmente il flusso di aggiornamento OTA si appoggia a script temporanei generati al volo (`.bat` o precedentemente ipotizzati `.ps1`) avviati tramite interprete/processo di shell Windows.

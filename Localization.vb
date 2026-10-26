@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
@@ -199,7 +199,7 @@ Public Class TranslationCacheService
     ''' </summary>
     Public Function GetActiveLocalizations() As AppLocalizations
         SyncLock _cacheLock
-            Return New AppLocalizations(_activeUiTranslations)
+            Return New AppLocalizations(_activeUiTranslations) With {.CurrentLanguage = _activeLanguage}
         End SyncLock
     End Function
 
@@ -550,6 +550,33 @@ Public Class AppLocalizations
         _translations = If(translations, New Dictionary(Of String, String)())
     End Sub
 
+    ''' <summary>Codice della lingua corrente ("en", "it", "fr", "es", "de").</summary>
+    Public Property CurrentLanguage As String = "en"
+
+    ''' <summary>
+    ''' Crea un'istanza di AppLocalizations per una lingua specifica ("en", "it", "fr", "es", "de").
+    ''' </summary>
+    Public Shared Function CreateForLanguage(langCode As String) As AppLocalizations
+        Dim dict As Dictionary(Of String, String) = Nothing
+        Dim lang = If(Not String.IsNullOrWhiteSpace(langCode), langCode.Trim().ToLowerInvariant(), "en")
+        Select Case lang
+            Case "it"
+                dict = ItStrings
+            Case "fr"
+                dict = FrStrings
+            Case "es"
+                dict = EsStrings
+            Case "de"
+                dict = DeStrings
+            Case Else
+                dict = EnStrings
+                lang = "en"
+        End Select
+        Dim loc As New AppLocalizations(dict) With {.CurrentLanguage = lang}
+        Return loc
+    End Function
+
+
     ''' <summary>Dizionario di localizzazione di fallback per l'interfaccia in lingua Inglese.</summary>
     Public Shared ReadOnly EnStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
         {"settings", "Settings"},
@@ -659,6 +686,14 @@ Public Class AppLocalizations
         {"update_check_failed_network", "Unable to check for updates. Please check your internet connection or try again later."},
         {"update_check_failed_title", "Update Check"},
         {"update_no_asset", "No update package is attached to the remote release."},
+        {"update_dialog_title", "HidaChat Update"},
+        {"update_stage_downloading", "Downloading update package ({version})..."},
+        {"update_stage_download_progress", "Downloaded {downloadedMb} MB of {totalMb} MB ({percent}%)"},
+        {"update_stage_verifying", "Verifying SHA-256 integrity and digital signature..."},
+        {"update_stage_extracting", "Extracting update files..."},
+        {"update_stage_closing", "Closing HidaChat and preparing file replacement..."},
+        {"update_stage_copying", "Applying update and updating application files..."},
+        {"update_stage_restarting", "Update completed. Restarting HidaChat..."},
         {"settings_corrupt_recovery_title", "Settings Recovery"},
         {"settings_corrupt_recovered_msg", "The 'settings.json' configuration file was corrupted and has been archived as '{file}'." & vbCrLf & vbCrLf & "Settings and accounts have been successfully restored from the last available backup (.bak)."},
         {"settings_corrupt_reset_title", "Configuration Error"},
@@ -855,6 +890,14 @@ Public Class AppLocalizations
         {"update_check_failed_network", "Impossibile verificare la presenza di aggiornamenti. Verifica la connessione Internet o riprova più tardi."},
         {"update_check_failed_title", "Verifica Aggiornamenti"},
         {"update_no_asset", "Nessun pacchetto di aggiornamento valido allegato alla versione remota."},
+        {"update_dialog_title", "Aggiornamento HidaChat"},
+        {"update_stage_downloading", "Scaricamento del pacchetto di aggiornamento ({version})..."},
+        {"update_stage_download_progress", "Scaricati {downloadedMb} MB di {totalMb} MB ({percent}%)"},
+        {"update_stage_verifying", "Verifica integrità crittografica SHA-256 e firma digitale..."},
+        {"update_stage_extracting", "Estrazione dei file di aggiornamento..."},
+        {"update_stage_closing", "Chiusura di HidaChat e preparazione sostituzione file..."},
+        {"update_stage_copying", "Applicazione aggiornamento e sostituzione file..."},
+        {"update_stage_restarting", "Aggiornamento completato. Riavvio di HidaChat in corso..."},
         {"settings_corrupt_recovery_title", "Ripristino Impostazioni"},
         {"settings_corrupt_recovered_msg", "Il file di configurazione 'settings.json' risultava danneggiato ed è stato archiviato come '{file}'." & vbCrLf & vbCrLf & "Le impostazioni e gli account sono stati ripristinati con successo dall'ultimo backup (.bak) disponibile."},
         {"settings_corrupt_reset_title", "Errore Configurazione"},
@@ -1051,6 +1094,14 @@ Public Class AppLocalizations
         {"update_check_failed_network", "Impossible de vérifier les mises à jour. Veuillez vérifier votre connexion Internet ou réessayer plus tard."},
         {"update_check_failed_title", "Vérification des mises à jour"},
         {"update_no_asset", "Aucun package de mise à jour n'est associé à la version distante."},
+        {"update_dialog_title", "Mise à jour HidaChat"},
+        {"update_stage_downloading", "Téléchargement du package de mise à jour ({version})..."},
+        {"update_stage_download_progress", "{downloadedMb} Mo téléchargés sur {totalMb} Mo ({percent}%)"},
+        {"update_stage_verifying", "Vérification de l'intégrité SHA-256 et de la signature numérique..."},
+        {"update_stage_extracting", "Extraction des fichiers de mise à jour..."},
+        {"update_stage_closing", "Fermeture de HidaChat et préparation du remplacement des fichiers..."},
+        {"update_stage_copying", "Application de la mise à jour et remplacement des fichiers..."},
+        {"update_stage_restarting", "Mise à jour terminée. Redémarrage de HidaChat..."},
         {"settings_corrupt_recovery_title", "Récupération des Paramètres"},
         {"settings_corrupt_recovered_msg", "Le fichier de configuration 'settings.json' était corrompu et a été archivé sous '{file}'." & vbCrLf & vbCrLf & "Les paramètres et les comptes ont été restaurés avec succès à partir de la dernière sauvegarde (.bak) disponible."},
         {"settings_corrupt_reset_title", "Erreur de Configuration"},
@@ -1247,6 +1298,14 @@ Public Class AppLocalizations
         {"update_check_failed_network", "No se pudieron comprobar las actualizaciones. Compruebe su conexión a Internet o inténtelo de nuevo más tarde."},
         {"update_check_failed_title", "Comprobación de actualizaciones"},
         {"update_no_asset", "No hay ningún paquete de actualización adjunto a la versión remota."},
+        {"update_dialog_title", "Actualización de HidaChat"},
+        {"update_stage_downloading", "Descargando el paquete de actualización ({version})..."},
+        {"update_stage_download_progress", "Descargados {downloadedMb} MB de {totalMb} MB ({percent}%)"},
+        {"update_stage_verifying", "Verificando integridad SHA-256 y firma digital..."},
+        {"update_stage_extracting", "Extrayendo archivos de actualización..."},
+        {"update_stage_closing", "Cerrando HidaChat y preparando el reemplazo de archivos..."},
+        {"update_stage_copying", "Aplicando la actualización y reemplazando archivos..."},
+        {"update_stage_restarting", "Actualización completada. Reiniciando HidaChat..."},
         {"settings_corrupt_recovery_title", "Recuperación de Configuración"},
         {"settings_corrupt_recovered_msg", "El archivo de configuración 'settings.json' estaba dañado y se ha archivado como '{file}'." & vbCrLf & vbCrLf & "La configuración y las cuentas se han restaurado con éxito desde la última copia de seguridad (.bak) disponible."},
         {"settings_corrupt_reset_title", "Error de Configuración"},
@@ -1443,6 +1502,14 @@ Public Class AppLocalizations
         {"update_check_failed_network", "Updates konnten nicht geprüft werden. Bitte überprüfen Sie Ihre Internetverbindung oder versuchen Sie es später erneut."},
         {"update_check_failed_title", "Update-Prüfung"},
         {"update_no_asset", "Dem Remote-Release ist kein Update-Paket beigefügt."},
+        {"update_dialog_title", "HidaChat-Aktualisierung"},
+        {"update_stage_downloading", "Update-Paket wird heruntergeladen ({version})..."},
+        {"update_stage_download_progress", "{downloadedMb} MB von {totalMb} MB heruntergeladen ({percent}%)"},
+        {"update_stage_verifying", "Kryptografische SHA-256-Integrität und digitale Signatur werden überprüft..."},
+        {"update_stage_extracting", "Update-Dateien werden extrahiert..."},
+        {"update_stage_closing", "HidaChat wird geschlossen und das Ersetzen der Dateien vorbereitet..."},
+        {"update_stage_copying", "Update wird angewendet und Dateien werden ersetzt..."},
+        {"update_stage_restarting", "Update abgeschlossen. HidaChat wird neu gestartet..."},
         {"settings_corrupt_recovery_title", "Wiederherstellung der Einstellungen"},
         {"settings_corrupt_recovered_msg", "Die Konfigurationsdatei 'settings.json' war beschädigt und wurde als '{file}' archiviert." & vbCrLf & vbCrLf & "Einstellungen und Konten wurden erfolgreich aus der letzten verfügbaren Sicherung (.bak) wiederhergestellt."},
         {"settings_corrupt_reset_title", "Konfigurationsfehler"},

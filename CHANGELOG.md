@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.3-beta] - 2026-10-26
+
+### Pre-release / Beta — Finestra Grafica con Indicatore di Avanzamento per Aggiornamenti OTA ed Eliminazione Script Batch
+- **Finestra Grafica di Avanzamento Aggiornamenti OTA (`UpdateProgressDialog.xaml`, `UpdateProgressDialog.xaml.vb`, `UpdateChecker.vb`, `Application.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #87)**:
+  - **Finestra Grafica Modale Dedicata (`UpdateProgressDialog`)**: Creata una finestra grafica moderna in tema scuro WhatsApp (bordo `#00a884`, sfondo `#111b21`, shadow morbida e icona vettoriale di download) allineata al design system dell'applicazione, superando le finestre console nere e i popup testuali disconnessi.
+  - **ProgressBar Reattiva con Dettaglio Download in Tempo Reale**: ProgressBar a doppio stato (determinata durante lo scaricamento da GitHub con indicazione puntuale di MB scaricati, MB totali e percentuale di avanzamento `x.x MB di y.y MB (z%)`; fluida/indeterminata durante le fasi di calcolo e copia).
+  - **Eliminazione Definitiva di Script Esterni (`.bat` / `.ps1`)**: Rimossa completamente la generazione e l'avvio di file batch o comandi shell (`cmd.exe`, `update.bat`, `robocopy`), eliminando falsi positivi degli antivirus/EDR e vulnerabilità di sintassi nei percorsi con parentesi o radici di unità rimovibili.
+  - **Handoff Nativo Compilato via CLI (`--apply-update`)**: Il processo di aggiornamento viene gestito direttamente dal runtime compilato .NET/WPF (`HidaChat.exe --apply-update <pid> <sourceDir> <installDir> <version> <lang> <tempZip>`), con attesa non bloccante della chiusura ordinata del processo principale, copia ricorsiva sicura con meccanismo di retry progressivo (10 tentativi per lock I/O) e riavvio automatico dell'applicazione.
+  - **Salvaguardia Assoluta della Portabilità (`data/`)**: La procedura di copia ricorsiva isola ed esclude in modo tassativo la cartella dati `data/` e tutte le relative sottocartelle, garantendo che profili WebView2, cache, impostazioni e sessioni di WhatsApp, Telegram, OpenClaw ed Hermes non vengano mai toccati o sovrascritti.
+  - **Bonifica Asincrona dei Residui Temporanei (`--cleanup-update`)**: All'avvio dell'applicazione aggiornata, un task asincrono differito rimuove in modo pulito e silenzioso gli archivi ZIP e le directory temporanee di sessione estratte in `%TEMP%`.
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi di localizzazione sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) con descrizioni in tempo reale di tutte le fasi: download, verifica SHA-256 e firma Authenticode, estrazione, chiusura ordinata, applicazione e riavvio.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunte 34 nuove asserzioni a copertura di esclusione cartella dati da copia OTA, calcolo percentuale di avanzamento, clamping dei limiti e formattazione argomenti CLI `--apply-update` (totale 257 asserzioni automatiche con 0 errori).
+
 ## [1.3.2-beta] - 2026-10-24
 
 ### Pre-release / Beta — Utility Bar & Gestione Rapida Audio / Dispositivi e Compressione Trasparente NTFS

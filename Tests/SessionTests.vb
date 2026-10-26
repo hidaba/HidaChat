@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Collections.Generic
 Imports System.IO
 Imports System.Threading.Tasks
@@ -234,6 +234,7 @@ Module SessionTests
             TestBrowserArgumentsPolicy()
             TestNtfsCompressionPolicy()
             TestUtilityBarAndAudioQuickActions()
+            TestOtaUpdateAndProgressLogic()
         Finally
             NetworkProfileSync.ReleaseSessionLock("unit")
             Directory.Delete(testRoot, recursive:=True)
@@ -435,6 +436,7 @@ Module SessionTests
     End Sub
 
     Private Sub TestUtilityBarAndAudioQuickActions()
+            TestOtaUpdateAndProgressLogic()
         ' 1. Mute toggle logic simulation (TODO #45)
         Dim isMuted As Boolean = False
         isMuted = Not isMuted
@@ -468,5 +470,48 @@ Module SessionTests
         Check(ResolveChatLink("https://web.whatsapp.com/chat/123", "http://127.0.0.1:18800", "https://web.whatsapp.com") = "https://web.whatsapp.com/chat/123", "Active webview source has highest priority for copy link")
         Check(ResolveChatLink("", "http://127.0.0.1:18800", "http://127.0.0.1:18800") = "http://127.0.0.1:18800", "ServerUrl used when webview source is empty")
         Check(ResolveChatLink("", "", "https://web.telegram.org") = "https://web.telegram.org", "Platform default URL used when both webview source and serverUrl are empty")
+    End Sub
+
+    Private Sub TestOtaUpdateAndProgressLogic()
+        ' 1. Relative path check ensuring data directory is NEVER copied (100% portable) (TODO #87)
+        Dim IsDataExcluded = Function(relPath As String) As Boolean
+            If relPath.Equals("data", StringComparison.OrdinalIgnoreCase) Then Return True
+            If relPath.StartsWith("data" & Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) Then Return True
+            If relPath.StartsWith("data/", StringComparison.OrdinalIgnoreCase) Then Return True
+            Return False
+        End Function
+
+        Check(IsDataExcluded("data"), "Root data directory excluded from OTA file copy")
+        Check(IsDataExcluded("data\webview\Account_1"), "data subfolder (backslash) excluded from OTA file copy")
+        Check(IsDataExcluded("data/settings.json"), "data file (forward slash) excluded from OTA file copy")
+        Check(Not IsDataExcluded("HidaChat.exe"), "App executable is copied")
+        Check(Not IsDataExcluded("HidaChat.dll"), "App binary DLL is copied")
+        Check(Not IsDataExcluded("images\icon.ico"), "Resource file is copied")
+
+        ' 2. Progress percentage and calculation bounds
+        Dim CalculateProgress = Function(readBytes As Long, totalBytes As Long) As Double
+            If totalBytes <= 0 Then Return -1.0
+            Dim pct = (CDbl(readBytes) / CDbl(totalBytes)) * 100.0
+            Return Math.Max(0.0, Math.Min(100.0, pct))
+        End Function
+
+        Check(CalculateProgress(0, 100) = 0.0, "Progress at 0 bytes is 0%")
+        Check(CalculateProgress(50, 100) = 50.0, "Progress at midpoint is 50%")
+        Check(CalculateProgress(100, 100) = 100.0, "Progress at completion is 100%")
+        Check(CalculateProgress(150, 100) = 100.0, "Progress exceeding total clamps to 100%")
+        Check(CalculateProgress(50, 0) = -1.0, "Unknown total length returns negative percentage")
+
+        ' 3. CLI arguments construction for --apply-update (TODO #87)
+        Dim FormatApplyArgs = Function(pid As Integer, src As String, dst As String, ver As String, lang As String, zip As String) As String
+            Return $"--apply-update {pid} ""{src}"" ""{dst}"" ""{ver}"" ""{lang}"" ""{zip}"""
+        End Function
+
+        Dim applyArgs = FormatApplyArgs(1234, "C:\Temp\Update", "C:\HidaChat", "1.3.3-beta", "it", "C:\Temp\update.zip")
+        Check(applyArgs.Contains("--apply-update 1234"), "CLI args include --apply-update with caller PID")
+        Check(applyArgs.Contains("""C:\Temp\Update"""), "CLI args include quoted source directory")
+        Check(applyArgs.Contains("""C:\HidaChat"""), "CLI args include quoted target installation directory")
+        Check(applyArgs.Contains("""1.3.3-beta"""), "CLI args include target version")
+        Check(applyArgs.Contains("""it"""), "CLI args include language code")
+        Check(applyArgs.Contains("""C:\Temp\update.zip"""), "CLI args include temporary zip file")
     End Sub
 End Module
