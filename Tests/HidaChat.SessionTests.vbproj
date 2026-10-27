@@ -17,6 +17,7 @@
     <Compile Include="../SettingsMigration.vb" Link="SettingsMigration.vb" />
     <Compile Include="../BrowserArgumentsPolicy.vb" Link="BrowserArgumentsPolicy.vb" />
     <Compile Include="../NtfsCompressionPolicy.vb" Link="NtfsCompressionPolicy.vb" />
+    <Compile Include="../BulkSenderPolicy.vb" Link="BulkSenderPolicy.vb" />
     <Compile Include="SessionTests.vb" />
   </ItemGroup>
 </Project>

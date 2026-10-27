@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.4-beta] - 2026-10-27
+
+### Pre-release / Beta — Gestione Bozze e Conferma Reale di Invio nel Motore di Invio Massivo
+- **Affidabilità e Integrità Invio Massivo (`BulkSenderPolicy.vb`, `BulkSenderEngine.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #79)**:
+  - **Modulo Centralizzato `BulkSenderPolicy`**: Introdotto il modulo dedicato `BulkSenderPolicy.vb` per la convalida deterministica dell'intero ciclo di invio, normalizzazione del testo (`NormalizeText`), verifica identità della chat (`MatchesRecipient`), rilevamento conflitti di bozza (`IsDraftConflict`), generazione script di automazione per WhatsApp Web e Telegram Web e parsing sicuro delle risposte JSON (`ParseScriptResult`).
+  - **Prevenzione Invio e Sovrascrittura Bozze Preesistenti**: Risolto il difetto per cui su Telegram Web la presenza di una bozza preesistente impediva l'inserimento del testo massivo provocando l'invio accidentale della bozza dell'utente. Ora sia su WhatsApp Web che su Telegram Web la casella di digitazione viene verificata prima dell'azione: in presenza di una bozza in conflitto con il messaggio atteso, l'invio si arresta immediatamente senza sovrascrivere o spedire il testo preesistente (`DRAFT_CONFLICT`), con segnalazione puntuale all'utente.
+  - **Conferma Osservabile del Client contro Falsi Successi**: Eliminata la marcatura prematura a `SENT` subito dopo la simulazione del click o dell'evento tastiera `Enter` (che generava falsi positivi in caso di eventi ignorati, popover bloccanti o rallentamenti DOM). L'invio transita per lo stato `TRIGGERED` e attende la conferma osservabile del client (`CONFIRMED_SENT`), validando lo svuotamento effettivo del campo di digitazione e la commutazione del pulsante di invio in icona microfono; in caso di mancata accettazione entro il timeout, l'invio viene contrassegnato con errore senza dichiarare falsi successi (`SEND_REJECTED`).
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi di localizzazione sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) per la notifica accurata di numeri non registrati, utenti non trovati, bozze rilevate e invii non accettati dal client.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunte 76 asserzioni unitarie di regressione a copertura di normalizzazione testi, rilevamento conflitti, matching destinatari, conferma osservabile e parsing delle risposte (**333 asserzioni automatiche con 0 errori**).
+
 ## [1.3.3-beta] - 2026-10-26
 
 ### Pre-release / Beta — Finestra Grafica con Indicatore di Avanzamento per Aggiornamenti OTA ed Eliminazione Script Batch

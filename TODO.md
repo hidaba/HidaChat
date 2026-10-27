@@ -653,12 +653,17 @@
   - Creata suite di test unitari automatizzati in `Tests/SessionTests.vb` che valida l'accettazione su porta corretta e il respingimento su porte differenti, host non coincidenti, schemi errati e tentativi di spoofing o subdomain attack.
 - **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Basso-Medio
 
-## 79. [P1] L’invio massivo può spedire una bozza e dichiarare un falso successo
-- **File**: `BulkSenderEngine.vb`, circa righe 175–250 e 265–341
+## ~~79. [P1] L’invio massivo può spedire una bozza e dichiarare un falso successo~~ [COMPLETATO] ✅
+- **File**: `BulkSenderPolicy.vb`, `BulkSenderEngine.vb`, `Localization.vb`, `Tests/SessionTests.vb`
 - **Problema / Esigenza**: Su Telegram il messaggio previsto viene inserito soltanto se il campo è vuoto: una bozza preesistente può essere inviata al suo posto. Inoltre, su entrambe le piattaforme, il risultato diventa SENT dopo un click o un evento tastiera, senza verificare che il client abbia realmente accettato il messaggio. Manca anche una verifica esplicita dell’identità della chat prima dell’invio. Le prove con DOM simulato confermano sia l’invio della bozza sia il ritorno SENT senza alcuna conferma effettiva.
-- **Fix da implementare**: Verificare destinatario e testo prima dell’azione; in presenza di una bozza, fermarsi senza sovrascriverla silenziosamente. Attendere poi una conferma osservabile del client, distinguendola dalla consegna al destinatario.
+- **Implementazione completata**:
+  - Creato il modulo deterministico `BulkSenderPolicy.vb` con le routine di validazione `IsDraftConflict`, `MatchesRecipient`, `IsSendConfirmed`, `BuildWhatsAppScript`, `BuildTelegramScript` e `ParseScriptResult`.
+  - **Rilevamento e Blocco Bozze Preesistenti**: Sia su Telegram che su WhatsApp, prima di procedere con l'azione di invio viene controllato il testo attualmente presente nella casella di digitazione; in presenza di una bozza in conflitto con il messaggio atteso, l'invio viene immediatamente interrotto con stato d'errore (`DRAFT_CONFLICT`) senza sovrascrivere o spedire la bozza.
+  - **Conferma Osservabile del Client**: Eliminata qualsiasi dichiarazione immediata di successo dopo il click o evento tastiera; l'esito passa dallo stato intermedio `TRIGGERED` e attende la conferma osservabile del client (`CONFIRMED_SENT`: svuotamento completo dell'input e/o commutazione del pulsante di invio in icona microfono) con timeout controllato e segnalazione puntuale in caso di invio respinto o ignorato (`SEND_REJECTED`).
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi dedicate agli errori e stati di invio massivo sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+  - **Suite di Test Automatizzati**: Aggiunte 76 asserzioni unitarie di regressione in `Tests/SessionTests.vb` per normalizzazione testo, rilevamento bozze, matching destinatari, conferma osservabile e parsing JSON (totale 333 asserzioni automatiche con 0 errori).
 - **Test di accettazione**: Bozza esistente, navigazione lenta, chat precedente ancora visibile e pressione di Invio ignorata non devono produrre un falso “Inviato”.
-- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Medio
+- **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Medio
 
 ## 80. [P1] Stop e riavvio possono sovrapporre due esecuzioni dell’invio massivo
 - **File**: `BulkSenderWindow.xaml.vb`, circa righe 343–438; `BulkSenderEngine.vb`, metodi `Cancel()` e `RunAsync()`
@@ -672,7 +677,7 @@
 - **Problema / Esigenza**: `SendCommandAsync()` attende il semaforo e una riga da stdout senza timeout. `ShutdownAsync()` chiama questo metodo prima di arrivare a `WaitForExit(2000)`. Di conseguenza, se il daemon resta vivo ma non risponde, il limite di due secondi non viene mai raggiunto. Anche un comando precedente bloccato può trattenere il semaforo e impedire l’invio di shutdown.
 - **Fix da implementare**: Applicare un timeout cancellabile all’intera operazione, compresa l’acquisizione del semaforo. Lo shutdown deve avere una scadenza complessiva indipendente dal canale comandi. Alla scadenza, chiudere il canale e gestire il processo senza lasciare letture pendenti.
 - **Test di accettazione**: Usare un daemon di prova che non risponde più su stdout. Chiusura e aggiornamento devono terminare o fallire con un errore chiaro entro il limite previsto, non restare appesi.
-- **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Medio
+- **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Medio
 
 ## 82. [P2] La verifica dei certificati HTTPS viene disattivata
 - **File**: `tsnetd/main.go`, circa righe 259–269; `SettingsWindow.xaml.vb`, circa righe 320–322

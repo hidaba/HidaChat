@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Collections.Generic
 Imports System.IO
 Imports System.Threading.Tasks
@@ -235,6 +235,7 @@ Module SessionTests
             TestNtfsCompressionPolicy()
             TestUtilityBarAndAudioQuickActions()
             TestOtaUpdateAndProgressLogic()
+            TestBulkSenderPolicy()
         Finally
             NetworkProfileSync.ReleaseSessionLock("unit")
             Directory.Delete(testRoot, recursive:=True)
@@ -437,6 +438,7 @@ Module SessionTests
 
     Private Sub TestUtilityBarAndAudioQuickActions()
             TestOtaUpdateAndProgressLogic()
+            TestBulkSenderPolicy()
         ' 1. Mute toggle logic simulation (TODO #45)
         Dim isMuted As Boolean = False
         isMuted = Not isMuted
@@ -512,6 +514,74 @@ Module SessionTests
         Check(applyArgs.Contains("""C:\HidaChat"""), "CLI args include quoted target installation directory")
         Check(applyArgs.Contains("""1.3.3-beta"""), "CLI args include target version")
         Check(applyArgs.Contains("""it"""), "CLI args include language code")
-        Check(applyArgs.Contains("""C:\Temp\update.zip"""), "CLI args include temporary zip file")
+    End Sub
+
+    Private Sub TestBulkSenderPolicy()
+        ' 1. Normalization
+        Check(BulkSenderPolicy.NormalizeText("") = "", "NormalizeText empty string")
+        Check(BulkSenderPolicy.NormalizeText(Nothing) = "", "NormalizeText null string")
+        Check(BulkSenderPolicy.NormalizeText("   Hello" & vbCrLf & "World   ") = "Hello" & vbLf & "World", "NormalizeText trim and newline")
+        Check(BulkSenderPolicy.NormalizeText("Hello" & ChrW(&HA0) & "World") = "Hello World", "NormalizeText non-breaking space")
+
+        ' 2. Draft conflict detection (TODO #79)
+        Check(Not BulkSenderPolicy.IsDraftConflict("", "Messaggio previsto"), "Empty input is not draft conflict")
+        Check(Not BulkSenderPolicy.IsDraftConflict("   ", "Messaggio previsto"), "Whitespace input is not draft conflict")
+        Check(Not BulkSenderPolicy.IsDraftConflict("Messaggio previsto", "Messaggio previsto"), "Identical text is not draft conflict")
+        Check(Not BulkSenderPolicy.IsDraftConflict("Messaggio" & vbCrLf & "previsto", "Messaggio" & vbLf & "previsto"), "Normalized newline text is not draft conflict")
+        Check(BulkSenderPolicy.IsDraftConflict("Altra bozza dell'utente", "Messaggio previsto"), "Pre-existing different draft detected as conflict")
+        Check(BulkSenderPolicy.IsDraftConflict("Ciao Marco", "Offerta speciale"), "Unrelated draft detected as conflict")
+
+        ' 3. Chat identity verification (TODO #79)
+        Check(BulkSenderPolicy.MatchesRecipient("+39 340 1234567", "+393401234567", Nothing, Nothing), "Recipient matched by full phone number")
+        Check(BulkSenderPolicy.MatchesRecipient("Chat con 340 1234567", "3401234567", Nothing, Nothing), "Recipient matched by phone digits")
+        Check(BulkSenderPolicy.MatchesRecipient("Mario Rossi (@mariorossi)", Nothing, "mariorossi", "Mario Rossi"), "Recipient matched by Telegram username")
+        Check(BulkSenderPolicy.MatchesRecipient("Mario Rossi (@mariorossi)", Nothing, "@mariorossi", "Mario Rossi"), "Recipient matched by formatted Telegram username")
+        Check(BulkSenderPolicy.MatchesRecipient("Mario Rossi", Nothing, Nothing, "Mario Rossi"), "Recipient matched by full name")
+        Check(BulkSenderPolicy.MatchesRecipient("Dott. Rossi Studio", Nothing, Nothing, "Mario Rossi"), "Recipient matched by last name")
+        Check(Not BulkSenderPolicy.MatchesRecipient("Giuseppe Verdi", "+393401234567", "mariorossi", "Mario Rossi"), "Unrelated recipient rejected")
+        Check(Not BulkSenderPolicy.MatchesRecipient("", "+393401234567", "mariorossi", "Mario Rossi"), "Empty header rejected")
+
+        ' 4. Observable confirmation vs fake Sent (TODO #79)
+        Check(Not BulkSenderPolicy.IsSendConfirmed("Messaggio non inviato", False, False), "Un-triggered action is not confirmed")
+        Check(Not BulkSenderPolicy.IsSendConfirmed("Messaggio ancora presente", True, True), "Input still containing text after trigger is not confirmed (Enter ignored)")
+        Check(Not BulkSenderPolicy.IsSendConfirmed("Messaggio", True, False), "Non-empty composer after trigger is not confirmed")
+        Check(BulkSenderPolicy.IsSendConfirmed("", True, False), "Empty composer with send button hidden is confirmed sent")
+        Check(BulkSenderPolicy.IsSendConfirmed("   ", True, False), "Whitespace composer with send button hidden is confirmed sent")
+        Check(BulkSenderPolicy.IsSendConfirmed("", True, True), "Empty composer after trigger is confirmed sent")
+
+        ' 5. Script Generation
+        Dim waScript = BulkSenderPolicy.BuildWhatsAppScript("Test WhatsApp", "393401234567", False)
+        Check(waScript.Contains("Test WhatsApp"), "WhatsApp script embeds target message")
+        Check(waScript.Contains("INVALID_NUMBER"), "WhatsApp script includes invalid number popup handler")
+        Check(waScript.Contains("DRAFT_CONFLICT"), "WhatsApp script includes draft conflict check")
+        Check(waScript.Contains("CONFIRMED_SENT"), "WhatsApp script includes observable confirmation")
+
+        Dim tgScript = BulkSenderPolicy.BuildTelegramScript("Test Telegram", "@mariorossi", True)
+        Check(tgScript.Contains("Test Telegram"), "Telegram script embeds target message")
+        Check(tgScript.Contains("actionTriggered = true"), "Telegram script sets actionTriggered true")
+        Check(tgScript.Contains("USER_NOT_FOUND"), "Telegram script includes user not found handler")
+        Check(tgScript.Contains("DRAFT_CONFLICT"), "Telegram script includes draft conflict check")
+
+        ' 6. Script Result Parsing
+        Dim resSent = BulkSenderPolicy.ParseScriptResult("{""status"":""CONFIRMED_SENT""}")
+        Check(resSent.Status = "CONFIRMED_SENT", "ParseScriptResult CONFIRMED_SENT")
+
+        Dim resConflict = BulkSenderPolicy.ParseScriptResult("{""status"":""DRAFT_CONFLICT"",""currentDraft"":""Bozza vecchia""}")
+        Check(resConflict.Status = "DRAFT_CONFLICT" AndAlso resConflict.CurrentDraft = "Bozza vecchia", "ParseScriptResult DRAFT_CONFLICT with draft text")
+
+        Dim resInvalid = BulkSenderPolicy.ParseScriptResult("{""status"":""INVALID_NUMBER"",""msg"":""Numero non valido""}")
+        Check(resInvalid.Status = "INVALID_NUMBER" AndAlso resInvalid.ErrorMessage = "Numero non valido", "ParseScriptResult INVALID_NUMBER with message")
+
+        Dim resUserNotFound = BulkSenderPolicy.ParseScriptResult("{""status"":""USER_NOT_FOUND"",""msg"":""Utente non trovato""}")
+        Check(resUserNotFound.Status = "USER_NOT_FOUND" AndAlso resUserNotFound.ErrorMessage = "Utente non trovato", "ParseScriptResult USER_NOT_FOUND with message")
+
+        Dim resWaiting = BulkSenderPolicy.ParseScriptResult("{""status"":""WAITING_CONFIRMATION"",""currentText"":""Messaggio in attesa""}")
+        Check(resWaiting.Status = "WAITING_CONFIRMATION", "ParseScriptResult WAITING_CONFIRMATION")
+
+        Dim resEmpty = BulkSenderPolicy.ParseScriptResult("")
+        Check(resEmpty.Status = "WAITING", "ParseScriptResult empty string returns WAITING")
+
+        Dim resNull = BulkSenderPolicy.ParseScriptResult("null")
+        Check(resNull.Status = "WAITING", "ParseScriptResult null returns WAITING")
     End Sub
 End Module

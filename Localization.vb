@@ -1,4 +1,4 @@
-﻿Imports System.IO
+Imports System.IO
 Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
@@ -67,6 +67,11 @@ Public Class TranslationCacheService
     Private ReadOnly _cacheLock As New Object()
     
     Private _activeLanguage As String = "en"
+    Public ReadOnly Property ActiveLanguage As String
+        Get
+            Return _activeLanguage
+        End Get
+    End Property
     Private _activeUiTranslations As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
     Private _activeMessageTranslations As New Dictionary(Of String, String)(StringComparer.Ordinal)
     
@@ -574,6 +579,20 @@ Public Class AppLocalizations
         End Select
         Dim loc As New AppLocalizations(dict) With {.CurrentLanguage = lang}
         Return loc
+
+    End Function
+
+    ''' <summary>
+    ''' Restituisce la stringa localizzata per la lingua attualmente attiva nel singleton di localizzazione.
+    ''' </summary>
+    Public Shared Function GetText(key As String, Optional defaultFallback As String = Nothing) As String
+        Dim activeLang = TranslationCacheService.Instance.ActiveLanguage
+        Dim locInst = CreateForLanguage(activeLang)
+        Dim res = locInst.Get(key)
+        If res = key AndAlso Not String.IsNullOrEmpty(defaultFallback) Then
+            Return defaultFallback
+        End If
+        Return res
     End Function
 
 
@@ -777,7 +796,15 @@ Public Class AppLocalizations
         {"translation_test_btn", "Test Connection"},
         {"translation_test_success", "✓ Connected successfully ({latency} ms)"},
         {"translation_test_failure", "✗ Connection failed: {error}"},
-        {"translation_provider_unreachable", "Translation failed: Provider unreachable"}
+        {"translation_provider_unreachable", "Translation failed: Provider unreachable"},
+        {"bulk_err_phone_missing", "Phone number missing"},
+        {"bulk_err_phone_invalid", "Invalid phone number"},
+        {"bulk_err_recipient_missing", "No username or phone number specified"},
+        {"bulk_err_draft_detected", "Pre-existing draft detected in chat input: sending aborted to prevent sending wrong text"},
+        {"bulk_err_send_rejected", "Send action ignored or not accepted by client: sending unconfirmed"},
+        {"bulk_err_send_timeout", "Timeout waiting for client send confirmation"},
+        {"bulk_err_number_not_registered", "Phone number not registered on WhatsApp"},
+        {"bulk_err_user_not_found", "User or phone number not found on Telegram"}
     }
 
 
@@ -981,7 +1008,15 @@ Public Class AppLocalizations
         {"translation_test_btn", "Testa Connessione"},
         {"translation_test_success", "✓ Connesso con successo ({latency} ms)"},
         {"translation_test_failure", "✗ Connessione non riuscita: {error}"},
-        {"translation_provider_unreachable", "Traduzione non riuscita: Provider non raggiungibile"}
+        {"translation_provider_unreachable", "Traduzione non riuscita: Provider non raggiungibile"},
+        {"bulk_err_phone_missing", "Numero di telefono mancante"},
+        {"bulk_err_phone_invalid", "Numero di telefono non valido"},
+        {"bulk_err_recipient_missing", "Nessun username o numero di telefono specificato"},
+        {"bulk_err_draft_detected", "Bozza preesistente rilevata nel campo di testo: invio interrotto per prevenire invii errati"},
+        {"bulk_err_send_rejected", "Azione di invio non accettata dal client o pressione di invio ignorata"},
+        {"bulk_err_send_timeout", "Timeout durante l'attesa della conferma di invio del client"},
+        {"bulk_err_number_not_registered", "Numero non registrato su WhatsApp"},
+        {"bulk_err_user_not_found", "Utente o numero non trovato su Telegram"}
     }
 
 
@@ -1185,7 +1220,15 @@ Public Class AppLocalizations
         {"translation_test_btn", "Tester la Connexion"},
         {"translation_test_success", "✓ Connexion réussie ({latency} ms)"},
         {"translation_test_failure", "✗ Échec de la connexion : {error}"},
-        {"translation_provider_unreachable", "Traduction échouée : Fournisseur inaccessible"}
+        {"translation_provider_unreachable", "Traduction échouée : Fournisseur inaccessible"},
+        {"bulk_err_phone_missing", "Numéro de téléphone manquant"},
+        {"bulk_err_phone_invalid", "Numéro de téléphone non valide"},
+        {"bulk_err_recipient_missing", "Aucun nom d'utilisateur ou numéro de téléphone spécifié"},
+        {"bulk_err_draft_detected", "Brouillon préexistant détecté dans la zone de texte : envoi interrompu pour éviter tout envoi erroné"},
+        {"bulk_err_send_rejected", "Action d'envoi non acceptée par le client ou touche Entrée ignorée"},
+        {"bulk_err_send_timeout", "Délai dépassé lors de l'attente de la confirmation d'envoi du client"},
+        {"bulk_err_number_not_registered", "Numéro non enregistré sur WhatsApp"},
+        {"bulk_err_user_not_found", "Utilisateur ou numéro introuvable sur Telegram"}
     }
 
 
@@ -1389,7 +1432,15 @@ Public Class AppLocalizations
         {"translation_test_btn", "Probar Conexión"},
         {"translation_test_success", "✓ Conectado con éxito ({latency} ms)"},
         {"translation_test_failure", "✗ Error de conexión: {error}"},
-        {"translation_provider_unreachable", "Traducción fallida: Proveedor no disponible"}
+        {"translation_provider_unreachable", "Traducción fallida: Proveedor no disponible"},
+        {"bulk_err_phone_missing", "Número de teléfono faltante"},
+        {"bulk_err_phone_invalid", "Número de teléfono no válido"},
+        {"bulk_err_recipient_missing", "No se especificó nombre de usuario ni número de teléfono"},
+        {"bulk_err_draft_detected", "Borrador preexistente detectado en el campo de texto: envío bloqueado para prevenir envíos erróneos"},
+        {"bulk_err_send_rejected", "Acción de envío no aceptada por el cliente o tecla Entrar ignorada"},
+        {"bulk_err_send_timeout", "Tiempo de espera agotado aguardando confirmación de envío del cliente"},
+        {"bulk_err_number_not_registered", "Número no registrado en WhatsApp"},
+        {"bulk_err_user_not_found", "Usuario o número no encontrado en Telegram"}
     }
 
 
@@ -1593,7 +1644,15 @@ Public Class AppLocalizations
         {"translation_test_btn", "Verbindung testen"},
         {"translation_test_success", "✓ Verbindung erfolgreich ({latency} ms)"},
         {"translation_test_failure", "✗ Verbindungsfehler: {error}"},
-        {"translation_provider_unreachable", "Übersetzung fehlgeschlagen: Anbieter nicht erreichbar"}
+        {"translation_provider_unreachable", "Übersetzung fehlgeschlagen: Anbieter nicht erreichbar"},
+        {"bulk_err_phone_missing", "Telefonnummer fehlt"},
+        {"bulk_err_phone_invalid", "Ungültige Telefonnummer"},
+        {"bulk_err_recipient_missing", "Kein Benutzername oder Telefonnummer angegeben"},
+        {"bulk_err_draft_detected", "Bereits vorhandener Entwurf im Textfeld erkannt: Senden abgebrochen, um fehlerhaften Versand zu verhindern"},
+        {"bulk_err_send_rejected", "Sendeaktion vom Client nicht akzeptiert oder Eingabetaste ignoriert"},
+        {"bulk_err_send_timeout", "Zeitüberschreitung beim Warten auf die Sendebestätigung des Clients"},
+        {"bulk_err_number_not_registered", "Nummer nicht bei WhatsApp registriert"},
+        {"bulk_err_user_not_found", "Benutzer oder Nummer auf Telegram nicht gefunden"}
     }
 
 
