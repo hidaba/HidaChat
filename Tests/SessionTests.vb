@@ -599,13 +599,13 @@ Module SessionTests
         Check(safeLongName.StartsWith("Account_"), "Clamped profile name starts with Account_")
 
         Dim relPath = ProfileIsolationPolicy.GetNativeProfileRelativePath("account_test")
-        Check(relPath = Path.Combine("EBWebView", "Account_test"), "Native relative path is EBWebView\Account_test")
+        Check(relPath = Path.Combine("EBWebView", "wv2profile_account_test"), "Native relative path is EBWebView\wv2profile_account_test")
 
         Dim testBaseDir = Path.Combine(Path.GetTempPath(), "HidaChat_Test_" & Guid.NewGuid().ToString("N"))
         Directory.CreateDirectory(testBaseDir)
         Try
             Dim nativeDir = ProfileIsolationPolicy.GetNativeProfileDirectory(testBaseDir, "1")
-            Check(nativeDir = Path.Combine(testBaseDir, "EBWebView", "Account_1"), "Native directory matches expected path")
+            Check(nativeDir = Path.Combine(testBaseDir, "EBWebView", "wv2profile_account_1"), "Native directory matches expected path")
 
             Dim legacyDir = ProfileIsolationPolicy.GetLegacyProfileDirectory(testBaseDir, "1")
             Check(legacyDir = Path.Combine(testBaseDir, "WV2Profile_1"), "Legacy directory matches expected path")
@@ -646,7 +646,9 @@ Module SessionTests
         Check(ProfileIsolationPolicy.IsSystemOrProtectedDirectory("ShaderCache"), "ShaderCache is protected system directory")
         Check(Not ProfileIsolationPolicy.IsSystemOrProtectedDirectory("Account_1"), "Account_1 is not protected system directory")
         Check(ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Account_1"), "Account_1 is native account profile")
-        Check(ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Account_abc"), "Account_abc is native account profile")
+        Check(ProfileIsolationPolicy.IsNativeAccountProfileDirectory("wv2profile_account_1"), "wv2profile_account_1 is native account profile")
+        Check(ProfileIsolationPolicy.IsNativeAccountProfileDirectory("WV2Profile_account_1784925628238"), "WV2Profile_account_1784925628238 is native account profile")
+        Check(ProfileIsolationPolicy.ExtractAccountIdFromProfileDirectory("wv2profile_account_1784925628238") = "account_1784925628238", "ExtractAccountIdFromProfileDirectory extracts clean ID")
         Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Default"), "Default is not native account profile")
         Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Crashpad"), "Crashpad is not native account profile")
         Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("random_folder"), "random_folder is not native account profile")

@@ -14,6 +14,7 @@ Public Module ProfileIsolationPolicy
     Public Const DefaultProfileName As String = "Account_Default"
     Public Const SharedEbWebViewFolder As String = "EBWebView"
     Public Const LegacyProfilePrefix As String = "WV2Profile_"
+    Public Const NativeProfileDirPrefix As String = "WV2Profile_"
 
     ''' <summary>
     ''' Costruisce e sanitizza un nome profilo univoco, valido e conforme alle restrizioni di CoreWebView2
@@ -48,11 +49,22 @@ Public Module ProfileIsolationPolicy
     End Function
 
     ''' <summary>
-    ''' Restituisce il percorso relativo della cartella del profilo nativo all'interno della cartella dati condivisa (es. "EBWebView\Account_1").
+    ''' Restituisce il nome della cartella su disco generata da Edge WebView2 per il profilo nativo sotto EBWebView.
+    ''' WebView2 antepone internamente il prefisso "WV2Profile_" al ProfileName specificato.
+    ''' </summary>
+    Public Function GetNativeProfileFolderName(accountId As String) As String
+        Dim safeName = GetSafeProfileName(accountId)
+        If safeName.StartsWith(NativeProfileDirPrefix, StringComparison.OrdinalIgnoreCase) Then
+            Return safeName.ToLowerInvariant()
+        End If
+        Return (NativeProfileDirPrefix & safeName).ToLowerInvariant()
+    End Function
+
+    ''' <summary>
+    ''' Restituisce il percorso relativo della cartella del profilo nativo all'interno della cartella dati condivisa (es. "EBWebView\wv2profile_account_1").
     ''' </summary>
     Public Function GetNativeProfileRelativePath(accountId As String) As String
-        Dim safeName = GetSafeProfileName(accountId)
-        Return Path.Combine(SharedEbWebViewFolder, safeName)
+        Return Path.Combine(SharedEbWebViewFolder, GetNativeProfileFolderName(accountId))
     End Function
 
     ''' <summary>
@@ -73,14 +85,33 @@ Public Module ProfileIsolationPolicy
 
     ''' <summary>
     ''' Determina il percorso effettivo del profilo: restituisce il percorso nativo (se presente o se non vi sono dati legacy),
-    ''' oppure il percorso legacy preesistente se non ancora migrato.
+    ''' verificando anche eventuali varianti o cartelle legacy preesistenti.
     ''' </summary>
     Public Function ResolveEffectiveProfileDirectory(baseSharedDir As String, accountId As String) As String
         If String.IsNullOrWhiteSpace(baseSharedDir) Then Return ""
         Dim nativeDir = GetNativeProfileDirectory(baseSharedDir, accountId)
         If Directory.Exists(nativeDir) Then Return nativeDir
+
+        ' Controlla se esiste una cartella corrispondente con casing alternativo sotto EBWebView
+        Dim ebDir = Path.Combine(baseSharedDir, SharedEbWebViewFolder)
+        If Directory.Exists(ebDir) Then
+            Dim targetFolder = GetNativeProfileFolderName(accountId)
+            For Each subDir In Directory.GetDirectories(ebDir)
+                If String.Equals(Path.GetFileName(subDir), targetFolder, StringComparison.OrdinalIgnoreCase) Then
+                    Return subDir
+                End If
+            Next
+
+            ' Compatibilità v1.3.5-beta (se cartella creata senza prefisso WV2Profile_, es. EBWebView\Account_1)
+            Dim safeName = GetSafeProfileName(accountId)
+            Dim betaDir = Path.Combine(ebDir, safeName)
+            If Directory.Exists(betaDir) Then Return betaDir
+        End If
+
+        ' Fallback legacy (data/webview/WV2Profile_{id})
         Dim legacyDir = GetLegacyProfileDirectory(baseSharedDir, accountId)
         If Directory.Exists(legacyDir) Then Return legacyDir
+
         Return nativeDir
     End Function
 
@@ -122,17 +153,37 @@ Public Module ProfileIsolationPolicy
             "Subresource Filter", "GraphiteDawnCache", "DawnCache", "DawnGraphiteCache",
             "DawnWebGPUCache", "GPUCache", "GPUPersistentCache", "CertificateRevocation",
             "WidevineCdm", "Recovery", "BrowserMetrics", "Crowd Deny", "Origin Trials",
-            "_trash", "_profile_locks"
+            "_trash", "_profile_locks", "extensions_crx_cache", "SmartScreen"
         }
         Return protectedNames.Contains(dirName)
     End Function
 
     ''' <summary>
-    ''' Verifica se il nome della directory appartiene a un profilo nativo gestito (inizia con "Account_").
+    ''' Verifica se il nome della directory appartiene a un profilo nativo gestito (inizia con "WV2Profile_" o "Account_").
     ''' </summary>
     Public Function IsNativeAccountProfileDirectory(dirName As String) As Boolean
         If String.IsNullOrWhiteSpace(dirName) Then Return False
-        Return dirName.StartsWith("Account_", StringComparison.OrdinalIgnoreCase) AndAlso Not IsSystemOrProtectedDirectory(dirName)
+        If IsSystemOrProtectedDirectory(dirName) Then Return False
+        Return dirName.StartsWith(NativeProfileDirPrefix, StringComparison.OrdinalIgnoreCase) OrElse
+               dirName.StartsWith("Account_", StringComparison.OrdinalIgnoreCase) OrElse
+               dirName.StartsWith("account_", StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    ''' <summary>
+    ''' Estrae l'identificativo account originario a partire dal nome della directory profilo (es. "WV2Profile_account_1" -> "account_1").
+    ''' </summary>
+    Public Function ExtractAccountIdFromProfileDirectory(dirName As String) As String
+        If String.IsNullOrWhiteSpace(dirName) Then Return ""
+        Dim clean = dirName
+        If clean.StartsWith(NativeProfileDirPrefix, StringComparison.OrdinalIgnoreCase) Then
+            clean = clean.Substring(NativeProfileDirPrefix.Length)
+        End If
+        If clean.StartsWith("account_", StringComparison.OrdinalIgnoreCase) Then
+            Return "account_" & clean.Substring("account_".Length)
+        ElseIf clean.StartsWith("Account_", StringComparison.OrdinalIgnoreCase) Then
+            Return "account_" & clean.Substring("Account_".Length)
+        End If
+        Return clean
     End Function
 
 End Module

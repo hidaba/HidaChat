@@ -313,8 +313,8 @@ Public Class AccountManager
     End Sub
 
     ''' <summary>
-    ''' Migra in modo non distruttivo i profili legacy separati (data/webview/WV2Profile_{id})
-    ''' nella struttura condivisa di profili nativi (data/webview/EBWebView/Account_{id}) (TODO #103).
+    ''' Migra in modo non distruttivo e ripristina i profili (legacy o v1.3.5-beta)
+    ''' nella struttura corretta dei profili nativi di WebView2 (data/webview/EBWebView/WV2Profile_{id}) (TODO #103).
     ''' </summary>
     Private Sub MigrateLegacyProfilesToNativeProfiles()
         Try
@@ -326,53 +326,180 @@ Public Class AccountManager
                 Directory.CreateDirectory(ebWebViewDir)
             End If
 
+            ' 1. Sincronizza o ripristina la chiave master os_crypt.encrypted_key in EBWebView\Local State
+            MigrateOrRestoreLocalStateEncryptionKey(sharedDir, ebWebViewDir)
+
+            ' 2. Per ogni account registrato, assicurati che la cartella nativa WV2Profile_ abbia tutti i dati
             For Each acc In _accounts
-                Dim safeProfileName = acc.ProfileName
-                Dim targetProfileDir = Path.Combine(ebWebViewDir, safeProfileName)
+                Dim targetProfileDir = ProfileIsolationPolicy.GetNativeProfileDirectory(sharedDir, acc.Id)
+                If String.IsNullOrEmpty(targetProfileDir) Then Continue For
 
-                ' Se la cartella del profilo nativo esiste già, non sovrascrivere
-                If Directory.Exists(targetProfileDir) Then Continue For
+                ' Cerca tutte le possibili sorgenti contenenti dati di sessione (in ordine di priorità)
+                Dim candidateSources As New List(Of String)
 
+                ' A) Sorgente da v1.3.5-beta: EBWebView\Account_{id} o EBWebView\{ProfileName}
+                Dim betaDir1 = Path.Combine(ebWebViewDir, acc.ProfileName)
+                If Directory.Exists(betaDir1) AndAlso Not String.Equals(betaDir1, targetProfileDir, StringComparison.OrdinalIgnoreCase) Then
+                    candidateSources.Add(betaDir1)
+                End If
+                Dim betaDir2 = Path.Combine(ebWebViewDir, "Account_" & acc.Id)
+                If Directory.Exists(betaDir2) AndAlso Not String.Equals(betaDir2, targetProfileDir, StringComparison.OrdinalIgnoreCase) Then
+                    candidateSources.Add(betaDir2)
+                End If
+
+                ' B) Sorgente legacy pura: data/webview/WV2Profile_{id}
                 Dim legacyDir = Path.Combine(sharedDir, $"{ProfileIsolationPolicy.LegacyProfilePrefix}{acc.Id}")
-                If Directory.Exists(legacyDir) Then
-                    Try
-                        ' Individua la cartella contenente i dati del profilo legacy (Default)
-                        Dim sourceDataDir = Path.Combine(legacyDir, ProfileIsolationPolicy.SharedEbWebViewFolder, "Default")
-                        If Not Directory.Exists(sourceDataDir) Then
-                            sourceDataDir = Path.Combine(legacyDir, "Default")
-                        End If
-                        If Not Directory.Exists(sourceDataDir) AndAlso Directory.Exists(Path.Combine(legacyDir, "IndexedDB")) Then
-                            sourceDataDir = legacyDir
-                        End If
+                If Directory.Exists(legacyDir) Then candidateSources.Add(legacyDir)
 
-                        If Directory.Exists(sourceDataDir) Then
-                            AppLogger.LogApp($"[PROFILE_MIGRATING] Migrazione profilo legacy da '{sourceDataDir}' a '{targetProfileDir}' per account {acc.Id} ({acc.Name})")
-                            Try
-                                Directory.Move(sourceDataDir, targetProfileDir)
-                            Catch exMove As Exception
-                                Directory.CreateDirectory(targetProfileDir)
-                                CopyDirectoryRecursively(sourceDataDir, targetProfileDir)
-                            End Try
-                            AppLogger.LogApp($"[PROFILE_MIGRATED] Migrazione completata per account {acc.Id}")
+                ' C) Sorgente legacy rinominata: data/webview/WV2Profile_{id}.migrated
+                Dim migratedDir = legacyDir & ".migrated"
+                If Directory.Exists(migratedDir) Then candidateSources.Add(migratedDir)
 
-                            ' Rinomina la directory legacy per evitarne il riutilizzo
-                            Dim backupDir = legacyDir & ".migrated"
-                            If Not Directory.Exists(backupDir) Then
-                                Try
-                                    Directory.Move(legacyDir, backupDir)
-                                Catch
-                                End Try
-                            End If
-                        End If
-                    Catch exMigrate As Exception
-                        AppLogger.LogApp($"[PROFILE_MIGRATION_ERROR] Errore migrazione account {acc.Id}: {exMigrate.Message}")
-                    End Try
+                ' D) Sorgente legacy backup: data/webview/WV2Profile_{id}.previous o _Snapshot
+                Dim prevDir = legacyDir & ".previous"
+                If Directory.Exists(prevDir) Then candidateSources.Add(prevDir)
+                Dim snapDir = legacyDir & "_Snapshot"
+                If Directory.Exists(snapDir) Then candidateSources.Add(snapDir)
+
+                ' Se targetProfileDir non esiste, crealo
+                If Not Directory.Exists(targetProfileDir) Then
+                    Directory.CreateDirectory(targetProfileDir)
+                End If
+
+                ' Controlla se targetProfileDir ha già dati reali validi (es. IndexedDB consistente)
+                Dim targetHasRealData = HasSubstantialProfileData(targetProfileDir)
+
+                For Each srcCandidate In candidateSources
+                    Dim dataDir = ResolveDataDirectoryInsideSource(srcCandidate)
+                    If String.IsNullOrEmpty(dataDir) OrElse Not Directory.Exists(dataDir) Then Continue For
+                    If Not HasSubstantialProfileData(dataDir) Then Continue For
+
+                    If Not targetHasRealData Then
+                        AppLogger.LogApp($"[PROFILE_MIGRATING] Migrazione dati profilo da '{dataDir}' a '{targetProfileDir}' per account {acc.Id} ({acc.Name})")
+                        CopyDirectoryRecursively(dataDir, targetProfileDir)
+                        targetHasRealData = True
+                        AppLogger.LogApp($"[PROFILE_MIGRATED] Dati ripristinati con successo in '{targetProfileDir}' per account {acc.Id}")
+                    End If
+
+                    ' Se la sorgente era la cartella errata EBWebView\Account_{id}, possiamo ripulirla
+                    If srcCandidate.StartsWith(ebWebViewDir, StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not String.Equals(srcCandidate, targetProfileDir, StringComparison.OrdinalIgnoreCase) Then
+                        Try
+                            Directory.Delete(srcCandidate, True)
+                            AppLogger.LogApp($"[CLEANUP_BETA_DIR] Rimossa directory obsoleta: {srcCandidate}")
+                        Catch
+                        End Try
+                    End If
+                Next
+
+                ' Se la directory legacy esiste ancora e targetProfileDir ha dati validi, rinominala in .migrated
+                If Directory.Exists(legacyDir) AndAlso targetHasRealData Then
+                    Dim backupDir = legacyDir & ".migrated"
+                    If Not Directory.Exists(backupDir) Then
+                        Try
+                            Directory.Move(legacyDir, backupDir)
+                        Catch
+                        End Try
+                    End If
                 End If
             Next
         Catch ex As Exception
             AppLogger.LogApp($"[PROFILE_MIGRATION_FATAL] Errore generale MigrateLegacyProfilesToNativeProfiles: {ex.Message}")
         End Try
     End Sub
+
+    Private Shared Sub MigrateOrRestoreLocalStateEncryptionKey(sharedDir As String, ebWebViewDir As String)
+        Try
+            Dim targetLocalState = Path.Combine(ebWebViewDir, "Local State")
+            Dim legacyKey As String = Nothing
+
+            ' Cerca la chiave DPAPI nei profili legacy
+            If Directory.Exists(sharedDir) Then
+                For Each dirPath In Directory.GetDirectories(sharedDir)
+                    Dim dName = Path.GetFileName(dirPath)
+                    If dName.StartsWith(ProfileIsolationPolicy.LegacyProfilePrefix, StringComparison.OrdinalIgnoreCase) Then
+                        Dim candPath = Path.Combine(dirPath, ProfileIsolationPolicy.SharedEbWebViewFolder, "Local State")
+                        If File.Exists(candPath) Then
+                            legacyKey = ExtractOsCryptEncryptedKey(candPath)
+                            If Not String.IsNullOrEmpty(legacyKey) Then Exit For
+                        End If
+                    End If
+                Next
+            End If
+
+            If String.IsNullOrEmpty(legacyKey) Then Return
+
+            If Not File.Exists(targetLocalState) Then
+                ' Copia un file Local State legacy di riferimento come base iniziale
+                For Each dirPath In Directory.GetDirectories(sharedDir)
+                    Dim candPath = Path.Combine(dirPath, ProfileIsolationPolicy.SharedEbWebViewFolder, "Local State")
+                    If File.Exists(candPath) Then
+                        File.Copy(candPath, targetLocalState, True)
+                        AppLogger.LogApp($"[LOCAL_STATE_SEEDED] Inizializzato Local State condiviso da '{candPath}'")
+                        Return
+                    End If
+                Next
+            Else
+                ' Se esiste già, verifica se la chiave corrisponde
+                Dim currentKey = ExtractOsCryptEncryptedKey(targetLocalState)
+                If Not String.IsNullOrEmpty(currentKey) AndAlso Not String.Equals(currentKey, legacyKey, StringComparison.Ordinal) Then
+                    Dim content = File.ReadAllText(targetLocalState, System.Text.Encoding.UTF8)
+                    Dim updatedContent = content.Replace($"""encrypted_key"":""{currentKey}""", $"""encrypted_key"":""{legacyKey}""")
+                    If Not String.Equals(content, updatedContent, StringComparison.Ordinal) Then
+                        File.WriteAllText(targetLocalState, updatedContent, System.Text.Encoding.UTF8)
+                        AppLogger.LogApp("[LOCAL_STATE_KEY_RESTORED] Chiave master os_crypt.encrypted_key sincronizzata con i profili legacy per preservare i cookie.")
+                    End If
+                End If
+            End If
+        Catch ex As Exception
+            AppLogger.LogApp($"[LOCAL_STATE_SYNC_ERROR] {ex.Message}")
+        End Try
+    End Sub
+
+    Private Shared Function ExtractOsCryptEncryptedKey(localStatePath As String) As String
+        Try
+            If Not File.Exists(localStatePath) Then Return Nothing
+            Dim text = File.ReadAllText(localStatePath, System.Text.Encoding.UTF8)
+            Dim m = System.Text.RegularExpressions.Regex.Match(text, """encrypted_key""\s*:\s*""([^""]+)""")
+            If m.Success Then Return m.Groups(1).Value
+        Catch
+        End Try
+        Return Nothing
+    End Function
+
+    Private Shared Function HasSubstantialProfileData(dirPath As String) As Boolean
+        Try
+            If Not Directory.Exists(dirPath) Then Return False
+            Dim idbDir = ProfileIsolationPolicy.ResolveIndexedDbDirectory(dirPath)
+            If Directory.Exists(idbDir) Then
+                Dim files = Directory.GetFiles(idbDir, "*", SearchOption.AllDirectories)
+                If files.Length > 0 Then
+                    Dim totalSize As Long = 0
+                    For Each f In files
+                        totalSize += New FileInfo(f).Length
+                    Next
+                    ' Se la dimensione di IndexedDB è superiore a 800KB o ci sono almeno 8 file, è una sessione reale
+                    If totalSize > 800 * 1024 OrElse files.Length >= 8 Then Return True
+                End If
+            End If
+            Dim cookiesPath = Path.Combine(dirPath, "Network", "Cookies")
+            If File.Exists(cookiesPath) AndAlso New FileInfo(cookiesPath).Length > 10240 Then
+                Return True
+            End If
+        Catch
+        End Try
+        Return False
+    End Function
+
+    Private Shared Function ResolveDataDirectoryInsideSource(sourceDir As String) As String
+        If String.IsNullOrWhiteSpace(sourceDir) OrElse Not Directory.Exists(sourceDir) Then Return Nothing
+        Dim ebDefault = Path.Combine(sourceDir, ProfileIsolationPolicy.SharedEbWebViewFolder, "Default")
+        If Directory.Exists(ebDefault) Then Return ebDefault
+        Dim def = Path.Combine(sourceDir, "Default")
+        If Directory.Exists(def) Then Return def
+        If Directory.Exists(Path.Combine(sourceDir, "IndexedDB")) Then Return sourceDir
+        Return sourceDir
+    End Function
 
     Private Shared Sub CopyDirectoryRecursively(sourceDir As String, targetDir As String)
         Directory.CreateDirectory(targetDir)
@@ -442,22 +569,32 @@ Public Class AccountManager
                 ' 1b. Identifica e sposta profili nativi non referenziati da EBWebView/ nel cestino (TODO #103)
                 Dim ebDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
                 If Directory.Exists(ebDir) Then
+                    Dim activeAccountIds As New HashSet(Of String)(_accounts.Select(Function(a) a.Id), StringComparer.OrdinalIgnoreCase)
                     Dim activeProfileNames As New HashSet(Of String)(_accounts.Select(Function(a) a.ProfileName), StringComparer.OrdinalIgnoreCase)
                     For Each pDir In Directory.EnumerateDirectories(ebDir)
                         Dim dName = Path.GetFileName(pDir)
-                        If ProfileIsolationPolicy.IsNativeAccountProfileDirectory(dName) AndAlso Not activeProfileNames.Contains(dName) Then
-                            Try
-                                If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
-                                Dim timeStamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")
-                                Dim trashDest = Path.Combine(trashDir, $"{dName}_{timeStamp}")
-                                If Directory.Exists(trashDest) Then
-                                    trashDest = $"{trashDest}_{Guid.NewGuid().ToString("N").Substring(0, 4)}"
-                                End If
-                                Directory.Move(pDir, trashDest)
-                                Debug.WriteLine($"CleanupUnusedProfiles: spostato profilo nativo non referenziato in cestino: {pDir} -> {trashDest}")
-                            Catch exMove As Exception
-                                Debug.WriteLine($"CleanupUnusedProfiles: errore spostamento profilo nativo: {exMove.Message}")
-                            End Try
+                        If ProfileIsolationPolicy.IsNativeAccountProfileDirectory(dName) Then
+                            Dim extractedId = ProfileIsolationPolicy.ExtractAccountIdFromProfileDirectory(dName)
+                            Dim safeName = ProfileIsolationPolicy.GetSafeProfileName(extractedId)
+                            Dim isReferenced = activeAccountIds.Contains(extractedId) OrElse
+                                               activeProfileNames.Contains(safeName) OrElse
+                                               activeProfileNames.Contains(dName) OrElse
+                                               _accounts.Any(Function(a) String.Equals(ProfileIsolationPolicy.GetNativeProfileFolderName(a.Id), dName, StringComparison.OrdinalIgnoreCase))
+
+                            If Not isReferenced Then
+                                Try
+                                    If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
+                                    Dim timeStamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")
+                                    Dim trashDest = Path.Combine(trashDir, $"{dName}_{timeStamp}")
+                                    If Directory.Exists(trashDest) Then
+                                        trashDest = $"{trashDest}_{Guid.NewGuid().ToString("N").Substring(0, 4)}"
+                                    End If
+                                    Directory.Move(pDir, trashDest)
+                                    Debug.WriteLine($"CleanupUnusedProfiles: spostato profilo nativo non referenziato in cestino: {pDir} -> {trashDest}")
+                                Catch exMove As Exception
+                                    Debug.WriteLine($"CleanupUnusedProfiles: errore spostamento profilo nativo: {exMove.Message}")
+                                End Try
+                            End If
                         End If
                     Next
                 End If
@@ -634,13 +771,13 @@ Public Class AccountManager
                     End If
                 Next
 
-                ' 2b. Scansione non ricorsiva dei profili nativi esistenti in EBWebView/Account_*
+                ' 2b. Scansione non ricorsiva dei profili nativi esistenti in EBWebView/WV2Profile_* o EBWebView/Account_*
                 Dim ebDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
                 If Directory.Exists(ebDir) Then
                     For Each pDir In Directory.EnumerateDirectories(ebDir)
                         Dim dName = Path.GetFileName(pDir)
                         If ProfileIsolationPolicy.IsNativeAccountProfileDirectory(dName) Then
-                            Dim pId = If(dName.StartsWith("Account_", StringComparison.OrdinalIgnoreCase), dName.Substring("Account_".Length), dName)
+                            Dim pId = ProfileIsolationPolicy.ExtractAccountIdFromProfileDirectory(dName)
                             If Not String.IsNullOrEmpty(pId) AndAlso Not restoredAccounts.Any(Function(a) a.Id.Equals(pId, StringComparison.OrdinalIgnoreCase)) Then
                                 Dim accName = $"Account {index}"
                                 Dim isFirst = (index = 1)

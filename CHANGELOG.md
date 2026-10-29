@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.6-beta] - 2026-10-29
+
+### Pre-release / Beta — Risoluzione isolamento cartelle native WebView2 (WV2Profile_) e ripristino automatico sessioni e credenziali
+- **Allineamento Percorsi Cartelle Profili Nativi (`ProfileIsolationPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #103)**:
+  - **Mappatura Cartella Nativa Edge WebView2 (`WV2Profile_`)**: Risolto il disallineamento per cui Chromium/Edge WebView2 genera e cerca internamente le sottodirectory dei profili con prefisso `WV2Profile_` sotto `data/webview/EBWebView` anziché `Account_{id}`. Aggiornato `ProfileIsolationPolicy.vb` (`GetNativeProfileFolderName`, `GetNativeProfileRelativePath`, `GetNativeProfileDirectory`) per riflettere con esattezza il percorso `EBWebView\wv2profile_account_{id}` atteso dal runtime browser.
+  - **Migrazione e Ripristino Non Distruttivo delle Sessioni**: In `AccountManager.MigrateLegacyProfilesToNativeProfiles()`, implementato il rilevamento automatico e prioritario di dati di sessione consistenti (IndexedDB, LocalStorage e cookie) sia dalle cartelle legacy (`data/webview/WV2Profile_{id}` e relativi backup `.migrated` / `.previous`) sia da eventuali cartelle non prefissate create dalla precedente beta (`EBWebView\Account_{id}`). I dati reali vengono copiati e allineati atomicamente nella directory attiva `EBWebView\WV2Profile_account_{id}` e le directory obsolete rimosse in modo pulito.
+  - **Sincronizzazione Chiave Master di Crittografia DPAPI (`os_crypt.encrypted_key`)**: Aggiunto `MigrateOrRestoreLocalStateEncryptionKey()` per sincronizzare e ripristinare la chiave di crittografia master in `data/webview/EBWebView/Local State` a partire dai profili preesistenti, garantendo la decifratura trasparente e senza logout dei cookie di WhatsApp Web, Telegram Web e delle sessioni attive.
+  - **Protezione Cestino e Riconoscimento Profili Attivi**: Aggiornato `IsNativeAccountProfileDirectory()` e `ExtractAccountIdFromProfileDirectory()` per riconoscere i prefissi `WV2Profile_` e impedire che `CleanupUnusedProfilesAsync` sposti erroneamente profili attivi nel cestino.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiornate ed espanse le asserzioni di regressione per validare la mappatura `EBWebView\wv2profile_account_*`, il parsing sicuro degli ID e l'estrazione degli account (**395 asserzioni automatiche con 0 errori**).
+
 ## [1.3.5-beta] - 2026-10-29
 
 ### Pre-release / Beta — Condivisione di un unico CoreWebView2Environment con profili nativi e abbattimento consumo RAM
