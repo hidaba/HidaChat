@@ -652,5 +652,36 @@ Module SessionTests
         Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Default"), "Default is not native account profile")
         Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Crashpad"), "Crashpad is not native account profile")
         Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("random_folder"), "random_folder is not native account profile")
+
+        ' Test migration backup cleanup and safety checks (TODO #103)
+        Dim testCleanupDir = Path.Combine(Path.GetTempPath(), "HidaChat_CleanupTest_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(testCleanupDir)
+        Try
+            Dim testAccId = "test_cleanup_acc"
+            Dim nativeAccDir = ProfileIsolationPolicy.GetNativeProfileDirectory(testCleanupDir, testAccId)
+            Directory.CreateDirectory(nativeAccDir)
+
+            ' Before substantial data, purge is unsafe
+            Check(Not ProfileIsolationPolicy.CanSafelyPurgeMigrationBackups(testCleanupDir, testAccId), "Purge is unsafe when native profile has no substantial data")
+
+            ' Create substantial data in native profile (e.g. 10 IndexedDB files)
+            Dim idbPath = Path.Combine(nativeAccDir, "IndexedDB")
+            Directory.CreateDirectory(idbPath)
+            For i As Integer = 1 To 10
+                File.WriteAllText(Path.Combine(idbPath, $"blob_{i}.bin"), "sample data")
+            Next
+            Check(ProfileIsolationPolicy.HasSubstantialProfileData(nativeAccDir), "HasSubstantialProfileData returns True with >= 8 IndexedDB files")
+            Check(ProfileIsolationPolicy.CanSafelyPurgeMigrationBackups(testCleanupDir, testAccId), "Purge is safe when native profile has verified substantial data")
+
+            ' Verify obsolete candidate paths
+            Dim obsoleteCandidates = ProfileIsolationPolicy.GetObsoleteMigrationBackupDirectories(testCleanupDir, testAccId)
+            Check(obsoleteCandidates.Count = 5, "GetObsoleteMigrationBackupDirectories returns exactly 5 legacy candidates")
+            Check(obsoleteCandidates.Any(Function(p) p.EndsWith(".migrated")), "Candidates include .migrated")
+            Check(obsoleteCandidates.Any(Function(p) p.EndsWith(".previous")), "Candidates include .previous")
+            Check(obsoleteCandidates.Any(Function(p) p.EndsWith("_Snapshot")), "Candidates include _Snapshot")
+            Check(obsoleteCandidates.Any(Function(p) p.EndsWith(".bak")), "Candidates include .bak")
+        Finally
+            Try : Directory.Delete(testCleanupDir, True) : Catch : End Try
+        End Try
     End Sub
 End Module

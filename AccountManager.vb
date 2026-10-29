@@ -403,8 +403,42 @@ Public Class AccountManager
                     End If
                 End If
             Next
+
+            ' 3. Pulizia automatica delle copie di migrazione legacy (.migrated, .previous, _Snapshot, .bak)
+            ' una volta verificato che i dati di sessione nativi sono presenti e consistenti (TODO #103)
+            CleanupObsoleteMigrationBackups(sharedDir, ebWebViewDir)
         Catch ex As Exception
             AppLogger.LogApp($"[PROFILE_MIGRATION_FATAL] Errore generale MigrateLegacyProfilesToNativeProfiles: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Rimuove in sicurezza le copie di backup e migrazione legacy (.migrated, .previous, _Snapshot, .bak)
+    ''' dai profili storici in data/webview/ esclusivamente quando il profilo nativo in EBWebView/
+    ''' è verificato e contiene dati di sessione validi (TODO #103).
+    ''' Consente di recuperare centinaia di megabyte di spazio su disco duplicato.
+    ''' </summary>
+    Private Sub CleanupObsoleteMigrationBackups(sharedDir As String, ebWebViewDir As String)
+        Try
+            If Not Directory.Exists(sharedDir) OrElse Not Directory.Exists(ebWebViewDir) Then Return
+
+            For Each acc In _accounts
+                If ProfileIsolationPolicy.CanSafelyPurgeMigrationBackups(sharedDir, acc.Id) Then
+                    Dim obsoleteCandidates = ProfileIsolationPolicy.GetObsoleteMigrationBackupDirectories(sharedDir, acc.Id)
+                    For Each obs In obsoleteCandidates
+                        If Directory.Exists(obs) Then
+                            Try
+                                Directory.Delete(obs, recursive:=True)
+                                AppLogger.LogApp($"[CLEANUP_MIGRATION] Rimossa directory di backup/migrazione obsoleta: {obs}")
+                            Catch exObs As Exception
+                                AppLogger.LogApp($"[CLEANUP_MIGRATION_WARN] Impossibile rimuovere '{obs}': {exObs.Message}")
+                            End Try
+                        End If
+                    Next
+                End If
+            Next
+        Catch ex As Exception
+            AppLogger.LogApp($"[CLEANUP_MIGRATION_ERROR] {ex.Message}")
         End Try
     End Sub
 
@@ -468,27 +502,7 @@ Public Class AccountManager
     End Function
 
     Private Shared Function HasSubstantialProfileData(dirPath As String) As Boolean
-        Try
-            If Not Directory.Exists(dirPath) Then Return False
-            Dim idbDir = ProfileIsolationPolicy.ResolveIndexedDbDirectory(dirPath)
-            If Directory.Exists(idbDir) Then
-                Dim files = Directory.GetFiles(idbDir, "*", SearchOption.AllDirectories)
-                If files.Length > 0 Then
-                    Dim totalSize As Long = 0
-                    For Each f In files
-                        totalSize += New FileInfo(f).Length
-                    Next
-                    ' Se la dimensione di IndexedDB è superiore a 800KB o ci sono almeno 8 file, è una sessione reale
-                    If totalSize > 800 * 1024 OrElse files.Length >= 8 Then Return True
-                End If
-            End If
-            Dim cookiesPath = Path.Combine(dirPath, "Network", "Cookies")
-            If File.Exists(cookiesPath) AndAlso New FileInfo(cookiesPath).Length > 10240 Then
-                Return True
-            End If
-        Catch
-        End Try
-        Return False
+        Return ProfileIsolationPolicy.HasSubstantialProfileData(dirPath)
     End Function
 
     Private Shared Function ResolveDataDirectoryInsideSource(sourceDir As String) As String
@@ -650,6 +664,12 @@ Public Class AccountManager
             Try
                 Dim sharedDir = AppAccounts.SharedDataDirectory
                 If Directory.Exists(sharedDir) Then
+                    ' Pulizia cache nei profili nativi sotto EBWebView (TODO #103)
+                    Dim ebWebViewDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
+                    If Directory.Exists(ebWebViewDir) Then
+                        AppAccounts.CleanTransientCacheFolders(ebWebViewDir, purgeDiskAndCodeCache:=purgeDiskAndCodeCache)
+                    End If
+
                     For Each profileDir In Directory.EnumerateDirectories(sharedDir, "WV2Profile_*")
                         Dim dirName = Path.GetFileName(profileDir)
                         If dirName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) OrElse dirName.Contains(".bak_") Then

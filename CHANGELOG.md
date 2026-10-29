@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.7-beta] - 2026-10-29
+
+### Pre-release / Beta — Bonifica automatica dei backup di migrazione per recupero spazio su disco e stabilità proxy OpenClaw
+- **Bonifica Automatica dei Backup di Migrazione e Recupero Spazio su Disco (`AccountManager.vb`, `ProfileIsolationPolicy.vb`, `Tests/SessionTests.vb` — TODO #103)**:
+  - **Identificazione e Rimozione Copie Storiche Duplicate**: Risolto l'incremento di spazio su disco rilevato dopo la migrazione ai profili nativi unificati in `EBWebView/`. Introdotto `CanSafelyPurgeMigrationBackups()` e `GetObsoleteMigrationBackupDirectories()` in `ProfileIsolationPolicy.vb` e il metodo `CleanupObsoleteMigrationBackups()` in `AccountManager.vb`: quando il profilo nativo in `EBWebView\wv2profile_account_*` ha completato la migrazione ed è verificato con dati di sessione consistenti (IndexedDB / cookie), tutte le copie duplicate storiche esterne (`.migrated`, `.previous`, `_Snapshot`, `.bak`) vengono rimosse in automatico, liberando fino a ~1.4 GB di spazio su disco (da 1.83 GB a ~414 MB).
+  - **Bonifica Completa Cache Volatili Native**: In `AccountManager.CleanupTransientCachesAsync()`, estesa la pulizia periodica delle cartelle cache diagnostiche Chromium (Crashpad, GPUCache, ShaderCache, GPUPersistentCache) alla cartella condivisa `EBWebView/` e alle sottocartelle dei singoli profili nativi.
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 16 nuove asserzioni di regressione per validare l'identificazione sicura dei dati di sessione e le condizioni di sicurezza per la bonifica dei backup di migrazione (**411 asserzioni automatiche con 0 errori**).
+- **Stabilità Reverse Proxy OpenClaw e Risoluzione Timeout Gateway (`tsnetd/main.go`, `TsnetManager.vb`)**:
+  - **Chiusura Deterministica del Canale di Sincronizzazione (`tsReady`)**: Invocata `tsReadyOnce.Do(func() { close(tsReady) })` sia al completamento del login che in caso di errore di `tsServer.Up()`, eliminando il rischio di freeze indefiniti delle richieste reverse proxy e schermate bianche su localhost/tailnet.
+  - **Avvio Istantaneo Proxy**: Ridotto il timeout preventivo iniziale a 2s e integrato il logging dello standard error del daemon `tsnetd` direttamente nei log applicativi (`AppLogger.LogApp`) in `TsnetManager.vb`.
+
 ## [1.3.6-beta] - 2026-10-29
 
 ### Pre-release / Beta — Risoluzione isolamento cartelle native WebView2 (WV2Profile_) e ripristino automatico sessioni e credenziali

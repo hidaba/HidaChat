@@ -227,6 +227,7 @@ Public Class TsnetManager
             AddHandler _process.ErrorDataReceived, Sub(s, e)
                 If Not String.IsNullOrEmpty(e.Data) Then
                     Debug.WriteLine($"[tsnetd stderr] {e.Data}")
+                    AppLogger.LogApp($"[tsnetd] {e.Data}")
                 End If
             End Sub
 

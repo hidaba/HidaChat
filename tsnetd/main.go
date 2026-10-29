@@ -133,8 +133,8 @@ func main() {
 			log.Printf("[tsnetd] tsServer.Up error: %v", err)
 		} else {
 			log.Printf("[tsnetd] tsServer.Up succeeded")
-			tsReadyOnce.Do(func() { close(tsReady) })
 		}
+		tsReadyOnce.Do(func() { close(tsReady) })
 	}()
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -447,7 +447,7 @@ func createProxyHandler(proxy http.Handler, localToken string, proxyPort int, ta
 		if tsReady != nil {
 			select {
 			case <-tsReady:
-			case <-time.After(15 * time.Second):
+			case <-time.After(2 * time.Second):
 				log.Printf("[tsnetd][proxy] warning: tsReady timeout, proceeding anyway")
 			case <-r.Context().Done():
 				return

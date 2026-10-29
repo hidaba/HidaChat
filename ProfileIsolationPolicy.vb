@@ -186,4 +186,68 @@ Public Module ProfileIsolationPolicy
         Return clean
     End Function
 
+    ''' <summary>
+    ''' Verifica se una cartella di profilo contiene dati di sessione consistenti (IndexedDB consistente o cookie di dimensione significativa).
+    ''' </summary>
+    Public Function HasSubstantialProfileData(dirPath As String) As Boolean
+        Try
+            If String.IsNullOrWhiteSpace(dirPath) OrElse Not Directory.Exists(dirPath) Then Return False
+            Dim idbDir = ResolveIndexedDbDirectory(dirPath)
+            If Directory.Exists(idbDir) Then
+                Dim files = Directory.GetFiles(idbDir, "*", SearchOption.AllDirectories)
+                If files.Length > 0 Then
+                    Dim totalSize As Long = 0
+                    For Each f In files
+                        totalSize += New FileInfo(f).Length
+                    Next
+                    ' Se la dimensione di IndexedDB è superiore a 800KB o ci sono almeno 8 file, è una sessione reale
+                    If totalSize > 800 * 1024 OrElse files.Length >= 8 Then Return True
+                End If
+            End If
+            Dim cookiesPath = Path.Combine(dirPath, "Network", "Cookies")
+            If File.Exists(cookiesPath) AndAlso New FileInfo(cookiesPath).Length > 10240 Then
+                Return True
+            End If
+            Dim defCookiesPath = Path.Combine(dirPath, "Default", "Network", "Cookies")
+            If File.Exists(defCookiesPath) AndAlso New FileInfo(defCookiesPath).Length > 10240 Then
+                Return True
+            End If
+        Catch
+        End Try
+        Return False
+    End Function
+
+    ''' <summary>
+    ''' Restituisce l'elenco dei percorsi candidati di backup e migrazione legacy (.migrated, .previous, _Snapshot, .bak, e cartella legacy base)
+    ''' situati all'esterno di EBWebView per un determinato account.
+    ''' </summary>
+    Public Function GetObsoleteMigrationBackupDirectories(sharedDir As String, accountId As String) As List(Of String)
+        Dim list As New List(Of String)
+        If String.IsNullOrWhiteSpace(sharedDir) OrElse String.IsNullOrWhiteSpace(accountId) Then Return list
+
+        Dim legacyBase = Path.Combine(sharedDir, $"{LegacyProfilePrefix}{accountId}")
+        list.Add(legacyBase & ".migrated")
+        list.Add(legacyBase & ".previous")
+        list.Add(legacyBase & "_Snapshot")
+        list.Add(legacyBase & ".bak")
+        list.Add(legacyBase)
+        Return list
+    End Function
+
+    ''' <summary>
+    ''' Determina se le copie di backup e migrazione legacy possono essere rimosse in sicurezza:
+    ''' solo se il profilo nativo in EBWebView/ esiste e contiene dati di sessione reali verificati.
+    ''' </summary>
+    Public Function CanSafelyPurgeMigrationBackups(sharedDir As String, accountId As String) As Boolean
+        If String.IsNullOrWhiteSpace(sharedDir) OrElse String.IsNullOrWhiteSpace(accountId) Then Return False
+        Dim nativeDir = ResolveEffectiveProfileDirectory(sharedDir, accountId)
+        If String.IsNullOrEmpty(nativeDir) OrElse Not Directory.Exists(nativeDir) Then Return False
+
+        ' Il percorso nativo deve risiedere sotto EBWebView
+        Dim ebDir = Path.Combine(sharedDir, SharedEbWebViewFolder)
+        If Not nativeDir.StartsWith(ebDir, StringComparison.OrdinalIgnoreCase) Then Return False
+
+        Return HasSubstantialProfileData(nativeDir)
+    End Function
+
 End Module
