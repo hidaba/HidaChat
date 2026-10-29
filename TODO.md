@@ -940,8 +940,8 @@
 - **Test di accettazione**: Verificare all'avvio che le istanze WebView2 vengano inizializzate con i flag specificati, che la cache HTTP non ecceda il tetto prefissato e che la navigazione su WhatsApp e Telegram resti pienamente funzionante.
 - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Basso
 
-## 103. [P2] Condivisione di un unico CoreWebView2Environment con profili nativi (ProfileName)
-- **File**: `AccountManager.vb`, `MainWindow.xaml.vb`
+## ~~103. [P2] Condivisione di un unico CoreWebView2Environment con profili nativi (ProfileName)~~ ✅
+- **File**: `ProfileIsolationPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`
 - **Problema / Esigenza**: La creazione di percorsi cartella isolati separati per ciascun account (`data/webview/account_1`, `data/webview/account_2`, ecc.) con un `CoreWebView2Environment` differente per ciascuna scheda moltiplica per ogni account tutti i file di sistema, log e binari interni di Chromium (`EBWebView`).
 - **Soluzione proposta / Fix da implementare**:
   Utilizzare una sola cartella dati base condivisa (`data/webview`) con un singolo `CoreWebView2Environment`, separando gli account tramite i profili nativi di WebView2 con `CoreWebView2ControllerOptions.ProfileName`:

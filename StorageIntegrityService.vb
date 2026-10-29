@@ -28,8 +28,8 @@ Public Class StorageIntegrityService
         End If
 
         Try
-            Dim indexedDbRoot = Path.Combine(profileDir, "EBWebView", "Default", "IndexedDB")
-            If Not Directory.Exists(indexedDbRoot) Then
+            Dim indexedDbRoot = ProfileIsolationPolicy.ResolveIndexedDbDirectory(profileDir)
+            If String.IsNullOrWhiteSpace(indexedDbRoot) OrElse Not Directory.Exists(indexedDbRoot) Then
                 Return result
             End If
 
@@ -118,7 +118,7 @@ Public Class StorageIntegrityService
         Return Await Task.Run(Function()
             Try
                 onProgress?.Invoke("Rimozione database e indici corrotti...")
-                Dim indexedDbRoot = Path.Combine(profileDir, "EBWebView", "Default", "IndexedDB")
+                Dim indexedDbRoot = ProfileIsolationPolicy.ResolveIndexedDbDirectory(profileDir)
 
                 If specificDbs IsNot Nothing AndAlso specificDbs.Count > 0 Then
                     For Each dbPath In specificDbs
@@ -135,7 +135,7 @@ Public Class StorageIntegrityService
                             AppLogger.LogApp($"[STORAGE_REPAIR_DEL_ERROR] path={dbPath}: {exDel.Message}")
                         End Try
                     Next
-                ElseIf Directory.Exists(indexedDbRoot) Then
+                ElseIf Not String.IsNullOrWhiteSpace(indexedDbRoot) AndAlso Directory.Exists(indexedDbRoot) Then
                     Try
                         Directory.Delete(indexedDbRoot, True)
                     Catch exRoot As Exception
@@ -144,8 +144,8 @@ Public Class StorageIntegrityService
                 End If
 
                 ' Pulisce anche la cartella Service Worker per evitare che worker orfani cerchino database cancellati
-                Dim swDir = Path.Combine(profileDir, "EBWebView", "Default", "Service Worker")
-                If Directory.Exists(swDir) Then
+                Dim swDir = ProfileIsolationPolicy.ResolveServiceWorkerDirectory(profileDir)
+                If Not String.IsNullOrWhiteSpace(swDir) AndAlso Directory.Exists(swDir) Then
                     Try
                         Directory.Delete(swDir, True)
                     Catch

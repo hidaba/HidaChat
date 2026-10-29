@@ -583,5 +583,72 @@ Module SessionTests
 
         Dim resNull = BulkSenderPolicy.ParseScriptResult("null")
         Check(resNull.Status = "WAITING", "ParseScriptResult null returns WAITING")
+
+        ' 7. Tests for ProfileIsolationPolicy (TODO #103)
+        Check(ProfileIsolationPolicy.GetSafeProfileName("1") = "Account_1", "Profile name for simple ID '1' is 'Account_1'")
+        Check(ProfileIsolationPolicy.GetSafeProfileName("account_1234567890abcdef1234567890abcdef") = "Account_1234567890abcdef1234567890abcdef", "Profile name for account_GUID strips redundant prefix")
+        Check(ProfileIsolationPolicy.GetSafeProfileName("Account_Work") = "Account_Work", "Profile name with Account_ prefix is preserved")
+        Check(ProfileIsolationPolicy.GetSafeProfileName("") = ProfileIsolationPolicy.DefaultProfileName, "Empty account ID returns default profile name")
+        Check(ProfileIsolationPolicy.GetSafeProfileName(Nothing) = ProfileIsolationPolicy.DefaultProfileName, "Null account ID returns default profile name")
+        Check(ProfileIsolationPolicy.GetSafeProfileName("   ") = ProfileIsolationPolicy.DefaultProfileName, "Whitespace account ID returns default profile name")
+        Check(ProfileIsolationPolicy.GetSafeProfileName("bad/id:test*1?") = "Account_bad_id_test_1_", "Profile name sanitizes illegal characters")
+        Check(ProfileIsolationPolicy.GetSafeProfileName("test.profile. .") = "Account_test.profile", "Profile name trims trailing dots and spaces")
+        Dim veryLongId = New String("a"c, 100)
+        Dim safeLongName = ProfileIsolationPolicy.GetSafeProfileName(veryLongId)
+        Check(safeLongName.Length <= ProfileIsolationPolicy.MaxProfileNameLength, "Profile name length clamped to 64 chars")
+        Check(safeLongName.StartsWith("Account_"), "Clamped profile name starts with Account_")
+
+        Dim relPath = ProfileIsolationPolicy.GetNativeProfileRelativePath("account_test")
+        Check(relPath = Path.Combine("EBWebView", "Account_test"), "Native relative path is EBWebView\Account_test")
+
+        Dim testBaseDir = Path.Combine(Path.GetTempPath(), "HidaChat_Test_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(testBaseDir)
+        Try
+            Dim nativeDir = ProfileIsolationPolicy.GetNativeProfileDirectory(testBaseDir, "1")
+            Check(nativeDir = Path.Combine(testBaseDir, "EBWebView", "Account_1"), "Native directory matches expected path")
+
+            Dim legacyDir = ProfileIsolationPolicy.GetLegacyProfileDirectory(testBaseDir, "1")
+            Check(legacyDir = Path.Combine(testBaseDir, "WV2Profile_1"), "Legacy directory matches expected path")
+
+            ' Before directory creation, resolves to nativeDir
+            Check(ProfileIsolationPolicy.ResolveEffectiveProfileDirectory(testBaseDir, "1") = nativeDir, "Effective profile resolves to native by default")
+
+            ' If legacy exists, resolves to legacy
+            Directory.CreateDirectory(legacyDir)
+            Check(ProfileIsolationPolicy.ResolveEffectiveProfileDirectory(testBaseDir, "1") = legacyDir, "Effective profile resolves to legacy if present")
+
+            ' If native exists, native takes precedence
+            Directory.CreateDirectory(nativeDir)
+            Check(ProfileIsolationPolicy.ResolveEffectiveProfileDirectory(testBaseDir, "1") = nativeDir, "Effective profile resolves to native when native is created")
+
+            ' Storage directory resolution
+            Dim nativeIdb = Path.Combine(nativeDir, "IndexedDB")
+            Directory.CreateDirectory(nativeIdb)
+            Check(ProfileIsolationPolicy.ResolveIndexedDbDirectory(nativeDir) = nativeIdb, "ResolveIndexedDbDirectory finds direct IndexedDB")
+
+            Dim legacyIdb = Path.Combine(legacyDir, "EBWebView", "Default", "IndexedDB")
+            Directory.CreateDirectory(legacyIdb)
+            Check(ProfileIsolationPolicy.ResolveIndexedDbDirectory(legacyDir) = legacyIdb, "ResolveIndexedDbDirectory finds legacy EBWebView/Default/IndexedDB")
+
+            Dim nativeSw = Path.Combine(nativeDir, "Service Worker")
+            Directory.CreateDirectory(nativeSw)
+            Check(ProfileIsolationPolicy.ResolveServiceWorkerDirectory(nativeDir) = nativeSw, "ResolveServiceWorkerDirectory finds direct Service Worker")
+
+            Dim legacySw = Path.Combine(legacyDir, "EBWebView", "Default", "Service Worker")
+            Directory.CreateDirectory(legacySw)
+            Check(ProfileIsolationPolicy.ResolveServiceWorkerDirectory(legacyDir) = legacySw, "ResolveServiceWorkerDirectory finds legacy EBWebView/Default/Service Worker")
+        Finally
+            Try : Directory.Delete(testBaseDir, True) : Catch : End Try
+        End Try
+
+        Check(ProfileIsolationPolicy.IsSystemOrProtectedDirectory("Default"), "Default is protected system directory")
+        Check(ProfileIsolationPolicy.IsSystemOrProtectedDirectory("Crashpad"), "Crashpad is protected system directory")
+        Check(ProfileIsolationPolicy.IsSystemOrProtectedDirectory("ShaderCache"), "ShaderCache is protected system directory")
+        Check(Not ProfileIsolationPolicy.IsSystemOrProtectedDirectory("Account_1"), "Account_1 is not protected system directory")
+        Check(ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Account_1"), "Account_1 is native account profile")
+        Check(ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Account_abc"), "Account_abc is native account profile")
+        Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Default"), "Default is not native account profile")
+        Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("Crashpad"), "Crashpad is not native account profile")
+        Check(Not ProfileIsolationPolicy.IsNativeAccountProfileDirectory("random_folder"), "random_folder is not native account profile")
     End Sub
 End Module

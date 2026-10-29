@@ -28,6 +28,15 @@ Public Class AccountManager
         End Get
     End Property
 
+    ''' <summary>
+    ''' Riferimento all'istanza singleton di CoreWebView2Environment condivisa da tutti gli account (TODO #103).
+    ''' </summary>
+    Public ReadOnly Property SharedEnvironment As Microsoft.Web.WebView2.Core.CoreWebView2Environment
+        Get
+            Return AppAccounts.SharedEnvironment
+        End Get
+    End Property
+
     Public Event PropertyChanged As PropertyChangedEventHandler Implements INotifyPropertyChanged.PropertyChanged
 
     Public Sub NotifyPropertyChanged(<CallerMemberName> Optional propertyName As String = Nothing)
@@ -216,6 +225,7 @@ Public Class AccountManager
                     Next
 
                     MigrateOrphanProfile()
+                    MigrateLegacyProfilesToNativeProfiles()
 
                     If needsSave Then
                         Await SaveAccountsAsync(force:=True)
@@ -303,6 +313,83 @@ Public Class AccountManager
     End Sub
 
     ''' <summary>
+    ''' Migra in modo non distruttivo i profili legacy separati (data/webview/WV2Profile_{id})
+    ''' nella struttura condivisa di profili nativi (data/webview/EBWebView/Account_{id}) (TODO #103).
+    ''' </summary>
+    Private Sub MigrateLegacyProfilesToNativeProfiles()
+        Try
+            Dim sharedDir = AppAccounts.SharedDataDirectory
+            If Not Directory.Exists(sharedDir) Then Return
+
+            Dim ebWebViewDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
+            If Not Directory.Exists(ebWebViewDir) Then
+                Directory.CreateDirectory(ebWebViewDir)
+            End If
+
+            For Each acc In _accounts
+                Dim safeProfileName = acc.ProfileName
+                Dim targetProfileDir = Path.Combine(ebWebViewDir, safeProfileName)
+
+                ' Se la cartella del profilo nativo esiste già, non sovrascrivere
+                If Directory.Exists(targetProfileDir) Then Continue For
+
+                Dim legacyDir = Path.Combine(sharedDir, $"{ProfileIsolationPolicy.LegacyProfilePrefix}{acc.Id}")
+                If Directory.Exists(legacyDir) Then
+                    Try
+                        ' Individua la cartella contenente i dati del profilo legacy (Default)
+                        Dim sourceDataDir = Path.Combine(legacyDir, ProfileIsolationPolicy.SharedEbWebViewFolder, "Default")
+                        If Not Directory.Exists(sourceDataDir) Then
+                            sourceDataDir = Path.Combine(legacyDir, "Default")
+                        End If
+                        If Not Directory.Exists(sourceDataDir) AndAlso Directory.Exists(Path.Combine(legacyDir, "IndexedDB")) Then
+                            sourceDataDir = legacyDir
+                        End If
+
+                        If Directory.Exists(sourceDataDir) Then
+                            AppLogger.LogApp($"[PROFILE_MIGRATING] Migrazione profilo legacy da '{sourceDataDir}' a '{targetProfileDir}' per account {acc.Id} ({acc.Name})")
+                            Try
+                                Directory.Move(sourceDataDir, targetProfileDir)
+                            Catch exMove As Exception
+                                Directory.CreateDirectory(targetProfileDir)
+                                CopyDirectoryRecursively(sourceDataDir, targetProfileDir)
+                            End Try
+                            AppLogger.LogApp($"[PROFILE_MIGRATED] Migrazione completata per account {acc.Id}")
+
+                            ' Rinomina la directory legacy per evitarne il riutilizzo
+                            Dim backupDir = legacyDir & ".migrated"
+                            If Not Directory.Exists(backupDir) Then
+                                Try
+                                    Directory.Move(legacyDir, backupDir)
+                                Catch
+                                End Try
+                            End If
+                        End If
+                    Catch exMigrate As Exception
+                        AppLogger.LogApp($"[PROFILE_MIGRATION_ERROR] Errore migrazione account {acc.Id}: {exMigrate.Message}")
+                    End Try
+                End If
+            Next
+        Catch ex As Exception
+            AppLogger.LogApp($"[PROFILE_MIGRATION_FATAL] Errore generale MigrateLegacyProfilesToNativeProfiles: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Shared Sub CopyDirectoryRecursively(sourceDir As String, targetDir As String)
+        Directory.CreateDirectory(targetDir)
+        For Each file In Directory.EnumerateFiles(sourceDir)
+            Dim destFile = Path.Combine(targetDir, Path.GetFileName(file))
+            Try
+                System.IO.File.Copy(file, destFile, overwrite:=True)
+            Catch
+            End Try
+        Next
+        For Each subDir In Directory.EnumerateDirectories(sourceDir)
+            Dim destSubDir = Path.Combine(targetDir, Path.GetFileName(subDir))
+            CopyDirectoryRecursively(subDir, destSubDir)
+        Next
+    End Sub
+
+    ''' <summary>
     ''' Rimuove in modo non distruttivo eventuali profili WebView2 non più associati ad alcun account attivo:
     ''' sposta le cartelle non referenziate nel cestino (data/webview/_trash/) e procede all'eliminazione differita
     ''' con tentativi di retry, eseguendo l'intera scansione in Task.Run fuori dal thread UI per non rallentare l'avvio.
@@ -351,6 +438,29 @@ Public Class AccountManager
                         End If
                     End If
                 Next
+
+                ' 1b. Identifica e sposta profili nativi non referenziati da EBWebView/ nel cestino (TODO #103)
+                Dim ebDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
+                If Directory.Exists(ebDir) Then
+                    Dim activeProfileNames As New HashSet(Of String)(_accounts.Select(Function(a) a.ProfileName), StringComparer.OrdinalIgnoreCase)
+                    For Each pDir In Directory.EnumerateDirectories(ebDir)
+                        Dim dName = Path.GetFileName(pDir)
+                        If ProfileIsolationPolicy.IsNativeAccountProfileDirectory(dName) AndAlso Not activeProfileNames.Contains(dName) Then
+                            Try
+                                If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
+                                Dim timeStamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")
+                                Dim trashDest = Path.Combine(trashDir, $"{dName}_{timeStamp}")
+                                If Directory.Exists(trashDest) Then
+                                    trashDest = $"{trashDest}_{Guid.NewGuid().ToString("N").Substring(0, 4)}"
+                                End If
+                                Directory.Move(pDir, trashDest)
+                                Debug.WriteLine($"CleanupUnusedProfiles: spostato profilo nativo non referenziato in cestino: {pDir} -> {trashDest}")
+                            Catch exMove As Exception
+                                Debug.WriteLine($"CleanupUnusedProfiles: errore spostamento profilo nativo: {exMove.Message}")
+                            End Try
+                        End If
+                    Next
+                End If
 
                 ' 2. Eliminazione differita degli elementi scaduti nel cestino (_trash/)
                 If Directory.Exists(trashDir) Then
@@ -448,7 +558,11 @@ Public Class AccountManager
     ''' Sincronizza tutti i profili locali verso la cartella master su disco di rete e, se non periodico, rilascia i lock (TODO #73).
     ''' </summary>
     Public Async Function CloseAllWebViewsAsync() As Task(Of Boolean)
+        Dim activeLifetime = _accounts.Select(Function(a) a.BrowserLifetime).FirstOrDefault(Function(l) l IsNot Nothing)
         Dim results = Await Task.WhenAll(_accounts.Select(Function(acc) acc.CloseWebViewAsync()).ToArray())
+        If activeLifetime IsNot Nothing Then
+            Await activeLifetime.WaitForExitAsync(10000)
+        End If
         Return results.All(Function(closed) closed)
     End Function
 
@@ -519,6 +633,24 @@ Public Class AccountManager
                         If index > MaxAccounts Then Exit For
                     End If
                 Next
+
+                ' 2b. Scansione non ricorsiva dei profili nativi esistenti in EBWebView/Account_*
+                Dim ebDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
+                If Directory.Exists(ebDir) Then
+                    For Each pDir In Directory.EnumerateDirectories(ebDir)
+                        Dim dName = Path.GetFileName(pDir)
+                        If ProfileIsolationPolicy.IsNativeAccountProfileDirectory(dName) Then
+                            Dim pId = If(dName.StartsWith("Account_", StringComparison.OrdinalIgnoreCase), dName.Substring("Account_".Length), dName)
+                            If Not String.IsNullOrEmpty(pId) AndAlso Not restoredAccounts.Any(Function(a) a.Id.Equals(pId, StringComparison.OrdinalIgnoreCase)) Then
+                                Dim accName = $"Account {index}"
+                                Dim isFirst = (index = 1)
+                                restoredAccounts.Add(New AppAccounts(pId, accName, isFirst))
+                                index += 1
+                                If index > MaxAccounts Then Exit For
+                            End If
+                        End If
+                    Next
+                End If
             End If
         Catch ex As Exception
             Debug.WriteLine($"Error searching existing profile dirs: {ex.Message}")
@@ -655,18 +787,32 @@ Public Class AccountManager
         NotifyPropertyChanged(NameOf(ExcessAccountsCount))
 
         Try
+            ' Se il profilo WebView2 è ancora attivo, elimina il profilo nativo Chromium (TODO #103)
+            If accountToRemove.WebView?.CoreWebView2?.Profile IsNot Nothing Then
+                Try
+                    accountToRemove.WebView.CoreWebView2.Profile.Delete()
+                Catch exProfDel As Exception
+                    Debug.WriteLine($"Profile.Delete warning: {exProfDel.Message}")
+                End Try
+            End If
             ' Invocazione esplicita IDisposable sul WebView e listener
             accountToRemove.Dispose()
         Catch ex As Exception
             Debug.WriteLine($"Error disposing accountToRemove: {ex.Message}")
         End Try
 
-        Dim profileDir = Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
-        If Directory.Exists(profileDir) Then
+        Dim dirsToRemove As New List(Of String)()
+        Dim nativeProfDir = ProfileIsolationPolicy.GetNativeProfileDirectory(AppAccounts.SharedDataDirectory, accountId)
+        If Directory.Exists(nativeProfDir) Then dirsToRemove.Add(nativeProfDir)
+        Dim legacyProfDir = ProfileIsolationPolicy.GetLegacyProfileDirectory(AppAccounts.SharedDataDirectory, accountId)
+        If Directory.Exists(legacyProfDir) Then dirsToRemove.Add(legacyProfDir)
+
+        For Each profileDir In dirsToRemove
+            Dim dirName = Path.GetFileName(profileDir)
             Dim trashDir = Path.Combine(AppAccounts.SharedDataDirectory, "_trash")
             Try
                 If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
-                Dim trashDest = Path.Combine(trashDir, $"WV2Profile_{accountId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}")
+                Dim trashDest = Path.Combine(trashDir, $"{dirName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}")
                 Directory.Move(profileDir, trashDest)
                 Debug.WriteLine($"RemoveAccountAsync: profilo spostato in cestino: {profileDir} -> {trashDest}")
                 Dim deleteBgTask = Task.Run(Async Function()
@@ -679,7 +825,7 @@ Public Class AccountManager
                     Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=10)
                 End Function)
             End Try
-        End If
+        Next
 
         If accountToRemove.UsesNetworkStaging Then
             NetworkProfileSync.CleanLocalStaging(accountId)

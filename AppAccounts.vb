@@ -777,6 +777,16 @@ Public Class AppAccounts
         If String.IsNullOrEmpty(profileDir) OrElse Not Directory.Exists(profileDir) Then Return
 
         Dim relativeDirsToClean As New List(Of String) From {
+            "ShaderCache",
+            "GrShaderCache",
+            "Crashpad\reports",
+            "Crashpad",
+            "component_crx_cache",
+            "Subresource Filter",
+            "GPUCache",
+            "DawnGraphiteCache",
+            "DawnWebGPUCache",
+            "GPUPersistentCache",
             "EBWebView\ShaderCache",
             "EBWebView\GrShaderCache",
             "EBWebView\Crashpad\reports",
@@ -791,6 +801,8 @@ Public Class AppAccounts
 
         If purgeDiskAndCodeCache Then
             relativeDirsToClean.AddRange({
+                "Cache",
+                "Code Cache",
                 "EBWebView\Default\Cache",
                 "EBWebView\Default\Code Cache"
             })
@@ -819,6 +831,34 @@ Public Class AppAccounts
                 Debug.WriteLine($"CleanTransientCacheFolders warning for {relDir}: {ex.Message}")
             End Try
         Next
+
+        ' Se profileDir contiene o è la cartella EBWebView, pulisce le cache anche dentro ogni profilo nativo Account_*
+        Try
+            Dim ebDir = If(Directory.Exists(Path.Combine(profileDir, "EBWebView")), Path.Combine(profileDir, "EBWebView"), If(profileDir.EndsWith("EBWebView", StringComparison.OrdinalIgnoreCase), profileDir, Nothing))
+            If ebDir IsNot Nothing AndAlso Directory.Exists(ebDir) Then
+                For Each subDir In Directory.EnumerateDirectories(ebDir)
+                    Dim dName = Path.GetFileName(subDir)
+                    If ProfileIsolationPolicy.IsNativeAccountProfileDirectory(dName) Then
+                        Dim subCaches = New String() {"GPUCache", "DawnGraphiteCache", "DawnWebGPUCache", "GPUPersistentCache"}
+                        For Each sc In subCaches
+                            Dim t = Path.Combine(subDir, sc)
+                            If Directory.Exists(t) Then
+                                Try : Directory.Delete(t, True) : Catch : End Try
+                            End If
+                        Next
+                        If purgeDiskAndCodeCache Then
+                            For Each sc In New String() {"Cache", "Code Cache"}
+                                Dim t = Path.Combine(subDir, sc)
+                                If Directory.Exists(t) Then
+                                    Try : Directory.Delete(t, True) : Catch : End Try
+                                End If
+                            Next
+                        End If
+                    End If
+                Next
+            End If
+        Catch
+        End Try
     End Sub
 
     ''' <summary>Genera un identificativo alfanumerico basato su GUID; gli ID esistenti restano invariati.</summary>
@@ -870,10 +910,99 @@ Public Class AppAccounts
         End Get
     End Property
 
+    ''' <summary>Restituisce il nome univoco del profilo nativo Chromium associato all'account (TODO #103).</summary>
+    <JsonIgnore>
+    Public ReadOnly Property ProfileName As String
+        Get
+            Return ProfileIsolationPolicy.GetSafeProfileName(Id)
+        End Get
+    End Property
+
+    Public Function GetSafeProfileName() As String
+        Return ProfileName
+    End Function
+
+    <JsonIgnore>
+    Friend ReadOnly Property BrowserLifetime As WebViewLifetime
+        Get
+            Return _browserLifetime
+        End Get
+    End Property
+
+    Private Shared _sharedEnvironment As CoreWebView2Environment
+    Private Shared ReadOnly _sharedEnvLock As New System.Threading.SemaphoreSlim(1, 1)
+
+    ''' <summary>
+    ''' Istanza condivisa singleton di CoreWebView2Environment riutilizzata da tutte le schede (TODO #103).
+    ''' </summary>
+    Public Shared ReadOnly Property SharedEnvironment As CoreWebView2Environment
+        Get
+            Return _sharedEnvironment
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Resetta l'istanza singleton condivisa di CoreWebView2Environment in caso di crash irreversibile del browser process.
+    ''' </summary>
+    Public Shared Sub ResetSharedEnvironment()
+        _sharedEnvironment = Nothing
+        AppLogger.LogApp("[SHARED_ENV_RESET] CoreWebView2Environment singleton reset.")
+    End Sub
+
+    ''' <summary>
+    ''' Inizializza o restituisce l'istanza singleton condivisa di CoreWebView2Environment (TODO #103).
+    ''' </summary>
+    Public Shared Async Function GetOrCreateSharedEnvironmentAsync(settings As SettingsController) As Task(Of CoreWebView2Environment)
+        If _sharedEnvironment IsNot Nothing Then
+            Return _sharedEnvironment
+        End If
+
+        Await _sharedEnvLock.WaitAsync()
+        Try
+            If _sharedEnvironment IsNot Nothing Then
+                Return _sharedEnvironment
+            End If
+
+            Dim baseFolder = SharedDataDirectory
+            If NetworkProfileSync.IsRunningOnNetwork AndAlso (settings Is Nothing OrElse settings.EnableNetworkProfileStaging) Then
+                baseFolder = NetworkProfileSync.LocalStagingBaseDirectory
+            End If
+
+            Directory.CreateDirectory(baseFolder)
+            AccountManager.EnableNtfsCompression(baseFolder)
+
+            Dim options As New CoreWebView2EnvironmentOptions()
+            Dim effectiveLang = settings?.GetEffectiveChromiumLanguage()
+            If Not String.IsNullOrEmpty(effectiveLang) Then
+                options.Language = effectiveLang
+            End If
+
+            ' Politiche di avvio e ottimizzazione cache/risorse Chromium via AdditionalBrowserArguments (TODO #71 & #102)
+            Dim diskLimitMb = If(settings IsNot Nothing, settings.DiskCacheLimitMb, BrowserArgumentsPolicy.DefaultDiskCacheLimitMb)
+            Dim enableSpellcheck = If(settings IsNot Nothing, settings.EnableSpellcheck, True)
+            options.AdditionalBrowserArguments = BrowserArgumentsPolicy.BuildAdditionalBrowserArguments(diskLimitMb, enableSpellcheck, effectiveLang)
+
+            AppLogger.LogApp($"[SHARED_ENV_CREATING] userDataFolder={baseFolder}, lang={effectiveLang}")
+            _sharedEnvironment = Await CoreWebView2Environment.CreateAsync(Nothing, baseFolder, options)
+            AppLogger.LogApp($"[SHARED_ENV_READY] userDataFolder={_sharedEnvironment.UserDataFolder}, browserVersion={_sharedEnvironment.BrowserVersionString}")
+
+            Return _sharedEnvironment
+        Finally
+            _sharedEnvLock.Release()
+        End Try
+    End Function
+
     <JsonIgnore>
     Public ReadOnly Property ProfilePath As String
         Get
             If Not String.IsNullOrEmpty(_profilePath) Then Return _profilePath
+            If WebView?.CoreWebView2?.Profile IsNot Nothing Then
+                Try
+                    _profilePath = WebView.CoreWebView2.Profile.ProfilePath
+                    Return _profilePath
+                Catch
+                End Try
+            End If
             Return NetworkProfileSync.GetEffectiveProfileDir(Id, enableStaging:=True)
         End Get
     End Property
@@ -915,15 +1044,13 @@ Public Class AppAccounts
         _settings = settings
 
         If _browserLifetime IsNot Nothing Then
-            If Not Await _browserLifetime.WaitForExitAsync() Then
-                Throw New TimeoutException("Previous WebView2 process still owns the profile. No reset was performed.")
-            End If
             _browserLifetime.Dispose()
             _browserLifetime = Nothing
         End If
         ThrowIfSetupStopped()
         _environmentCreationStarted = False
 
+        Dim safeProfileName = ProfileName
         Dim masterProfileDir = NetworkProfileSync.GetMasterProfileDir(Id)
         If String.IsNullOrEmpty(_profilePath) Then
             _usesNetworkStaging = NetworkProfileSync.IsRunningOnNetwork AndAlso (settings Is Nothing OrElse settings.EnableNetworkProfileStaging)
@@ -942,7 +1069,7 @@ Public Class AppAccounts
         ThrowIfSetupStopped()
         ColdProfileCopy.RecoverInterruptedPublication(profileDir)
         Directory.CreateDirectory(profileDir)
-        AppLogger.LogApp($"[PROFILE_OPEN] account={Id}, requested={profileDir}, staging={_usesNetworkStaging}")
+        AppLogger.LogApp($"[PROFILE_OPEN] account={Id}, profileName={safeProfileName}, requested={profileDir}, staging={_usesNetworkStaging}")
         ' No automatic cache deletion or orphan substitution when reopening a profile.
 
         ' Controllo preventivo dell'integrità strutturale dello storage IndexedDB a freddo (TODO #76)
@@ -954,26 +1081,23 @@ Public Class AppAccounts
         End If
 
         Try
-            Dim options As New CoreWebView2EnvironmentOptions()
-            Dim effectiveLang = settings.GetEffectiveChromiumLanguage()
-            If Not String.IsNullOrEmpty(effectiveLang) Then
-                options.Language = effectiveLang
-            End If
+            ' Inizializzazione o riutilizzo del CoreWebView2Environment condiviso con profili nativi (TODO #103)
+            Dim sharedEnv = Await GetOrCreateSharedEnvironmentAsync(settings)
+            ThrowIfSetupStopped()
 
-            ' Politiche di avvio e ottimizzazione cache/risorse Chromium via AdditionalBrowserArguments (TODO #71 & #102)
-            Dim diskLimitMb = If(settings IsNot Nothing, settings.DiskCacheLimitMb, BrowserArgumentsPolicy.DefaultDiskCacheLimitMb)
-            Dim enableSpellcheck = If(settings IsNot Nothing, settings.EnableSpellcheck, True)
-            options.AdditionalBrowserArguments = BrowserArgumentsPolicy.BuildAdditionalBrowserArguments(diskLimitMb, enableSpellcheck, effectiveLang)
+            Dim controllerOptions = sharedEnv.CreateCoreWebView2ControllerOptions()
+            controllerOptions.ProfileName = safeProfileName
+            controllerOptions.IsInPrivateModeEnabled = False
 
             _environmentCreationStarted = True
-            Dim accountEnv = Await CoreWebView2Environment.CreateAsync(Nothing, profileDir, options)
-            ThrowIfSetupStopped()
-            
-            Await WebView.EnsureCoreWebView2Async(accountEnv)
+            Await WebView.EnsureCoreWebView2Async(sharedEnv, controllerOptions)
             _browserLifetime = New WebViewLifetime(WebView.CoreWebView2, Id)
             ThrowIfSetupStopped()
             _isCrashed = False
-            AppLogger.LogApp($"[PROFILE_READY] account={Id}, actual={accountEnv.UserDataFolder}, runtime={accountEnv.BrowserVersionString}, private={WebView.CoreWebView2.Profile.IsInPrivateModeEnabled}")
+            If WebView.CoreWebView2?.Profile IsNot Nothing Then
+                _profilePath = WebView.CoreWebView2.Profile.ProfilePath
+            End If
+            AppLogger.LogApp($"[PROFILE_READY] account={Id}, profileName={safeProfileName}, profilePath={_profilePath}, actualUdf={sharedEnv.UserDataFolder}, runtime={sharedEnv.BrowserVersionString}, private={WebView.CoreWebView2.Profile.IsInPrivateModeEnabled}")
             
             WebView.CoreWebView2.Settings.IsWebMessageEnabled = True
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = True
@@ -1278,6 +1402,9 @@ Public Class AppAccounts
         Try
             Dim kind = e.ProcessFailedKind.ToString()
             AppLogger.LogApp($"[PROCESS_FAILED] account={Id}, kind={kind}, reason={e.Reason}, exitCode={e.ExitCode}")
+            If e.ProcessFailedKind = CoreWebView2ProcessFailedKind.BrowserProcessExited Then
+                ResetSharedEnvironment()
+            End If
             Dim action = SessionRecoveryPolicy.ForFailure(kind)
             If action = SessionRecoveryPolicy.RecoveryAction.Observe Then
                 AppLogger.LogApp($"[RECOVERY_OBSERVE] account={Id}, kind={kind}; browser/profile left intact.")
@@ -2300,7 +2427,7 @@ Public Class AppAccounts
         End If
         Dispose()
         If _browserLifetime Is Nothing Then Return Not _environmentCreationStarted
-        Return Await _browserLifetime.WaitForExitAsync(timeoutMs)
+        Return True
     End Function
 
     Private Sub ThrowIfSetupStopped()

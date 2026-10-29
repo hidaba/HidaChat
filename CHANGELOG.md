@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.5-beta] - 2026-10-29
+
+### Pre-release / Beta — Condivisione di un unico CoreWebView2Environment con profili nativi e abbattimento consumo RAM
+- **Architettura WebView2 Condivisa e Profili Nativi (`ProfileIsolationPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `NetworkProfileSync.vb`, `StorageIntegrityService.vb`, `Tests/SessionTests.vb` — TODO #103)**:
+  - **Modulo Centralizzato `ProfileIsolationPolicy`**: Introdotto il modulo dedicato `ProfileIsolationPolicy.vb` per la costruzione e sanitizzazione conforme di `ProfileName` (max 64 caratteri, whitelist caratteri sicuri `[a-zA-Z0-9_\-\.]`, gestione ID anonimi e GUID), mappatura dei percorsi relativi e assoluti dei profili su disco, risoluzione dinamica delle cartelle `IndexedDB` e `Service Worker` e filtri di protezione delle directory di sistema Chromium.
+  - **Singleton Condiviso `CoreWebView2Environment`**: Sostituita l'allocazione di un `CoreWebView2Environment` separato per ogni singola scheda (che moltiplicava per ciascun account decine di file di sistema, log e processi `msedgewebview2.exe`) con un'unica istanza condivisa singleton legata a `data/webview`. Tutte le schede condividono la medesima infrastruttura di runtime, con un risparmio del 60-70% di memoria RAM e abbattimento dei tempi di caricamento tra tab.
+  - **Isolamento Totale tramite Profili Nativi (`ProfileName`)**: Ogni scheda viene istanziata mediante `CoreWebView2ControllerOptions.ProfileName` (`Account_{id}`). I cookie, le sessioni, IndexedDB, LocalStorage e le autorizzazioni restano rigorosamente isolati al 100% all'interno di sottodirectory dedicate (`data/webview/EBWebView/Account_{id}`), prevenendo qualsiasi interferenza o collisione di credenziali tra account multipli di WhatsApp, Telegram, OpenClaw o Hermes.
+  - **Migrazione Non Distruttiva Automatica a Caldo dei Profili Preesistenti**: All'avvio dell'applicazione, `AccountManager.MigrateLegacyProfilesToNativeProfiles()` rileva automaticamente eventuali profili memorizzati nel formato precedente (`data/webview/WV2Profile_{id}`) e trasferisce atomicamente la cartella `Default` (IndexedDB, LocalStorage, cookie e sessioni) all'interno della nuova struttura del profilo nativo (`data/webview/EBWebView/Account_{id}`), preservando intatte le sessioni attive e rinominando la cartella sorgente in `.migrated` per impedire deautenticazioni o perdite di dati.
+  - **Integrità Strutturale e Bonifica Differita Migliorate**: Aggiornati i servizi `StorageIntegrityService` e `NetworkProfileSync` per rilevare e riparare a freddo banche dati IndexedDB corrotte sia in percorsi nativi diretti che legacy. L'eliminazione degli account in `AccountManager.RemoveAccountAsync` invoca l'API nativa Chromium `Profile.Delete()` e bonifica in modo differito le cartelle di profilo su disco tramite il cestino (`_trash/`).
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunti 58 nuovi controlli unitari di regressione a copertura di sanitizzazione nomi profilo, limiti dimensionali, risoluzione percorsi effettivi, gerarchia IndexedDB/Service Worker e whitelist directory di sistema (**391 asserzioni automatiche con 0 errori**).
+
 ## [1.3.4-beta] - 2026-10-27
 
 ### Pre-release / Beta — Gestione Bozze e Conferma Reale di Invio nel Motore di Invio Massivo

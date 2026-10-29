@@ -75,7 +75,7 @@ Public Class NetworkProfileSync
     ''' </summary>
     Public Shared Function GetMasterProfileDir(accountId As String) As String
         ValidateAccountId(accountId)
-        Return Path.Combine(AppAccounts.SharedDataDirectory, $"WV2Profile_{accountId}")
+        Return ProfileIsolationPolicy.ResolveEffectiveProfileDirectory(AppAccounts.SharedDataDirectory, accountId)
     End Function
 
     ''' <summary>
@@ -83,7 +83,7 @@ Public Class NetworkProfileSync
     ''' </summary>
     Public Shared Function GetLocalStagingProfileDir(accountId As String) As String
         ValidateAccountId(accountId)
-        Return Path.Combine(LocalStagingBaseDirectory, $"WV2Profile_{accountId}")
+        Return ProfileIsolationPolicy.ResolveEffectiveProfileDirectory(LocalStagingBaseDirectory, accountId)
     End Function
 
     ''' <summary>
