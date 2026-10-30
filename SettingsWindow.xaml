@@ -546,6 +546,16 @@
                         </ComboBox>
                     </Grid>
                     <TextBlock x:Name="TxtDiskCacheLimitHint" Text="Limits disk space used by Chromium HTTP cache per profile (applied upon tab reload)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                    <!-- Hot Compaction (TODO #104) -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="TxtOptimizeStorageHint" Text="Performs surgical live cache compaction (HTTP disk cache and Service Worker CacheStorage) without logging out accounts." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" x:Name="BtnOptimizeStorage" Content="Optimize Space" Click="BtnOptimizeStorage_Click" Style="{StaticResource ActionButtonStyle}" Height="28" Padding="12,2" FontSize="12"/>
+                    </Grid>
                     <Grid Margin="0,0,0,15">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

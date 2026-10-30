@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.8-beta] - 2026-10-30
+
+### Pre-release / Beta — Pulizia chirurgica a caldo della cache WebView2 (ClearBrowsingDataAsync) senza deautenticazione account
+- **Compattazione Chirurgica a Caldo della Cache WebView2 (`CacheCompactionPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #104)**:
+  - **Modulo Centralizzato `CacheCompactionPolicy`**: Introdotto il modulo dedicato `CacheCompactionPolicy.vb` per la definizione e convalida delle maschere binarie di dati sicuri e rigenerabili (`SafeRegenerableDataKinds = CoreWebView2BrowsingDataKinds.DiskCache Or CoreWebView2BrowsingDataKinds.CacheStorage`).
+  - **Isolamento Rigoroso e Protezione delle Credenziali Utente**: Implementate le funzioni di validazione `IsSafeCompactionKind` e `IsSafeRegenerableDataKinds` con blocco tassativo (`DangerousSessionKindsMask`) su `Cookies`, `IndexedDb`, `LocalStorage`, `AllDomStorage`, `PasswordAutosave`, `GeneralAutofill` e `Settings`. Durante la compattazione a caldo, le sessioni e credenziali attive di WhatsApp Web, Telegram Web, OpenClaw ed Hermes restano integre e operative senza richiedere il riavvio o nuove autenticazioni (nessuna richiesta di nuovo QR code).
+  - **Compattazione Asincrona sui Profili Nativi Attivi**: Aggiunti i metodi `CompactWebViewProfileAsync(webView)` e `CompactProfileAsync(profile)` in `CacheCompactionPolicy.vb`, `CompactWebViewProfileAsync()` in `AppAccounts.vb` e `CompactAllWebViewsProfileAsync()` in `AccountManager.vb`, consentendo lo svuotamento a runtime della cache HTTP e dello storage dei Service Worker (`CacheStorage`) per tutti gli account aperti.
+  - **Bonifica Completa dei Service Worker in `ClearBrowsingCacheAsync`**: Aggiornato `ClearBrowsingCacheAsync` in `AppAccounts.vb` per includere `CacheStorage` congiuntamente a `DiskCache`, garantendo che anche la pulizia intelligente preservante le sessioni (`SmartCleanCachePreservingLoginAsync`) rimuova gli asset accumulati dai Service Worker.
+  - **Interfaccia Grafica e Pulsante "Ottimizza Spazio"**: Aggiunto nella sezione "Cache & Storage" delle Impostazioni (`SettingsWindow.xaml` e `SettingsWindow.xaml.vb`) il pulsante dedicato `BtnOptimizeStorage` con testo di spiegazione ed esito visivo immediato tramite MessageBox informativa.
+  - **Localizzazione Multilingua Integrale (5 Lingue Ufficiali)**: Aggiunte 4 nuove chiavi di traduzione (`optimize_storage_btn`, `optimize_storage_hint`, `optimize_storage_success_title`, `optimize_storage_success_msg`) sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 46 nuove asserzioni unitarie di regressione a copertura di validazione maschere binarie sicure, respingimento di dati sensibili, scansione cartelle di cache rigenerabili (Cache, Code Cache, Service Worker/CacheStorage), calcolo byte e formattazione grandezze conforme ad `InvariantCulture` (**457 asserzioni automatiche con 0 errori**).
+
 ## [1.3.7-beta] - 2026-10-29
 
 ### Pre-release / Beta — Bonifica automatica dei backup di migrazione per recupero spazio su disco e stabilità proxy OpenClaw

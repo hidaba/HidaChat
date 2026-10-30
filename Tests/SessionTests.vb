@@ -683,5 +683,56 @@ Module SessionTests
         Finally
             Try : Directory.Delete(testCleanupDir, True) : Catch : End Try
         End Try
+
+        ' Test CacheCompactionPolicy (TODO #104)
+        Check(CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.SafeCompactionKindsMask), "SafeCompactionKindsMask is safe")
+        Check(CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindDiskCache), "KindDiskCache alone is safe")
+        Check(CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindCacheStorage), "KindCacheStorage alone is safe")
+        Check(CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindDiskCache Or CacheCompactionPolicy.KindCacheStorage), "DiskCache + CacheStorage combination is safe")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(0UL), "Empty kind mask is not safe compaction")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindCookies), "Cookies is rejected by compaction policy")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindIndexedDb), "IndexedDb is rejected by compaction policy")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindLocalStorage), "LocalStorage is rejected by compaction policy")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindPasswordAutosave), "PasswordAutosave is rejected by compaction policy")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindGeneralAutofill), "GeneralAutofill is rejected by compaction policy")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindSettings), "Settings is rejected by compaction policy")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindDiskCache Or CacheCompactionPolicy.KindCookies), "DiskCache combined with Cookies is rejected")
+        Check(Not CacheCompactionPolicy.IsSafeCompactionKind(CacheCompactionPolicy.KindDiskCache Or CacheCompactionPolicy.KindIndexedDb), "DiskCache combined with IndexedDb is rejected")
+
+        ' Mock profile cache directories calculation
+        Dim testProfileDir = Path.Combine(Path.GetTempPath(), "HidaChat_CacheTest_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(testProfileDir)
+        Try
+            Dim cacheDir = Path.Combine(testProfileDir, "Cache")
+            Dim codeCacheDir = Path.Combine(testProfileDir, "Code Cache")
+            Dim swCacheStorageDir = Path.Combine(testProfileDir, "Service Worker", "CacheStorage")
+            Dim idbDir = Path.Combine(testProfileDir, "IndexedDB")
+            Directory.CreateDirectory(cacheDir)
+            Directory.CreateDirectory(codeCacheDir)
+            Directory.CreateDirectory(swCacheStorageDir)
+            Directory.CreateDirectory(idbDir)
+
+            File.WriteAllBytes(Path.Combine(cacheDir, "data_0"), New Byte(1023) {}) ' 1024 bytes
+            File.WriteAllBytes(Path.Combine(codeCacheDir, "js_0"), New Byte(2047) {}) ' 2048 bytes
+            File.WriteAllBytes(Path.Combine(swCacheStorageDir, "entry_0"), New Byte(4095) {}) ' 4096 bytes
+            File.WriteAllBytes(Path.Combine(idbDir, "session.ldb"), New Byte(8191) {}) ' 8192 bytes (must NOT be counted)
+
+            Dim detectedDirs = CacheCompactionPolicy.GetProfileCacheDirectories(testProfileDir)
+            Check(detectedDirs.Count = 3, "GetProfileCacheDirectories detected exactly 3 regenerable directories")
+            Check(detectedDirs.Contains(cacheDir), "Detected directories include Cache")
+            Check(detectedDirs.Contains(codeCacheDir), "Detected directories include Code Cache")
+            Check(detectedDirs.Contains(swCacheStorageDir), "Detected directories include Service Worker CacheStorage")
+            Check(Not detectedDirs.Contains(idbDir), "Detected directories never include IndexedDB")
+
+            Dim totalTransientBytes = CacheCompactionPolicy.CalculateTransientCacheSizeBytes(testProfileDir)
+            Check(totalTransientBytes = 1024L + 2048L + 4096L, "CalculateTransientCacheSizeBytes calculates 7168 bytes without counting IndexedDB")
+
+            Check(CacheCompactionPolicy.FormatByteSize(500L) = "500 B", "FormatByteSize 500 B")
+            Check(CacheCompactionPolicy.FormatByteSize(2048L) = "2.0 KB", "FormatByteSize 2.0 KB")
+            Check(CacheCompactionPolicy.FormatByteSize(10485760L) = "10.0 MB", "FormatByteSize 10.0 MB")
+            Check(CacheCompactionPolicy.FormatByteSize(1073741824L) = "1.00 GB", "FormatByteSize 1.00 GB")
+        Finally
+            Try : Directory.Delete(testProfileDir, True) : Catch : End Try
+        End Try
     End Sub
 End Module

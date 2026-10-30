@@ -2233,20 +2233,27 @@ Public Class AppAccounts
     End Function
 
     ''' <summary>
-    ''' Notifica al motore WebView2 di svuotare la cronologia temporanea e, se richiesto, la disk cache tramite API nativa.
+    ''' Notifica al motore WebView2 di svuotare la cronologia temporanea e, se richiesto, la disk cache e la cache dei Service Worker tramite API nativa (TODO #104).
     ''' </summary>
     Public Async Function ClearBrowsingCacheAsync(Optional clearDiskCache As Boolean = False) As Task
         Try
             If WebView IsNot Nothing AndAlso WebView.CoreWebView2 IsNot Nothing AndAlso WebView.CoreWebView2.Profile IsNot Nothing Then
                 Dim dataKinds = CoreWebView2BrowsingDataKinds.DownloadHistory
                 If clearDiskCache Then
-                    dataKinds = dataKinds Or CoreWebView2BrowsingDataKinds.DiskCache
+                    dataKinds = dataKinds Or CacheCompactionPolicy.SafeRegenerableDataKinds
                 End If
                 Await WebView.CoreWebView2.Profile.ClearBrowsingDataAsync(dataKinds)
             End If
         Catch ex As Exception
             Debug.WriteLine($"ClearBrowsingCacheAsync error: {ex.Message}")
         End Try
+    End Function
+
+    ''' <summary>
+    ''' Esegue la compattazione chirurgica a caldo della cache WebView2 per questo account (TODO #104).
+    ''' </summary>
+    Public Async Function CompactWebViewProfileAsync() As Task(Of Boolean)
+        Return Await CacheCompactionPolicy.CompactWebViewProfileAsync(WebView)
     End Function
 
     ''' <summary>

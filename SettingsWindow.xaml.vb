@@ -811,6 +811,23 @@ Public Class SettingsWindow
         Await _settingsController.SaveDiskCacheLimitAsync(limitMb)
     End Sub
 
+    Private Async Sub BtnOptimizeStorage_Click(sender As Object, e As RoutedEventArgs)
+        Try
+            Dim loc = _settingsController.Localizations
+            BtnOptimizeStorage.IsEnabled = False
+
+            Dim compactedCount = Await _accountManager.CompactAllWebViewsProfileAsync()
+
+            Dim okTitle = If(loc IsNot Nothing, loc.Get("optimize_storage_success_title"), "Spazio Ottimizzato")
+            Dim okMsg = If(loc IsNot Nothing, loc.Get("optimize_storage_success_msg"), "Compattazione a caldo completata con successo! Cache HTTP e Service Worker compattati preservando le credenziali di accesso.")
+            MessageBox.Show(okMsg, okTitle, MessageBoxButton.OK, MessageBoxImage.Information)
+        Catch ex As Exception
+            Debug.WriteLine($"BtnOptimizeStorage_Click error: {ex.Message}")
+        Finally
+            BtnOptimizeStorage.IsEnabled = True
+        End Try
+    End Sub
+
     Private Async Sub BtnSmartCleanCache_Click(sender As Object, e As RoutedEventArgs)
         Try
             Dim loc = _settingsController.Localizations
@@ -1025,6 +1042,12 @@ Public Class SettingsWindow
         End If
         If TxtDiskCacheLimitHint IsNot Nothing Then
             TxtDiskCacheLimitHint.Text = loc.Get("disk_cache_limit_hint")
+        End If
+        If BtnOptimizeStorage IsNot Nothing Then
+            BtnOptimizeStorage.Content = loc.Get("optimize_storage_btn")
+        End If
+        If TxtOptimizeStorageHint IsNot Nothing Then
+            TxtOptimizeStorageHint.Text = loc.Get("optimize_storage_hint")
         End If
         If BtnSmartCleanCache IsNot Nothing Then
             BtnSmartCleanCache.Content = loc.Get("smart_clean_cache_btn")

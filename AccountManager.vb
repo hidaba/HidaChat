@@ -695,6 +695,33 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
+    ''' Esegue la compattazione chirurgica a caldo della cache WebView2 per il controllo specificato (TODO #104).
+    ''' </summary>
+    Public Async Function CompactWebViewProfileAsync(webView As Microsoft.Web.WebView2.Wpf.WebView2) As Task(Of Boolean)
+        Return Await CacheCompactionPolicy.CompactWebViewProfileAsync(webView)
+    End Function
+
+    ''' <summary>
+    ''' Esegue la compattazione a caldo della cache su tutti gli account con WebView2 attiva (TODO #104).
+    ''' </summary>
+    ''' <returns>Numero di profili attivi compattati con successo.</returns>
+    Public Async Function CompactAllWebViewsProfileAsync() As Task(Of Integer)
+        Dim count As Integer = 0
+        For Each acc In _accounts
+            Try
+                If acc.WebView?.CoreWebView2?.Profile IsNot Nothing Then
+                    Dim ok = Await acc.CompactWebViewProfileAsync()
+                    If ok Then count += 1
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"CompactAllWebViewsProfileAsync account {acc.Id} error: {ex.Message}")
+            End Try
+        Next
+        AppLogger.LogApp($"[HOT_COMPACTION] Compacted {count} active profile(s)")
+        Return count
+    End Function
+
+    ''' <summary>
     ''' Esegue la pulizia selettiva e profonda della cache su tutti gli account preservando login, sessioni e cookie (TODO #72).
     ''' </summary>
     Public Async Function SmartCleanCachePreservingLoginAsync() As Task

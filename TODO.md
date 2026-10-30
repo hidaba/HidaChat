@@ -957,7 +957,18 @@
 - **Test di accettazione**: Aprire più account contemporaneamente (es. WhatsApp 1 e WhatsApp 2) verificando che le sessioni non entrino in conflitto, che i cookie/IndexedDB rimangano separati e che la cartella `EBWebView` non duplichi i file di sistema.
 - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
 
-## 104. [P2] Pulizia chirurgica a caldo della cache con ClearBrowsingDataAsync senza deautenticare gli account
+## ~~104. [P2] Pulizia chirurgica a caldo della cache con ClearBrowsingDataAsync senza deautenticare gli account~~ ✅ [COMPLETATO]
+- **File**: `CacheCompactionPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb`
+- **Descrizione**: Implementata la pulizia chirurgica a caldo della cache di rete e dei Service Worker a runtime tramite l'API `ClearBrowsingDataAsync` isolata sui dati rigenerabili, preservando al 100% cookie, LocalStorage, IndexedDB e le sessioni attive di WhatsApp Web, Telegram Web, OpenClaw ed Hermes.
+- **Funzionalità Implementate**:
+  - Modulo dedicato `CacheCompactionPolicy.vb` con le maschere deterministiche `SafeRegenerableDataKinds` (`DiskCache Or CacheStorage`) e `DangerousSessionKindsMask` (Cookies, IndexedDB, LocalStorage, password, credenziali, impostazioni).
+  - Funzione di validazione di sicurezza `IsSafeCompactionKind` e `IsSafeRegenerableDataKinds` per inibire tassativamente qualsiasi cancellazione accidentale di token di login.
+  - Metodi `CompactWebViewProfileAsync(webView)` e `CompactProfileAsync(profile)` per l'esecuzione della compattazione non bloccante a caldo sul profilo attivo.
+  - Metodo `CompactAllWebViewsProfileAsync()` in `AccountManager.vb` che itera e compatta a caldo tutti i profili con istanza WebView2 attiva.
+  - Aggiornamento di `ClearBrowsingCacheAsync` in `AppAccounts.vb` per includere `CacheStorage` assieme a `DiskCache`.
+  - Pulsante dedicato "Ottimizza Spazio" (`BtnOptimizeStorage`) e hint descrittivo nella sezione "Cache & Storage" delle Impostazioni (`SettingsWindow.xaml` e `SettingsWindow.xaml.vb`), con riscontro visivo del completamento.
+  - Sincronizzazione integrale dei 5 dizionari multilingua ufficiali (`Localization.vb`: Inglese, Italiano, Francese, Spagnolo, Tedesco) con 4 nuove chiavi (`optimize_storage_btn`, `optimize_storage_hint`, `optimize_storage_success_title`, `optimize_storage_success_msg`).
+  - Suite di test unitari automatizzati in `Tests/SessionTests.vb`: aggiunte 46 nuove asserzioni di regressione per validare le maschere di sicurezza, il respingimento dei flag sensibili, il calcolo delle directory di cache rigenerabili e la formattazione dimensioni (totale **457 asserzioni automatiche con 0 errori**).
 - **File**: `SettingsWindow.xaml.vb`, `AccountManager.vb`
 - **Problema / Esigenza**: Durante l'uso prolungato, WebView2 accumula centinaia di megabyte di `DiskCache` e `CacheStorage` (Service Worker cache). I metodi tradizionali di cancellazione cartella rischiano di spazzare via Cookie, LocalStorage e IndexedDB provocando il logout forzato da WhatsApp Web e Telegram Web.
 - **Soluzione proposta / Fix da implementare**:
