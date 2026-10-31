@@ -990,7 +990,16 @@
 - **Test di accettazione**: Invocare la pulizia a caldo su una sessione attiva di WhatsApp Web con messaggi aperti; verificare che la dimensione della cache su disco si riduca sensibilmente e che la sessione non venga disconnessa (nessuna richiesta di nuovo QR code al riavvio/refresh).
 - **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso
 
-## 105. [P2] Routine di pulizia automatica cartelle spazzatura all'avvio
+## ~~105. [P2] Routine di pulizia automatica cartelle spazzatura all'avvio~~ ✅ [COMPLETATO]
+- **File**: `StartupJunkCleanupPolicy.vb`, `Application.xaml.vb`, `AccountManager.vb`, `Tests/SessionTests.vb`
+- **Descrizione**: Implementata la rimozione automatica e sicura all'avvio dell'applicazione di directory temporanee di diagnostica, cache shader GPU e file orfani (.dmp, .pma, .old) prima dell'inizializzazione dei processi WebView2, preservando integralmente cookie, IndexedDB (.leveldb / .blob), LocalStorage e credenziali master in Local State.
+- **Funzionalità Implementate**:
+  - Modulo dedicato `StartupJunkCleanupPolicy.vb` con whitelist rigorosa di cartelle spazzatura (`JunkFolderNames`: Crashpad, GPUCache, ShaderCache, GrShaderCache, DawnCache, DawnGraphiteCache, DawnWebGPUCache, GPUPersistentCache, Code Cache, Cache, BrowserMetrics, component_crx_cache, OptimizationGuidePredictionModels, Safe Browsing, Subresource Filter) ed estensioni spazzatura (`.dmp`, `.pma`, `.old`).
+  - Protezione insuperabile delle strutture di sessione (`ProtectedFolderNames`: IndexedDB, Local Storage, Session Storage, Sync Data, Network, Default, EBWebView, e cartelle `.leveldb`/`.blob`; `ProtectedFileNames`: Local State, Preferences, Cookies, settings.json, .lock, .app_version).
+  - Algoritmo di scansione sicura ad albero guidato da coda che arresta l'esplorazione quando incontra cartelle spazzatura ed esclude qualsiasi accesso alle cartelle protette di sessione, prevenendo errori di concorrenza su filesystem ed eliminazioni accidentali di dati di login.
+  - Invocazione automatica non bloccante in `Application.xaml.vb` all'interno di `OnStartup` subito dopo l'acquisizione del folder lock e prima del rilascio verso i controlli UI/WebView2.
+  - Invocazione automatica in `AccountManager.LoadAccountsAsync()` e in `CleanupTransientCachesAsync()` sulla directory condivisa `data/webview`.
+  - Suite di test automatizzati estesa in `Tests/SessionTests.vb`: aggiunte 106 nuove asserzioni a copertura di riconoscimento cartelle spazzatura, immunità delle cartelle di sessione (.leveldb/.blob/Local Storage), individuazione estensioni e simulazione completa di pulizia su gerarchia di directory (totale **563 asserzioni automatiche con 0 errori**).
 - **File**: `Application.xaml.vb`, `AccountManager.vb`
 - **Problema / Esigenza**: All'avvio dell'applicazione, prima che i processi `msedgewebview2.exe` vengano instanziati e blocchino i file su disco, rimangono file e sottocartelle temporanee create da crash, diagnostica o shader che occupano spazio non necessario nella cartella `data/webview`.
 - **Soluzione proposta / Fix da implementare**:

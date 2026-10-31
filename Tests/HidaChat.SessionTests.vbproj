@@ -20,6 +20,7 @@
     <Compile Include="../BulkSenderPolicy.vb" Link="BulkSenderPolicy.vb" />
     <Compile Include="../ProfileIsolationPolicy.vb" Link="ProfileIsolationPolicy.vb" />
     <Compile Include="../CacheCompactionPolicy.vb" Link="CacheCompactionPolicy.vb" />
+    <Compile Include="../StartupJunkCleanupPolicy.vb" Link="StartupJunkCleanupPolicy.vb" />
     <Compile Include="SessionTests.vb" />
   </ItemGroup>
 </Project>

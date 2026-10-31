@@ -1,4 +1,4 @@
-﻿Imports System.Diagnostics
+Imports System.Diagnostics
 Imports System.IO
 Imports System.Text
 Imports System.Text.Json
@@ -209,6 +209,14 @@ Class Application
         End If
 
         CleanupLegacyFiles()
+
+        ' 3. Bonifica automatica delle cartelle e dei file spazzatura all'avvio prima di WebView2 (TODO #105)
+        Try
+            Dim webviewDataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "webview")
+            StartupJunkCleanupPolicy.CleanWebViewJunkFolders(webviewDataDir)
+        Catch ex As Exception
+            Debug.WriteLine($"[StartupJunkCleanup] Errore durante la pulizia spazzatura all'avvio: {ex.Message}")
+        End Try
 
         MyBase.OnStartup(e)
     End Sub

@@ -734,5 +734,123 @@ Module SessionTests
         Finally
             Try : Directory.Delete(testProfileDir, True) : Catch : End Try
         End Try
+
+        ' Test StartupJunkCleanupPolicy (TODO #105)
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("Crashpad"), "Crashpad is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("GPUCache"), "GPUCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("ShaderCache"), "ShaderCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("GrShaderCache"), "GrShaderCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("GraphiteDawnCache"), "GraphiteDawnCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("DawnCache"), "DawnCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("DawnGraphiteCache"), "DawnGraphiteCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("DawnWebGPUCache"), "DawnWebGPUCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("GPUPersistentCache"), "GPUPersistentCache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("Code Cache"), "Code Cache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("Cache"), "Cache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("BrowserMetrics"), "BrowserMetrics is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("component_crx_cache"), "component_crx_cache is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("OptimizationGuidePredictionModels"), "OptimizationGuidePredictionModels is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("Safe Browsing"), "Safe Browsing is recognized as junk folder")
+        Check(StartupJunkCleanupPolicy.IsJunkFolderName("Subresource Filter"), "Subresource Filter is recognized as junk folder")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFolderName("IndexedDB"), "IndexedDB is never a junk folder")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFolderName("Local Storage"), "Local Storage is never a junk folder")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFolderName("Account_1"), "Account folder is never a junk folder")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFolderName(Nothing), "Null folder name is not junk")
+
+        Check(StartupJunkCleanupPolicy.IsProtectedDirectory("IndexedDB"), "IndexedDB is protected")
+        Check(StartupJunkCleanupPolicy.IsProtectedDirectory("Local Storage"), "Local Storage is protected")
+        Check(StartupJunkCleanupPolicy.IsProtectedDirectory("Session Storage"), "Session Storage is protected")
+        Check(StartupJunkCleanupPolicy.IsProtectedDirectory("https_web.whatsapp.com_0.indexeddb.leveldb"), ".leveldb directory is protected")
+        Check(StartupJunkCleanupPolicy.IsProtectedDirectory("https_web.whatsapp.com_0.indexeddb.blob"), ".blob directory is protected")
+        Check(Not StartupJunkCleanupPolicy.IsProtectedDirectory("Crashpad"), "Crashpad is not protected")
+        Check(Not StartupJunkCleanupPolicy.IsProtectedDirectory("GPUCache"), "GPUCache is not protected")
+
+        Check(StartupJunkCleanupPolicy.IsJunkFileName("crash.dmp"), ".dmp file is recognized as junk")
+        Check(StartupJunkCleanupPolicy.IsJunkFileName("metrics.pma"), ".pma file is recognized as junk")
+        Check(StartupJunkCleanupPolicy.IsJunkFileName("profile.old"), ".old file is recognized as junk")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName("Local State"), "Local State is protected")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName("Cookies"), "Cookies is protected")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName("Preferences"), "Preferences is protected")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName("session.ldb"), "LevelDB .ldb file is never junk")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName("000003.log"), "LevelDB .log file is never junk")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName("settings.json"), "settings.json is never junk")
+        Check(Not StartupJunkCleanupPolicy.IsJunkFileName(".lock"), ".lock file is never junk")
+
+        ' Mock folder structure for startup cleanup simulation
+        Dim testStartupDir = Path.Combine(Path.GetTempPath(), "HidaChat_StartupJunkTest_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(testStartupDir)
+        Try
+            ' Create junk folders with nested files
+            Dim junkCrashpad = Path.Combine(testStartupDir, "Crashpad", "reports")
+            Dim junkGpu = Path.Combine(testStartupDir, "GPUCache")
+            Dim junkShader = Path.Combine(testStartupDir, "ShaderCache", "GPU")
+            Dim junkMetrics = Path.Combine(testStartupDir, "BrowserMetrics")
+            Directory.CreateDirectory(junkCrashpad)
+            Directory.CreateDirectory(junkGpu)
+            Directory.CreateDirectory(junkShader)
+            Directory.CreateDirectory(junkMetrics)
+
+            File.WriteAllText(Path.Combine(junkCrashpad, "crash1.dmp"), "dump data")
+            File.WriteAllText(Path.Combine(junkGpu, "data_0"), "gpu cache")
+            File.WriteAllText(Path.Combine(junkShader, "shader_blob"), "shader cache")
+            File.WriteAllText(Path.Combine(junkMetrics, "metrics.pma"), "metrics data")
+
+            ' Create standalone junk files
+            Dim rootDmp = Path.Combine(testStartupDir, "orphan.dmp")
+            Dim rootOld = Path.Combine(testStartupDir, "backup.old")
+            Dim rootPma = Path.Combine(testStartupDir, "metrics.pma")
+            File.WriteAllText(rootDmp, "dmp")
+            File.WriteAllText(rootOld, "old")
+            File.WriteAllText(rootPma, "pma")
+
+            ' Create PROTECTED session structures
+            Dim profileAccount = Path.Combine(testStartupDir, "EBWebView", "wv2profile_account_1")
+            Dim idbLevelDb = Path.Combine(profileAccount, "IndexedDB", "https_web.whatsapp.com_0.indexeddb.leveldb")
+            Dim idbBlob = Path.Combine(profileAccount, "IndexedDB", "https_web.whatsapp.com_0.indexeddb.blob")
+            Dim localStorageDb = Path.Combine(profileAccount, "Local Storage", "leveldb")
+            Dim networkDir = Path.Combine(profileAccount, "Network")
+            Directory.CreateDirectory(idbLevelDb)
+            Directory.CreateDirectory(idbBlob)
+            Directory.CreateDirectory(localStorageDb)
+            Directory.CreateDirectory(networkDir)
+
+            Dim localStateFile = Path.Combine(testStartupDir, "EBWebView", "Local State")
+            File.WriteAllText(localStateFile, "{""os_crypt"":{""encrypted_key"":""SECRET_KEY""}}")
+            Dim ldbFile = Path.Combine(idbLevelDb, "000005.ldb")
+            File.WriteAllText(ldbFile, "CRITICAL_SESSION_DATA")
+            Dim blobFile = Path.Combine(idbBlob, "media.bin")
+            File.WriteAllText(blobFile, "MEDIA_BLOB")
+            Dim lsLogFile = Path.Combine(localStorageDb, "000001.log")
+            File.WriteAllText(lsLogFile, "LOCAL_STORAGE_LOG")
+            Dim cookieFile = Path.Combine(networkDir, "Cookies")
+            File.WriteAllText(cookieFile, "SESSION_COOKIES")
+            Dim prefFile = Path.Combine(profileAccount, "Preferences")
+            File.WriteAllText(prefFile, "USER_PREFERENCES")
+
+            ' Run cleanup
+            Dim cleanupResult = StartupJunkCleanupPolicy.CleanWebViewJunkFolders(testStartupDir)
+
+            ' Assert junk was deleted
+            Check(Not Directory.Exists(Path.Combine(testStartupDir, "Crashpad")), "Junk Crashpad folder was deleted")
+            Check(Not Directory.Exists(junkGpu), "Junk GPUCache folder was deleted")
+            Check(Not Directory.Exists(Path.Combine(testStartupDir, "ShaderCache")), "Junk ShaderCache folder was deleted")
+            Check(Not Directory.Exists(junkMetrics), "Junk BrowserMetrics folder was deleted")
+            Check(Not File.Exists(rootDmp), "Orphan .dmp file was deleted")
+            Check(Not File.Exists(rootOld), "Orphan .old file was deleted")
+            Check(Not File.Exists(rootPma), "Orphan .pma file was deleted")
+
+            ' Assert PROTECTED files remain completely untouched
+            Check(File.Exists(localStateFile), "Local State master encryption key remains untouched")
+            Check(File.Exists(ldbFile), "IndexedDB .leveldb session database remains untouched")
+            Check(File.Exists(blobFile), "IndexedDB .blob media storage remains untouched")
+            Check(File.Exists(lsLogFile), "Local Storage leveldb remains untouched")
+            Check(File.Exists(cookieFile), "Session Cookies file remains untouched")
+            Check(File.Exists(prefFile), "Profile Preferences remain untouched")
+            Check(cleanupResult.DeletedFoldersCount >= 4, "Cleanup deleted at least 4 junk folders")
+            Check(cleanupResult.DeletedFilesCount >= 3, "Cleanup deleted at least 3 standalone junk files")
+            Check(cleanupResult.FreedBytes > 0, "Cleanup reported freed bytes > 0")
+        Finally
+            Try : Directory.Delete(testStartupDir, True) : Catch : End Try
+        End Try
     End Sub
 End Module

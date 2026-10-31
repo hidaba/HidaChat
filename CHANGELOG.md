@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.9-beta] - 2026-10-31
+
+### Pre-release / Beta — Routine di pulizia automatica cartelle e file spazzatura all'avvio
+- **Pulizia Automatica Cartelle e File Spazzatura all'Avvio (`StartupJunkCleanupPolicy.vb`, `Application.xaml.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #105)**:
+  - **Modulo Centralizzato `StartupJunkCleanupPolicy`**: Introdotto il modulo dedicato `StartupJunkCleanupPolicy.vb` per la bonifica sicura delle directory di diagnostica Chromium, crash dump e cache shader orfane prima che i processi browser vengano istanziati e blocchino i file su disco.
+  - **Whitelist Rigorosa Cartelle Spazzatura**: Definita la costante `JunkFolderNames` con l'insieme completo delle sole directory rigenerabili e sicure al 100% da eliminare (`Crashpad`, `GPUCache`, `GPUPersistentCache`, `ShaderCache`, `GrShaderCache`, `DawnCache`, `DawnGraphiteCache`, `DawnWebGPUCache`, `GraphiteDawnCache`, `Code Cache`, `Cache`, `BrowserMetrics`, `BrowserMetrics-spare`, `component_crx_cache`, `OptimizationGuidePredictionModels`, `Safe Browsing`, `Subresource Filter`).
+  - **Rimozione File Orfani e Dump**: Riconoscimento ed eliminazione mirata dei file residui temporanei con estensione `.dmp` (crash dump), `.pma` (metriche Chromium) e `.old` (scarti di migrazione preesistenti).
+  - **Protezione Insuperabile dei Dati di Sessione e Credenziali**: Implementate le liste di protezione `ProtectedFolderNames` e `ProtectedFileNames` e il predicato `IsProtectedDirectory`: le directory `IndexedDB` (comprese le banche dati `.leveldb` di Signal/WhatsApp e i blob multimediali `.blob`), `Local Storage`, `Session Storage`, `Sync Data`, `Network` (file `Cookies`), `Preferences` e il file master di crittografia DPAPI `Local State` sono rigorosamente protetti e non vengono mai toccati né attraversati, garantendo l'immunità totale da deautenticazioni o perdite di dati.
+  - **Invocazione Non Bloccante in Avvio**: Integrata la routine `StartupJunkCleanupPolicy.CleanWebViewJunkFolders()` in `Application.xaml.vb` all'interno di `OnStartup` (dopo l'acquisizione del folder lock e prima dell'avvio della UI) e in `AccountManager.LoadAccountsAsync()` / `CleanupTransientCachesAsync()` sulla cartella condivisa `data/webview`.
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 106 nuove asserzioni unitarie di regressione a copertura di validazione whitelist spazzatura, immunità directory protette di sessione, riconoscimento estensioni temporanee e simulazione completa su albero di file e cartelle (**563 asserzioni automatiche con 0 errori**).
+
 ## [1.3.8-beta] - 2026-10-30
 
 ### Pre-release / Beta — Pulizia chirurgica a caldo della cache WebView2 (ClearBrowsingDataAsync) senza deautenticazione account

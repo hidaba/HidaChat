@@ -173,6 +173,8 @@ Public Class AccountManager
     Public Async Function LoadAccountsAsync() As Task
         ' Abilita preventivamente la compressione trasparente NTFS sulla cartella profili WebView2 (TODO #106)
         EnableNtfsCompression(AppAccounts.SharedDataDirectory)
+        ' Bonifica preventiva delle cartelle e file spazzatura all'avvio (TODO #105)
+        CleanWebViewJunkFolders(AppAccounts.SharedDataDirectory)
         Dim settings = Await _settingsController.ReadSettingsAsync()
         
         Dim isConfigValid = _settingsController.IsLoadedFromValidConfig
@@ -664,6 +666,9 @@ Public Class AccountManager
             Try
                 Dim sharedDir = AppAccounts.SharedDataDirectory
                 If Directory.Exists(sharedDir) Then
+                    ' Bonifica automatica delle cartelle e file spazzatura orfani (TODO #105)
+                    CleanWebViewJunkFolders(sharedDir)
+
                     ' Pulizia cache nei profili nativi sotto EBWebView (TODO #103)
                     Dim ebWebViewDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
                     If Directory.Exists(ebWebViewDir) Then
@@ -693,6 +698,13 @@ Public Class AccountManager
             End Try
         End Sub)
     End Function
+
+    ''' <summary>
+    ''' Routine di rimozione sicura delle cartelle e dei file spazzatura all'avvio dell'applicazione (TODO #105).
+    ''' </summary>
+    Public Sub CleanWebViewJunkFolders(baseDataPath As String)
+        StartupJunkCleanupPolicy.CleanWebViewJunkFolders(baseDataPath)
+    End Sub
 
     ''' <summary>
     ''' Esegue la compattazione chirurgica a caldo della cache WebView2 per il controllo specificato (TODO #104).
