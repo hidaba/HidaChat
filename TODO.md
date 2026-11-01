@@ -1080,6 +1080,22 @@
 - **Test di accettazione**: Su disco di rete `Y:`, verificare che la chiusura dell'applicazione completi la sincronizzazione di tutti i profili in meno di 2 secondi complessivi senza errori `Access Denied` nei log e con tutte le sessioni preservate al riavvio.
 - **Priorità**: P1 (Gravità alta) | **Impatto**: Altissimo | **Sforzo**: Basso
 
+## ~~108. [P1] Ottimizzazioni estreme salvataggio chiusura: copia parallela bounded, log asincroni accorpati e skip account invariati~~ ✅
+- **File**: `ColdProfileCopy.vb`, `AppLogger.vb`, `NetworkProfileSync.vb`, `MainWindow.xaml.vb`, `Tests/SessionTests.vb`
+- **Problema / Esigenza**: Nonostante i progressi del TODO #107, la chiusura su dischi di rete Samba presentava ancora margini di miglioramento:
+  1. I file di ciascun profilo venivano trasferiti sequenzialmente con flussi gestiti manuali e operazioni separate di impostazione dei metadati orari (`SetLastWriteTimeUtc`).
+  2. Ogni singolo messaggio di log inviato ad `AppLogger` eseguiva controlli sincroni del file ed `AppendAllText` protetto da un lock globale, generando decine di round-trip I/O su rete SMB anche durante la fase di arresto.
+  3. Gli account aperti ma senza nuove chat o modifiche venivano comunque esportati per intero.
+  4. L'arresto del demone Tailscale `tsnetd` attendeva in modo seriale prima del completamento.
+- **Funzionalità Implementate**:
+  - `ColdProfileCopy.vb`: copia parallela intra-account con `Parallel.ForEach` limitata a 4 thread per account (`MaxDegreeOfParallelism = 4`). Adozione di `File.Copy(src, dst, overwrite:=True)` per sfruttare Win32 `CopyFileEx`, preservazione nativa dei timestamp senza chiamate separate ai metadati e cancellazione non bloccante `.trash-*` via `Task.Run`.
+  - `AppLogger.vb`: introduzione di una coda thread-safe non bloccante in memoria `ConcurrentQueue(Of LogEntry)` e scritture accorpate batch via timer (250ms) e `FlushNow()`, riducendo decine di accessi Samba a un'unica scrittura.
+  - `NetworkProfileSync.vb`: rilevamento differenziale smart `HasModifications(source, master)` per saltare completamente la sincronizzazione degli account non modificati (`[EXPORT_UNCHANGED]`, 0 ms I/O).
+  - `MainWindow.xaml.vb`: avvio concorrente di `TsnetManager.Instance.ShutdownAsync()` durante la chiusura di WebView2, mascherando la latenza di spegnimento (~300ms).
+  - `Tests/SessionTests.vb`: aggiunte nuove asserzioni unitarie per `HasModifications` e batched `AppLogger` (totale 601 test superati con 0 errori).
+- **Test di accettazione**: Verificare la chiusura ultra-rapida su unità di rete `Y:` con sincronizzazione immediata dei profili modificati, 0 I/O per account non modificati e log compatti senza latenze residue.
+- **Priorità**: P1 (Gravità alta) | **Impatto**: Altissimo | **Sforzo**: Basso
+
 
 
 

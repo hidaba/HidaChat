@@ -1,4 +1,4 @@
-Imports System.Threading.Tasks
+﻿Imports System.Threading.Tasks
 Imports System.IO
 Imports System.ComponentModel
 Imports System.Runtime.InteropServices
@@ -355,14 +355,17 @@ Public Class MainWindow
         ' Fase 1: Chiusura ordinata WebView2 e salvataggio impostazioni/account
         progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_settings"), "Salvataggio impostazioni e preferenze account..."))
         Dim closeTask = _accountManager.CloseAllWebViewsAsync()
-        Try
-            Await Task.WhenAll(_accountManager.SaveAccountsAsync(force:=True), _settingsController.FlushNowAsync())
-        Catch ex As Exception
-            Application.LogUnhandledException("Shutdown.Save", ex)
-        End Try
+        Dim saveTask = Task.WhenAll(_accountManager.SaveAccountsAsync(force:=True), _settingsController.FlushNowAsync())
+        ' Avvio anticipato dell'arresto Tsnet in parallelo con chiusura WebView2 e salvataggio
+        Dim tsnetTask = TsnetManager.Instance.ShutdownAsync()
 
         progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_webviews"), "Chiusura controllata delle sessioni browser..."))
         Dim allClosed = Await closeTask
+        Try
+            Await saveTask
+        Catch ex As Exception
+            Application.LogUnhandledException("Shutdown.Save", ex)
+        End Try
 
         ' Fase 2: Sincronizzazione profili di rete (SMB/UNC) se abilitata
         If exportProfiles Then
@@ -383,10 +386,13 @@ Public Class MainWindow
         ' Fase 3: Arresto daemon tsnet e rilascio risorse di rete
         progressDlg?.UpdateStatus(If(loc IsNot Nothing, loc.Get("shutdown_stage_tsnet"), "Arresto proxy di rete e rilascio risorse..."))
         Try
-            Await TsnetManager.Instance.ShutdownAsync()
+            Await tsnetTask
         Catch ex As Exception
             AppLogger.LogApp($"Shutdown.Tsnet: {ex.Message}")
         End Try
+
+        ' Flush finale di tutti i log accorpati su disco di rete
+        AppLogger.FlushNow()
 
         If _trayIcon IsNot Nothing Then
             _trayIcon.Visible = False

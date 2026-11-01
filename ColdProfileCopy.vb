@@ -12,6 +12,11 @@ Imports System.Threading.Tasks
 ''' </summary>
 Friend NotInheritable Class ColdProfileCopy
 
+    Private Class CopyItem
+        Public Property SourcePath As String
+        Public Property DestinationPath As String
+    End Class
+
     Public Shared ReadOnly SkipFolderNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
         "Cache",
         "Code Cache",
@@ -48,6 +53,39 @@ Friend NotInheritable Class ColdProfileCopy
         If Not Directory.Exists(directoryPath) Then Return False
         ' Conservatively preserve ANY existing state, even a small/empty-looking database.
         Return Directory.EnumerateFileSystemEntries(directoryPath).Any()
+    End Function
+
+    ''' <summary>
+    ''' Verifica se la cartella sorgente contiene file essenziali modificati dopo la data di baseline del target master.
+    ''' Se non vi sono modifiche, la sincronizzazione via rete può essere saltata completamente (0 ms di I/O).
+    ''' </summary>
+    Public Shared Function HasModifications(source As String, target As String) As Boolean
+        If Not Directory.Exists(source) Then Return False
+        If Not Directory.Exists(target) Then Return True
+
+        Dim baselineUtc = Directory.GetLastWriteTimeUtc(target)
+        Dim previous = target & ".previous"
+        If Directory.Exists(previous) Then
+            Dim prevTime = Directory.GetLastWriteTimeUtc(previous)
+            If prevTime > baselineUtc Then baselineUtc = prevTime
+        End If
+
+        Return CheckDirectoryModified(source, "", baselineUtc)
+    End Function
+
+    Private Shared Function CheckDirectoryModified(currentDir As String, relative As String, baselineUtc As DateTime) As Boolean
+        If Not Directory.Exists(currentDir) Then Return False
+        For Each entry In Directory.EnumerateFileSystemEntries(currentDir)
+            Dim name = Path.GetFileName(entry)
+            Dim childRelative = If(relative.Length = 0, name, relative & "/" & name)
+            If ShouldSkip(childRelative) Then Continue For
+            If Directory.Exists(entry) Then
+                If CheckDirectoryModified(entry, childRelative, baselineUtc) Then Return True
+            Else
+                If File.GetLastWriteTimeUtc(entry) > baselineUtc Then Return True
+            End If
+        Next
+        Return False
     End Function
 
     Public Shared Sub RecoverInterruptedPublication(target As String)
@@ -112,8 +150,7 @@ Friend NotInheritable Class ColdProfileCopy
             ' Do not touch the old destination until EVERY required file has been copied.
             ' On network/SMB shares, avoid synchronous in-place recursive deletion of .previous
             ' before moving, as it can fail with ERROR_ACCESS_DENIED or stall.
-            ' Rename .previous to .trash-<guid> instantly, rotate target -> previous and incoming -> target,
-            ' then delete the trash directory.
+            ' Rename .previous to .trash-<guid> instantly, rotate target -> previous and incoming -> target.
             If Directory.Exists(previous) Then
                 RejectReparsePoint(previous)
                 trash = target & ".trash-" & Guid.NewGuid().ToString("N")
@@ -129,12 +166,17 @@ Friend NotInheritable Class ColdProfileCopy
                 Throw
             End Try
 
-            If trash IsNot Nothing AndAlso Directory.Exists(trash) Then
-                Try
-                    Directory.Delete(trash, recursive:=True)
-                Catch
-                    ' Leftover .trash-* directory is never selected as a profile and can be purged asynchronously.
-                End Try
+            ' Bonifica asincrona non bloccante della cartella .trash-* per non trattenere la procedura di uscita
+            If trash IsNot Nothing Then
+                Dim trashToPurge = trash
+                Task.Run(Sub()
+                    Try
+                        If Directory.Exists(trashToPurge) Then
+                            Directory.Delete(trashToPurge, recursive:=True)
+                        End If
+                    Catch
+                    End Try
+                End Sub)
             End If
 
             ' Retain .previous for manual recovery; it is not proof of a valid login.
@@ -154,24 +196,40 @@ Friend NotInheritable Class ColdProfileCopy
     End Function
 
     Private Shared Sub CopyTree(source As String, target As String, relative As String)
-        RejectReparsePoint(source)
-        Directory.CreateDirectory(target)
-        For Each entry In Directory.EnumerateFileSystemEntries(source)
+        Dim directoriesToCreate As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        Dim filesToCopy As New List(Of CopyItem)()
+
+        CollectEntries(source, target, relative, directoriesToCreate, filesToCopy)
+
+        ' Pre-creazione di tutte le cartelle della gerarchia nel target incoming
+        For Each folderPath As String In directoriesToCreate
+            Directory.CreateDirectory(folderPath)
+        Next
+
+        ' Copia parallela con grado di concorrenza limitato (4 copie concorrenti per account).
+        ' L'uso di File.Copy sfrutta direttamente Win32 CopyFileEx, che garantisce conservazione nativa
+        ' dei timestamp ed eccellente rendimento su condivisioni SMB senza roundtrip I/O separati.
+        Dim po As New ParallelOptions With {.MaxDegreeOfParallelism = 4}
+        Parallel.ForEach(filesToCopy, po, Sub(item)
+            File.Copy(item.SourcePath, item.DestinationPath, overwrite:=True)
+        End Sub)
+    End Sub
+
+    Private Shared Sub CollectEntries(sourceDir As String, targetDir As String, relative As String,
+                                      directoriesToCreate As HashSet(Of String), filesToCopy As List(Of CopyItem))
+        RejectReparsePoint(sourceDir)
+        directoriesToCreate.Add(targetDir)
+
+        For Each entry In Directory.EnumerateFileSystemEntries(sourceDir)
             Dim name = Path.GetFileName(entry)
             Dim childRelative = If(relative.Length = 0, name, relative & "/" & name)
             If ShouldSkip(childRelative) Then Continue For
             RejectReparsePoint(entry)
-            Dim destination = Path.Combine(target, name)
+            Dim destination = Path.Combine(targetDir, name)
             If Directory.Exists(entry) Then
-                CopyTree(entry, destination, childRelative)
+                CollectEntries(entry, destination, childRelative, directoriesToCreate, filesToCopy)
             Else
-                ' Do not silently read a database that another process is writing.
-                Using input As New FileStream(entry, FileMode.Open, FileAccess.Read, FileShare.Read)
-                    Using output As New FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None)
-                        input.CopyTo(output)
-                    End Using
-                End Using
-                File.SetLastWriteTimeUtc(destination, File.GetLastWriteTimeUtc(entry))
+                filesToCopy.Add(New CopyItem With {.SourcePath = entry, .DestinationPath = destination})
             End If
         Next
     End Sub

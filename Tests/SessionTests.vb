@@ -3,14 +3,9 @@ Imports System.Collections.Generic
 Imports System.IO
 Imports System.Threading.Tasks
 
-' Test doubles for the two non-I/O dependencies. No real HidaChat profile is opened.
+' Test doubles for the non-I/O dependencies. No real HidaChat profile is opened.
 Public Class AppAccounts
     Public Shared Property SharedDataDirectory As String
-End Class
-Public Class AppLogger
-    Public Shared Sub LogSync(message As String)
-        Console.WriteLine(message)
-    End Sub
 End Class
 
 Module SessionTests
@@ -882,5 +877,52 @@ Module SessionTests
         Finally
             Try : Directory.Delete(testStartupDir, True) : Catch : End Try
         End Try
+
+        ' Test ColdProfileCopy.HasModifications differential detection (TODO #108)
+        Dim testModSource = Path.Combine(Path.GetTempPath(), "HidaChat_ModTest_Src_" & Guid.NewGuid().ToString("N"))
+        Dim testModTarget = Path.Combine(Path.GetTempPath(), "HidaChat_ModTest_Dst_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(testModSource)
+        Try
+            ' 1. Missing target returns True (first publish)
+            Check(ColdProfileCopy.HasModifications(testModSource, testModTarget), "HasModifications returns True when target does not exist")
+
+            ' Create target directory and write baseline file
+            Directory.CreateDirectory(testModTarget)
+            WriteFile(testModTarget, "Cookies", "session_v1")
+            WriteFile(testModSource, "Cookies", "session_v1")
+
+            ' Align timestamps so source is NOT newer than target
+            Dim baseTime = DateTime.UtcNow.AddMinutes(-5)
+            File.SetLastWriteTimeUtc(Path.Combine(testModTarget, "Cookies"), baseTime)
+            File.SetLastWriteTimeUtc(Path.Combine(testModSource, "Cookies"), baseTime)
+            Directory.SetLastWriteTimeUtc(testModTarget, baseTime)
+
+            ' 2. Identical unmodified source returns False (zero network I/O skip)
+            Check(Not ColdProfileCopy.HasModifications(testModSource, testModTarget), "HasModifications returns False when source files have not been modified")
+
+            ' 3. Modified source file returns True
+            File.SetLastWriteTimeUtc(Path.Combine(testModSource, "Cookies"), DateTime.UtcNow)
+            Check(ColdProfileCopy.HasModifications(testModSource, testModTarget), "HasModifications returns True when essential source file timestamp is newer")
+
+            ' 4. Reset source timestamp to base, but touch a SKIPPED folder (e.g. Cache) -> must still return False
+            File.SetLastWriteTimeUtc(Path.Combine(testModSource, "Cookies"), baseTime)
+            Dim srcCacheDir = Path.Combine(testModSource, "Cache")
+            Directory.CreateDirectory(srcCacheDir)
+            WriteFile(srcCacheDir, "data_0", "cached_blob")
+            File.SetLastWriteTimeUtc(Path.Combine(srcCacheDir, "data_0"), DateTime.UtcNow)
+            Check(Not ColdProfileCopy.HasModifications(testModSource, testModTarget), "HasModifications ignores modifications inside skipped Cache folders")
+        Finally
+            Try : Directory.Delete(testModSource, True) : Catch : End Try
+            Try : Directory.Delete(testModTarget, True) : Catch : End Try
+        End Try
+
+        ' Test AppLogger batched queue and flush (TODO #108)
+        Dim testLogMsg = "Unit test log entry " & Guid.NewGuid().ToString("N")
+        AppLogger.LogSync(testLogMsg)
+        AppLogger.FlushNow()
+        Dim syncLogFile = Path.Combine(AppLogger.LogsDirectory, "sync.log")
+        Check(File.Exists(syncLogFile), "AppLogger.FlushNow created sync.log file in data/logs")
+        Dim logContent = File.ReadAllText(syncLogFile)
+        Check(logContent.Contains(testLogMsg), "AppLogger wrote batched log message to sync.log")
     End Sub
 End Module

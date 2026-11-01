@@ -148,9 +148,18 @@ Public Class NetworkProfileSync
         Await accountLock.WaitAsync()
         Try
             Dim source = GetLocalStagingProfileDir(accountId)
+            Dim master = GetMasterProfileDir(accountId)
             If Not ColdProfileCopy.HasData(source) Then Return False
+
+            ' Controllo differenziale rapido su disco locale: se il profilo non ha subito modifiche
+            ' dall'ultimo export, salta l'intera copia di rete
+            If Not ColdProfileCopy.HasModifications(source, master) Then
+                AppLogger.LogSync($"[EXPORT_UNCHANGED] account={accountId}; no local changes, network sync skipped.")
+                Return True
+            End If
+
             AppLogger.LogSync($"[COLD_EXPORT] account={accountId}; browser exit confirmed.")
-            Return Await ColdProfileCopy.PublishAsync(source, GetMasterProfileDir(accountId))
+            Return Await ColdProfileCopy.PublishAsync(source, master)
         Finally
             accountLock.Release()
         End Try
