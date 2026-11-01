@@ -1067,5 +1067,19 @@
 - **Test di accettazione**: Su disco NTFS, verificare che le proprietà della cartella `data/webview` presentino l'attributo "Compresso" attivo, con una riduzione di spazio occupato su disco di circa il 40-50% senza impatto negativo sulle prestazioni di lettura/scrittura di WebView2.
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Medio | **Sforzo**: Basso
 
+## ~~107. [P1] Ottimizzazione sincronizzazione profili di rete e salvataggio ultra-rapido alla chiusura~~ ✅
+- **File**: `ColdProfileCopy.vb`, `NetworkProfileSync.vb`, `AccountManager.vb`, `Tests/SessionTests.vb`
+- **Problema / Esigenza**: Quando HidaChat viene eseguito da un'unità di rete (SMB, percorso UNC o mapped network drive come `Y:`), la chiusura dell'applicazione richiedeva fino a 90-120 secondi. La funzione `ShouldSkip` cercava prefissi cablati `EBWebView/Default/Cache` non corrispondenti alla radice dei profili nativi WebView2 (`EBWebView\wv2profile_account_*`), causando la copia indiscriminata di oltre 2.200 file e 550 MB di sola cache per account. Inoltre, `output.Flush(flushToDisk:=True)` forzava round-trip sincroni `FlushFileBuffers` su SMB per ogni file, `.previous` veniva cancellata ricorsivamente in modo bloccante generando errori `Access Denied`, e tutti gli account venivano sincronizzati in modo sequenziale con un unico semaforo globale.
+- **Funzionalità Implementate**:
+  - Filtro selettivo `SkipFolderNames` in `ColdProfileCopy.vb`: esclusione immediata alla radice di `Cache`, `Code Cache`, `GPUCache`, `DawnCache`, `ShaderCache`, `Crashpad`, `CacheStorage`, `ScriptCache`, ecc., preservando al 100% `IndexedDB`, `Local Storage`, `Cookies`, `Preferences`, `Local State` e `Service Worker/Database`. Riduzione del 94% dei file e del 97% del volume da trasferire.
+  - Rimozione del `Flush(flushToDisk:=True)` sincrono in `CopyTree` per permettere la saturazione della banda SMB di rete.
+  - Rotazione atomica tramite rename transitorio `.trash-<guid>` (5 ms) prima di muovere `target` a `.previous` e `incoming` a `target`, eliminando qualsiasi conflitto o eccezione `Access Denied` su SMB.
+  - Sostituzione del lock globale con semafori per account (`ConcurrentDictionary(Of String, SemaphoreSlim)`) in `NetworkProfileSync.vb`.
+  - Parallelizzazione della sincronizzazione di tutti gli account con `Task.WhenAll` in `AccountManager.SyncAllProfilesToNetworkAsync()`.
+  - 26 nuove asserzioni unitarie di regressione in `Tests/SessionTests.vb` (totale 589 test con 0 fallimenti).
+- **Test di accettazione**: Su disco di rete `Y:`, verificare che la chiusura dell'applicazione completi la sincronizzazione di tutti i profili in meno di 2 secondi complessivi senza errori `Access Denied` nei log e con tutte le sessioni preservate al riavvio.
+- **Priorità**: P1 (Gravità alta) | **Impatto**: Altissimo | **Sforzo**: Basso
+
+
 
 

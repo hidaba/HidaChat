@@ -764,8 +764,10 @@ Public Class AccountManager
 
     Public Async Function SyncAllProfilesToNetworkAsync(Optional isPeriodic As Boolean = False) As Task
         If isPeriodic Then Return
-        For Each acc In _accounts.ToList()
-            If Not acc.UsesNetworkStaging Then Continue For
+        Dim activeNetworkAccounts = _accounts.ToList().Where(Function(a) a.UsesNetworkStaging).ToList()
+        If activeNetworkAccounts.Count = 0 Then Return
+
+        Dim tasks = activeNetworkAccounts.Select(Async Function(acc)
             Try
                 If acc.BrowserProfileReleased Then
                     Dim saved = Await NetworkProfileSync.SyncLocalStagingToMasterAsync(acc.Id, browserExited:=True)
@@ -778,7 +780,9 @@ Public Class AccountManager
                 ' copy is attempted; the OS releases any remaining lease on process exit.
                 If acc.CanReleaseNetworkLease Then NetworkProfileSync.ReleaseSessionLock(acc.Id)
             End Try
-        Next
+        End Function).ToArray()
+
+        Await Task.WhenAll(tasks)
     End Function
 
     ''' <summary>

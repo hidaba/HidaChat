@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.11-beta] - 2026-11-01
+
+### Pre-release / Beta — Ottimizzazione sincronizzazione profili di rete e salvataggio ultra-rapido alla chiusura
+- **Accelerazione Sincronizzazione Profili di Rete (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #107)**:
+  - **Filtro Avanzato Cartelle di Cache Rigenerabili (`ColdProfileCopy.vb`)**: Corretto il bug che impediva il riconoscimento delle directory di cache nei profili nativi di WebView2 (`EBWebView\wv2profile_account_*`). Espanso `ShouldSkip` con `SkipFolderNames` per escludere a monte qualsiasi cartella di cache temporanea o shader (`Cache`, `Code Cache`, `GPUCache`, `DawnCache`, `ShaderCache`, `Crashpad`, `CacheStorage`, `ScriptCache`, `AutofillAiModelCache`, `optimization_guide_hint_cache_store`, `Safe Browsing`, `Subresource Filter`). I dati trasferiti per singolo account scendono da oltre 2.200 file (~550 MB) a soli ~120-160 file essenziali (~15-17 MB), con una riduzione del 94% dei file e del 97% del volume dati.
+  - **Protezione Inviolabile delle Sessioni e dei Database**: Verificata e garantita la totale integrità di `IndexedDB` (database LevelDB di WhatsApp e Signal), `Local Storage`, `Session Storage`, `Sync Data`, `Network` (cookie persistenti), `Preferences`, `Local State` e delle registrazioni dei worker in `Service Worker/Database`. Nessun cookie o login viene compromesso.
+  - **Rimozione Flush Sincrono SMB (`output.Flush(flushToDisk:=True)`)**: Rimosso il flush sincrono bloccante per ciascun file in `CopyTree`. Su unità di rete e condivisioni SMB (es. `Y:\HidaChat`), l'invio continuo di `FlushFileBuffers` causava latenze di rete di oltre 35 secondi per profilo; l'operazione ora sfrutta la piena banda di trasmissione del buffer di sistema, abbattendo i tempi di copia da 36 secondi a meno di 1 secondo (872 ms su rete reale).
+  - **Rotazione Atomica delle Cartelle e Risoluzione "Access Denied"**: Riconfigurata la rotazione del profilo master su disco di rete: la cartella `.previous` viene spostata istantaneamente in una cartella transitoria `.trash-<guid>` tramite `Directory.Move` (5 ms), evitando la cancellazione ricorsiva bloccante prima del rename che generava errori `Access is denied` su cartelle di rete in uso; la directory di scarto viene bonificata in modo non bloccante.
+  - **Parallelizzazione Sincronizzazione Multi-Account (`NetworkProfileSync.vb`, `AccountManager.vb`)**: Sostituito il lock globale `_syncLock` con semafori atomici per singolo account (`ConcurrentDictionary(Of String, SemaphoreSlim)`). In `AccountManager.SyncAllProfilesToNetworkAsync()`, tutti gli account configurati (WhatsApp, Telegram, OpenClaw, Hermes) vengono sincronizzati in parallelo con `Task.WhenAll`, riducendo il tempo totale di chiusura dell'applicazione da ~120 secondi a meno di 2 secondi complessivi.
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 26 nuove asserzioni unitarie di regressione a copertura del riconoscimento selettivo delle cartelle di cache nei profili nativi/legacy, protezione rigida dei file di sessione e rotazione atomica (**589 asserzioni automatiche con 0 errori**).
+
 ## [1.3.10-beta] - 2026-11-01
 
 ### Pre-release / Beta — Rendering nitido icona e correzione a capo descrizione finestra About

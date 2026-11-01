@@ -16,7 +16,11 @@ Public Class NetworkProfileSync
     Private Shared ReadOnly _leaseGate As New Object()
     Private Shared ReadOnly _leases As New Dictionary(Of String, FileStream)(StringComparer.OrdinalIgnoreCase)
 
-    Private Shared ReadOnly _syncLock As New System.Threading.SemaphoreSlim(1, 1)
+    Private Shared ReadOnly _accountLocks As New System.Collections.Concurrent.ConcurrentDictionary(Of String, System.Threading.SemaphoreSlim)(StringComparer.OrdinalIgnoreCase)
+
+    Private Shared Function GetAccountLock(accountId As String) As System.Threading.SemaphoreSlim
+        Return _accountLocks.GetOrAdd(accountId, Function(k) New System.Threading.SemaphoreSlim(1, 1))
+    End Function
 
     Private Shared ReadOnly _isRunningOnNetwork As Lazy(Of Boolean) = New Lazy(Of Boolean)(Function()
         Return IsNetworkPath(AppDomain.CurrentDomain.BaseDirectory)
@@ -111,7 +115,8 @@ Public Class NetworkProfileSync
     ''' </summary>
     Public Shared Async Function SyncMasterToLocalStagingAsync(accountId As String) As Task(Of Boolean)
         If Not HasSessionLock(accountId) Then Return False
-        Await _syncLock.WaitAsync()
+        Dim accountLock = GetAccountLock(accountId)
+        Await accountLock.WaitAsync()
         Try
             Dim staging = GetLocalStagingProfileDir(accountId)
             ColdProfileCopy.RecoverInterruptedPublication(staging)
@@ -125,7 +130,7 @@ Public Class NetworkProfileSync
             AppLogger.LogSync($"[COLD_IMPORT_FAILED] account={accountId}: {ex.Message}")
             Return False
         Finally
-            _syncLock.Release()
+            accountLock.Release()
         End Try
     End Function
 
@@ -139,14 +144,15 @@ Public Class NetworkProfileSync
             AppLogger.LogSync($"[LIVE_COPY_REFUSED] account={accountId}, periodic={isPeriodic}, exited={browserExited}")
             Return False
         End If
-        Await _syncLock.WaitAsync()
+        Dim accountLock = GetAccountLock(accountId)
+        Await accountLock.WaitAsync()
         Try
             Dim source = GetLocalStagingProfileDir(accountId)
             If Not ColdProfileCopy.HasData(source) Then Return False
             AppLogger.LogSync($"[COLD_EXPORT] account={accountId}; browser exit confirmed.")
             Return Await ColdProfileCopy.PublishAsync(source, GetMasterProfileDir(accountId))
         Finally
-            _syncLock.Release()
+            accountLock.Release()
         End Try
     End Function
 
