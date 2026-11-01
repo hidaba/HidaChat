@@ -85,11 +85,13 @@ Public Class AboutWindow
             AboutBorder.BorderBrush = BrushCache.GetBrush("#2f3e46")
             TitleBar.Background = BrushCache.GetBrush("#202c33")
             TxtTitle.Foreground = BrushCache.GetBrush("#e9edef")
+            TxtDescription.Foreground = BrushCache.GetBrush("#aebac1")
         Else
             AboutBorder.Background = BrushCache.GetBrush("#f0f2f5")
             AboutBorder.BorderBrush = BrushCache.GetBrush("#d1d7db")
             TitleBar.Background = BrushCache.GetBrush("#e9edef")
             TxtTitle.Foreground = BrushCache.GetBrush("#111b21")
+            TxtDescription.Foreground = BrushCache.GetBrush("#54656f")
             TxtAuthor.Foreground = BrushCache.GetBrush("#111b21")
             TxtReleaseDate.Foreground = BrushCache.GetBrush("#111b21")
             TxtLicense.Foreground = BrushCache.GetBrush("#111b21")

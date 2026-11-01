@@ -877,24 +877,22 @@
 - **Test di accettazione**: Cambiare la lingua dell'applicazione in inglese o francese; verificare che tutti i popup di `UpdateChecker.vb` appaiano tradotti nella lingua scelta.
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
 
-## 100. [P3] Dichiarazione di variabile locale non utilizzata subDirs in UpdateChecker.vb
-- **File**: `UpdateChecker.vb`
-- **Problema / Esigenza**: In `UpdateChecker.vb` è presente (o residua) la riga `Dim subDirs = Directory.GetDirectories(tempDir)` non utilizzata, che genera warning del compilatore e provoca un'inutile operazione di I/O sul filesystem durante l'estrazione.
-- **Fix da implementare**: Rimuovere la riga di dichiarazione orfana `Dim subDirs = ...` dal codice di `UpdateChecker.vb`.
-- **Test di accettazione**: Compilazione pulita senza warning relativi a variabili non utilizzate nel file.
+## ~~100. [P3] Dichiarazione di variabile locale non utilizzata subDirs in UpdateChecker.vb~~ ✅
+- **File**: UpdateChecker.vb
+- **Problema / Esigenza**: In UpdateChecker.vb era presente la riga Dim subDirs = Directory.GetDirectories(tempDir) non utilizzata, che generava warning del compilatore e provocava un'inutile operazione di I/O sul filesystem durante l'estrazione.
+- **Implementazione**: Rimossa completamente la dichiarazione orfana subDirs nel flusso di estrazione degli aggiornamenti, adottando la scansione mirata dell'eseguibile tramite Directory.GetFiles(tempDir, "HidaChat.exe", SearchOption.AllDirectories). Compilazione verificata con zero avvisi (0 warning) e zero errori.
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Minimo
 
-## 101. [P3] Finestra About: icona sbiadita e descrizione troncata senza a capo
-- **File**: `AboutWindow.xaml`
+## ~~101. [P3] Finestra About: icona sbiadita e descrizione troncata senza a capo~~ ✅
+- **File**: AboutWindow.xaml, AboutWindow.xaml.vb
 - **Problema / Esigenza**:
-  1. L'icona dell'applicazione nell'header della finestra About (`<Image Source="images/icon.ico" ... />`) risulta sbiadita o a bassa fedeltà/risoluzione a causa del caricamento diretto del file `.ico` senza opzioni di rendering avanzate (o mancato impiego dell'asset PNG nitido `images/icon.png` e proprietà `RenderOptions.BitmapScalingMode="HighQuality"`).
-  2. Il testo descrittivo dell'applicazione (`TxtDescription`, *"Client desktop multi-account portabile e leggero..."*) viene tagliato orizzontalmente e non va a capo: trovandosi all'interno di uno `StackPanel` orizzontale privo di vincoli di larghezza, la proprietà `TextWrapping="Wrap"` non limita la dimensione e il testo fuoriesce dal bordo visibile della finestra.
-- **Fix da implementare**:
-  - Utilizzare la sorgente immagine ad alta definizione (es. `images/icon.png`) oppure impostare `RenderOptions.BitmapScalingMode="HighQuality"` e `UseLayoutRounding="True"` sull'icona per eliminare la resa sbiadita/sfocata.
-  - Sostituire lo `StackPanel` orizzontale contenitore con un layout che vincoli la larghezza (es. `Grid` con colonna `Auto` per l'icona e colonna `*` per i testi, oppure `DockPanel` / `MaxWidth`), consentendo a `TxtDescription` di andare a capo correttamente (`TextWrapping="Wrap"`) all'interno dell'area visibile della finestra.
-- **Test di accettazione**: Aprire la finestra "Informazioni su HidaChat": verificare che l'icona appaia nitida e con colori corretti e che il testo descrittivo vada a capo automaticamente senza essere troncato ai margini.
+  1. L'icona dell'applicazione nell'header della finestra About risultava sbiadita a causa del caricamento diretto del file .ico senza opzioni di scaling e rendering ad alta fedeltà.
+  2. Il testo descrittivo dell'applicazione (TxtDescription) veniva tagliato orizzontalmente senza andare a capo poiché inserito in uno StackPanel orizzontale privo di vincoli di larghezza (AvailableSize.Width = Infinity).
+- **Implementazione**:
+  - Aggiornato AboutWindow.xaml impostando l'icona con la sorgente ad alta risoluzione images/icon.png, corredata di RenderOptions.BitmapScalingMode="HighQuality", SnapsToDevicePixels="True" e UseLayoutRounding="True" per una resa visiva perfetta e nitida.
+  - Sostituito lo StackPanel orizzontale con una Grid a 2 colonne (Auto per l'icona e * per il contenitore testi), garantendo a TxtDescription una larghezza delimitata su cui applicare TextWrapping="Wrap" per mandare a capo fluidamente il testo descrittivo in tutte le lingue supportate (EN, IT, FR, ES, DE) senza alcun troncamento ai margini.
+  - Rifinito ApplyTheme() in AboutWindow.xaml.vb con gestione dinamica del Foreground di TxtDescription (#aebac1 in Dark Mode e #54656f in Light Mode).
 - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso-Medio | **Sforzo**: Basso
-
 ## ~~102. [P2] Limitare la cache WebView2 alla fonte tramite AdditionalBrowserArguments~~ ✅
 - **File**: BrowserArgumentsPolicy.vb, AppAccounts.vb, SettingsController.vb, SettingsWindow.xaml, SettingsWindow.xaml.vb, Tests/SessionTests.vb
 - **Descrizione**: Implementata la limitazione hard limit della cache su disco e disabilitazione di componenti Chromium/Edge superflui via AdditionalBrowserArguments.

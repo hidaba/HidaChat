@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.10-beta] - 2026-11-01
+
+### Pre-release / Beta — Rendering nitido icona e correzione a capo descrizione finestra About
+- **Miglioramento Rendering e Layout Finestra About (`AboutWindow.xaml`, `AboutWindow.xaml.vb` — TODO #101)**:
+  - **Icona Nitida ad Alta Risoluzione**: Sostituita la sorgente dell'icona nell'header con `images/icon.png`, integrando `RenderOptions.BitmapScalingMode="HighQuality"`, `SnapsToDevicePixels="True"` e `UseLayoutRounding="True"` per eliminare ogni sfocatura e artefatto di scaling.
+  - **Layout Responsivo con Vincolo di Larghezza**: Sostituito lo `StackPanel` orizzontale privo di vincoli di misura con un layout `Grid` a due colonne (`Auto` per l'icona e `*` per i testi), consentendo al testo descrittivo dell'applicazione (`TxtDescription`) di andare a capo correttamente (`TextWrapping="Wrap"`) senza fuoriuscire o essere troncato dal bordo della finestra in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+  - **Rifinitura Tema Grafico**: Integrato l'aggiornamento dinamico del colore Foreground di `TxtDescription` in `AboutWindow.xaml.vb` (`#aebac1` in Dark Mode e `#54656f` in Light Mode).
+- **Pulizia Variabili Non Utilizzate ed Estrazione Aggiornamenti (`UpdateChecker.vb` — TODO #100)**:
+  - Verificata la completa rimozione della variabile orfana `subDirs` nel flusso di decompressione degli aggiornamenti a favore della ricerca ricorsiva `Directory.GetFiles(...)`, garantendo compilazione pulita con zero avvisi (0 warning) e zero errori di build.
+
 ## [1.3.9-beta] - 2026-10-31
 
 ### Pre-release / Beta — Routine di pulizia automatica cartelle e file spazzatura all'avvio
