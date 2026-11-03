@@ -452,15 +452,19 @@ Public Class UpdateChecker
         Using doc As JsonDocument = JsonDocument.Parse(jsonText)
             Dim root = doc.RootElement
 
-            ' Se canale beta, l'endpoint restituisce un array di release ordinale per data
+            ' Se canale beta, l'endpoint restituisce un array di release:
+            ' Esamina tutte le release disponibili e seleziona quella con la versione SemVer piu' recente
             If root.ValueKind = JsonValueKind.Array Then
+                Dim newest As ReleaseInfo = Nothing
                 For Each rel In root.EnumerateArray()
                     Dim info = ParseRelease(rel)
                     If info IsNot Nothing AndAlso Not String.IsNullOrEmpty(info.DownloadUrl) Then
-                        Return info
+                        If newest Is Nothing OrElse IsNewerVersion(info.Version, newest.Version) Then
+                            newest = info
+                        End If
                     End If
                 Next
-                Return Nothing
+                Return newest
             ElseIf root.ValueKind = JsonValueKind.Object Then
                 Dim info = ParseRelease(root)
                 If info IsNot Nothing AndAlso Not String.IsNullOrEmpty(info.DownloadUrl) Then
