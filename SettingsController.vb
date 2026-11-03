@@ -1049,6 +1049,16 @@ Public Class SettingsController
             End If
             Await WriteSettingsAsync(settings)
         End If
+
+        ' Migrazione canale aggiornamenti release 1.4.0:
+        ' Se il client ha marcato il canale beta, lo disattiviamo e salviamo la configurazione.
+        hadBetaChannelMarked = _useBetaChannel
+        If SettingsMigration.ApplyBetaChannelReset140(settings, _useBetaChannel) Then
+            If hadBetaChannelMarked Then
+                AppLogger.LogApp("[SETTINGS_MIGRATION] Release 1.4.0: Rimosso canale di aggiornamento beta precedentemente marcato dal client (ripristinato canale stabile).")
+            End If
+            Await WriteSettingsAsync(settings)
+        End If
         _translateMessageButton = GetBoolSetting(settings, "translateMessageButton", GetBoolSetting(settings, "enableHoverTranslation", True))
         _fullPageTranslation = GetBoolSetting(settings, "fullPageTranslation", GetBoolSetting(settings, "enableFullPageTranslation", False))
         _showTranslateAllMessagesButton = GetBoolSetting(settings, "showTranslateAllMessagesButton", True)

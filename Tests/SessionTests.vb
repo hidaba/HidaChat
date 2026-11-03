@@ -405,6 +405,20 @@ Module SessionTests
         Dim changedNull = SettingsMigration.ApplyBetaChannelReset130(Nothing, useBetaNull)
         Check(Not changedNull, "ApplyBetaChannelReset130 safely returns False on null settings")
         Check(useBetaNull, "useBetaChannel variable unaffected on null settings")
+
+        ' 7. ApplyBetaChannelReset140 for 1.4.0 stable release
+        Dim settingsWithBeta140 As New Dictionary(Of String, Object) From {
+            {"useBetaChannel", True},
+            {"theme", "Dark"}
+        }
+        Dim useBeta140 = True
+        Dim changed140 = SettingsMigration.ApplyBetaChannelReset140(settingsWithBeta140, useBeta140)
+        Check(changed140, "ApplyBetaChannelReset140 returns True when migration is applied")
+        Check(Not useBeta140, "useBetaChannel is set to False for 1.4.0 stable")
+        Check(TypeOf settingsWithBeta140("useBetaChannel") Is Boolean AndAlso Not CBool(settingsWithBeta140("useBetaChannel")), "settings('useBetaChannel') is False")
+        Check(TypeOf settingsWithBeta140("betaReset140Done") Is Boolean AndAlso CBool(settingsWithBeta140("betaReset140Done")), "settings('betaReset140Done') is recorded as True")
+        Dim changed140Subsequent = SettingsMigration.ApplyBetaChannelReset140(settingsWithBeta140, useBeta140)
+        Check(Not changed140Subsequent, "ApplyBetaChannelReset140 returns False when already executed")
     End Sub
 
     Private Sub TestBrowserArgumentsPolicy()

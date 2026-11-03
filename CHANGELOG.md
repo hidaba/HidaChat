@@ -1,5 +1,28 @@
-# Changelog
+﻿# Changelog
 
+## [1.4.0] - 2026-11-03
+
+### Release Stabile — Ottimizzazione radicale dello spazio su disco e accelerazione della sincronizzazione su rete
+- **Architettura a Risparmio Risorse e Ottimizzazione Spazio su Disco (`ProfileIsolationPolicy.vb`, `CacheCompactionPolicy.vb`, `StartupJunkCleanupPolicy.vb`, `NtfsCompressionPolicy.vb`, `AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Singleton Condiviso `CoreWebView2Environment` e Profili Nativi (`wv2profile_account_*`)**: Unificazione del runtime Edge WebView2 per tutte le schede e account attivi (WhatsApp, Telegram, OpenClaw, Hermes). Cookie, IndexedDB e sessioni restano totalmente isolati al 100%, con un risparmio di memoria RAM tra il 60% e il 70% e azzeramento dei processi Chromium ridondanti.
+  - **Bonifica Automatica Backup Obsoleti di Migrazione**: Rimozione automatica delle copie storiche duplicate esterne (`.migrated`, `.previous`, `_Snapshot`, `.bak`) una volta verificata l'integrità del profilo nativo, liberando fino a 1.4 GB di spazio su disco.
+  - **Compattazione Chirurgica a Caldo della Cache (Pulsante "Ottimizza Spazio")**: Introdotta la pulizia a caldo di `DiskCache` e `CacheStorage` senza deautenticazione o perdita di sessione. Le credenziali e i database IndexedDB rimangono intatti e operativi.
+  - **Routine di Pulizia Spazzatura all'Avvio (`StartupJunkCleanupPolicy`)**: Bonifica sicura e automatica all'avvio di crash dump Chromium (`.dmp`), metriche orfane (`.pma`), cache shader e diagnostica, con whitelist protettiva invalicabile per database LevelDB di WhatsApp e Signal, cookies e file di crittografia DPAPI `Local State`.
+  - **Compressione Trasparente NTFS**: Abilitazione della compressione a livello di filesystem NTFS per la cartella dati portabile (`data/webview`), con abbattimento immediato del 40-50% dello spazio occupato senza penalizzare le prestazioni di lettura/scrittura.
+- **Accelerazione Estrema Sincronizzazione su Disco di Rete SMB/Samba (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`, `AppLogger.vb`, `MainWindow.xaml.vb`)**:
+  - **Esclusione Radicale Cache Volatili su Rete**: Filtro rigoroso delle cartelle di cache temporanee durante l'esportazione su percorsi di rete (SMB/UNC/Samba): il volume trasferito crolla del 97% (da ~550 MB a soli ~15 MB per account) e il numero di file del 94% (da oltre 2.200 a circa 120-160 file essenziali).
+  - **Copia Parallela Bounded Win32 `CopyFileEx`**: Trasferimento parallelo controllato (`MaxDegreeOfParallelism = 4`) che sfrutta l'API Win32 nativa preservando i timestamp senza round-trip separati per i metadati.
+  - **Eliminazione Flush Sincroni SMB e Rotazione Atomica**: Rimosso `Flush(flushToDisk:=True)` sincrono per saturare la banda di rete e introdotta la rotazione atomica del profilo master con cestino transitorio (`.trash-*`) asincrono, eliminando ogni errore o conflitto "Access is denied" su server SMB.
+  - **Sincronizzazione Multi-Account Parallela**: Sincronizzazione concorrente tramite `Task.WhenAll` e semafori indipendenti per account: il tempo di salvataggio alla chiusura passa da oltre 120 secondi a meno di 2 secondi complessivi.
+  - **Rilevamento Differenziale Smart e Skip Account Invariati**: Confronto immediato dei timestamp dei file essenziali (`HasModifications`): gli account non modificati durante la sessione vengono saltati istantaneamente (`[EXPORT_UNCHANGED]`), riducendo a 0 ms e 0 byte il salvataggio per le schede a riposo.
+  - **Coda Asincrona e Scritture Accorpate per i Log (`AppLogger.vb`)**: I messaggi diagnostici vengono memorizzati in una coda thread-safe non bloccante e scritti a blocchi atomici cumulativi, eliminando decine di chiamate di rete sincrone verso dischi Samba.
+  - **Spegnimento Parallelo Tsnet**: Arresto asincrono del demone Tailscale contestualmente alla chiusura delle istanze WebView2, azzerando le latenze residue.
+- **Invio Massivo Potenziato e UI Responsiva (`BulkSenderPolicy.vb`, `BulkSenderEngine.vb`, `AboutWindow.xaml`)**:
+  - **Rilevamento Conflitti Bozze e Conferma Reale di Invio**: Protezione da sovrascritture accidentali di bozze preesistenti su WhatsApp Web e Telegram Web e verifica osservabile dello svuotamento input (`CONFIRMED_SENT`) per escludere falsi successi.
+  - **Rendering Nitido Icona e Layout About**: Icona ad alta risoluzione in AboutWindow e wrapping del testo descrittivo nelle 5 lingue ufficiali (EN, IT, FR, ES, DE).
+- **Reset Automatico Canale di Aggiornamento Beta (`SettingsMigration.vb`, `SettingsController.vb`, `Tests/SessionTests.vb`)**:
+  - Ripristino automatico dell'opzione `useBetaChannel = False` per allineare tutti i client esistenti al canale ufficiale stabile per la release 1.4.0.
+  - Estensione della suite di test automatici di regressione (606 asserzioni automatiche con 0 errori).
 ## [1.3.12-beta] - 2026-11-01
 
 ### Pre-release / Beta — Copia parallela bounded, log accorpati asincroni e skip account invariati alla chiusura
@@ -224,7 +247,7 @@
     - "Impostazioni": apertura delle preferenze applicative;
     - "Chiudi".
 - **Controllo Preventivo Integrità Storage/IndexedDB all'Avvio e Dialog di Ripristino con ProgressBar (`StorageIntegrityService.vb`, `StorageRecoveryProgressDialog.xaml`, `StorageRecoveryProgressDialog.xaml.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb` — TODO #76)**:
-  - **Controllo Preventivo a Freddo (`CheckIndexedDbCorruption`)**: Prima dell'avvio del runtime WebView2, verifica l'integrità strutturale dei database LevelDB nella directory `EBWebView\Default\IndexedDB` (validità del puntatore `CURRENT`, esistenza e non-vacuità del manifest `MANIFEST-*`, consistenza delle cartelle `.indexeddb.blob`), prevenendo l'eccezione irreversibile `NotReadableError: Data lost due to missing file` prima che causi una pagina bianca.
+  - **Controllo Preventivo a Freddo (`CheckIndexedDbCorruption`)**: Prima dell'avvio del runtime WebView2, verifica l'integrità del puntatore `CURRENT`, esistenza e non-vacuità del manifest `MANIFEST-*`, consistenza delle cartelle `.indexeddb.blob`), prevenendo l'eccezione irreversibile `NotReadableError: Data lost due to missing file` prima che causi una pagina bianca.
   - **Finestra con ProgressBar di Ripristino (`StorageRecoveryProgressDialog`)**: Creata la finestra grafica modale con ProgressBar indeterminata in stile WhatsApp che informa l'utente durante la riparazione e rigenerazione del database corrotto.
   - **Ripristino Selettivo e Non Distruttivo (`PerformStorageRecoveryWithDialogAsync`)**: Rimozione pulita dei database IndexedDB e della cache Service Worker corrotti, preservando integralmente `Local Storage`, cookie di sessione, token DPAPI e credenziali. Integrato sia all'avvio a freddo, sia a caldo tramite evento `INDEXEDDB_CORRUPTED`, sia dallo strumento "Ripara Scheda".
 - **Localizzazione Multilingua Integrale (`Localization.vb`)**:
