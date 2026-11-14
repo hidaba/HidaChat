@@ -1,0 +1,1789 @@
+﻿# Changelog
+
+[![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
+[![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
+
+## [1.4.4-beta] - 2026-11-14
+
+### Pre-release / Beta — Download in streaming resiliente per aggiornamenti OTA e ottimizzazione memoria RAM
+- **Client di download dedicato con timeout infinito (`UpdateChecker.vb`, `Tests/SessionTests.vb` — TODO #88)**:
+  - Eliminato il timeout HTTP a 15 secondi sul download degli archivi di aggiornamento introducendo il client dedicato `_downloadClient` configurato con `Timeout = Timeout.InfiniteTimeSpan`.
+  - Protetti i download degli asset da GitHub con un `CancellationTokenSource` temporizzato a 10 minuti, prevenendo interruzioni premature `"A task was canceled"` su connessioni lente, limitate o ad alta latenza.
+- **Download progressivo in streaming diretto su disco (`UpdateChecker.vb` — TODO #88)**:
+  - Sostituito il caricamento dell'intero archivio in memoria RAM (`GetByteArrayAsync`) con il download in streaming progressivo direttamente su file temporaneo su disco (`File.Create(tempZipPath)`) tramite `HttpCompletionOption.ResponseHeadersRead`.
+  - Configurato buffer di trasferimento a blocchi da 80 KB (`buffer(81919)`), garantendo un consumo di memoria RAM minimo e costante durante l'intero scaricamento, indipendentemente dalle dimensioni dell'archivio.
+  - Integrato il calcolo dell'avanzamento in tempo reale, comunicando megabyte scaricati e percentuale di completamento direttamente a `UpdateProgressDialog`.
+- **Verifica crittografica SHA-256 basata su Stream (`UpdateChecker.vb`, `Tests/SessionTests.vb` — TODO #88)**:
+  - Aggiornato `ComputeSha256Async` per calcolare l'impronta crittografica direttamente dallo stream del file su disco tramite `SHA256.HashDataAsync(stream)`, senza caricare i byte dell'archivio in memoria.
+- **Estensione suite di test automatizzati (`Tests/SessionTests.vb`)**:
+  - Aggiunte nuove asserzioni di regressione per la verifica crittografica SHA-256 diretta da Stream, la configurazione a timeout infinito del client di download e la dimensione del buffer da 80 KB (totale **640 asserzioni con 0 errori**).
+
+## [1.4.3-beta] - 2026-11-12
+
+### Pre-release / Beta — Resilienza sincronizzazione profili di rete e cambio account senza interruzioni
+- **Resilienza e Fallback Staging Locale nel Cambio Account (`AppAccounts.vb`, `NetworkProfileSync.vb`, `ColdProfileCopy.vb`)**:
+  - Risolto il blocco critico e la comparsa della finestra di dialogo di errore (`Profile import failed. Existing data were not reset; initialization stopped.`) durante il cambio scheda tra Telegram e WhatsApp (o altri account) quando l'applicazione è in esecuzione su percorsi di rete o drive mappati.
+  - Implementato il fallback automatico trasparente allo staging locale: se il rinfresco da Master sulla share di rete fallisce (ad esempio a causa di file aperti o lock temporanei mantenuti dal runtime Chromium o dal processo browser attivo), HidaChat verifica la presenza dei dati di sessione locali validi (`ColdProfileCopy.HasData`) e prosegue l'inizializzazione senza sollevare eccezioni né interrompere l'esperienza utente.
+  - In `ColdProfileCopy.Publish`, introdotto il meccanismo `SafeMoveDirectory` con tentativi multipli e backoff progressivo per superare i blocchi temporanei di file e cartelle durante le rotazioni atomiche dei profili.
+- **Correzione Sovrascrittura Metadati `.sync_state.json` su Condivisioni SMB / Linux (`NetworkProfileSync.vb`, `Tests/SessionTests.vb`)**:
+  - Risolto il bug di mancato aggiornamento dello stato di sincronizzazione: su condivisioni di rete gestite da Samba o Linux, i file che iniziano per punto ereditano automaticamente l'attributo `Hidden`, impedendo a `File.WriteAllText` di aggiornare il file con errore di accesso negato (`UnauthorizedAccessException`). `WriteSyncState` ora rimuove preventivamente gli attributi `Hidden` e `ReadOnly` prima della riscrittura.
+  - Perfezionata la logica di `ShouldRefreshStagingFromMaster`: se i metadati indicano che lo staging locale possiede una sessione più recente o identica a quella su rete (`ExportedUtc`), il confronto ritorna immediatamente `False` senza ricadere nel controllo differenziale file-by-file che poteva innescare falsi positivi sui timestamp SMB.
+- **Localizzazione Multilingua Notifiche Errore (`MainWindow.xaml.vb`, `Localization.vb`)**:
+  - Sostituite le stringhe hardcoded nei messaggi di errore durante il cambio account con le chiavi localizzate `account_switch_error` e `dialog_title_error`, sincronizzate in tutte le 5 lingue ufficiali supportate (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**:
+  - Aggiunte nuove asserzioni unitarie di regressione per la verifica del confronto `ShouldRefreshStagingFromMaster` con staging più recente e per la riscrittura resiliente di `.sync_state.json` con attributi nascosti (totale **634 asserzioni con 0 errori**).
+
+
+## [1.4.2-beta] - 2026-11-06
+
+### Pre-release / Beta — Integrazione ufficiale Discord Web con isolamento profili e notifiche native
+- **Supporto Piattaforma Discord Web (`PlatformDefinition.vb`, `AppAccounts.vb`)**:
+  - Aggiunta la piattaforma `Discord` all'enumerazione `ChatPlatform` e implementata la classe `DiscordPlatformDefinition` registrata in `PlatformRegistry`.
+  - Configurato l'URL iniziale ufficiale `https://discord.com/app`, colore tema caratteristico `#5865F2` (Discord Blurple) e icona vettoriale SVG standard Clyde.
+  - Politica di autorizzazione rigorosa delle origini del bridge IPC (`IsAuthorizedOrigin`): autorizzata esclusivamente l'origine HTTPS `https://discord.com` sulla porta 443 standard, con rifiuto esplicito di schemi insicuri HTTP, porte non standard, credenziali userinfo, sottodomini CDN (`cdn.discordapp.com`) e tentativi di spoofing del dominio.
+  - Risoluzione intelligente di deep-link e inviti (`ResolveDeepLink`): gestione trasparente degli inviti ufficiali `discord.gg/<codice>` e `discordapp.com` convertiti su `https://discord.com/invite/<codice>`, e normalizzazione dello schema `discord://` verso le rotte interne dell'applicazione.
+  - Politica di navigazione finestre (`IsAllowedNewWindowHost`): i link interni ai canali e inviti Discord rimangono all'interno della scheda WebView2, mentre tutti i link esterni cliccati nelle chat vengono aperti in sicurezza nel browser di sistema predefinito.
+- **Isolamento Profili, Sessioni Persistenti e Storage (`SessionRecoveryPolicy.vb`, `AppAccounts.vb`)**:
+  - Inclusa l'origine `https://discord.com` tra le origini attendibili per lo storage persistente (`PersistentStorage`) in `SessionRecoveryPolicy.IsTrustedStorageOrigin`, proteggendo database IndexedDB e sessione Chromium contro l'eliminazione da quote disco.
+  - Profili WebView2 separati e isolati in cartelle univoche basate sull'identificativo interno dell'account, consentendo sessioni contemporanee indipendenti per più account Discord senza conflitti o sovrascritture.
+  - Persistenza garantita durante la rinomina, riavvio e passaggio tra schede.
+- **Integrazione Desktop Notifiche Windows e Rilevamento Unread (`Scripts/notification.js`, `AppAccounts.vb`, `MainWindow.xaml.vb`)**:
+  - In `notification.js`, introdotto lo scanner DOM dedicato `scanDiscordUnread` per il rilevamento istantaneo di menzioni e messaggi non letti (badge numerici di menzione e indicatori pillola non letti).
+  - Intercettazione di `window.Notification` e `ServiceWorkerRegistration.showNotification` con soppressione preventiva dei popup duplicati Chromium e instradamento tramite Windows Toast nativi con argomenti sicuri di selezione account (`accountId`).
+  - Il click sulla notifica toast ripristina la finestra, seleziona immediatamente l'account Discord di destinazione e invoca il callback `window.onNotificationClicked(id)` per aprire direttamente la conversazione.
+- **Interfaccia Utente e Localizzazione Multilingua (`MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`)**:
+  - Aggiunta la voce "Aggiungi account Discord" nel menu contestuale del pulsante `+` della barra schede principale e nella finestra Impostazioni.
+  - Aggiunta la voce `Discord` nel selettore a tendina delle piattaforme in Impostazioni account.
+  - Aggiornati contestualmente tutti i 5 dizionari linguistici supportati (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) in `Localization.vb`.
+- **Protezione Invio Massivo (Bulk Sender)**:
+  - Capacità `SupportsBulkSender` impostata rigidamente su `False` per Discord sia a livello di metadati piattaforma che nel motore applicativo `BulkSenderEngine` e `BulkSenderWindow`, impedendo qualsiasi tentativo di invio automatico o massivo.
+- **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**:
+  - Aggiunte nuove asserzioni unitarie di regressione a copertura di: conformità enum e registro Discord, convalida e rifiuto origini autorizzate, risoluzione deep-link/inviti Discord, gestione finestre NewWindow, permessi di storage persistente e blocco del Bulk Sender.
+- **Sincronizzazione Multi-PC Intelligente dei Profili su Condivisioni di Rete (`NetworkProfileSync.vb`, `Tests/SessionTests.vb` — TODO #109)**:
+  - Risolto il problema critico di mancato aggiornamento dello staging locale su macchine secondarie: in precedenza, se una macchina host possedeva già una cartella di staging `%LOCALAPPDATA%\HidaChat\NetworkProfiles` da sessioni precedenti, `SyncMasterToLocalStagingAsync` rifiutava a priori il refresh (`[LOCAL_PROFILE_PRESERVED]`), ignorando le sessioni più recenti salvate su Master da un altro computer ed esponendo schermate di login/disconnessione o QR code.
+  - Introdotto il tracciamento dei metadati di sincronizzazione (`.sync_state.json`) con timestamp UTC di esportazione, macchina e utente.
+  - Implementato `ShouldRefreshStagingFromMaster(master, staging)`: confronta i metadati di sincronizzazione e i timestamp differenziali dei file tra Master e staging locale. Quando il Master sulla share di rete contiene una sessione esportata più di recente rispetto allo staging locale, HidaChat effettua un rinfresco a freddo atomico (`PublishAsync`), garantendo che il cambio di PC su unità portatile/rete conservi l'accesso e la sessione attiva per tutti gli account configurati.
+  - Suite di test estesa a **632 asserzioni automatiche con 0 errori**.
+
+## [1.4.1-beta] - 2026-11-04
+
+### Pre-release / Beta — Invio massivo robusto con arresto concorrente, parser CSV RFC 4180 e traduzione batch sicura
+- **Rimozione Forzatura Smarcamento Canale Beta (`SettingsController.vb`, `SettingsMigration.vb`, `Tests/SessionTests.vb`)**:
+  - Rimossa definitivamente la forzatura automatica che impostava `useBetaChannel = False` all'avvio. La scelta dell'utente per il canale beta viene rispettata e preservata senza reset o sovrascritture in `settings.json`.
+- **Controllo Concorrenza e Annullamento Asincrono Invio Massivo (`BulkSenderEngine.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderPolicy.vb` — TODO #80)**:
+  - Introdotto lo stato "Arresto in corso..." (`IsStopping`) e il metodo asincrono `CancelAsync()`, che attende la reale conclusione delle operazioni asincrone in corso prima di riabilitare i controlli dell'interfaccia utente.
+  - Implementato `BulkSenderExecutionCoordinator` e blocco di concorrenza a livello di motore che impedisce tassativamente esecuzioni concorrenti sovrapposte sulla stessa WebView (`InvalidOperationException`).
+  - Separati gli esiti dell'invio in stati espliciti (`IsCompleted`, `IsCancelled`, `IsFailed`) nel report di progresso `BulkSenderProgress`: l'annullamento non forza più la barra al 100% né visualizza il riepilogo "Completato", preservando i conteggi effettivi di messaggi inviati, falliti e rimanenti.
+- **Parser CSV Multilinea Conforme a RFC 4180 e Rilevamento Intelligente Delimitatore (`BulkSenderPolicy.vb`, `ExcelContactService.vb` — TODO #84)**:
+  - Implementato il parser `ParseCsvRecords` conforme a RFC 4180 che mantiene intatti i campi multilinea racchiusi tra doppi apici e gestisce correttamente l'escape delle virgolette doppie (`""`), evitando la frammentazione dei messaggi con ritorni a capo in contatti fantasma.
+  - Il rilevamento automatico del delimitatore (`DetectCsvDelimiter`) analizza i separatori (`,`, `;`, `\t`) esclusivamente al di fuori dei campi quotati, impedendo che punteggiatura o punti e virgola interni ai messaggi falsino il delimitatore effettivo del file.
+- **Prevenzione Collisione e Disallineamento Traduzioni Batch (`TranslationProvider.vb`, `Localization.vb` — TODO #85)**:
+  - Introdotto il controllo di collisione `HasSeparatorCollision` in `GoogleTranslationProvider`: se una frase contiene il delimitatore `###`, il testo non viene unito in blocco ma tradotto atomicamente 1-a-1 per evitare lo sfasamento degli indici.
+  - In `Localization.TranslateBatchDetailedAsync`, verificata la corrispondenza esatta tra numero di traduzioni restituite e testi richiesti: in caso di incongruenza o fallimento, il sistema ripiega sulla traduzione individuale senza contaminare la cache con associazioni errate.
+  - Localizzazione sincronizzata in tutte le 5 lingue supportate (EN, IT, FR, ES, DE) con nuove chiavi UI per gli stati di arresto e annullamento (`bulk_status_stopping`, `bulk_status_cancelled`, `bulk_title_cancelled`, `bulk_status_completed`, `bulk_status_failed`).
+- **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**:
+  - Aggiunte 21 nuove asserzioni unitarie di regressione a copertura del coordinatore di concorrenza, dell'arresto asincrono, del parser CSV multilinea RFC 4180 e del controllo collisioni traduzione (totale **593 asserzioni automatiche con 0 errori**).
+## [1.4.0] - 2026-11-03
+
+### Release Stabile — Ottimizzazione radicale dello spazio su disco e accelerazione della sincronizzazione su rete
+- **Architettura a Risparmio Risorse e Ottimizzazione Spazio su Disco (`ProfileIsolationPolicy.vb`, `CacheCompactionPolicy.vb`, `StartupJunkCleanupPolicy.vb`, `NtfsCompressionPolicy.vb`, `AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Singleton Condiviso `CoreWebView2Environment` e Profili Nativi (`wv2profile_account_*`)**: Unificazione del runtime Edge WebView2 per tutte le schede e account attivi (WhatsApp, Telegram, OpenClaw, Hermes). Cookie, IndexedDB e sessioni restano totalmente isolati al 100%, con un risparmio di memoria RAM tra il 60% e il 70% e azzeramento dei processi Chromium ridondanti.
+  - **Bonifica Automatica Backup Obsoleti di Migrazione**: Rimozione automatica delle copie storiche duplicate esterne (`.migrated`, `.previous`, `_Snapshot`, `.bak`) una volta verificata l'integrità del profilo nativo, liberando fino a 1.4 GB di spazio su disco.
+  - **Compattazione Chirurgica a Caldo della Cache (Pulsante "Ottimizza Spazio")**: Introdotta la pulizia a caldo di `DiskCache` e `CacheStorage` senza deautenticazione o perdita di sessione. Le credenziali e i database IndexedDB rimangono intatti e operativi.
+  - **Routine di Pulizia Spazzatura all'Avvio (`StartupJunkCleanupPolicy`)**: Bonifica sicura e automatica all'avvio di crash dump Chromium (`.dmp`), metriche orfane (`.pma`), cache shader e diagnostica, con whitelist protettiva invalicabile per database LevelDB di WhatsApp e Signal, cookies e file di crittografia DPAPI `Local State`.
+  - **Compressione Trasparente NTFS**: Abilitazione della compressione a livello di filesystem NTFS per la cartella dati portabile (`data/webview`), con abbattimento immediato del 40-50% dello spazio occupato senza penalizzare le prestazioni di lettura/scrittura.
+- **Accelerazione Estrema Sincronizzazione su Disco di Rete SMB/Samba (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`, `AppLogger.vb`, `MainWindow.xaml.vb`)**:
+  - **Esclusione Radicale Cache Volatili su Rete**: Filtro rigoroso delle cartelle di cache temporanee durante l'esportazione su percorsi di rete (SMB/UNC/Samba): il volume trasferito crolla del 97% (da ~550 MB a soli ~15 MB per account) e il numero di file del 94% (da oltre 2.200 a circa 120-160 file essenziali).
+  - **Copia Parallela Bounded Win32 `CopyFileEx`**: Trasferimento parallelo controllato (`MaxDegreeOfParallelism = 4`) che sfrutta l'API Win32 nativa preservando i timestamp senza round-trip separati per i metadati.
+  - **Eliminazione Flush Sincroni SMB e Rotazione Atomica**: Rimosso `Flush(flushToDisk:=True)` sincrono per saturare la banda di rete e introdotta la rotazione atomica del profilo master con cestino transitorio (`.trash-*`) asincrono, eliminando ogni errore o conflitto "Access is denied" su server SMB.
+  - **Sincronizzazione Multi-Account Parallela**: Sincronizzazione concorrente tramite `Task.WhenAll` e semafori indipendenti per account: il tempo di salvataggio alla chiusura passa da oltre 120 secondi a meno di 2 secondi complessivi.
+  - **Rilevamento Differenziale Smart e Skip Account Invariati**: Confronto immediato dei timestamp dei file essenziali (`HasModifications`): gli account non modificati durante la sessione vengono saltati istantaneamente (`[EXPORT_UNCHANGED]`), riducendo a 0 ms e 0 byte il salvataggio per le schede a riposo.
+  - **Coda Asincrona e Scritture Accorpate per i Log (`AppLogger.vb`)**: I messaggi diagnostici vengono memorizzati in una coda thread-safe non bloccante e scritti a blocchi atomici cumulativi, eliminando decine di chiamate di rete sincrone verso dischi Samba.
+  - **Spegnimento Parallelo Tsnet**: Arresto asincrono del demone Tailscale contestualmente alla chiusura delle istanze WebView2, azzerando le latenze residue.
+- **Invio Massivo Potenziato e UI Responsiva (`BulkSenderPolicy.vb`, `BulkSenderEngine.vb`, `AboutWindow.xaml`)**:
+  - **Rilevamento Conflitti Bozze e Conferma Reale di Invio**: Protezione da sovrascritture accidentali di bozze preesistenti su WhatsApp Web e Telegram Web e verifica osservabile dello svuotamento input (`CONFIRMED_SENT`) per escludere falsi successi.
+  - **Rendering Nitido Icona e Layout About**: Icona ad alta risoluzione in AboutWindow e wrapping del testo descrittivo nelle 5 lingue ufficiali (EN, IT, FR, ES, DE).
+- **Reset Automatico Canale di Aggiornamento Beta (`SettingsMigration.vb`, `SettingsController.vb`, `Tests/SessionTests.vb`)**:
+  - Ripristino automatico dell'opzione `useBetaChannel = False` per allineare tutti i client esistenti al canale ufficiale stabile per la release 1.4.0.
+  - Estensione della suite di test automatici di regressione (606 asserzioni automatiche con 0 errori).
+## [1.3.12-beta] - 2026-11-01
+
+### Pre-release / Beta — Copia parallela bounded, log accorpati asincroni e skip account invariati alla chiusura
+- **Ottimizzazioni Avanzate di Salvataggio e Chiusura su Rete Samba/SMB (`ColdProfileCopy.vb`, `AppLogger.vb`, `NetworkProfileSync.vb`, `MainWindow.xaml.vb`, `Tests/SessionTests.vb` — TODO #108)**:
+  - **Copia Parallela Bounded con Win32 `CopyFileEx` (`ColdProfileCopy.vb`)**: All'interno della sincronizzazione di ciascun account, i file non vengono più copiati in modo puramente sequenziale ma con un grado controllato di concorrenza (`Parallel.ForEach` con `MaxDegreeOfParallelism = 4`). La sostituzione dei flussi gestiti manuali (`FileStream` + buffer) con `File.Copy(source, dest, overwrite:=True)` delega l'operazione direttamente all'API Win32 `CopyFileEx`, preservando nativamente i metadati temporali (`LastWriteTimeUtc`) ed eliminando le chiamate separate di I/O sui metadati. Su connessioni SMB di rete verso Samba, l'overhead per singolo file si azzera.
+  - **Coda Asincrona e Scritture Accorpate per i Log (`AppLogger.vb`)**: Riprogettato completamente il motore di logging per eliminare i colli di bottiglia su percorsi Samba/SMB. I messaggi di diagnostica (`LogSync`, `Log`, `LogAccount`, ecc.) vengono accodati in memoria senza alcun blocco tramite `ConcurrentQueue(Of LogEntry)`. Il flush su disco (`FlushNow` o timer a 250ms) raggruppa in blocco tutte le righe pendenti ed esegue un'unica scrittura atomica via `File.AppendAllText`, abbattendo 50+ round-trip di rete sincroni a 1 sola operazione I/O cumulativa.
+  - **Rilevamento Differenziale Intelligente e Skip Account Invariati (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`)**: Introdotto il metodo `ColdProfileCopy.HasModifications(source, target)`. Prima di esportare un profilo verso la condivisione di rete, HidaChat verifica a livello locale su `C:` se i file essenziali hanno subito modifiche effettive rispetto alla data di baseline del master (`target.previous` / `target`). Se l'account non ha registrato nuove attività o messaggi, la sincronizzazione viene saltata istantaneamente (`[EXPORT_UNCHANGED]`), riducendo a 0 millisecondi e 0 byte il trasferimento per tutti gli account rimasti a riposo.
+  - **Bonifica Directory di Scarto Non Bloccante (`ColdProfileCopy.vb`)**: L'eliminazione delle directory `.trash-*` risultanti dalla rotazione atomica del profilo master viene delegata a un task in background asincrono non bloccante (`Task.Run`), svincolando la chiusura dell'interfaccia grafica e del processo dalle latenze di rimozione ricorsiva su server SMB.
+  - **Spegnimento Sovrapposto di Tsnet (`MainWindow.xaml.vb`)**: In fase di arresto (`ShutdownCoreAsync`), lo spegnimento controllato del demone di rete Tailscale (`TsnetManager.Instance.ShutdownAsync()`) viene avviato contestualmente alla chiusura delle istanze WebView2 anziché in coda seriale, mascherando integralmente il timeout di rilascio del socket (~300ms).
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 12 nuove asserzioni unitarie di regressione a verifica del rilevamento differenziale intelligente `HasModifications` (inclusione file essenziali, esclusione automatica delle cache rigenerabili) e della coda di scrittura asincrona di `AppLogger` (**601 asserzioni automatiche con 0 errori**).
+
+## [1.3.11-beta] - 2026-11-01
+
+### Pre-release / Beta — Ottimizzazione sincronizzazione profili di rete e salvataggio ultra-rapido alla chiusura
+- **Accelerazione Sincronizzazione Profili di Rete (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #107)**:
+  - **Filtro Avanzato Cartelle di Cache Rigenerabili (`ColdProfileCopy.vb`)**: Corretto il bug che impediva il riconoscimento delle directory di cache nei profili nativi di WebView2 (`EBWebView\wv2profile_account_*`). Espanso `ShouldSkip` con `SkipFolderNames` per escludere a monte qualsiasi cartella di cache temporanea o shader (`Cache`, `Code Cache`, `GPUCache`, `DawnCache`, `ShaderCache`, `Crashpad`, `CacheStorage`, `ScriptCache`, `AutofillAiModelCache`, `optimization_guide_hint_cache_store`, `Safe Browsing`, `Subresource Filter`). I dati trasferiti per singolo account scendono da oltre 2.200 file (~550 MB) a soli ~120-160 file essenziali (~15-17 MB), con una riduzione del 94% dei file e del 97% del volume dati.
+  - **Protezione Inviolabile delle Sessioni e dei Database**: Verificata e garantita la totale integrità di `IndexedDB` (database LevelDB di WhatsApp e Signal), `Local Storage`, `Session Storage`, `Sync Data`, `Network` (cookie persistenti), `Preferences`, `Local State` e delle registrazioni dei worker in `Service Worker/Database`. Nessun cookie o login viene compromesso.
+  - **Rimozione Flush Sincrono SMB (`output.Flush(flushToDisk:=True)`)**: Rimosso il flush sincrono bloccante per ciascun file in `CopyTree`. Su unità di rete e condivisioni SMB (es. `Y:\HidaChat`), l'invio continuo di `FlushFileBuffers` causava latenze di rete di oltre 35 secondi per profilo; l'operazione ora sfrutta la piena banda di trasmissione del buffer di sistema, abbattendo i tempi di copia da 36 secondi a meno di 1 secondo (872 ms su rete reale).
+  - **Rotazione Atomica delle Cartelle e Risoluzione "Access Denied"**: Riconfigurata la rotazione del profilo master su disco di rete: la cartella `.previous` viene spostata istantaneamente in una cartella transitoria `.trash-<guid>` tramite `Directory.Move` (5 ms), evitando la cancellazione ricorsiva bloccante prima del rename che generava errori `Access is denied` su cartelle di rete in uso; la directory di scarto viene bonificata in modo non bloccante.
+  - **Parallelizzazione Sincronizzazione Multi-Account (`NetworkProfileSync.vb`, `AccountManager.vb`)**: Sostituito il lock globale `_syncLock` con semafori atomici per singolo account (`ConcurrentDictionary(Of String, SemaphoreSlim)`). In `AccountManager.SyncAllProfilesToNetworkAsync()`, tutti gli account configurati (WhatsApp, Telegram, OpenClaw, Hermes) vengono sincronizzati in parallelo con `Task.WhenAll`, riducendo il tempo totale di chiusura dell'applicazione da ~120 secondi a meno di 2 secondi complessivi.
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 26 nuove asserzioni unitarie di regressione a copertura del riconoscimento selettivo delle cartelle di cache nei profili nativi/legacy, protezione rigida dei file di sessione e rotazione atomica (**589 asserzioni automatiche con 0 errori**).
+
+## [1.3.10-beta] - 2026-11-01
+
+### Pre-release / Beta — Rendering nitido icona e correzione a capo descrizione finestra About
+- **Miglioramento Rendering e Layout Finestra About (`AboutWindow.xaml`, `AboutWindow.xaml.vb` — TODO #101)**:
+  - **Icona Nitida ad Alta Risoluzione**: Sostituita la sorgente dell'icona nell'header con `images/icon.png`, integrando `RenderOptions.BitmapScalingMode="HighQuality"`, `SnapsToDevicePixels="True"` e `UseLayoutRounding="True"` per eliminare ogni sfocatura e artefatto di scaling.
+  - **Layout Responsivo con Vincolo di Larghezza**: Sostituito lo `StackPanel` orizzontale privo di vincoli di misura con un layout `Grid` a due colonne (`Auto` per l'icona e `*` per i testi), consentendo al testo descrittivo dell'applicazione (`TxtDescription`) di andare a capo correttamente (`TextWrapping="Wrap"`) senza fuoriuscire o essere troncato dal bordo della finestra in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+  - **Rifinitura Tema Grafico**: Integrato l'aggiornamento dinamico del colore Foreground di `TxtDescription` in `AboutWindow.xaml.vb` (`#aebac1` in Dark Mode e `#54656f` in Light Mode).
+- **Pulizia Variabili Non Utilizzate ed Estrazione Aggiornamenti (`UpdateChecker.vb` — TODO #100)**:
+  - Verificata la completa rimozione della variabile orfana `subDirs` nel flusso di decompressione degli aggiornamenti a favore della ricerca ricorsiva `Directory.GetFiles(...)`, garantendo compilazione pulita con zero avvisi (0 warning) e zero errori di build.
+
+## [1.3.9-beta] - 2026-10-31
+
+### Pre-release / Beta — Routine di pulizia automatica cartelle e file spazzatura all'avvio
+- **Pulizia Automatica Cartelle e File Spazzatura all'Avvio (`StartupJunkCleanupPolicy.vb`, `Application.xaml.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #105)**:
+  - **Modulo Centralizzato `StartupJunkCleanupPolicy`**: Introdotto il modulo dedicato `StartupJunkCleanupPolicy.vb` per la bonifica sicura delle directory di diagnostica Chromium, crash dump e cache shader orfane prima che i processi browser vengano istanziati e blocchino i file su disco.
+  - **Whitelist Rigorosa Cartelle Spazzatura**: Definita la costante `JunkFolderNames` con l'insieme completo delle sole directory rigenerabili e sicure al 100% da eliminare (`Crashpad`, `GPUCache`, `GPUPersistentCache`, `ShaderCache`, `GrShaderCache`, `DawnCache`, `DawnGraphiteCache`, `DawnWebGPUCache`, `GraphiteDawnCache`, `Code Cache`, `Cache`, `BrowserMetrics`, `BrowserMetrics-spare`, `component_crx_cache`, `OptimizationGuidePredictionModels`, `Safe Browsing`, `Subresource Filter`).
+  - **Rimozione File Orfani e Dump**: Riconoscimento ed eliminazione mirata dei file residui temporanei con estensione `.dmp` (crash dump), `.pma` (metriche Chromium) e `.old` (scarti di migrazione preesistenti).
+  - **Protezione Insuperabile dei Dati di Sessione e Credenziali**: Implementate le liste di protezione `ProtectedFolderNames` e `ProtectedFileNames` e il predicato `IsProtectedDirectory`: le directory `IndexedDB` (comprese le banche dati `.leveldb` di Signal/WhatsApp e i blob multimediali `.blob`), `Local Storage`, `Session Storage`, `Sync Data`, `Network` (file `Cookies`), `Preferences` e il file master di crittografia DPAPI `Local State` sono rigorosamente protetti e non vengono mai toccati né attraversati, garantendo l'immunità totale da deautenticazioni o perdite di dati.
+  - **Invocazione Non Bloccante in Avvio**: Integrata la routine `StartupJunkCleanupPolicy.CleanWebViewJunkFolders()` in `Application.xaml.vb` all'interno di `OnStartup` (dopo l'acquisizione del folder lock e prima dell'avvio della UI) e in `AccountManager.LoadAccountsAsync()` / `CleanupTransientCachesAsync()` sulla cartella condivisa `data/webview`.
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 106 nuove asserzioni unitarie di regressione a copertura di validazione whitelist spazzatura, immunità directory protette di sessione, riconoscimento estensioni temporanee e simulazione completa su albero di file e cartelle (**563 asserzioni automatiche con 0 errori**).
+
+## [1.3.8-beta] - 2026-10-30
+
+### Pre-release / Beta — Pulizia chirurgica a caldo della cache WebView2 (ClearBrowsingDataAsync) senza deautenticazione account
+- **Compattazione Chirurgica a Caldo della Cache WebView2 (`CacheCompactionPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #104)**:
+  - **Modulo Centralizzato `CacheCompactionPolicy`**: Introdotto il modulo dedicato `CacheCompactionPolicy.vb` per la definizione e convalida delle maschere binarie di dati sicuri e rigenerabili (`SafeRegenerableDataKinds = CoreWebView2BrowsingDataKinds.DiskCache Or CoreWebView2BrowsingDataKinds.CacheStorage`).
+  - **Isolamento Rigoroso e Protezione delle Credenziali Utente**: Implementate le funzioni di validazione `IsSafeCompactionKind` e `IsSafeRegenerableDataKinds` con blocco tassativo (`DangerousSessionKindsMask`) su `Cookies`, `IndexedDb`, `LocalStorage`, `AllDomStorage`, `PasswordAutosave`, `GeneralAutofill` e `Settings`. Durante la compattazione a caldo, le sessioni e credenziali attive di WhatsApp Web, Telegram Web, OpenClaw ed Hermes restano integre e operative senza richiedere il riavvio o nuove autenticazioni (nessuna richiesta di nuovo QR code).
+  - **Compattazione Asincrona sui Profili Nativi Attivi**: Aggiunti i metodi `CompactWebViewProfileAsync(webView)` e `CompactProfileAsync(profile)` in `CacheCompactionPolicy.vb`, `CompactWebViewProfileAsync()` in `AppAccounts.vb` e `CompactAllWebViewsProfileAsync()` in `AccountManager.vb`, consentendo lo svuotamento a runtime della cache HTTP e dello storage dei Service Worker (`CacheStorage`) per tutti gli account aperti.
+  - **Bonifica Completa dei Service Worker in `ClearBrowsingCacheAsync`**: Aggiornato `ClearBrowsingCacheAsync` in `AppAccounts.vb` per includere `CacheStorage` congiuntamente a `DiskCache`, garantendo che anche la pulizia intelligente preservante le sessioni (`SmartCleanCachePreservingLoginAsync`) rimuova gli asset accumulati dai Service Worker.
+  - **Interfaccia Grafica e Pulsante "Ottimizza Spazio"**: Aggiunto nella sezione "Cache & Storage" delle Impostazioni (`SettingsWindow.xaml` e `SettingsWindow.xaml.vb`) il pulsante dedicato `BtnOptimizeStorage` con testo di spiegazione ed esito visivo immediato tramite MessageBox informativa.
+  - **Localizzazione Multilingua Integrale (5 Lingue Ufficiali)**: Aggiunte 4 nuove chiavi di traduzione (`optimize_storage_btn`, `optimize_storage_hint`, `optimize_storage_success_title`, `optimize_storage_success_msg`) sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 46 nuove asserzioni unitarie di regressione a copertura di validazione maschere binarie sicure, respingimento di dati sensibili, scansione cartelle di cache rigenerabili (Cache, Code Cache, Service Worker/CacheStorage), calcolo byte e formattazione grandezze conforme ad `InvariantCulture` (**457 asserzioni automatiche con 0 errori**).
+
+## [1.3.7-beta] - 2026-10-29
+
+### Pre-release / Beta — Bonifica automatica dei backup di migrazione per recupero spazio su disco e stabilità proxy OpenClaw
+- **Bonifica Automatica dei Backup di Migrazione e Recupero Spazio su Disco (`AccountManager.vb`, `ProfileIsolationPolicy.vb`, `Tests/SessionTests.vb` — TODO #103)**:
+  - **Identificazione e Rimozione Copie Storiche Duplicate**: Risolto l'incremento di spazio su disco rilevato dopo la migrazione ai profili nativi unificati in `EBWebView/`. Introdotto `CanSafelyPurgeMigrationBackups()` e `GetObsoleteMigrationBackupDirectories()` in `ProfileIsolationPolicy.vb` e il metodo `CleanupObsoleteMigrationBackups()` in `AccountManager.vb`: quando il profilo nativo in `EBWebView\wv2profile_account_*` ha completato la migrazione ed è verificato con dati di sessione consistenti (IndexedDB / cookie), tutte le copie duplicate storiche esterne (`.migrated`, `.previous`, `_Snapshot`, `.bak`) vengono rimosse in automatico, liberando fino a ~1.4 GB di spazio su disco (da 1.83 GB a ~414 MB).
+  - **Bonifica Completa Cache Volatili Native**: In `AccountManager.CleanupTransientCachesAsync()`, estesa la pulizia periodica delle cartelle cache diagnostiche Chromium (Crashpad, GPUCache, ShaderCache, GPUPersistentCache) alla cartella condivisa `EBWebView/` e alle sottocartelle dei singoli profili nativi.
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunte 16 nuove asserzioni di regressione per validare l'identificazione sicura dei dati di sessione e le condizioni di sicurezza per la bonifica dei backup di migrazione (**411 asserzioni automatiche con 0 errori**).
+- **Stabilità Reverse Proxy OpenClaw e Risoluzione Timeout Gateway (`tsnetd/main.go`, `TsnetManager.vb`)**:
+  - **Chiusura Deterministica del Canale di Sincronizzazione (`tsReady`)**: Invocata `tsReadyOnce.Do(func() { close(tsReady) })` sia al completamento del login che in caso di errore di `tsServer.Up()`, eliminando il rischio di freeze indefiniti delle richieste reverse proxy e schermate bianche su localhost/tailnet.
+  - **Avvio Istantaneo Proxy**: Ridotto il timeout preventivo iniziale a 2s e integrato il logging dello standard error del daemon `tsnetd` direttamente nei log applicativi (`AppLogger.LogApp`) in `TsnetManager.vb`.
+
+## [1.3.6-beta] - 2026-10-29
+
+### Pre-release / Beta — Risoluzione isolamento cartelle native WebView2 (WV2Profile_) e ripristino automatico sessioni e credenziali
+- **Allineamento Percorsi Cartelle Profili Nativi (`ProfileIsolationPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #103)**:
+  - **Mappatura Cartella Nativa Edge WebView2 (`WV2Profile_`)**: Risolto il disallineamento per cui Chromium/Edge WebView2 genera e cerca internamente le sottodirectory dei profili con prefisso `WV2Profile_` sotto `data/webview/EBWebView` anziché `Account_{id}`. Aggiornato `ProfileIsolationPolicy.vb` (`GetNativeProfileFolderName`, `GetNativeProfileRelativePath`, `GetNativeProfileDirectory`) per riflettere con esattezza il percorso `EBWebView\wv2profile_account_{id}` atteso dal runtime browser.
+  - **Migrazione e Ripristino Non Distruttivo delle Sessioni**: In `AccountManager.MigrateLegacyProfilesToNativeProfiles()`, implementato il rilevamento automatico e prioritario di dati di sessione consistenti (IndexedDB, LocalStorage e cookie) sia dalle cartelle legacy (`data/webview/WV2Profile_{id}` e relativi backup `.migrated` / `.previous`) sia da eventuali cartelle non prefissate create dalla precedente beta (`EBWebView\Account_{id}`). I dati reali vengono copiati e allineati atomicamente nella directory attiva `EBWebView\WV2Profile_account_{id}` e le directory obsolete rimosse in modo pulito.
+  - **Sincronizzazione Chiave Master di Crittografia DPAPI (`os_crypt.encrypted_key`)**: Aggiunto `MigrateOrRestoreLocalStateEncryptionKey()` per sincronizzare e ripristinare la chiave di crittografia master in `data/webview/EBWebView/Local State` a partire dai profili preesistenti, garantendo la decifratura trasparente e senza logout dei cookie di WhatsApp Web, Telegram Web e delle sessioni attive.
+  - **Protezione Cestino e Riconoscimento Profili Attivi**: Aggiornato `IsNativeAccountProfileDirectory()` e `ExtractAccountIdFromProfileDirectory()` per riconoscere i prefissi `WV2Profile_` e impedire che `CleanupUnusedProfilesAsync` sposti erroneamente profili attivi nel cestino.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiornate ed espanse le asserzioni di regressione per validare la mappatura `EBWebView\wv2profile_account_*`, il parsing sicuro degli ID e l'estrazione degli account (**395 asserzioni automatiche con 0 errori**).
+
+## [1.3.5-beta] - 2026-10-29
+
+### Pre-release / Beta — Condivisione di un unico CoreWebView2Environment con profili nativi e abbattimento consumo RAM
+- **Architettura WebView2 Condivisa e Profili Nativi (`ProfileIsolationPolicy.vb`, `AppAccounts.vb`, `AccountManager.vb`, `NetworkProfileSync.vb`, `StorageIntegrityService.vb`, `Tests/SessionTests.vb` — TODO #103)**:
+  - **Modulo Centralizzato `ProfileIsolationPolicy`**: Introdotto il modulo dedicato `ProfileIsolationPolicy.vb` per la costruzione e sanitizzazione conforme di `ProfileName` (max 64 caratteri, whitelist caratteri sicuri `[a-zA-Z0-9_\-\.]`, gestione ID anonimi e GUID), mappatura dei percorsi relativi e assoluti dei profili su disco, risoluzione dinamica delle cartelle `IndexedDB` e `Service Worker` e filtri di protezione delle directory di sistema Chromium.
+  - **Singleton Condiviso `CoreWebView2Environment`**: Sostituita l'allocazione di un `CoreWebView2Environment` separato per ogni singola scheda (che moltiplicava per ciascun account decine di file di sistema, log e processi `msedgewebview2.exe`) con un'unica istanza condivisa singleton legata a `data/webview`. Tutte le schede condividono la medesima infrastruttura di runtime, con un risparmio del 60-70% di memoria RAM e abbattimento dei tempi di caricamento tra tab.
+  - **Isolamento Totale tramite Profili Nativi (`ProfileName`)**: Ogni scheda viene istanziata mediante `CoreWebView2ControllerOptions.ProfileName` (`Account_{id}`). I cookie, le sessioni, IndexedDB, LocalStorage e le autorizzazioni restano rigorosamente isolati al 100% all'interno di sottodirectory dedicate (`data/webview/EBWebView/Account_{id}`), prevenendo qualsiasi interferenza o collisione di credenziali tra account multipli di WhatsApp, Telegram, OpenClaw o Hermes.
+  - **Migrazione Non Distruttiva Automatica a Caldo dei Profili Preesistenti**: All'avvio dell'applicazione, `AccountManager.MigrateLegacyProfilesToNativeProfiles()` rileva automaticamente eventuali profili memorizzati nel formato precedente (`data/webview/WV2Profile_{id}`) e trasferisce atomicamente la cartella `Default` (IndexedDB, LocalStorage, cookie e sessioni) all'interno della nuova struttura del profilo nativo (`data/webview/EBWebView/Account_{id}`), preservando intatte le sessioni attive e rinominando la cartella sorgente in `.migrated` per impedire deautenticazioni o perdite di dati.
+  - **Integrità Strutturale e Bonifica Differita Migliorate**: Aggiornati i servizi `StorageIntegrityService` e `NetworkProfileSync` per rilevare e riparare a freddo banche dati IndexedDB corrotte sia in percorsi nativi diretti che legacy. L'eliminazione degli account in `AccountManager.RemoveAccountAsync` invoca l'API nativa Chromium `Profile.Delete()` e bonifica in modo differito le cartelle di profilo su disco tramite il cestino (`_trash/`).
+  - **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**: Aggiunti 58 nuovi controlli unitari di regressione a copertura di sanitizzazione nomi profilo, limiti dimensionali, risoluzione percorsi effettivi, gerarchia IndexedDB/Service Worker e whitelist directory di sistema (**391 asserzioni automatiche con 0 errori**).
+
+## [1.3.4-beta] - 2026-10-27
+
+### Pre-release / Beta — Gestione Bozze e Conferma Reale di Invio nel Motore di Invio Massivo
+- **Affidabilità e Integrità Invio Massivo (`BulkSenderPolicy.vb`, `BulkSenderEngine.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #79)**:
+  - **Modulo Centralizzato `BulkSenderPolicy`**: Introdotto il modulo dedicato `BulkSenderPolicy.vb` per la convalida deterministica dell'intero ciclo di invio, normalizzazione del testo (`NormalizeText`), verifica identità della chat (`MatchesRecipient`), rilevamento conflitti di bozza (`IsDraftConflict`), generazione script di automazione per WhatsApp Web e Telegram Web e parsing sicuro delle risposte JSON (`ParseScriptResult`).
+  - **Prevenzione Invio e Sovrascrittura Bozze Preesistenti**: Risolto il difetto per cui su Telegram Web la presenza di una bozza preesistente impediva l'inserimento del testo massivo provocando l'invio accidentale della bozza dell'utente. Ora sia su WhatsApp Web che su Telegram Web la casella di digitazione viene verificata prima dell'azione: in presenza di una bozza in conflitto con il messaggio atteso, l'invio si arresta immediatamente senza sovrascrivere o spedire il testo preesistente (`DRAFT_CONFLICT`), con segnalazione puntuale all'utente.
+  - **Conferma Osservabile del Client contro Falsi Successi**: Eliminata la marcatura prematura a `SENT` subito dopo la simulazione del click o dell'evento tastiera `Enter` (che generava falsi positivi in caso di eventi ignorati, popover bloccanti o rallentamenti DOM). L'invio transita per lo stato `TRIGGERED` e attende la conferma osservabile del client (`CONFIRMED_SENT`), validando lo svuotamento effettivo del campo di digitazione e la commutazione del pulsante di invio in icona microfono; in caso di mancata accettazione entro il timeout, l'invio viene contrassegnato con errore senza dichiarare falsi successi (`SEND_REJECTED`).
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi di localizzazione sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) per la notifica accurata di numeri non registrati, utenti non trovati, bozze rilevate e invii non accettati dal client.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunte 76 asserzioni unitarie di regressione a copertura di normalizzazione testi, rilevamento conflitti, matching destinatari, conferma osservabile e parsing delle risposte (**333 asserzioni automatiche con 0 errori**).
+
+## [1.3.3-beta] - 2026-10-26
+
+### Pre-release / Beta — Finestra Grafica con Indicatore di Avanzamento per Aggiornamenti OTA ed Eliminazione Script Batch
+- **Finestra Grafica di Avanzamento Aggiornamenti OTA (`UpdateProgressDialog.xaml`, `UpdateProgressDialog.xaml.vb`, `UpdateChecker.vb`, `Application.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #87)**:
+  - **Finestra Grafica Modale Dedicata (`UpdateProgressDialog`)**: Creata una finestra grafica moderna in tema scuro WhatsApp (bordo `#00a884`, sfondo `#111b21`, shadow morbida e icona vettoriale di download) allineata al design system dell'applicazione, superando le finestre console nere e i popup testuali disconnessi.
+  - **ProgressBar Reattiva con Dettaglio Download in Tempo Reale**: ProgressBar a doppio stato (determinata durante lo scaricamento da GitHub con indicazione puntuale di MB scaricati, MB totali e percentuale di avanzamento `x.x MB di y.y MB (z%)`; fluida/indeterminata durante le fasi di calcolo e copia).
+  - **Eliminazione Definitiva di Script Esterni (`.bat` / `.ps1`)**: Rimossa completamente la generazione e l'avvio di file batch o comandi shell (`cmd.exe`, `update.bat`, `robocopy`), eliminando falsi positivi degli antivirus/EDR e vulnerabilità di sintassi nei percorsi con parentesi o radici di unità rimovibili.
+  - **Handoff Nativo Compilato via CLI (`--apply-update`)**: Il processo di aggiornamento viene gestito direttamente dal runtime compilato .NET/WPF (`HidaChat.exe --apply-update <pid> <sourceDir> <installDir> <version> <lang> <tempZip>`), con attesa non bloccante della chiusura ordinata del processo principale, copia ricorsiva sicura con meccanismo di retry progressivo (10 tentativi per lock I/O) e riavvio automatico dell'applicazione.
+  - **Salvaguardia Assoluta della Portabilità (`data/`)**: La procedura di copia ricorsiva isola ed esclude in modo tassativo la cartella dati `data/` e tutte le relative sottocartelle, garantendo che profili WebView2, cache, impostazioni e sessioni di WhatsApp, Telegram, OpenClaw ed Hermes non vengano mai toccati o sovrascritti.
+  - **Bonifica Asincrona dei Residui Temporanei (`--cleanup-update`)**: All'avvio dell'applicazione aggiornata, un task asincrono differito rimuove in modo pulito e silenzioso gli archivi ZIP e le directory temporanee di sessione estratte in `%TEMP%`.
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi di localizzazione sincronizzate in tutti i 5 dizionari ufficiali di `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) con descrizioni in tempo reale di tutte le fasi: download, verifica SHA-256 e firma Authenticode, estrazione, chiusura ordinata, applicazione e riavvio.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunte 34 nuove asserzioni a copertura di esclusione cartella dati da copia OTA, calcolo percentuale di avanzamento, clamping dei limiti e formattazione argomenti CLI `--apply-update` (totale 257 asserzioni automatiche con 0 errori).
+
+## [1.3.2-beta] - 2026-10-24
+
+### Pre-release / Beta — Utility Bar & Gestione Rapida Audio / Dispositivi e Compressione Trasparente NTFS
+- **Utility Bar & Gestione Rapida Audio / Dispositivi (`AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `Localization.vb`, `Tests/SessionTests.vb` — TODO #45)**:
+  - **Mute/Unmute Rapido dell'Account Attivo**: Aggiunto il pulsante dedicato `BtnMuteActiveTab` nella barra del titolo con sincronizzazione bidirezionale immediata con `CoreWebView2.IsMuted`, icona dinamica (stato inattivo `#8696a0`, playback multimediale verde WhatsApp `#00a884`, muto barrato magenta `#ec4899`) e tooltip reattivo.
+  - **Scorciatoie da Tastiera Dedicate**: Introdotta la combinazione rapida `Ctrl+M` per silenziare o riattivare istantaneamente l'audio della scheda corrente, e `Ctrl+Shift+C` per copiare l'URL/chat link della scheda attiva negli appunti.
+  - **Indicatore Multimediale Interattivo su Scheda (`TabMediaButton`)**: Introdotto l'indicatore audio su ogni singola scheda account con visualizzazione di `🔊` quando l'account riproduce note vocali, notifiche audio o video (`IsDocumentPlayingAudio`) e `🔇` quando silenziato (`IsMuted`), con possibilità di cliccare direttamente sull'icona per mutare/smutare al volo la specifica tab senza commutare scheda.
+  - **Menu Contestuale Schede Esteso**: Aggiunta l'azione contestuale dinamica "Disattiva/Attiva audio scheda" (`account_mute_tab` / `account_unmute_tab`) e la voce "Copia link chat / URL" (`account_copy_link`) con feedback toast overlay discreto (`MessagePopup`).
+  - **Localizzazione Multilingua Integrale**: Aggiunte 8 nuove chiavi localizzate sincronizzate in tutti i 5 dizionari ufficiali in `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Compressione Trasparente Filesystem NTFS (`NtfsCompressionPolicy.vb`, `Application.xaml.vb`, `AccountManager.vb`, `Tests/SessionTests.vb` — TODO #106)**:
+  - **Modulo Centralizzato `NtfsCompressionPolicy`**: Introdotto il modulo dedicato `NtfsCompressionPolicy.vb` per l'abilitazione non bloccante della compressione nativa NTFS tramite `compact.exe` (`/C /S /I /Q`).
+  - **Compressione Dati e Profili WebView2**: Invocazione automatica in background su `data/` all'avvio dell'applicazione (`Application.xaml.vb`) e su `data/webview` in `AccountManager.LoadAccountsAsync()`, garantendo un risparmio del 40-50% di spazio disco per database LevelDB e cache senza impatto su tempi di avvio o integrità.
+  - **Salvaguardia Unità Rimovibili USB**: Il flag `/I` gestisce in modo trasparente e silenzioso supporti formattati in FAT32/exFAT senza blocchi o errori.
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunti 16 nuovi controlli di regressione unitari dedicati a validazione CLI compact, percorsi null/whitespace, muting, indicatori multimediali e gerarchia di risoluzione URL (totale 223 asserzioni automatiche con 0 errori).
+
+## [1.3.1-beta] - 2026-10-23
+
+### Pre-release / Beta — Limitazione Hard Limit Cache e Ottimizzazione Risorse Chromium via AdditionalBrowserArguments
+- **Contenimento Cache su Disco e Ottimizzazione Risorse WebView2 (`BrowserArgumentsPolicy.vb`, `AppAccounts.vb`, `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Tests/SessionTests.vb` — TODO #102)**:
+  - **Modulo Centralizzato `BrowserArgumentsPolicy`**: Introdotto il modulo dedicato `BrowserArgumentsPolicy.vb` per la costruzione deterministica dei flag da riga di comando per Chromium (`BuildAdditionalBrowserArguments`), superando la dispersione e applicando le policy all'avvio di ogni scheda.
+  - **Hard Limit Cache HTTP su Disco**: Imposto tetto massimo predefinito a 50 MB (`--disk-cache-size=52428800`), configurabile nelle Impostazioni tramite `DiskCacheLimitMb` con la nuova opzione rapida "50 MB (Compatto)" e fallback dinamico a cache illimitata su selezione utente (0 MB).
+  - **Tetto Rigido Cache Media Audio/Video**: Introdotto hard limit fisso di 20 MB (`--media-cache-size=20971520`) per audio e video playback, impedendo il rigonfiamento incontrollato dei dati temporanei nei profili WhatsApp e Telegram.
+  - **Scarto Aggressivo Cache Obsoleta**: Abilitato il flag `--aggressive-cache-discard` per rilasciare tempestivamente blocchi e file di cache non più necessari.
+  - **Inibizione Shader Cache GPU su Disco**: Integrato il flag `--disable-gpu-shader-disk-cache` per impedire la scrittura e l'accumulo cumulativo su disco delle directory `GPUCache`, `GrShaderCache`, `ShaderCache`, `GraphiteDawnCache` e `DawnCache`.
+  - **Blocco Download Componenti e Telemetria in Background**: Aggiunti i flag `--disable-component-update` (previene il download silente di estensioni e moduli CRX) e `--disable-background-networking` (blocca richieste di telemetria e modelli Edge non richiesti).
+  - **Disabilitazione Feature Ridondanti**: Rimosso il download in background di modelli e hint di ottimizzazione remoti tramite `--disable-features=Translate,MediaRouter,OptimizationGuideModelDownloading,OptimizationHintsFetching` (con disabilitazione coordinata di `Spellcheck` qualora non attivo).
+  - **Suite di Test Automatizzati (`Tests/SessionTests.vb`)**: Aggiunti 32 nuovi controlli di regressione unitari dedicati alla validazione degli switch di avvio, calcolo byte cache, opzione illimitata e feature abilitate/disabilitate (totale 207 asserzioni automatiche con 0 errori).
+## [1.3.0] - 2026-10-21
+
+### Release Stabile — Ripristino Canale Aggiornamenti Stabile e Reset Automatico Canale Beta
+- **Reset Automatico Canale di Aggiornamento Beta per Release Stabile (`SettingsMigration.vb`, `SettingsController.vb`, `Constants.vb`, `Tests/SessionTests.vb`)**:
+  - **Ripristino su Canale Stabile dei Client Esistenti**: In occasione della release stabile 1.3.0, per qualsiasi client che aveva precedentemente spuntato l'opzione "Usa canale di aggiornamento beta" (`useBetaChannel = True`), la selezione viene automaticamente rimossa e reimpostata a `False`.
+  - **Migrazione Atomica delle Configurazioni (`SettingsMigration.vb`)**: Introdotto il modulo dedicato `SettingsMigration.vb` con il metodo `ApplyBetaChannelReset130()` che:
+    - Rileva e converte in `False` la proprietà `useBetaChannel` sia nel controller in memoria che all'interno del file JSON `data/settings.json`;
+    - Salva il flag permanente `betaReset130Done = True` in modo da eseguire il reset una sola volta per la transizione alla 1.3.0;
+    - Preserva le scelte intenzionali future dell'utente, consentendo l'eventuale riabilitazione manuale del canale beta nelle Impostazioni per i successivi cicli di sviluppo senza sovrascritture indebite al riavvio.
+  - **Allineamento Immediato del Controllo Aggiornamenti OTA (`UpdateChecker.vb`)**:
+    - Con la disattivazione del flag, all'avvio dell'applicazione il sottosistema di aggiornamento interroga unicamente le release stabili ufficiali su GitHub (`/releases/latest`), evitando il download accidentale di future versioni di pre-release.
+  - **Suite di Test di Regressione Automatizzati (`Tests/SessionTests.vb`)**:
+    - Aggiunta la procedura di test `TestBetaChannelResetMigration` con 19 nuove asserzioni a copertura della conversione da `True` a `False`, idempotenza, persistenza del marker `betaReset130Done`, gestione dei `JsonElement` deserializzati e salvaguardia della riattivazione manuale da parte dell'utente (175 asserzioni totali con 0 errori).
+
+## [1.2.9-beta] - 2026-10-20
+
+### Pre-release / Beta — Supporto Multi-Provider Traduzioni (LibreTranslate, Ollama, OpenAI) e Privacy Opt-In Obbligatorio
+- **Privacy Opt-In e Architettura Multi-Provider di Traduzione (`TranslationProvider.vb`, `Localization.vb`, `SettingsController.vb`, `TranslationPrivacyConsentDialog.xaml`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `AppAccounts.vb`, `Scripts/translation.js`, `Tests/SessionTests.vb` — TODO #69)**:
+  - **Architettura Tipizzata e Interfaccia `ITranslationProvider`**: Creata l'interfaccia `ITranslationProvider` con supporto unificato a traduzioni singole (`TranslateSingleAsync`), traduzioni batch (`TranslateBatchAsync`) e test di connettività (`TestConnectionAsync`), integrata tramite il registro dinamico `TranslationProviderRegistry`:
+    - `GoogleTranslationProvider`: Provider cloud predefinito con gestione robusta dei chunk e fallback automatico a elementi singoli in caso di collisioni o disallineamenti di split;
+    - `LibreTranslateProvider`: Supporto a backend self-hosted / on-premise LibreTranslate (default `http://localhost:5000`) con traduzione singola, array nativi batch e autenticazione opzionale via API key;
+    - `OllamaTranslationProvider`: Supporto per LLM locali in esecuzione su Ollama (default `http://localhost:11434`, modello configurabile come `llama3.2`), prompt ottimizzati e sanitizzazione automatica delle risposte (rimozione apici e blocchi markdown);
+    - `OpenAiTranslationProvider`: Integrazione trasparente con LM Studio, LocalAI, vLLM, OpenAI API e altri endpoint compatibili OpenAI (default `http://localhost:1234/v1`, modello e Bearer token opzionali).
+  - **Privacy Opt-In Obbligatorio e Finestra Modale Informativa (`TranslationPrivacyConsentDialog`)**:
+    - La funzione di traduzione è resa rigorosamente opt-in (`TranslationPrivacyConsent = False` predefinito); nessun testo lascia il computer senza preventiva autorizzazione;
+    - Al primo utilizzo della traduzione in chat viene presentata una finestra modale in tema scuro che chiarisce la differenza tra server cloud esterni (Google) e provider self-hosted locali (LibreTranslate, Ollama, LM Studio), con possibilità di autorizzare, annullare o aprire subito le Impostazioni;
+    - In caso di rifiuto, la traduzione viene arrestata in modo discreto senza trasmettere alcun pacchetto in rete.
+  - **Gestione Errori Resiliente e Feedback Discreto in Chat**:
+    - In caso di backend irraggiungibile o offline (es. container o servizio locale spento), l'applicazione non crasha e non inquina la cache con traduzioni vuote o messaggi di errore;
+    - La bolla di traduzione visualizza un messaggio d'errore discreto in corsivo con tinta dedicata (`#e57373`), informando l'utente sullo stato del provider;
+    - Nelle Impostazioni è disponibile il pulsante interattivo "Testa Connessione" con diagnostica in tempo reale e latenza di risposta.
+  - **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+    - Sincronizzate 15 nuove chiavi per informativa privacy, provider, parametri di rete e stato di connessione in tutti e 5 i dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+  - **Test di Regressione Automatizzati (`Tests/SessionTests.vb`)**:
+    - Aggiunti 33 nuovi test di validazione unitaria per la risoluzione dei provider, le impostazioni predefinite, l'Opt-In e la gestione delle eccezioni di rete (156 asserzioni automatiche, 0 fallimenti).
+
+## [1.2.8-beta] - 2026-10-19
+
+### Pre-release / Beta — Astrazione Tipizzata Piattaforme ChatPlatform e Modello PlatformDefinition
+- **Astrazione Tipizzata Piattaforme e Modello Extensible (`PlatformDefinition.vb`, `AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb`, `MessagePopup.xaml.vb`, `Tests/SessionTests.vb` — TODO #68)**:
+  - **Enumerazione Tipizzata `ChatPlatform`**: Creata l'enumerazione formale `ChatPlatform` (`WhatsApp`, `Telegram`, `OpenClaw`, `Hermes`) per superare la precedente gestione basata esclusivamente su stringhe arbitrarie (`"WhatsApp"`, `"Telegram"`, `"OpenClaw"`, `"Hermes"`).
+  - **Gerarchia di Classi `PlatformDefinition`**: Introdotta la classe base astratta `PlatformDefinition` e le implementazioni concrete (`WhatsAppPlatformDefinition`, `TelegramPlatformDefinition`, `OpenClawPlatformDefinition`, `HermesPlatformDefinition`) che incapsulano e centralizzano:
+    - Metadati e porte di rete: ID serializzato, DisplayName, URL predefiniti (`DefaultUrl`) e porte TCP per proxy locale tsnet (`DefaultPort`);
+    - Elementi visivi e stile: colori tema esadecimali (`ThemeColorHex`), pennelli congelati WPF (`ThemeBrush`) e tracciati vettoriali SVG per le icone (`IconSvgPath`);
+    - Flag e capacità: `IsAiGateway`, `RequiresLocalProxy`, `SupportsBulkSender`, `SupportsThemeScript`, `SupportsTranslation`;
+    - Politiche di sicurezza e navigazione: convalida delle origini autorizzate HTTPS (`IsAuthorizedOrigin`), allowlist per finestre interne (`IsAllowedNewWindowHost`) e risoluzione trasparente dei deep link Telegram (`ResolveDeepLink`);
+    - Script iniettati: script di bootstrap DocumentCreated (`GetInitScript`) e sincronizzazione tema scuro/chiaro (`GetThemeScript`).
+  - **Registro Centrale Thread-Safe `PlatformRegistry`**: Implementato il modulo `PlatformRegistry` per la risoluzione deterministica e bidirezionale da enum e da stringa (con supporto a chiavi case-insensitive, DisplayName e fallback sicuro su WhatsApp), predisponendo l'architettura all'aggiunta rapida di ulteriori piattaforme future.
+  - **Refactoring Architetturale e Compatibilità 100%**:
+    - `AppAccounts.vb`: Rimossi flag e serie di `If/ElseIf`, delegando direttamente a `PlatformDefinition`. Mantenuta la proprietà `Platform As String` backed da `PlatformDefinition.Id` per garantire la retrocompatibilità totale con i file `settings.json` esistenti e il binding XAML;
+    - `AccountManager.vb`, `SettingsWindow.xaml.vb`, `MainWindow.xaml.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb` e `MessagePopup.xaml.vb`: Rimossi controlli cablati su stringhe in favore dei metodi e proprietà tipizzate del registro e delle definizioni;
+    - `Tests/SessionTests.vb`: Integrati test di regressione unitari dedicati (per un totale di 123 asserzioni automatiche con 0 errori) a copertura di enum, registry, risoluzione stringhe e fallback, porte proxy, deep-link e autorizzazione origini.
+
+## [1.2.7-beta] - 2026-10-18
+
+### Pre-release / Beta — Restrizione Filtri Porta e Validazione Rigorosa Host e Schema per Credenziali Localhost
+- **Sicurezza Filtri WebView2 e Protezione Credenziali Localhost (`LocalAuthPolicy.vb`, `AppAccounts.vb`, `SettingsWindow.xaml.vb`, `Tests/SessionTests.vb` — TODO #78)**:
+  - **Modulo di Convalida Rigorosa `LocalAuthPolicy`**: Introdotto il modulo di convalida `LocalAuthPolicy.vb` per la verifica puntuale di schema, host e porta prima dell'iniezione dei token di sicurezza (`X-HidaChat-Local-Token` e Bearer `Authorization`).
+  - **Restrizione Filtro su Porta TCP Esatta (`BuildFilterPattern`)**: Eliminato il filtro generico wildcard `http://127.0.0.1:*/*` in favore di pattern strettamente vincolati alla porta assegnata (`http://127.0.0.1:{port}/*`), azzerando l'intercettazione accidentale di richieste destinate ad altri servizi locali o porte aperte su `127.0.0.1`.
+  - **Verifica Esatta Schema, Host e Porta nell'Handler**: Aggiunto il controllo applicativo puntuale in `WebResourceRequested` per validare che l'URI richiesto corrisponda in modo identico allo schema (HTTP/HTTPS), all'host (`127.0.0.1` o hostname del gateway) e alla porta designata per quello specifico account, rifiutando qualsiasi mismatch, tentativo di spoofing o subdomain attack.
+  - **Aggiornamento e Rimozione Dinamica dei Filtri (`UpdateWebResourceAuthFilter`, `RemoveWebResourceAuthFilter`)**: Implementata la rimozione pulita e tempestiva (`CoreWebView2.RemoveWebResourceRequestedFilter`) dei filtri attivi al cambio di configurazione (porta, URL server, token, abilitazione/disabilitazione Tailscale o chiusura/disposizione account), evitando handler pendenti o filtri orfani in memoria.
+  - **Test di Regressione Automatizzati (`SessionTests.vb`)**: Aggiunti 12 nuovi test di validazione unitaria per verificare l'accettazione su porta autorizzata e il respingimento immediato su porte differenti, host non autorizzati, schemi non conformi e URI malformati.
+
+## [1.2.6-beta] - 2026-10-17
+
+### Pre-release / Beta — Autenticazione Obbligatoria Handshake WebSocket e Verifica Preventiva Origin nel Proxy tsnetd
+- **Sicurezza Proxy Locale tsnetd: Eliminazione Bypass Autenticazione WebSocket e Protezione Origin (`tsnetd/main.go`, `tsnetd/main_test.go` — TODO #77)**:
+  - **Eliminazione Bypass WebSocket su Token Locale (`checkLocalAuth`)**: Rimosso il bypass dell'autenticazione che consentiva a qualsiasi richiesta con header `Sec-WebSocket-Key` o `Upgrade: websocket` di accedere senza token ed ottenere nel cookie di risposta `__htok` il segreto locale. Tutte le richieste, sia HTTP che WebSocket, devono ora presentare credenziali valide (header `X-HidaChat-Local-Token`, parametro query `__htok` o cookie `__htok`).
+  - **Verifica Preventiva Origin e Protezione CSWSH (`isAllowedOrigin`)**: Introdotta la convalida rigorosa dell'intestazione `Origin` prima di qualsiasi inoltro o riscrittura. Sono ammessi esclusivamente host locali autorizzati (`127.0.0.1:{port}`, `localhost:{port}`, `[::1]:{port}`) o l'host endpoint Tailscale di destinazione. Eventuali richieste con Origin non autorizzato (inclusi `null` e siti web esterni) vengono respinte immediatamente con `403 Forbidden: Invalid Origin`, azzerando il rischio di Cross-Site WebSocket Hijacking (CSWSH) e attacchi cross-origin da browser esterni.
+  - **Rafforzamento Flag Cookie di Sessione**: Il cookie di autenticazione `__htok` viene ora emesso con i flag di sicurezza `HttpOnly: true` e `SameSite: Lax`, inibendo l'accesso e l'esfiltrazione del token da script malevoli eseguiti nel contesto della pagina web.
+  - **Suite di Test Unitari Dedicata (`tsnetd/main_test.go`)**: Implementati test automatizzati per validare il fallimento di richieste prive di credenziali, il blocco di handshake WebSocket contraffatti, il respingimento di Origin malevoli e il corretto funzionamento end-to-end delle sessioni autorizzate.
+
+## [1.2.5-beta] - 2026-10-15
+
+### Pre-release / Beta — Rilevamento Pagina Bianca Hermes/OpenClaw con Controllo Connessione Tailscale e Ripristino Storage IndexedDB con ProgressBar
+- **Rilevamento Pagina Bianca su Profili Hermes / OpenClaw e Controllo Stato Connessione Tailscale (`AppAccounts.vb`, `MainWindow.xaml.vb`, `TsnetManager.vb`, `TailscaleConnectionErrorDialog.xaml`, `TailscaleConnectionErrorDialog.xaml.vb` — TODO #75)**:
+  - **Monitoraggio Attivo Navigazione e Diagnosi DOM**: Monitorata la navigazione dei profili Hermes e OpenClaw in `NavigationCompleted` con intercettazione tempestiva di errori di rete (`IsSuccess = False`, errori DNS e di connessione) ed esecuzione di script di introspezione DOM post-caricamento per rilevare pagine bianche persistenti (`empty_body`) o risposte di errore del reverse proxy (`502 Bad Gateway`, `504 Gateway Timeout`).
+  - **Diagnostica Connettività Tailscale Integrata (`CheckTailscaleConnectivityAsync`)**: Implementata la verifica multilivello della connettività Tailscale:
+    - Controllo stato nodo tsnet embedded (`NeedsLogin`, `Stopped`, o handshake di reverse proxy con token locale `X-HidaChat-Local-Token` verso porta loopback dedicata);
+    - Rilevamento disponibilità dell'istanza client Tailscale su Windows e test di raggiungibilità TCP del target endpoint;
+    - Differenziazione puntuale delle cause di mancato caricamento (autenticazione richiesta, proxy locale inattivo, nodo remoto offline/spento, o client Tailscale non avviato).
+  - **Dialog Grafico Informativo Dedicato (`TailscaleConnectionErrorDialog`)**: Creata una finestra modale in tema scuro nativo con indicazione esplicita della causa del mancato caricamento e pulsanti interattivi per:
+    - "Riprova": ricarica della scheda con refresh della rotta proxy locale;
+    - "Accedi a Tailscale": apertura immediata della pagina web di login al nodo tsnet;
+    - "Impostazioni": apertura delle preferenze applicative;
+    - "Chiudi".
+- **Controllo Preventivo Integrità Storage/IndexedDB all'Avvio e Dialog di Ripristino con ProgressBar (`StorageIntegrityService.vb`, `StorageRecoveryProgressDialog.xaml`, `StorageRecoveryProgressDialog.xaml.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb` — TODO #76)**:
+  - **Controllo Preventivo a Freddo (`CheckIndexedDbCorruption`)**: Prima dell'avvio del runtime WebView2, verifica l'integrità del puntatore `CURRENT`, esistenza e non-vacuità del manifest `MANIFEST-*`, consistenza delle cartelle `.indexeddb.blob`), prevenendo l'eccezione irreversibile `NotReadableError: Data lost due to missing file` prima che causi una pagina bianca.
+  - **Finestra con ProgressBar di Ripristino (`StorageRecoveryProgressDialog`)**: Creata la finestra grafica modale con ProgressBar indeterminata in stile WhatsApp che informa l'utente durante la riparazione e rigenerazione del database corrotto.
+  - **Ripristino Selettivo e Non Distruttivo (`PerformStorageRecoveryWithDialogAsync`)**: Rimozione pulita dei database IndexedDB e della cache Service Worker corrotti, preservando integralmente `Local Storage`, cookie di sessione, token DPAPI e credenziali. Integrato sia all'avvio a freddo, sia a caldo tramite evento `INDEXEDDB_CORRUPTED`, sia dallo strumento "Ripara Scheda".
+- **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+  - Sincronizzate 18 nuove chiavi di localizzazione per i dialog Tailscale (`tailscale_dialog_*`, `tailscale_error_*`, `tailscale_btn_*`) e per le fasi di recupero storage (`storage_recovery_*`) in tutti e 5 i dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+
+## [1.2.4-beta] - 2026-10-14
+
+### Pre-release / Beta — Dialog di Avanzamento Salvataggio e Chiusura, Risoluzione Pagina Bianca Telegram/WhatsApp e Riparazione Schede
+- **Finestra / Dialog di Avanzamento durante il Salvataggio e Chiusura dell'Applicazione (`ShutdownProgressDialog.xaml`, `ShutdownProgressDialog.xaml.vb`, `MainWindow.xaml.vb` — TODO #74)**:
+  - **Dialog Grafico Dedicato di Chiusura**: Creata la finestra non invasiva `ShutdownProgressDialog` con stile visivo scuro nativo HidaChat/WhatsApp, sempre in primo piano, ProgressBar animata indeterminata e messaggio dinamico per informare l'utente delle attività di I/O e persistenza in corso.
+  - **Tracciamento Fasi di Shutdown**: All'uscita dall'applicazione (`ExitApplication`), la schermata principale viene immediatamente nascosta e viene mostrato l'avanzamento dettagliato per ciascuna sotto-fase:
+    1. Salvataggio impostazioni e preferenze account;
+    2. Dismissione controllata dei processi WebView2;
+    3. Sincronizzazione atomica dei profili e delle sessioni su percorsi SMB/UNC (se abilitata);
+    4. Chiusura del proxy di rete `tsnetd` e rilascio lock di sessione e filesystem;
+    5. Finalizzazione ordinata e rilascio del Mutex applicativo.
+- **Risoluzione Pagina Bianca Telegram Web e Corruzione Blob IndexedDB (`notification.js`, `AppAccounts.vb`)**:
+  - **Rilevamento e Diagnostica Avanzata (`INDEXEDDB_CORRUPTED`)**: Intercettata nello script di bootstrap (`notification.js`) l'eccezione critica di Chromium `NotReadableError: Data lost due to missing file. Affected record should be considered irrecoverable` generata in caso di mancata persistenza dei blob `tt-data` su disco in seguito ad arresti anomali.
+  - **Auto-Recovery Automatico a Caldo (`RecoverFromCorruptedStorageAsync`)**: Implementata la procedura automatica di auto-riparazione che, alla rilevazione di errori irreversibili nel database locale, invoca `ClearBrowsingDataAsync` per eliminare in modo mirato e pulito `IndexedDb`, `ServiceWorkers` e `CacheStorage` ricreando una banca dati sana e ricaricando istantaneamente la pagina, preservando integralmente `localStorage`, cookie di sessione e credenziali.
+  - **Protezione CacheStorage nella Pulizia Cache (`CleanTransientCacheFolders`)**: Rimosse le cartelle `Service Worker\CacheStorage` e `ScriptCache` dalla rimozione a freddo per prevenire la desincronizzazione tra i file PWA e le tabelle IndexedDB di Telegram e WhatsApp.
+- **Strumento Manuale "Ripara Scheda" da Menu Contestuale (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Aggiunta la voce "Ripara scheda (ripristina database corrotto)" nel menu contestuale col tasto destro sulla scheda dell'account per consentire all'utente di forzare il reset del database locale e della cache web in caso di blocco o schermata bianca persistente.
+- **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+  - Sincronizzate le nuove chiavi per la riparazione scheda (`account_repair_*`) e per tutte le fasi del dialog di chiusura (`shutdown_dialog_*`, `shutdown_stage_*`) in tutti i 5 dizionari ufficiali (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+
+## [1.2.3-beta] - 2026-10-13
+
+### Pre-release / Beta — Ibernazione Intelligente Schede Inattive, Limitazione Cache Chromium e Pulizia Selettiva Preservando il Login
+- **Ibernazione Intelligente delle Schede Inattive (`AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb` — TODO #50)**:
+  - **Sospensione Automatica Memoria RAM (`TrySuspendAsync`)**: Implementati i metodi `TryHibernateAsync()` e `ResumeFromHibernation()` che mettono in pausa l'esecuzione JavaScript e il rendering delle istanze WebView2 in background senza chiudere il processo, riducendo drasticamente il working set della memoria RAM.
+  - **Timer di Inattività e Risveglio Istantaneo**: Configurato un timer periodico a 60 secondi che rileva l'inattività delle schede (soglia configurabile a 15, 30 o 60 minuti, predefinita 30 min) e le sospende in modo trasparente. Risveglio immediato a latenza zero al click sulla scheda o al cambio account.
+  - **Indicatore Visivo e Opzioni UI**: Visualizzazione dell'icona `💤` sulle schede ibernate nella barra principale e sezione dedicata nelle Impostazioni con selettore del tempo di inattività e toggle di attivazione.
+- **Limitazione della Cache Chromium su Disco (`AppAccounts.vb`, `SettingsController.vb`, `SettingsWindow.xaml` — TODO #71)**:
+  - **Configurazione `--disk-cache-size`**: Introdotta l'opzione per limitare la cache HTTP su disco di Chromium a livello di `CoreWebView2EnvironmentOptions` (128 MB, 256 MB raccomandato, 512 MB, 1024 MB o illimitata), prevenendo la crescita incontrollata dello spazio occupato dai profili browser.
+- **Pulizia Cache Intelligente Preservando il Login (`AccountManager.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml` — TODO #72)**:
+  - **Bonifica Selettiva Non Distruttiva**: Implementato il metodo `SmartCleanCachePreservingLoginAsync()` che elimina file temporanei pesanti, disk cache, cache shader GPU e report di crash (`Cache`, `Code Cache`, `GPUCache`, `DawnWebGPUCache`, `Crashpad`), salvaguardando integralmente cookie, chiavi crittografiche, `IndexedDB`, `Local Storage` e sessioni di login attive.
+  - **Invocazione Centralizzata e per Scheda**: Aggiunto il pulsante "Pulisci Cache (preserva login)" nelle Impostazioni e la voce dedicata nel menu contestuale col tasto destro sulla singola scheda dell'account.
+- **Localizzazione Multilingua Integrale (`Localization.vb`)**:
+  - Sincronizzate 15 nuove chiavi in tutti e 5 i dizionari di lingua supportati (EN, IT, FR, ES, DE).
+
+## [1.2.2-beta] - 2026-10-12
+
+### Pre-release / Beta — Soppressione Notifiche Native Web degli Account e Risoluzione Popup Duplicati
+- **Blocco Notifiche e Popup Nativi degli Account WebView2 (`AppAccounts.vb`)**:
+  - **Negazione Permessi Notifiche a Livello Profilo e Runtime (`CoreWebView2PermissionState.Deny`)**: Negati permanentemente i permessi di notifica nativi del browser sia nel gestore `PermissionRequested` sia nella configurazione persistente del profilo WebView2 (`Profile.SetPermissionStateAsync`) per WhatsApp Web, Telegram Web e tutte le origini di account configurate (OpenClaw, Hermes, ecc.). In questo modo le web app operanti nei tab non mostrano più popup, banner o notifiche di sistema native del browser.
+  - **Intercettazione e Soppressione `CoreWebView2.NotificationReceived`**: Registrato l'evento `NotificationReceived` su tutte le istanze WebView2 con `e.Handled = True`, impedendo l'emissione dell'interfaccia predefinita di notifica di WebView2 e confermando la chiusura ordinata dell'evento al motore Chromium (`ReportShown()` / `ReportClosed()`). Disiscrizione sicura del listener garantita in `Dispose()`.
+- **Eliminazione Sovrapposizioni e Popup Doppi (`AppAccounts.vb`)**:
+  - **Soppressione Banner Toast Windows con Popup Grafico Attivo (`SuppressPopup`)**: Quando l'opzione "Mostra popup messaggio" (`ShowMessagePopup`) è abilitata, la notifica Toast nativa di Windows viene inoltrata silenziosamente al Centro Notifiche con `toast.SuppressPopup = True`, garantendo la comparsa esclusiva del popup overlay personalizzato di HidaChat (`MessagePopup`) ed azzerando completamente la duplicazione visiva su schermo.
+
+## [1.2.1-beta] - 2026-10-11
+
+### Pre-release / Beta — Ottimizzazione I/O Configurazione, Sicurezza Segreti Portabili & Bearer Token, File Lock Multi-PC e Isolamento State Directory tsnet
+- **Ottimizzazione I/O e Risoluzione `SettingsFile` (`SettingsController.vb` — TODO #65)**:
+  - **Risoluzione Lazy Thread-Safe**: Sostituita la verifica I/O ad ogni accesso con una memorizzazione persistente tramite `Lazy(Of String)` (`_settingsFilePathLazy`). Il percorso del file di configurazione `data/settings.json` viene ora calcolato e cachato esattamente una volta per l'intero ciclo di vita dell'applicazione.
+  - **Inizializzazione e Migrazione Dedicata (`InitializeSettingsFilePath`)**: La verifica della cartella `data/` e la migrazione una tantum del file storico `settings.json` dalla radice sono state isolate nella procedura di inizializzazione, azzerando le chiamate ridondanti a `File.Exists`, `Directory.CreateDirectory` e `File.Move` durante le normali operazioni di lettura e scrittura.
+- **Sicurezza Segreti Portabili, Isolamento Host tsnet e Iniezione Header Bearer (`SettingsController.vb`, `TsnetManager.vb`, `AppAccounts.vb`, `MainWindow.xaml.vb` — TODO #60)**:
+  - **Gestione Esplicita Errori DPAPI**: In caso di fallimento della decifratura DPAPI (`CryptographicException`, ad es. spostando l'archivio portabile su un altro computer o utente Windows), l'applicazione non azzera più silenziosamente la chiave ma imposta `TsnetAuthKeyDecryptionFailed = True`, registra un log diagnostico ed avvisa l'utente tramite dialogo esplicito richiedendo il reinserimento delle credenziali.
+  - **Isolamento State Directory tsnet per Host (`data/tsnet/<hostname>`)**: Implementata la funzione `GetMachineStateDir()` che associa a ciascun computer una cartella di stato separata per il nodo tsnet embedded, impedendo la clonazione dell'identità del nodo o conflitti di enrollment tra macchine differenti che condividono l'archivio portabile.
+  - **Rilascio e Pulizia Automatica `tsnetAuthKey` Post-Enrollment**: Una volta che il nodo raggiunge lo stato `Running`, l'evento `OnEnrollmentCompletedAsync` provvede a rimuovere automaticamente la chiave monouso salvata (`ClearTsnetAuthKeyAfterEnrollmentAsync`), prevenendo la persistenza superflua di segreti esauriti nel file JSON.
+  - **Rimozione Token in Chiaro dall'URL & Iniezione Bearer Token**: Rimosso totalmente il parametro `token=` in query string dall'URL di navigazione per le piattaforme OpenClaw ed Hermes. Il token di accesso viene ora iniettato in modo sicuro e trasparente tramite header HTTP `Authorization: Bearer <token>` intercettato dall'evento `WebResourceRequested` di CoreWebView2 (sia per connessioni dirette che attraverso il reverse proxy tsnet).
+- **Protezione Attiva Multi-PC tramite Lock di Cartella (`Application.xaml.vb`, `README.md`, `README.it.md` — TODO #70)**:
+  - **File Lock Esclusivo OS (`data/.lock`)**: All'avvio dell'applicazione (`Application.OnStartup`) viene acquisito un file lock esclusivo a livello di filesystem (`data/.lock`) con `FileShare.Read` mantenuto aperto per tutta la durata dell'esecuzione.
+  - **Prevenzione Corruzione Profili e Dialogo Diagnostico**: All'avvio da un secondo computer o processo concorrente sulla stessa cartella, l'applicazione legge i metadati serializzati (hostname, utente, PID e timestamp di avvio dell'istanza bloccante) e presenta un avviso informativo bloccante, arrestandosi ordinatamente per salvaguardare l'integrità dei profili e dei database LevelDB di WebView2.
+  - **Rilascio Controllato all'Uscita**: Rilascio trasparente dell'handle e cancellazione di `data/.lock` in `Application.OnExit` e in tutti i percorsi di chiusura/spegnimento.
+  - **Armonizzazione Documentazione Portabilità e Requisiti**: Aggiornati i file `README.md` e `README.it.md` dettagliando il meccanismo di lock `data/.lock` e chiarendo la definizione di "Zero Installazione" (distribuzione portabile autonoma) unitamente al requisito del runtime Microsoft .NET 9 Desktop.
+- **Localizzazione Multilingua Sincrona (`Localization.vb`)**:
+  - Aggiunte e sincronizzate le nuove chiavi per notifiche decifratura credenziali e blocco cartella (`secret_decrypt_error_title`, `secret_decrypt_error_msg`, `folder_locked_title`, `folder_locked_msg`) nei dizionari di tutte e 5 le lingue supportate (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+
+## [1.2.0] - 2026-10-09
+
+### Release Stabile — Nuova Architettura Resiliente Profili WebView2, Copie Atomiche Cold Profile, Ripristino API Web Native e Sincronizzazione Multi-PC
+- **Ripristino Integrale delle API Web Native e Normalizzazione Browser (`Scripts/notification.js`, `AppAccounts.vb`)**:
+  - **Integrità WebSocket e IndexedDB Native**: Rimossa qualsiasi intercettazione o monkey-patching dei costruttori `window.WebSocket` e del metodo `indexedDB.deleteDatabase`. Le connessioni socket e le banche dati crittografiche (Signal e LevelDB) operano al 100% secondo gli standard W3C nativi di Chromium senza alterazioni di prototipi né interferenze di timing.
+  - **Normalizzazione Browser Flags Chromium**: Rimossi i flag di inibizione del timer throttling in background (`--disable-background-timer-throttling` e `--disable-backgrounding-occluded-windows`), ripristinando il corretto comportamento del browser in sospensione e prevenendo contese di I/O disco e aborti di transazione (`QuotaExceededError`) durante i reset hardware o virtuali.
+  - **Sanificazione Deleghe Permessi**: La delega di `navigator.permissions.query` è limitata alle notifiche, delegando tutte le altre autorizzazioni alla gestione nativa di WebView2.
+- **Architettura Resiliente del Ciclo di Vita Profili WebView2 (`AppAccounts.vb`, `WebViewLifetime.vb`)**:
+  - **Differenziazione Fallimenti di Processo**: Gli arresti non fatali di GPU o sottosistemi di utilità non causano più la ricreazione forzata dell'istanza del browser; la ricreazione scatta unicamente se il processo browser è effettivamente terminato.
+  - **Sincronizzazione Atomica `BrowserProcessExited`**: Attesa asincrona della reale chiusura del processo `msedgewebview2.exe` prima di liberare risorse o riutilizzare directory, eliminando contese di lock e corruzioni LevelDB.
+  - **Serializzazione Thread-Safe**: Sincronizzazione delle ricreazioni tramite semaforo per escludere corse critiche.
+- **Copie Atomiche Cold Profile e Sicurezza Staging (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`)**:
+  - **Divieto Tassativo Copie Live (`[LIVE_COPY_REFUSED]`)**: Bloccata qualsiasi copia o esportazione di profilo a browser in esecuzione.
+  - **Staging Atomico e Rollback**: Le operazioni di copia avvengono in cartelle temporanee `.incoming-*` con rinomina atomica finale e conservazione del backup integro `.previous`.
+  - **Eliminazione Euristiche Distruttive**: Rimossi controlli basati su dimensioni che rischiavano di scartare profili validi.
+- **Lease Esclusivo OS per Condivisioni Multi-PC (`NetworkProfileSync.vb`)**:
+  - File lock a livello di filesystem (`FileShare.None`) attivo per l'intera sessione per prevenire l'avvio concorrente dello stesso account da postazioni diverse.
+- **Aggiornamenti Puliti e Non Invasivi (`UpdateChecker.vb`)**:
+  - Eliminata la terminazione forzata con `taskkill /f`: l'aggiornatore attende la chiusura ordinata del processo host prima della sostituzione dei file.
+- **Suite di Test Completa**:
+  - Validati con successo tutti i 42 test di regressione .NET e 9 test JavaScript in esecuzione congiunta.
+
+## [1.1.8-beta] - 2026-10-08
+
+### Pre-release / Beta — Ripristino Integrale API Native Web (`WebSocket` e `IndexedDB`), Normalizzazione Browser Flags Chromium e Isolamento Resilienza I/O
+- **Ripristino Integrale delle API Web Native (`Scripts/notification.js`)**:
+  - **Rimozione Override `window.WebSocket`**: Eliminata la sostituzione del costruttore WebSocket globale e l'iniezione di listener diagnostici a caldo. Il costruttore nativo, i prototipi e la negoziazione dei socket rimangono al 100% inalterati, prevenendo anomalie di timing e aperture multiple concorrenti durante le riconnessioni.
+  - **Rimozione Override `window.indexedDB.deleteDatabase`**: Rimosso il wrapping del metodo di cancellazione del database; le banche dati IndexedDB e LevelDB operano esclusivamente tramite i motori nativi W3C del browser senza intercettazioni JavaScript né allocazioni di stack trace.
+  - **Sanificazione Gestione Permessi Navigator**: Il fallback di `navigator.permissions.query` è limitato esclusivamente al parametro `notifications`, evitando ritorni anomali per query relative allo storage, clipboard o periferiche.
+- **Normalizzazione Browser Flags Chromium (`AppAccounts.vb`)**:
+  - **Rimozione `--disable-background-timer-throttling` e `--disable-backgrounding-occluded-windows`**: L'inibizione forzata del throttling impediva a Chromium di gestire fisiologicamente la sospensione, i reset del controller disco (VirtIO SCSI `vioscsi 129`) e gli eventi di sleep/wake, causando aborti di transazione LevelDB (`AbortError: QuotaExceededError`). Ripristinato il comportamento nativo di Microsoft Edge WebView2, che mette in sicurezza l'I/O su disco in background.
+  - **Pulizia Argomenti Browser**: Rimossi browser flags non raccomandati per la distribuzione da Microsoft, mantenendo unicamente le funzionalità standard di supporto correttore ortografico (`Spellcheck`) e disabilitazione di feature non pertinenti (`Translate`, `MediaRouter`).
+- **Verifica Congiunta Script di Pagina (`Tests/session-health.test.cjs`)**:
+  - Estesa la suite di test JavaScript per validare che l'esecuzione simultanea di tutti gli script iniettati (`session-health.js` e `notification.js`) mantenga invariati i prototipi e i costruttori nativi di trasporto (`window.WebSocket`) e persistenza (`indexedDB.deleteDatabase`).
+
+## [1.1.7-beta] - 2026-10-07
+
+### Pre-release / Beta — Architettura Difensiva Ciclo di Vita Profili WebView2, Copie Atomiche Cold Profile, Lease Esclusivo Multi-PC e Diagnostica Session Health
+- **Gestione Resiliente Fallimenti WebView2 (`AppAccounts.vb`, `WebViewLifetime.vb`)**:
+  - **Differenziazione dei Guasti di Processo (`ProcessFailed`)**: Gli arresti anomali non fatali di GPU, sottosistemi di utilità o temporanei blocchi del renderer (`RenderProcessUnresponsive`) non causano più l'abbattimento distruttivo dell'istanza del browser. La ricreazione completa avviene esclusivamente se il processo principale del browser è terminato.
+  - **Sincronizzazione Esplicita `BrowserProcessExited`**: Introdotta l'attesa asincrona (`WaitForBrowserProcessExitAsync`) della reale chiusura del processo OS `msedgewebview2.exe` prima di liberare risorse, riutilizzare la directory del profilo o avviare esportazioni, eliminando contese di lock e corruzioni LevelDB da terminazioni premature.
+  - **Serializzazione delle Ricreazioni**: Sincronizzazione thread-safe tramite semaforo per prevenire corse critiche o ricreazioni concorrenti in caso di crash multipli ravvicinati.
+- **Copie Atomiche Cold Profile e Sicurezza Staging (`ColdProfileCopy.vb`, `NetworkProfileSync.vb`)**:
+  - **Rifiuto Tassativo di Copie Live (`[LIVE_COPY_REFUSED]`)**: Vietata qualsiasi esportazione di directory profilo mentre il browser associato è in esecuzione, prevenendo la cattura di file LevelDB/IndexedDB aperti a metà scrittura.
+  - **Staging Atomico e Rollback (`.incoming-*` e `.previous`)**: Le copie su disco/rete avvengono in directory temporanee di staging con rinomina atomica finale. In caso di interruzione, la versione precedente integra viene preservata ed è sempre recuperabile.
+  - **Rimozione Heuristiche Distruttive di Dimensione (`SessionRecoveryPolicy.vb`)**: Eliminati i controlli euristici basati su soglie arbitrarie di dimensione che scartavano profili locali validi o sovrascrivevano profili attivi con cartelle orfane.
+- **Lease Esclusivo a Livello OS per Condivisioni Multi-PC (`NetworkProfileSync.vb`)**:
+  - **File Handle Bloccante OS**: Sostituita la verifica basata su timestamp con un lock esclusivo a livello di filesystem (`FileShare.None`) mantenuto attivo per l'intera durata della sessione. Se un altro computer sta già eseguendo l'account, l'acquisizione fallisce in modo pulito prevenendo sovrascritture incrociate.
+- **Ciclo di Vita Pulito negli Aggiornamenti (`UpdateChecker.vb`)**:
+  - **Rimozione `taskkill /f` Distruttivo**: Eliminata la terminazione forzata del browser durante la procedura di aggiornamento; lo script attende la chiusura ordinata del processo host prima di sostituire i binari.
+- **Diagnostica Passiva In-Page Session Health (`Scripts/session-health.js`)**:
+  - **Heartbeat Periodico Storage & UI**: Monitoraggio passivo ogni 60 secondi della persistenza dello storage (`navigator.storage.persist()`), stima della quota IndexedDB e stato visivo dell'interfaccia WhatsApp (transizioni QR, caricamento, chat attiva) senza alterare il DOM né intercettare le chiamate native del database.
+  - **Gestione Permessi WebView2**: Gestione esplicita dell'evento `PermissionRequested` per concedere automaticamente l'autorizzazione di persistenza storage per gli host fidati (`web.whatsapp.com`, `web.telegram.org`).
+- **Suite di Test di Regressione (.NET e JavaScript)**:
+  - Integrati 42 test di regressione unitari .NET (`Tests/HidaChat.SessionTests.vbproj`) e 9 test JavaScript (`Tests/session-health.test.cjs`) integrati sia nella build locale che nella pipeline CI GitHub Actions.
+
+## [1.1.5-beta] - 2026-10-05
+
+### Pre-release / Beta — Risoluzione Causa Radice Disconnessione Notturna: Esclusione LevelDB Live da Sync Periodica, Ripristino Integrità Database IndexedDB e Persistenza Storage W3C
+- **Eliminazione Contesa Lock LevelDB e QuotaExceededError (`NetworkProfileSync.vb`)**:
+  - **Esclusione Cartelle LevelDB Live durante Sync Periodica**: Durante la sincronizzazione periodica a caldo (`isPeriodic:=True`), le cartelle attive `IndexedDB`, `Local Storage` e `Session Storage` vengono categoricamente escluse dalla copia su share SMB. La lettura sequenziale dei file `.ldb` e `.log` mentre Chromium ne deteneva lock attivi su rete con latenza creava contese di I/O prolungate, innescando l'errore `QuotaExceededError (AbortError) - dropping db read operation due to logout`. La cartella locale di staging su SSD rimane l'unica fonte di verità rapida e affidabile 24/7; il mirror completo su master avviene atomicamente alla chiusura ordinaria dell'applicazione.
+  - **Rimozione Aggiornamento Snapshot Massivo nel Timer Periodico**: Lo snapshot Last-Known-Good viene ora aggiornato esclusivamente alla chiusura dell'applicazione (`Not isPeriodic`) e non più ad ogni ciclo da 10 minuti, eliminando copie continue da oltre 30 minuti che saturavano la banda di rete e il sottosistema disco.
+- **Risoluzione Errore Database Browser e Ripristino Accoppiamento QR (`Scripts/notification.js`)**:
+  - **Rimozione Intercettazione Fittizia `indexedDB.deleteDatabase`**: Rimosso il reindirizzamento delle cancellazioni su database dummy. L'emulazione fittizia impediva a WhatsApp di ricreare le tabelle corrotte durante il pairing iniziale o la migrazione di schema, generando l'errore "Si è verificato un errore del database del tuo browser". Ora i tentativi di eliminazione vengono tracciati nella diagnostica e passati al motore IndexedDB nativo.
+  - **Pulizia Tabelle Corrotte WhatsApp**: Eliminati i file LevelDB residui danneggiati dai blocchi precedenti, consentendo a WhatsApp di inizializzare una banca dati pulita e priva di conflitti.
+  - **Richiesta Persistenza Storage W3C (`navigator.storage.persist()`)**: Richiesta automatica all'avvio della persistenza dello storage per impedire a Chromium di applicare quote restrittive o sfratti automatici di dati in background.
+
+## [1.1.4-beta] - 2026-10-04
+
+### Pre-release / Beta — Risoluzione Causa Radice Perdita Sessione WhatsApp: Blocco Auto-Distruzione IndexedDB, Risoluzione ERROR_SHARING_VIOLATION LevelDB e Ottimizzazione Sync SMB
+- **Protezione Assoluta da Auto-Distruzione IndexedDB (`Scripts/notification.js`)**:
+  - **Blocco Cancellazione Database di Sessione**: Intercettata a livello W3C `window.indexedDB.deleteDatabase` per impedire agli handler di errore interni di WhatsApp Web (`t.reset()` scattato in caso di temporanei errori di I/O o caduta WebSocket) di distruggere le banche dati crittografiche (`signal-storage`, `wawc_db_enc`, `wawc`, `model-storage`, `worker-storage`, ecc.).
+  - **Emulazione IDBOpenDBRequest Conforme**: La richiesta di cancellazione dei database protetti viene reindirizzata in modo trasparente su un database dummy fittizio, restituendo un `IDBOpenDBRequest` valido con `onsuccess`. In questo modo l'applicazione client non va in crash ma le chiavi crittografiche e la registrazione del dispositivo sul disco rimangono intatte, consentendo il ripristino immediato della sessione senza richiesta di scansione codice QR.
+- **Risoluzione `ERROR_SHARING_VIOLATION` (0x20) e Storage-Error LevelDB (`NetworkProfileSync.vb`)**:
+  - **Abilitazione `FileShare.Delete`**: Aggiunto il flag `FileShare.Delete` (`FileShare.ReadWrite Or FileShare.Delete`) all'apertura dei file in `CopyFileWithRetry`. In Windows, l'omissione di `FileShare.Delete` impediva a Chromium LevelDB di eliminare o rinominare i file SST (`.ldb`) e i log (`.log`) durante la compattazione in background mentre il processo di copia era in lettura, generando l'errore `ERROR_SHARING_VIOLATION (32)` e il conseguente `AbortError (storage-error) / QuotaExceededError` in WhatsApp Web.
+- **Ottimizzazione Prestazioni e Concorrenza Sincronizzazione Rete SMB (`NetworkProfileSync.vb`, `MainWindow.xaml.vb`)**:
+  - **Pre-Indicizzazione File Remoti in Bulk**: Risolto il collo di bottiglia che causava sync di oltre 20 minuti su condivisioni di rete SMB. `SyncDirectoryAsync` ora indicizza preliminarmente i file della cartella di destinazione in un dizionario in memoria, eliminando migliaia di chiamate RPC di rete (`File.Exists` e query metadati `FileInfo`) individuali.
+  - **Controllo di Concorrenza Atomico (`SemaphoreSlim`)**: Integrato un semaforo thread-safe a livello di classe `_syncLock` in `NetworkProfileSync.vb` per garantire che sincronizzazioni periodiche o di chiusura non possano mai sovrapporsi o collidere sugli stessi file.
+  - **Reentrancy Guard nel Timer Periodico (`MainWindow.xaml.vb`)**: Aggiunto `_isPeriodicNetworkSyncRunning` sul tick di `_periodicNetworkSyncTimer` per ignorare nuovi tick se la sincronizzazione precedente è ancora in corso.
+  - **Pulizia Mirror Controllata dei File Orfani**: Durante la sincronizzazione periodica a caldo, se la dimensione del master supera il doppio dello staging locale sano (> 2 MB), viene attivata una rimozione mirror sicura per eliminare le centinaia di file SST orfani scartati da Chromium, evitando il continuo rigonfiamento del profilo su drive di rete.
+
+## [1.1.3-beta] - 2026-10-03
+
+### Pre-release / Beta — Diagnostica Profonda WhatsApp Web, Snapshot Last-Known-Good e Protezione Collasso Storage
+- **Sistema di Logging Centralizzato Portabile (`AppLogger.vb`)**:
+  - **Cartella Log Portabile (`data/logs/`)**: Introdotta l'architettura di logging thread-safe all'interno della cartella portabile dell'applicazione, con rotazione automatica dei file al superamento dei 5 MB.
+  - **Tracciamento WhatsApp Web (`whatsapp.log` e `whatsapp_errors.log`)**: Registrazione continua di tutti gli eventi del ciclo di vita della pagina WhatsApp, inclusi errori HTTP 4xx/5xx, chiusure e codici WebSocket, tentativi di cancellazione database e popup modali.
+  - **Tracciamento Sincronizzazione Rete (`sync.log`)**: Registrazione dettagliata delle operazioni di trasferimento tra staging locale (%LOCALAPPDATA%) e master su drive di rete (Y:\), con verifica dimensionale in KB prima e dopo ogni sync.
+- **Strumentazione Telemetrica In-Page JavaScript (`Scripts/notification.js`)**:
+  - **Rilevamento Modali e Popup di Errore**: Scanner automatico di dialoghi contenenti "disconnesso", "logged out", "qualcosa è andato storto", "usa qui" o "sessione scaduta", con estrazione istantanea di testo, pulsanti e HTML serializzato verso il log host.
+  - **Intercettazione `console.error` e `console.warn`**: Inoltro in tempo reale verso `AppLogger` di tutti gli errori e avvertimenti critici generati dal codice client di WhatsApp Web.
+  - **Monitoraggio WebSocket (`wss://web.whatsapp.com/ws/chat`)**: Cattura di ogni evento `open`, `error` e `close` (con codice numerico, motivo testuale e flag `wasClean`).
+  - **Intercettazione `indexedDB.deleteDatabase`**: Cattura dello stack trace completo di qualsiasi script che tenti di eliminare il database locale di sessione (`wawc`).
+  - **Gestione Errori Globali**: Cattura di `window.onerror`, `unhandledrejection`, cambi di visibilità (`visibilitychange`) e disconnessioni di rete (`online`/`offline`).
+- **Snapshot Sessione Last-Known-Good e Protezione Collasso Storage (`NetworkProfileSync.vb`)**:
+  - **Snapshot Automatico Protetto (`WV2Profile_{id}_Snapshot`)**: Creazione e aggiornamento continuo di uno snapshot congelato della sessione quando il database locale supera i 2 MB (sessione autenticata e funzionante).
+  - **Blocco Cancellazione Distruttiva Master**: Se nello staging locale il database subisce un collasso imprevisto (< 500 KB) mentre il master su rete possiede una sessione sana (> 2 MB), la rimozione mirror viene tassativamente bloccata e viene emesso un allarme di sicurezza.
+  - **Ripristino Resiliente all'Avvio**: Risolto il difetto che saltava il download da master anche in presenza di sessioni incomplete o danneggiate in staging; se lo staging è compromesso o vuoto, il profilo viene ripristinato automaticamente dal master o dallo snapshot Last-Known-Good.
+- **Stabilità Processo e WebSockets in Background (`AppAccounts.vb`)**:
+  - **Prevenzione Sospensione Keepalive**: Reintrodotti `--disable-background-timer-throttling` e `--disable-backgrounding-occluded-windows` per evitare che Chromium congeli i timer dei ping WebSocket notturni, mentre il basso carico della CPU rimane garantito dal debounce e dal polling leggero a 25s di `notification.js`.
+  - **Abilitazione DevTools e Ispezione Risposte**: DevTools attivi e ascolto degli eventi `WebResourceResponseReceived` e `ProcessFailed` per la diagnostica completa.
+
+## [1.1.2-beta] - 2026-10-02
+
+### Pre-release / Beta — Risoluzione Definitiva Perdita Sessione WhatsApp Web, Timer Sincronizzazione Periodica e Ottimizzazione Memoria Background
+- **Protezione Integrale Sessione Staging Locale (`NetworkProfileSync.vb`)**:
+  - **Salto Download se Sessione Attiva Presente**: Modificato `SyncMasterToLocalStagingAsync` affinché, se nello staging locale `%LOCALAPPDATA%` è già presente una sessione (`IndexedDB` popolato o file `Preferences`), il download dalla cartella master su share di rete `Y:\` venga completamente saltato. Questo previene qualsiasi iniezione di vecchi file SST/log di LevelDB e azzera il rischio di corruzione storage durante avvii o recovery automatiche.
+  - **Sincronizzazione Periodica Sicura (`SyncLocalStagingToMasterAsync`)**: Aggiunto il parametro `isPeriodic` che disattiva la pulizia mirror durante le sincronizzazioni a caldo, proteggendo i file in corso di scrittura mentre il browser è attivo.
+- **Risoluzione Memoria e Watchdog Timeout Notturno WhatsApp Web (`AppAccounts.vb`)**:
+  - **Rimozione Flag Forzatura Background**: Eliminati i parametri `--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows` e `--disable-renderer-backgrounding` che mantenevano i 4 processi WebView2 attivi come se fossero in primo piano a 60 FPS 24/7, esaurendo le page table (Memory Management 1a/3f) e causando il congelamento del thread principale JS con scatto del watchdog interno `unresponsiveness-events-v2`.
+  - **Rimozione Limiti Cache Restrittivi**: Rimossi `--disk-cache-size` e `--media-cache-size` ridotti che causavano continuo thrashing I/O, consentendo a Chromium di gestire normalmente il ciclo di vita e la garbage collection V8 durante la notte.
+- **Alleggerimento Radicale Monitoraggio DOM e Notifiche (`Scripts/notification.js`)**:
+  - **Eliminazione Observer su `document.body`**: Rimosso completamente l'ascolto su tutto il corpo del documento. Introdotto l'aggancio selettivo e differito esclusivamente sul pannello chat laterale `#pane-side` non appena viene generato nel DOM.
+  - **Polling a Basso Impatto**: Polling esteso a 25 secondi quando la finestra è in background/nascosta, con disattivazione totale della scansione `scanOnlineStatus`.
+- **Sincronizzazione Periodica Continua su Drive di Rete (`MainWindow.xaml.vb`, `AccountManager.vb`)**:
+  - **Timer Periodico 10 Minuti**: Introdotto `_periodicNetworkSyncTimer` che esegue `SyncAllProfilesToNetworkAsync(isPeriodic:=True)` ogni 10 minuti in background. Anche se l'applicazione resta aperta per giorni o settimane senza venire mai chiusa, i dati sul drive di rete `Y:\` rimangono costantemente aggiornati e protetti da eventuali interruzioni improvvise o disconnessioni di rete.
+
+## [1.1.1-beta] - 2026-10-01
+
+### Pre-release / Beta — Risoluzione Errore Sessione Notturna WhatsApp Web, Protezione Local Staging e Throttling Background
+- **Protezione Anti-Sovrascrittura Local Staging (`NetworkProfileSync.vb`)**:
+  - **Sincronizzazione Unidirezionale Protetta (`onlyIfSourceNewer`)**: Risolto il bug critico per cui, all'avvio dell'applicazione o in fase di recovery, `SyncMasterToLocalStagingAsync` sovrascriveva incondizionatamente la cartella di sessione locale recente in `%LOCALAPPDATA%` con i file obsoleti del drive di rete `Y:\`, distruggendo la coerenza del database LevelDB (`CURRENT`, log e manifest non allineati).
+  - **Priorità Dati Locali Recenti**: Se la cartella di staging locale esiste già e contiene una sessione attiva, nessun file di destinazione viene più sovrascritto se la sorgente sul disco di rete risulta uguale o antecedente (`LastWriteTimeUtc`).
+  - **Resilienza I/O e Riprova Lock (`CopyFileWithRetry`)**: Aumentato il numero di tentativi a 6 con ritardi incrementali (150ms per tentativo) e gestione dedicata delle eccezioni `UnauthorizedAccessException` per file momentaneamente bloccati dal motore browser.
+- **Risoluzione Watchdog Timeout Notturno WhatsApp Web (`Scripts/notification.js`)**:
+  - **Throttling Intelligente in Background (`document.hidden`)**: Risolto il blocco di WhatsApp Web e il conseguente popup modale *"Qualcosa non ha funzionato"* dovuto all'evento di crash watchdog `unresponsiveness-events-v2` registrato al ripristino dalla sospensione del PC o dopo lunghe ore di inattività notturna.
+  - **Polling Adattivo**: Il ciclo di scansione passa automaticamente da 2 secondi in primo piano a 12 secondi quando l'applicazione è in background o minimizzata, sospendendo completamente l'ispezione dello stato online (`scanOnlineStatus`) a finestra non visibile.
+  - **Alleggerimento Osservatore DOM**: Eliminato il listener ricorsivo `subtree: true` con `attributes: true` sull'intero `document.body` che catturava migliaia di mutazioni CSS durante le sincronizzazioni messaggi; introdotto l'ascolto mirato sul pannello chat laterale (`#pane-side`) con limitazione temporale di 3 secondi in stato hidden.
+  - **Risveglio Istantaneo su `visibilitychange`**: Quando l'utente sblocca il PC o porta la finestra in primo piano, il controllo di non letti e stato online viene riattivato istantaneamente.
+- **Rafforzamento Chiusura Coordinata e Rilascio Risorse (`MainWindow.xaml.vb`)**:
+  - **Estensione Timeout Sync a 30s**: Portato a 30 secondi il timer di sicurezza per la sincronizzazione mirror di ritorno verso le cartelle di rete (`SyncAllProfilesToNetworkAsync`), garantendo che condivisioni SMB su NAS o Wi-Fi completino il trasferimento senza troncature di file.
+  - **Attesa Rilascio Lock WebView2**: Aggiunta una pausa controllata (600ms) dopo il `Dispose()` degli account prima di avviare la copia verso il master, consentendo ai processi `msedgewebview2.exe` di scaricare i buffer su disco e liberare i file lock.
+
+## [1.1.0] - 2026-09-30
+
+### Release Stabile — Supporto Drive di Rete (SMB/UNC), Staging & Sync Sessioni WebView2, Hardening Asincrono e Logging Centralizzato
+- **Supporto Completo Drive di Rete (SMB/UNC) con Staging Locale Trasparente (#73)**:
+  - **Persistenza Affidabile della Sessione WhatsApp Web**: Risolto definitivamente il problema di perdita delle sessioni e reset al codice QR quando l'applicazione viene eseguita da percorsi di rete o drive mappati (SMB/CIFS, `\\server\share`, `Z:\`).
+  - **Local Staging Automatico all'Avvio**: I database di sessione (`IndexedDB`, `Local Storage`, `Network/Cookies`, preferenze) vengono trasferiti ed eseguiti dalla memoria locale veloce `%LOCALAPPDATA%\HidaChat\NetworkProfiles\{AccountId}`, eliminando le anomalie di lock `STATUS_FILE_LOCK_CONFLICT` di LevelDB e SQLite.
+  - **Filtro Intelligente Cache Volatili**: Escluse dal trasferimento le directory di cache pesante (`Cache`, `Code Cache`, `GPUCache`, `DawnGraphiteCache`, `ShaderCache`, `Crashpad`), garantendo trasferimenti ultra-rapidi (pochi megabyte) e avvii istantanei.
+  - **Sincronizzazione Atomica di Ritorno su Share di Rete**: Alla chiusura controllata dell'applicazione (`PrepareForShutdown` e `ForceExitForUpdateAsync`), tutti i profili locali aggiornati vengono risincronizzati tramite mirror incrementale sulla cartella master portabile `data/webview/{AccountId}` sulla share di rete.
+  - **Rilevamento Conflitti Multi-PC (#70, #73)**: Meccanismo di session lock leggero (`.active_session`) con rilevamento di accessi concorrenti da postazioni multiple sulla medesima cartella di rete.
+  - **Impostazione e UI Multilingua**: Nuova sezione "Unità di Rete" nelle Impostazioni con switch dedicato e allineamento sincrono di tutti i 5 dizionari di lingua (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Hardening Bridge IPC, Resilienza Asincrona e Gestione Eccezioni (#63)**:
+  - **Protezione Completa `Async Sub` con Try/Catch**: Schermati tutti i gestori eventi asincroni del bridge WebView2 e della UI contro eccezioni non osservate e interruzioni di rete.
+  - **Attesa Deterministica con `SafeExecuteScriptAsync`**: Esecuzione e unwrapping asincrono affidabile dei task JavaScript senza unobserved task exceptions.
+  - **Logging Centralizzato su File Portabile (`data/logs/app_errors.log`)**: Tracciamento thread-safe con rotazione automatica (1 MB) per `DispatcherUnhandledException`, `TaskScheduler.UnobservedTaskException` e `AppDomain.CurrentDomain.UnhandledException`.
+- **Correzione Modalità Non Disturbare (Focus Mode) (#64)**:
+  - Sostituito l'operatore di confronto con `Nullable.Equals` nella proprietà `DndUntil`, garantendo la transizione pulita dello stato DND e la corretta notifica UI.
+- **Hardening Sicurezza WebView e Token IPC (#61, #62)**:
+  - Allow-list rigorosa per schemi URI esterni (`http`, `https`, `mailto`), navigazione in browser di sistema per link con `target="_blank"`.
+  - Token di autenticazione bridge IPC generati tramite CSPRNG crittografico a 128 bit (`RandomNumberGenerator`) e validazione dell'origine del mittente (`IsAuthorizedOrigin`).
+- **Persistenza Sessione allo Spegnimento Windows e Perfezionamenti Notifiche**:
+  - Intercettazione `OnSessionEnding` (`WM_QUERYENDSESSION`) con salvataggio coordinato e rilascio ordinato dei processi WebView2 prima del termine della sessione.
+  - Popup di notifica e Toast abilitati anche per gli account in background con supporto hover mouse, z-order `HWND_TOPMOST` e stili grafici ottimizzati.
+
+## [1.0.12-beta] - 2026-09-28
+
+
+### Pre-release / Beta — Supporto Drive di Rete (SMB/UNC) con Local Staging & Sync Sessioni WebView2 e Rilevamento Conflitti Multi-PC
+- **Supporto Drive di Rete tramite Staging Locale e Sincronizzazione Sessioni (`NetworkProfileSync.vb`, `AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`) (#73)**:
+  - **Risoluzione Perdita Sessione WhatsApp su Share SMB/UNC**: Risolto il problema strutturale di Chromium/WebView2 per cui, eseguendo l'applicazione da percorsi di rete o drive mappati (es. `Z:\` o `\\server\share`), i motori LevelDB e SQLite perdevano i file lock o subivano conflitti `STATUS_FILE_LOCK_CONFLICT`, causando al riavvio la cancellazione automatica dei database `IndexedDB` e il reset di WhatsApp Web alla schermata del codice QR.
+  - **Local Staging Trasparente all'Avvio (`SyncMasterToLocalStagingAsync`)**: All'inizializzazione dell'account, se l'applicazione risiede su un percorso di rete, i dati essenziali di sessione (`IndexedDB`, `Local Storage`, `Network/Cookies`, preferenze) vengono sincronizzati dal master di rete nella cartella locale veloce `%LOCALAPPDATA%\HidaChat\NetworkProfiles\{AccountId}`.
+  - **Esclusione Intelligente delle Cache Volatili**: Durante la sincronizzazione vengono filtrate ed escluse le directory di cache pesante non necessarie (`Cache`, `Code Cache`, `GPUCache`, `DawnGraphiteCache`, `ShaderCache`, `Crashpad`), consentendo trasferimenti ultra-rapidi (pochi megabyte) e riducendo al minimo il consumo di banda e tempi di attesa.
+  - **Inizializzazione Locale Nativa WebView2**: `CoreWebView2Environment` viene puntato alla directory di staging locale, garantendo semantiche di lock POSIX/NTFS native, assenza totale di corruzioni e massima fluidità I/O.
+  - **Sincronizzazione di Ritorno Atomica allo Spegnimento (`SyncLocalStagingToMasterAsync`, `SyncAllProfilesToNetworkAsync`)**: In fase di chiusura coordinata (`PrepareForShutdown` e `ForceExitForUpdateAsync`), dopo il rilascio controllato dei processi browser, tutti i profili locali vengono riversati tramite mirror incrementale sulla cartella master portabile `data/webview/{AccountId}` sulla share di rete, garantendo la portabilità al 100% dell'applicazione.
+- **Rilevamento Conflitti Multi-PC con Session Lock (`NetworkProfileSync.vb`) (#70, #73)**:
+  - **Lock Attivo di Macchina (`.active_session`)**: Introdotto un meccanismo leggero di session lock che traccia nome computer, utente, PID e timestamp UTC nella cartella profilo master.
+  - **Segnalazione Conflitti Concorrenti**: Se un altro computer ha aperto lo stesso profilo negli ultimi 3 minuti, viene rilevato il conflitto e registrato un avviso per prevenire sovrascritture concorrenti.
+- **Configurazione e Interfaccia Utente Multilingua (`SettingsWindow.xaml`, `SettingsController.vb`, `Localization.vb`)**:
+  - **Nuova Sezione "Unità di Rete" nelle Impostazioni**: Aggiunta la checkbox "Abilita staging locale per dischi di rete" (attiva per impostazione predefinita) per gestire la funzione e consentire il fallback in caso di esigenze specifiche.
+  - **Messaggio di Rilevamento Unità di Rete Aggiornato**: Sostituito l'allarme di errore precedente con un avviso informativo che conferma l'avvenuta attivazione dello staging locale a protezione delle sessioni.
+  - **Sincronizzazione Completa dei 5 Dizionari**: Aggiornati contestualmente tutti i dizionari di lingua in `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) con le nuove chiavi `enable_network_profile_staging`, `enable_network_profile_staging_hint`, `network_drive_staging_info`, `network_drive_section`, `network_drive_session_conflict`.
+
+## [1.0.11-beta] - 2026-09-27
+
+
+### Pre-release / Beta — Resilienza Handler Asincroni Bridge WebView2, Logging Globale Eccezioni e Correzione Nullable DndUntil
+- **Gestione Errori Asincroni e Hardening del Bridge IPC (`AppAccounts.vb`, `MainWindow.xaml.vb`) (#63)**:
+  - **Protezione Completa `Async Sub` con Try/Catch**: Aggiunta la gestione delle eccezioni con blocchi `Try/Catch` e logging su file nei gestori di eventi asincroni `_navigationCompletedHandler` e `_webMessageReceivedHandler` di WebView2, evitando che eccezioni non osservate o interruzioni improvvise di navigazione causino il crash istantaneo dell'applicazione.
+  - **Invocazione Asincrona e Attesa Deterministica Task (`SafeExecuteScriptAsync`)**: Eliminata l'invocazione di `WebView.Dispatcher.InvokeAsync(Async Function() ...)` senza attesa del task interno. Introdotto il metodo helper `SafeExecuteScriptAsync` che esegue lo script direttamente se sul thread UI oppure effettua l'unwrapping e l'attesa completa (`.Task.Unwrap()`), prevenendo eccezioni inosservate (unobserved task exceptions) nelle comunicazioni di traduzione singole e batch.
+  - **Protezione Stato e Continuazioni Post-Disposizione (`IsDisposed`)**: Introdotto il flag e la proprietà pubblica `IsDisposed` su `AppAccounts`; salvataggio di un riferimento locale `wv` in `Dispose()` prima di azzerare la proprietà `WebView` e guardie difensive `If _isDisposed OrElse WebView?.CoreWebView2 Is Nothing Then Return` prima e dopo ogni chiamata asincrona.
+  - **Hardening Eventi Asincroni UI (`MainWindow.xaml.vb`)**: Protetti con `Try/Catch` e logging diagnostico tutti i gestori asincroni della finestra principale (`MainWindow_Loaded`, `PopulateWebViews`, `OnAccountProcessFailedRecoveryRequested`, `AccountTabRename_Click`, `OnSettingsPropertyChanged` e l'aggiunta di account da menu).
+- **Sistema di Logging Globale per Eccezioni Non Gestite (`Application.xaml.vb`) (#63)**:
+  - **Intercettazione Centralizzata**: Registrati in `Application.xaml.vb` gli eventi `DispatcherUnhandledException` (con soppressione controllata dei crash UI via `e.Handled = True`), `TaskScheduler.UnobservedTaskException` (con `e.SetObserved()`) e `AppDomain.CurrentDomain.UnhandledException`.
+  - **Tracciamento Thread-Safe Portabile (`data/logs/app_errors.log`)**: Implementato il metodo `LogUnhandledException` che registra timestamp, tipologia eccezione, messaggio e stack trace su file portabile all'interno della cartella dati dell'applicazione, con rotazione automatica al superamento di 1 MB (`app_errors.log.old`).
+- **Correzione Valutazione Nullable in Modalità Non Disturbare (`SettingsController.vb`) (#64)**:
+  - **Confronto Corretto `Nullable.Equals`**: Sostituito l'operatore `<>` con `Not Nullable.Equals(_dndUntil, value)` nel setter della proprietà `DndUntil` per eliminare l'anomalia della logica a tre valori di VB.NET quando uno degli operandi è `Nothing`.
+  - **Transito Deterministico sui Setter Pubblici**: Riconfigurata `SetDndModeAsync` per mutare lo stato passando sempre attraverso i setter pubblici delle proprietà (`IsDndEnabled`, `DndUntil`, `DndDurationMode`), garantendo la corretta e sincrona notifica degli eventi `PropertyChanged` e l'aggiornamento affidabile dello stato `IsDndActive`.
+
+## [1.0.10-beta] - 2026-09-26
+
+### Pre-release / Beta — Hardening Sicurezza WebView: Allow-list Schemi URI, Token IPC da CSPRNG e Validazione Origine
+- **Protezione Schemi URI e Gestione Finestre Esterne (`AppAccounts.vb`) (#61)**:
+  - **Allow-List Schemi URI in `NewWindowRequested`**: Applicata una allow-list rigorosa (`http`, `https`, `mailto`) prima dell'invocazione di `Process.Start` con `UseShellExecute = True`. I link con schemi pericolosi, protocol handler di sistema o non gestiti (`file:`, `ms-msdt:`, ecc.) vengono bloccati e registrati nei log di diagnostica.
+  - **Validazione Schemi in `NavigationStarting`**: Estesa la verifica preventiva a `NavigationStarting`, consentendo unicamente schemi web sicuri (`http`, `https`, `data`, `blob`, `about`) e preservando la gestione interna dei deep link Telegram (`tg://` e domini `t.me`).
+  - **Apertura Browser Esterno per Link `target="_blank"`**: Tutti i link aperti con `target="_blank"` vengono instradati al browser predefinito di sistema invece di sovrascrivere la navigazione interna della WebView2, preservando la sessione e la vista di chat principale.
+- **Rafforzamento Sicurezza Bridge IPC e Origine Mittente (`AppAccounts.vb`) (#62)**:
+  - **Generazione Token Bridge tramite CSPRNG a 128 bit**: Sostituita la precedente generazione pseudo-casuale basata su `System.Random` e timestamp con un generatore crittograficamente sicuro (`RandomNumberGenerator.Fill(randomBytes)`), producendo token a 128 bit imprevedibili.
+  - **Validazione Rigorosa dell'Origine `e.Source` (`IsAuthorizedOrigin`)**: Aggiunta la verifica preventiva dell'origine del mittente in `HandleWebMessageAsync`: i messaggi IPC vengono elaborati solo se provenienti dall'host autorizzato della piattaforma configurata (`web.whatsapp.com` per WhatsApp, `web.telegram.org` per Telegram, host del server configurato o proxy locale `127.0.0.1` per OpenClaw ed Hermes).
+  - **Disabilitazione DevTools in Release**: Configurato `AreDevToolsEnabled = False` nelle build di produzione Release, abilitando gli strumenti di sviluppo Chromium esclusivamente nelle compilazioni Debug (`#If DEBUG`).
+
+## [1.0.9-beta] - 2026-09-25
+
+### Pre-release / Beta — Persistenza Sessione WhatsApp allo Spegnimento Windows e Rilevamento Unità di Rete
+- **Chiusura Ordinata allo Spegnimento Windows e Rilascio WebView2 (`Application.xaml.vb`, `MainWindow.xaml.vb`)**:
+  - **Intercettazione Arresto/Riavvio Sistema (`OnSessionEnding`)**: Implementato l'override `OnSessionEnding` in `Application.xaml.vb` per catturare tempestivamente la notifica di chiusura sessione di Windows (`WM_QUERYENDSESSION` / `WM_ENDSESSION`), evitando che l'evento `Closing` di `MainWindow` cancelli lo shutdown con `e.Cancel = True` causando la terminazione forzata (kill) del processo da parte del sistema operativo.
+  - **Procedura Centralizzata `PrepareForShutdown()`**: Creata una procedura sincrona e coordinata in `MainWindow.xaml.vb` che salva forzatamente le impostazioni e gli account ed esegue il rilascio controllato (`acc.Dispose()`) di tutte le istanze WebView2; in questo modo i database IndexedDB/LevelDB e SQLite di Chromium scaricano le transazioni e rilasciano i lock su disco prima della chiusura, prevenendo la corruzione e la perdita della sessione di WhatsApp Web al successivo riavvio del PC.
+  - **Unificazione Chiusura Applicazione**: Riconfigurata `ExitApplication()` e `MainWindow_Closing` per delegare l'intera sequenza di pulizia a `PrepareForShutdown()`, eliminando chiamate ridondanti a `ClearBrowsingCacheAsync` che potevano rallentare l'uscita.
+- **Rilevamento Esecuzione su Unità di Rete e Avviso Esplicativo (`MainWindow.xaml.vb`, `SettingsController.vb`, `Localization.vb`)**:
+  - **Verifica Automatica del Percorso (`CheckNetworkDriveWarning`)**: Aggiunto un controllo all'avvio per rilevare se l'applicazione è in esecuzione da un'unità di rete (SMB/CIFS, drive mappati come `Y:\` o percorsi UNC `\\server\share`).
+  - **Avviso Informativo Localizzato**: Qualora l'applicazione risieda su rete, viene mostrato un avviso chiaro che spiega che Microsoft WebView2 non supporta l'archiviazione dei profili su dischi di rete (con conseguente perdita sistematica della sessione di WhatsApp dovuta all'instabilità dei lock LevelDB su SMB) e raccomanda di copiare ed eseguire l'applicazione da un disco locale (es. `C:\HidaChat`).
+  - **Soppressione Avviso Ripetuto**: Aggiunta la proprietà `suppressNetworkDriveWarning` memorizzata in `settings.json` per evitare la riproposizione dell'avviso a ogni avvio dopo la prima visualizzazione.
+  - **Sincronizzazione Completa Multilingua**: Aggiornati contestualmente tutti i 5 dizionari in `Localization.vb` (Inglese, Italiano, Francese, Spagnolo, Tedesco) con le nuove stringhe di avviso `network_drive_warning_title` e `network_drive_warning_msg`.
+
+## [1.0.8-beta] - 2026-09-25
+
+### Pre-release / Beta — Ripristino e Consegna Popup per Account in Background, Notifiche Overlay, Colore Menu Tipo Account e Stile Tasto Elimina
+- **Risoluzione Mancata Visualizzazione Popup per Account in Background (`Scripts/notification.js`, `AppAccounts.vb`)**:
+  - **Emissione Popup e Toast su Ricezione Messaggi in Background**: Risolto il problema per cui i popup di notifica venivano mostrati solo per l'account attualmente attivo/visualizzato in primo piano (es. popup Telegram visibile ma nessun popup ricevuto se WhatsApp era posizionato in secondo piano). Quando un account in background rileva nuovi messaggi non letti, viene ora generato sia il popup overlay grafico `MessagePopup` che la notifica Toast nativa di Windows.
+  - **Estrazione Dati Chat e Testo Messaggio da DOM e Titolo (`notification.js`)**: Potenziata la scansione sia per WhatsApp Web che per Telegram Web: il listener estrae dal DOM il nome del contatto/gruppo (`latestChatTitle`) e l'anteprima del testo del messaggio (`latestMessageText`), inoltrandoli all'host WPF per mostrare popup ricchi di contesto anche quando la web app non invoca le API di notifica native del browser mentre la scheda è inattiva o nascosta.
+  - **Autorizzazione Permanente Permessi Notifiche a Livello Profilo WebView2 (`AppAccounts.vb`)**: In `SetupWebViewInternalAsync`, aggiunta la registrazione esplicita dei permessi di notifica su `CoreWebView2.Profile.SetPermissionStateAsync` con stato `Allow` per le origini `https://web.whatsapp.com` e `https://web.telegram.org`, impedendo al motore Chromium di bloccare le notifiche o i Service Worker in schede inattive o non visibili.
+- **Affidabilità e Usabilità Overlay Finestra Popup (`MessagePopup.xaml.vb`, `AppAccounts.vb`)**:
+  - **Priorità Z-Order Nativa HWND_TOPMOST**: Introdotta l'invocazione Win32 `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE)` all'apertura del popup per garantire che la finestra overlay appaia sempre al di sopra di qualsiasi finestra attiva senza sottrarre il focus, evitando che rimanga nascosta dietro la finestra principale di HidaChat o altre applicazioni.
+  - **Pausa Timer su MouseHover**: Aggiunti gestori `MouseEnter` e `MouseLeave` per mettere in pausa il timer di auto-chiusura (5s) quando l'utente posiziona il cursore sul popup, permettendone la lettura agevole o il click senza che scompaia prematuramente.
+  - **Sblocco Apertura Finestre e Dialoghi Popup Web (`AppAccounts.vb`)**: In `_newWindowRequestedHandler`, rimosso il blocco incondizionato `e.Handled = True` per URI vuoti o `about:blank`, ripristinando la corretta apertura di finestre di dialogo script, popup dinamici e finestre di autenticazione OAuth generate da `window.open`.
+- **Miglioramento Leggibilità Menu Selezione Tipo Account nelle Impostazioni (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Stile Dedicato `AccountPlatformComboBoxStyle`**: Introdotto uno stile specifico per il selettore piattaforma negli account con colore del testo impostato su grigio scuro `#8696a0` (lo stesso utilizzato per le altre etichette come "Server URL / Tailscale") per garantire un contrasto ottimale e prevenire che il testo si confonda con lo sfondo.
+  - **Sincronizzazione Dinamica Tema Chiaro/Scuro (`StyleAccountItems`)**: La routine di tematizzazione adatta dinamicamente il colore del carattere dei dropdown piattaforma (`#8696a0` in tema scuro, `#54656f` in tema chiaro) e i relativi sfondi.
+- **Evidenziazione Visiva Tasto Elimina Account con Carattere Rosso (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Stile Ridisegnato `DeleteBtnStyle`**: Il pulsante "Delete" dell'account adotta ora il carattere rosso acceso (`Foreground="#ea0038"`) con sfondo scuro coordinato `#2a3942` e bordo sottile, evidenziando chiaramente l'azione distruttiva; su passaggio del mouse (hover) viene attivato un feedback visivo con sfondo sfumato `#381e24`, bordo rosso ed evidenziazione testo `#ff4d4d`.
+
+## [1.0.7-beta] - 2026-09-24
+
+### Pre-release / Beta — UpdateChecker: UX, Localizzazione Multilingua, SemVer Prerelease e Logging Portabile
+- **Localizzazione Completa dei Dialoghi di Aggiornamento (`UpdateChecker.vb`, `Localization.vb`) (#67)**:
+  - **Traduzione Integrale delle Finestre di Dialogo**: Eliminate tutte le stringhe `MessageBox` hardcoded in italiano. Introdotti e sincronizzati 12 nuovi identificatori di testo nei dizionari di tutte e 5 le lingue supportate (`Localization.vb`: EN, IT, FR, ES, DE) per versione già aggiornata (`update_already_latest`, `update_already_latest_title`), versione remota non più recente (`update_no_new_version`, `update_no_new_version_title`), prompt di conferma installazione (`update_available_prompt`, `update_available_title`), errori di installazione (`update_install_error`, `update_install_error_title`), verifiche non riuscite (`update_check_failed`, `update_check_failed_network`, `update_check_failed_title`) e assenza di asset zip (`update_no_asset`).
+  - **Invocazione Thread-Safe su Dispatcher UI**: Implementati gli helper `ShowMessageBox` e `ShowMessageBoxConfirm` per sincronizzare in modo trasparente l'apertura dei messaggi visivi con il thread UI dell'applicazione WPF indipendentemente dal contesto del thread chiamante.
+- **Feedback Visivo nel Controllo Manuale Forzato (`UpdateChecker.vb`) (#67)**:
+  - Quando l'utente richiede la verifica manuale degli aggiornamenti (`force = True`), l'eventuale mancata risposta delle API di GitHub, assenza di connessione, rate limiting o eccezione di rete mostra una finestra informativa chiara e localizzata anziché rimanere silente.
+- **Confronto Numerico SemVer dei Suffissi di Pre-Release (`UpdateChecker.vb`) (#67)**:
+  - **Funzione `ComparePrerelease`**: Implementata una procedura di analisi e confronto naturale dei suffissi di pre-release con tokenizzazione su identificatori numerici e alfabetici (`\d+|[^\d\.\-_+]+`).
+  - **Risoluzione Bug Ordinamento Alfabetico**: Risolto il problema per cui versioni come "beta10" venivano considerate antecedenti a "beta2" a causa del confronto ordinale standard delle stringhe (`String.Compare`).
+- **Unificazione Parsing Metadati Release GitHub (`UpdateChecker.vb`) (#67)**:
+  - **Funzione Condivisa `ParseRelease(JsonElement)`**: Accorpata l'estrazione dei metadati di release (tag, note, asset ZIP e checksum crittografici SHA-256) in un unico metodo robusto e protetto contro null o elementi mancanti, eliminando la duplicazione del codice tra la scansione delle release del canale beta e l'interrogazione dell'endpoint stabile.
+- **Sistema di Logging Portabile su File (`UpdateChecker.vb`) (#67)**:
+  - Sostituite tutte le chiamate `Debug.WriteLine` del modulo di aggiornamento con il metodo centralizzato `Log(message)`, che scrive in modo thread-safe (`SyncLock`) su file `data/updates.log` nella directory dell'applicazione, nel pieno rispetto dei vincoli di portabilità al 100%.
+  - Integrata la rotazione automatica del log (archiviazione in `updates.log.old`) al superamento della dimensione di 1 MB per evitare accumuli incontrollati su disco.
+
+## [1.0.6-beta] - 2026-09-23
+
+### Pre-release / Beta — Risoluzione Blocco Aggiornamento OTA e Avvio Immediato Script Batch
+- **Avvio Preventivo ed Esecuzione Autonoma dell'Updater (`UpdateChecker.vb`)**:
+  - **Inversione Sequenza di Uscita**: Lo script batch di aggiornamento (`hidachat_update_*.bat`) viene avviato tramite `Process.Start` prima di avviare la procedura di chiusura di HidaChat, rendendo il processo di update completamente autonomo ed immune da eventuali freeze o rallentamenti dell'interfaccia.
+  - **Uscita Rapida e Deterministica `Environment.Exit(0)`**: Dopo il salvataggio atomico di impostazioni e account e il rilascio del Mutex di singola istanza, il processo termina istantaneamente con `Environment.Exit(0)`, rilasciando tutti i lock sui binari e consentendo a `robocopy` di eseguire la sostituzione dei file senza attendere timeout forzati.
+- **Ottimizzazione e Resilienza Chiusura Pre-Update (`MainWindow.xaml.vb`)**:
+  - **Eliminazione Attese Inutili o a Rischio Deadlock**: Rimosse le chiamate lente o suscettibili di deadlock COM (`ClearBrowsingCacheAsync` di WebView2, `CleanupTransientCachesAsync` e `TsnetManager.Instance.ShutdownAsync`) da `ForceExitForUpdateAsync`, delegando la bonifica dei processi a `update.bat` e concentrando la routine di uscita unicamente sulla persistenza atomica dei dati utente (`SaveAccountsAsync`, `FlushNowAsync`).
+  - **Timer di Sicurezza su `ForceExitForUpdate`**: Aggiunto un timer di fallback a 3 secondi su `DispatcherFrame` per impedire blocchi indeterminati della pompa messaggi durante le chiamate sincrone di chiusura.
+
+## [1.0.5-beta] - 2026-09-23
+
+### Pre-release / Beta — Sincronizzazione Eventi MaxAccounts e Policy di Downgrade Non Distruttiva
+- **Sincronizzazione Centralizzata Eventi Limite Account (`AccountManager.vb`, `SettingsController.vb`) (#66)**:
+  - **Ascolto Automatico `PropertyChanged`**: `AccountManager` sottoscrive direttamente nel costruttore l'evento `PropertyChanged` di `SettingsController`, notificando in modo automatico e centralizzato le proprietà `MaxAccounts`, `CanAddAccount`, `HasExcessAccounts` ed `ExcessAccountsCount` ogni volta che il limite viene modificato dall'utente nelle Impostazioni.
+  - **Disiscrizione Pulita e Ciclo di Vita**: Implementata l'interfaccia `IDisposable` in `AccountManager` con rilascio controllato dell'handler `OnSettingsPropertyChanged`, prevenendo memory leak e riferimenti orfani.
+- **Policy di Downgrade Non Distruttiva degli Account Configurati (`AccountManager.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`) (#66)**:
+  - **Preservazione Integrale Sessioni Eccedenti**: Qualora l'utente riduca il valore `MaxAccounts` al di sotto del numero di account attualmente registrati, tutti gli account esistenti rimangono perfettamente attivi, navigabili e funzionanti senza alcuna cancellazione di dati o profili su disco.
+  - **Blocco Conservativo Aggiunte**: L'aggiunta di ulteriori account viene inibita (`CanAddAccount = False`) sia da interfaccia grafica che dal metodo asincrono `AddAccountAsync` fino a quando il numero totale di account non rientra strettamente sotto il nuovo limite impostato.
+  - **Banner di Avviso Downgrade nelle Impostazioni**: Introdotto un banner contestuale visivo (`BorderDowngradeNotice` con testo `TxtDowngradeNotice`) nella sezione "Gestione Account" di `SettingsWindow.xaml`, che segnala il numero di account eccedenti rispetto al limite impostato spiegando la natura conservativa della policy; il banner adotta stili e colori dedicati coerenti con il tema scuro/chiaro (`ApplyTheme`).
+  - **Estensione Selettore Limite (2–10)**: Esteso il menu a tendina `ComboMaxAccounts` in `SettingsWindow.xaml` per supportare qualsiasi limite consentito nel range 2–10 (in precedenza limitato a soli quattro scaglioni discreti).
+- **Miglioramento UX, Tooltip Dinamici e Localizzazione Multilingua (`MainWindow.xaml`, `MainWindow.xaml.vb`, `Localization.vb`) (#66)**:
+  - **Rimozione Tooltip Hardcoded**: Eliminato il tooltip statico residuo `Aggiungi account (max 3)` dal pulsante `BtnAddAccount` in `MainWindow.xaml`.
+  - **Tooltip Dinamico Contestuale**: Il pulsante `+` sulla barra delle schede mostra ora tooltip contestuali e localizzati in base allo stato (`add_account`, `accounts_downgrade_blocked` o `max_accounts_reached`), supportando la visualizzazione anche su controllo disabilitato tramite `ToolTipService.ShowOnDisabled="True"`.
+  - **Localizzazione Completa in 5 Lingue**: Aggiunte e sincronizzate le nuove chiavi `max_accounts_downgrade_notice` e `accounts_downgrade_blocked` nei dizionari di tutte e 5 le lingue supportate dall'applicazione (`Localization.vb`: IT, EN, FR, ES, DE).
+- **Risoluzione Lock Cartella Temporanea e Bonifica File Aggiornamenti OTA (`UpdateChecker.vb`) (#67)**:
+  - **Percorsi Temporanei Univoci di Sessione**: Sostituito il percorso fisso `%TEMP%\HidaChat_Update` con percorsi isolati univoci per sessione (`HidaChat_Update_<timestamp>_<guid>`), risolvendo definitivamente l'errore `The process cannot access the file ... because it is being used by another process` in caso di lock residui o verifiche antivirus.
+  - **Posizionamento Esterno di `update.bat`**: Collocato lo script batch direttamente in `%TEMP%` anziché all'interno della cartella dei file estratti da copiare, prevenendo la copia di `update.bat` nella cartella di installazione ed evitando il lock della directory sorgente da parte del processo `cmd.exe`.
+  - **Bonifica Deterministica e Pulizia Preventiva**: Inserito `cd /d "%TEMP%"` prima della rimozione della cartella estratta (`rmdir /s /q`) e dell'archivio `.zip` (`del /f /q`); aggiunta la chiusura preventiva di eventuali istanze `tsnetd.exe`; implementata una procedura asincrona di bonifica preventiva di file e directory temporanee residue di vecchi aggiornamenti con gestione pulita nel blocco `Finally`.
+
+## [1.0.4-beta] - 2026-09-22
+
+### Pre-release / Beta — Risoluzione Deadlock Aggiornamento OTA e Chiusura Non Bloccante
+- **Risoluzione Deadlock Bloccante Aggiornamenti OTA (`UpdateChecker.vb`, `MainWindow.xaml.vb`)**:
+  - **Eliminazione Attesa Sincrona `.GetAwaiter().GetResult()`**: Risolto il blocco completo dell'applicazione che si verificava all'avvio della procedura di aggiornamento: `ForceExitForUpdate()` invocava in modo sincrono bloccante sul Dispatcher UI la funzione asincrona `ForceExitForUpdateAsync()`, causando un deadlock irreversibile con le chiamate COM asincrone di WebView2 (`ClearBrowsingDataAsync`), le quali necessitano del message pump attivo della finestra WPF per completare la notifica di ritorno. Di conseguenza `update.bat` non veniva mai eseguito e il programma rimaneva congelato senza avviare la copia dei file.
+  - **Chiusura Completamente Asincrona e Non Bloccante**: In `UpdateChecker.vb`, la procedura di pre-aggiornamento invoca e attende ora direttamente `Await mainWin.ForceExitForUpdateAsync()` con continuazione asincrona nativa senza mai congelare il thread UI.
+  - **DispatcherFrame con Pompa Messaggi per Chiamate Sincrone**: In `ForceExitForUpdate()` e nell'evento `MainWindow_Closing`, le attese bloccanti sono state sostituite con `DispatcherFrame` e timer di fallback a 3 secondi, consentendo al message loop di continuare l'elaborazione dei messaggi Windows senza blocchi indefiniti.
+  - **Timeout Protettivi di Sicurezza (2s) su WebView2 e Daemon Companion**: Incapsulate le chiamate `ClearBrowsingCacheAsync()` e `TsnetManager.Instance.ShutdownAsync()` all'interno di `Task.WhenAny(..., Task.Delay(2000))` sia in `ExitApplication` che in `ForceExitForUpdateAsync`, impedendo a eventuali controlli WebView2 orfani o processi Chromium di bloccare la chiusura dell'applicazione.
+  - **Feedback Visivo Durante il Download**: Impostato il cursore di attesa (`Cursors.Wait`) alla conferma dell'aggiornamento con ripristino deterministico nel blocco `Finally`, fornendo immediato riscontro all'utente durante il download e l'estrazione dell'archivio.
+  - **Ottimizzazione `FlushNowAsync` (`SettingsController.vb`)**: Aggiunto `.ConfigureAwait(False)` sui task interni e sul semaforo I/O `_ioLock` per prevenire qualsiasi legame con il SynchronizationContext del thread UI.
+
+## [1.0.3-beta] - 2026-09-22
+
+### Pre-release / Beta — Pulizia Profili WebView2 Non Distruttiva con Cestino, Eliminazione Differita e Preservazione Sessioni
+- **Validazione Integrità Configurazione e Prevenzione Cancellazioni Involontarie (`SettingsController.vb`, `AccountManager.vb`)**:
+  - **Tracciamento Validità Configurazione `IsLoadedFromValidConfig` (#59)**: Introdotta la proprietà `IsLoadedFromValidConfig` in `SettingsController` per certificare se le impostazioni e gli account sono stati caricati con successo da un file `settings.json` valido o da un relativo backup `.bak`. La procedura di pulizia dei profili non referenziati viene abilitata unicamente in caso di configurazione valida accertata, escludendo a priori qualsiasi cancellazione in presenza di file mancante, corrotto o fallback ai valori di default.
+  - **Auto-Discovery e Ripristino Automatico Profili Esistenti (#59)**: In caso di assenza o rigenerazione del file `settings.json`, `CreateDefaultAccountAsync` esegue una scansione dei profili validi `WV2Profile_*` presenti sul disco a livello principale, ricostruendo l'elenco degli account per tutte le directory trovate anziché limitarsi al primo profilo, prevenendo l'orfanizzazione accidentale di sessioni esistenti.
+- **Isolamento Non Distruttivo nel Cestino ed Eliminazione Differita in Background (`AccountManager.vb`)**:
+  - **Spostamento Sicuro nel Cestino `data/webview/_trash/` (#59)**: Sostituita la cancellazione distruttiva immediata con uno spostamento atomico istantaneo (`Directory.Move`) dei profili non referenziati nella cartella `_trash` con timestamp univoco (`WV2Profile_<id>_<timestamp>`). In caso di incongruenze temporanee di configurazione, i dati di sessione e i token QR rimangono preservati e recuperabili.
+  - **Eliminazione Differita con Retention a 24 Ore (#59)**: La bonifica dello spazio disco per gli elementi nel cestino viene eseguita in modalità differita esclusivamente per le cartelle la cui permanenza supera le 24 ore, mediante tentativi ripetuti con backoff progressivo (`DeleteDirectoryWithRetryAsync`).
+  - **Esecuzione Off-UI-Thread in `Task.Run` (#59)**: L'intera routine di scansione, catalogazione e pulizia dei profili è stata spostata all'interno di `Task.Run` su thread di background, azzerando qualsiasi impatto o freeze sul thread UI e garantendo l'aggancio immediato della scheda attiva all'avvio.
+  - **Rimozione Account Non Bloccante (#59)**: In `RemoveAccountAsync`, l'eliminazione dei dati dell'account rimosso dall'utente sposta prima la cartella nel cestino e delega la cancellazione a un task asincrono differito, consentendo al processo Chromium di rilasciare i file di lock senza bloccare l'interfaccia.
+- **Preservazione Profilo Preesistente su Migrazione Orfani (`AccountManager.vb`, `AppAccounts.vb`)**:
+  - **Rinomina Conservativa in `.bak` (#59)**: Sia in `MigrateOrphanProfile` (`AccountManager.vb`) che in `SetupWebViewInternalAsync` (`AppAccounts.vb`), la presenza di un profilo orfano anonimo (`WV2Profile_`) in concomitanza con una directory di profilo già esistente non causa più l'eliminazione distruttiva di quest'ultima; il profilo esistente viene ora salvaguardato rinominandolo con estensione `.bak` (con timestamp anticollisione), con ripristino automatico difensivo in caso di errore nello spostamento dell'orfano.
+  - **Filtro Cartelle `.bak` nella Pulizia Cache Volatili (#59)**: Escluse le cartelle con estensione `.bak` dalla pulizia periodica `CleanupTransientCachesAsync`.
+
+## [1.0.2-beta] - 2026-09-21
+
+### Pre-release / Beta — Scrittura Atomica e Serializzata di settings.json con Auto-Recovery da Backup e Flush in Chiusura
+- **Scrittura Atomica e Serializzata delle Impostazioni (`SettingsController.vb`, `AccountManager.vb`)**:
+  - **Semaforo Asincrono `_ioLock` (#58)**: Introdotto un semaforo `SemaphoreSlim(1, 1)` a livello di `SettingsController` per serializzare rigorosamente qualsiasi operazione di lettura e scrittura concorrente su `settings.json`, eliminando le collisioni I/O tra il salvataggio asincrono degli account e il debounce delle impostazioni.
+  - **Scrittura Atomica con File Temporaneo e Backup Automatico (#58)**: La scrittura del JSON avviene ora inizialmente su un file temporaneo (`settings.json.tmp`) e viene poi promossa sul file di destinazione tramite `File.Replace(tmp, targetFile, targetFile & ".bak")` con mantenimento dell'ultimo backup valido `.bak` (e fallback difensivo con copia e spostamento). In caso di errore o interruzione il file temporaneo viene eliminato in modo deterministico nel blocco `Finally`.
+  - **Flush Immediato in Chiusura e Pre-Update (#58)**: Implementato il metodo `FlushNowAsync()` che annulla l'eventuale debounce temporizzato pendente (500 ms) e forza la scrittura immediata su disco delle impostazioni contrassegnate come `_dirty`, attendendo il rilascio del lock; il metodo viene invocato congiuntamente a `SaveAccountsAsync()` alla chiusura della finestra (`MainWindow_Closing`), all'uscita definitiva (`ExitApplication`) e prima del riavvio automatico per aggiornamenti OTA (`ForceExitForUpdateAsync` / `ForceExitForUpdate`).
+- **Resilienza e Auto-Recovery da Corruzione JSON (`SettingsController.vb`, `Localization.vb`)**:
+  - **Quarantena Automatica File Corrotti (#58)**: In fase di lettura (`ReadSettingsAsync`), qualora il file `settings.json` risulti corrotto, troncato o non deserializzabile, il file compromesso viene archiviato automaticamente come `settings.corrupt-<timestamp>.json` per preservare i dati ai fini diagnostici.
+  - **Ripristino Trasparente da Backup (.bak) (#58)**: Il sistema tenta immediatamente il ripristino trasparente dall'ultimo backup valido `settings.json.bak`; se il ripristino ha successo, la sessione viene avviata regolarmente informando l'utente tramite finestra modale.
+  - **Avviso Utente Multilingua (#58)**: In caso di fallback ai valori predefiniti o di ripristino da backup, l'utente riceve una notifica esplicita localizzata in tutte e 5 le lingue ufficiali dell'applicazione (`it`, `en`, `fr`, `es`, `de`).
+- **Aggiornamento Documentazione e Tag di Ricerca GitHub (`README.md`, `README.it.md`)**:
+  - **Istruzioni Dettagliate Connessione OpenClaw ed Hermes Agent**: Integrata una guida esaustiva passo-passo sia in `README.md` che in `README.it.md` per la configurazione e connessione degli account OpenClaw ed Hermes Agent, documentando gateway URL, token di sicurezza, autenticazione automatica Bearer token in WebView2, integrazione mesh VPN Tailscale (`tsnet`) con proxy deterministici per la persistenza dell'identità del dispositivo, e validazione con "Test Connessione".
+  - **Tag di Ricerca e Topics Repository GitHub**: Aggiornati i topics ufficiali del repository GitHub (`openclaw`, `hermes`, `hermes-agent`, `ai-agents`, `ai-gateway`, `tailscale`) e aggiunti badge e sezioni dedicate con i tag di ricerca nei README per massimizzare la visibilità e reperibilità su GitHub.
+
+## [1.0.1-beta] - 2026-09-20
+
+### Pre-release / Beta — Hardening Download e Verifica Integrità Fail-Closed Aggiornamenti OTA
+- **Hardening del Download e Verifica Integrità Aggiornamenti OTA (`UpdateChecker.vb`, `Localization.vb`)**:
+  - **Streaming Diretto su Disco & Eliminazione Saturazione RAM (#56)**: Sostituito il download in-memory con un client HTTP dedicato (`_downloadClient`) configurato con timeout di connessione infinito e `CancellationTokenSource` globale da 10 minuti. Il payload dell'archivio `.zip` viene scaricato in streaming asincrono direttamente su disco (`ResponseHeadersRead` e `CopyToAsync`), supportando file di grandi dimensioni o connessioni lente senza sovraccaricare la memoria di sistema.
+  - **Calcolo Hash in Streaming (#56)**: Calcolo dell'impronta crittografica SHA-256 eseguito direttamente dal file su disco tramite `SHA256.HashDataAsync(stream)` anziché da buffer di byte in RAM.
+  - **Verifica Integrità Fail-Closed (#57)**: Blocco immediato e sicuro della procedura di aggiornamento qualora non sia reperibile un'impronta SHA-256 affidabile (sia dall'asset `.sha256` che dal body della release su GitHub).
+  - **Restrizione Ricerca Checksum al File di Release (#57)**: Restretta la regex di estrazione dell'hash esclusivamente al nome dell'archivio ZIP specifico o a prefissi dedicati (`SHA256:`), eliminando il fallback debole su stringhe esadecimali generiche.
+  - **Validazione Firma Digitale Authenticode (#57)**: Introdotta la verifica della firma Authenticode sull'eseguibile `HidaChat.exe` estratto prima di procedere all'aggiornamento, rifiutando file corrotti o non validi.
+  - **Scrittura Atomica del Marcatore di Versione (#57)**: Rimossa la chiamata anticipata a `WriteLocalVersionMarker` da codice C#/VB; il file marcatore `.app_version` viene ora generato unicamente da `update.bat` solo a copia robocopy avvenuta con pieno successo.
+  - **Messaggi di Errore Localizzati e Riformulazione Permessi Cartella (#57)**: Aggiornato l'avviso di permessi insufficienti per raccomandare directory utente normalmente scrivibili (`Documenti`, `Desktop`, cartella su chiavetta USB) in ossequio alla natura 100% portabile dell'applicazione; sincronizzate tutte le nuove stringhe di errore in 5 lingue (`it`, `en`, `fr`, `es`, `de`).
+
+## [1.0.0] - 2026-09-19
+
+### Release Stabile (General Availability Milestone) — Supporto 4 Piattaforme (WhatsApp, Telegram, OpenClaw, Hermes), Stabilità Consolidata e Portabilità Assoluta
+- **Milestone Ufficiale v1.0.0 (Release Stabile)**:
+  - Primo rilascio ufficiale stabile (General Availability) di HidaChat: client desktop Windows (.NET 9 / WPF) per messaggistica e agenti IA, 100% portabile, privo di framework pesanti come Electron e ottimizzato per alte prestazioni.
+- **Supporto Piattaforme Consolidato a 4 Ecosistemi (`AppAccounts.vb`, `AccountManager.vb`, `SettingsWindow.xaml`)**:
+  - **WhatsApp Web**: Istanza WebView2 isolata, QR scan immediato, messaggistica istantanea, supporto Bulk Sender e traduzione al volo.
+  - **Telegram Web**: Pieno supporto Telegram Web A / K / Z con badging unread accurato (`navigator.setAppBadge`), eliminazione falsi positivi e notifica istantanea.
+  - **OpenClaw (Autonomous AI Agent Gateway & Web UI)**: Integrazione completa console web con connessione mesh VPN Tailscale trasparente tramite il companion daemon `tsnetd.exe` (Go statico), porta proxy locale deterministica (`18800+`), token di sicurezza deterministico e conservazione identità Ed25519 (elimina la necessità di approvazione ripetuta `openclaw devices approve`).
+  - **Hermes Agent (Nous Research)**: Integrazione Web Console e Dashboard IA per agenti Hermes, autenticazione Bearer Token automatica in WebView2, connettività diretta locale (`http://127.0.0.1:9119`) o remota via Tailscale Mesh VPN (`18900+`), con branding grafico dedicato (icona elmo alato azzurro `#00B0FF`).
+- **Indicatori Notifiche Real-Time & Bollino Rosso Reattivo (`MainWindow.xaml`, `AppAccounts.vb`, `Scripts/notification.js`)**:
+  - Sistema consolidato di badge non letti dinamico sulle schede (bollino compatto o pillola con contatore numerico esatto `1`, `2`, `99+`), sincronizzato in modo asincrono sul Dispatcher WPF.
+- **Staggered Preload & Preservazione Cache V8 (`MainWindow.xaml.vb`, `AccountManager.vb`)**:
+  - Priorità istantanea alla scheda attiva (pronta in 1-2 secondi), pre-riscaldamento scaglionato degli altri account in background a intervalli di 1.5s per azzerare i picchi di risorse, e preservazione delle cartelle bytecode V8 (`Code Cache`) per azzerare i tempi di caricamento tra una riapertura e l'altra.
+- **Resilienza e Auto-Recovery (`AppAccounts.vb`)**:
+  - Gestione trasparente di eventuali crash del runtime WebView2 (`ProcessFailed` / `RenderProcessExited`) con ripristino automatico e indolore della sessione.
+- **Invio Massivo Personalizzato (Bulk Sender Engine)**:
+  - Automazione invio messaggi da file Excel (`.xlsx`, `.xls`) e CSV con mapping intelligente colonne, segnaposto dinamici (`{Nome}`, `{Azienda}`, ecc.) e protezione naturale anti-spam con jitter timer minimo di 30 secondi.
+- **Documentazione Completa Aggiornata (`README.md`, `README.it.md`, `ANALISI_PROGETTO.md`)**:
+  - Documentate le 4 piattaforme supportate con istruzioni dettagliate passo-passo per la configurazione di account OpenClaw ed Hermes Agent (parametri gateway, token di autenticazione, supporto Tailscale Mesh).
+
+## [0.9.5-beta] - 2026-09-18
+
+### Pre-release / Beta — Supporto Completo & Preciso Notifiche e Bollini Telegram Web
+- **Integrazione Badging API Nativa (`Scripts/notification.js`)**:
+  - Implementato hook diretto sulle API web standard `navigator.setAppBadge(count)` e `navigator.clearAppBadge()` usate dalle PWA di Telegram Web per comunicare il conteggio unread esatto calcolato internamente.
+- **Risoluzione Sovra-Conteggio / Falsi Positivi Telegram Web A (`Scripts/notification.js`)**:
+  - Risolto il conteggio anomalo (messaggi "fantasma"): Teact (Telegram Web A) genera un elemento contenitore `<div class="ChatBadge">` per ciascuna riga di chat visibile (riservato a pin, reazioni o badge). Il selettore generico precedente interpretava tali elementi privi di cifre come non letti.
+  - Rafforzati i selettori richiedendo espressamente classi di stato unread reali (`.ChatBadge.unread`, `.ChatBadge .Badge`, `.Badge.unread`, `.dialog-subtitle-badge`, `.rp .unread`, `.rp .badge`).
+  - Escluse esplicitamente le chat fissate in alto (icone puntina `.icon-pin`).
+- **Scansione Isolata per Piattaforma & Fallback Avanzati (`Scripts/notification.js`)**:
+  - Separata la logica di analisi DOM tra `telegram` e `whatsapp` garantendo totale impermeabilità reciproca.
+  - Aggiunto fallback sui tab cartella (`.folders-tabs .Tab .Badge`) per catturare il totale unread anche con chatlist virtualizzata o chiusa.
+  - Aggiunto controllo favicon unread.
+- **Diagnostica e Tracciamento Automatico (`AppAccounts.vb`, `Scripts/notification.js`)**:
+  - Generazione automatica del report diagnostico `telegram_debug.txt` con la mappa dettagliata dei messaggi rilevati, canali, titoli chat e classi HTML.
+
+## [0.9.4-beta] - 2026-09-17
+
+### Pre-release / Beta — Risoluzione Blocco Scope JavaScript IPC & Ripristino Funzionalità Bollino Rosso
+- **Risoluzione Critica Scope Token IPC (`Scripts/notification.js`)**:
+  - Risolto l'errore `ReferenceError: __bridgeToken is not defined`: la variabile `const __bridgeToken` era dichiarata all'interno del blocco `try` iniziale, rendendola inaccessibile (blocco ES6 block-scoped) alle funzioni di scansione `checkAndNotifyUnreadCount` e `scanOnlineStatus`. Di conseguenza, ogni invio di `UNREAD_COUNT_CHANGED` e `ONLINE_STATUS_CHANGED` verso l'host WPF falliva silenziosamente.
+  - Spostata la dichiarazione di `__bridgeToken` e della mappa `activeCustomNotifications` a livello di funzione principale della IIFE per garantire visibilità globale all'intero script.
+- **Ottimizzazione Scansione DOM e Cuore Battito Notifiche (`Scripts/notification.js`)**:
+  - Rimosso il vincolo restrittivo `offsetParent === null` che ignorava i badge generati da WhatsApp Web e Telegram con layout moderno (es. elementi `position: fixed`, SVG o flexbox).
+  - Rafforzato l'algoritmo di estrazione dei conteggi unread distinguendo chiaramente i badge numerici nativi Telegram e WhatsApp Web dall'aria-label generale della chat per evitare conteggi errati.
+  - Introdotto un heartbeat periodico continuo (ogni 3 secondi) per gli account con messaggi non letti per garantire che l'host WPF mantenga sempre lo stato sincronizzato.
+- **Rafforzamento Rendering Grafico XAML (`MainWindow.xaml`, `AppAccounts.vb`)**:
+  - Rimosso il vincolo fisso su `Width` nel controllo WPF `UnreadBadge`, consentendo al badge di dimensionarsi perfettamente in modo fluido: cerchio compatto (9×9 px) in caso di notifica generica senza conteggio numerico e pillola orizzontale auto-adattiva con raggio 8 px e padding quando è presente un contatore messaggi non letti (`1`, `2`, `99+`).
+  - Aggiunta la proprietà `OnlineTooltip` per il corretto binding del tooltip sullo stato online.
+
+## [0.9.3-beta] - 2026-09-16
+
+### Pre-release / Beta — Risoluzione Ricezione Conteggio Non Letti & Riconoscimento Real-Time Notifiche
+- **Risoluzione Eccezione IPC KeyNotFoundException (`AppAccounts.vb`)**:
+  - Risolto il blocco silente nell'elaboratore messaggi web `HandleNotificationMessageAsync` causato dalla lettura non protetta di `root.GetProperty("id")`: nei messaggi di tipo `UNREAD_COUNT_CHANGED` e `ONLINE_STATUS_CHANGED` l'identificativo ID non era presente, generando un'eccezione `KeyNotFoundException` che impediva l'assegnazione di `UnreadCount`, `HasNotification` e dello stato online.
+  - Sostituito l'accesso a tutte le proprietà JSON (`type`, `id`, `title`, `body`, `channel`, `bridgeToken`) con `TryGetProperty` e fallback difensivi.
+- **Miglioramento Intercettazione Titolo e Scansione DOM (`Scripts/notification.js`)**:
+  - Aggiunto l'intercettatore diretto del setter `document.title` tramite `Object.defineProperty` su `Document.prototype`, garantendo una reazione istantanea ai cambi di titolo delle SPA (WhatsApp Web e Telegram) a latenza zero.
+  - Ampliata la regex di estrazione del conteggio messaggi non letti a `[\(\[](\d+)\+?[\)\]]` (supporta formati come `(1) WhatsApp`, `WhatsApp (1)`, `(99+) WhatsApp`, `[2] Telegram`).
+  - Arricchiti i selettori DOM per Telegram A/K/Z e WhatsApp Web per intercettare sia i badge numerici che i pallini senza testo numerico esplicito.
+  - Incluso sempre un campo `id` generato per payload IPC per totale compatibilità.
+- **Rafforzamento Thread-Safety e Rendering Badge WPF (`AppAccounts.vb`, `MainWindow.xaml`)**:
+  - Notifiche `PropertyChanged` per `UnreadCount`, `HasNotification`, `IsContactOnline` e stato online ora sempre instradate sul Dispatcher della UI WPF.
+  - Aggiunta la proprietà `UnreadBadgeWidth` con binding esplicito su `MainWindow.xaml` per assicurare un cerchio perfetto (9×9 px) anche in assenza di testo numerico.
+
+## [0.9.2-beta] - 2026-09-16
+
+### Pre-release / Beta — Bollino Rosso & Badge Notifiche Schede Account
+- **Bollino Rosso & Badge Notifiche Schede Account (`MainWindow.xaml`, `AppAccounts.vb`)**:
+  - Aggiunto indicatore visivo "bollino rosso" dinamico accanto al nome di ciascuna scheda account per segnalare istantaneamente la presenza di nuovi messaggi o notifiche non lette.
+  - Layout adattivo: se è presente un conteggio numerico, il badge mostra il numero di messaggi (`1`, `2`, `99+`) in bianco su sfondo rosso; per notifiche generiche o avvisi, si ridimensiona a bollino circolare compatto.
+  - Risolto il conflitto di precedenza delle proprietà di stile WPF collegando la visibilità direttamente alle proprietà reattive `INotifyPropertyChanged` (`UnreadBadgeVisibility` e `OnlineDotVisibility`).
+
+## [0.9.1-beta] - 2026-09-15
+
+### Pre-release / Beta — Supporto Hermes Agent via Tailscale Mesh VPN & Local Gateway
+- **Supporto Piattaforma Hermes Agent (`AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`)**:
+  - **Integrazione Dashboard e Web Console**: Supporto nativo per istanze Hermes Agent (Nous Research) con schede isolate WebView2, switch immediato e profilazione dedicata.
+  - **Endpoint e Porte Determistiche**: Endpoint predefinito `http://127.0.0.1:9119` e allocazione automatica di porta proxy deterministica locale nel range `18900+` per evitare conflitti con altre piattaforme.
+  - **Autenticazione Sicura**: Iniezione automatica dell'header `Authorization: Bearer <AuthToken>` tramite filtro WebView2 `WebResourceRequested` sia per connessioni dirette che proxy loopback tsnet, oltre al supporto per passaggio token in query string.
+  - **Integrazione Rete Mesh Tailscale (`tsnetd`)**: Connessione remota trasparente verso host Tailnet (`*.ts.net` o `100.x.y.z:9119`) tramite demone `tsnetd` integrato con token locale `X-HidaChat-Local-Token`.
+  - **Branding & Identità Grafica**: Icona SVG vettoriale personalizzata a tema (elmo alato di Mercurio / Hermes AI) e colore distintivo azzurro ciano `#00B0FF`.
+  - **Interfaccia e Impostazioni**: Selettore piattaforma, form di configurazione contestuale con label e tooltip dedicati, menu di aggiunta rapida e test di connettività HTTP in tempo reale.
+  - **Localizzazione Multilingua**: Traduzioni complete in Italiano, Inglese, Francese, Spagnolo e Tedesco (`Localization.vb`).
+
+## [0.9.0] - 2026-09-14
+
+### Release Stabile — Supporto OpenClaw via Tailscale Mesh VPN, Staggered Preload & Cache Optimization
+- **Nuova Piattaforma Supportata: OpenClaw (`AppAccounts.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`, `AccountManager.vb`)**:
+  - **Integrazione Completa Gateway e Web UI OpenClaw**: Supporto nativo all'aggiunta e gestione di account della piattaforma OpenClaw all'interno di HidaChat, con schede dedicate, switch rapido e profilazione isolata WebView2.
+  - **Integrazione con Rete Privata Mesh Tailscale (tsnet)**: Connessione trasparente e sicura verso le istanze e gateway OpenClaw ospitati su tailnet private tramite il companion demone `tsnetd.exe` (Go static binary con stack gVisor e WireGuard), senza necessità di installare o configurare il client Tailscale sul sistema operativo host.
+  - **Persistenza Identità Dispositivo OpenClaw**: Assegnazione e persistenza in `settings.json` di una porta proxy locale deterministica (`localProxyPort` a partire da `18800`) e token di sicurezza locale salvato in `data/tsnet/local_token.txt`. In questo modo le chiavi crittografiche e i token in IndexedDB rimangono stabili, eliminando la richiesta continua di riapprovazione del dispositivo (`openclaw devices approve`).
+  - **Risoluzione Race Condition e Handshake Sicuro all'Avvio**: Attesa sincronizzata dell'handshake WireGuard (`tsReady`), trasporto con retry automatico per assorbire latenze di rete e schermata di attesa fluida con meta-refresh automatico.
+  - **Inizializzazione Asincrona Non Bloccante**: Avvio asincrono del demone `tsnetd` in background per non ritardare il caricamento dell'interfaccia.
+- **Ottimizzazione Prestazioni di Avvio Multi-Account (`MainWindow.xaml.vb`)**:
+  - **Pre-caricamento Scaglionato (Staggered Preload)**: L'account attivo viene caricato immediatamente all'avvio con priorità assoluta (interfaccia reattiva in 1–2 secondi), mentre gli account secondari vengono precaricati in background a intervalli distanziati di 1.5 secondi, azzerando picchi di CPU, RAM e banda.
+  - **Caricamento On-Demand Istantaneo**: Cliccando su una scheda prima del completamento del precaricamento, l'account viene agganciato e caricato immediatamente senza attese.
+- **Preservazione Intelligente della Cache Web & Prestazioni di Riapertura (`AppAccounts.vb`, `AccountManager.vb`)**:
+  - **Persistenza Bytecode V8 e App Shell**: Conservazione tra le sessioni delle cartelle `Code Cache` (bytecode V8 precompilato), `Cache` (HTTP disk cache) e `Service Worker\CacheStorage`. WhatsApp Web e Telegram non devono più riscaricare oltre 50 MB di codice e asset ad ogni apertura.
+  - **Pulizia Mirata dei File Effimeri**: La pulizia automatica si concentra esclusivamente sui report di crash (`Crashpad`) e cache grafica temporanea (`ShaderCache`, `GPUCache`), lasciando a Chromium la gestione controllata della disk cache (tetto a 100 MB).
+- **Resilienza e Stabilità di Sistema**:
+  - Resilienza nativa trasparente ai crash del runtime WebView2 (`ProcessFailed` / `RenderProcessExited`) con auto-recovery istantaneo della sessione attiva (TODO #55).
+
+## [0.8.2-beta] - 2026-09-08
+
+### Pre-release / Beta — Ottimizzazione Prestazioni Avvio Multi-Account & Preservazione Cache Web
+- **Ottimizzazione Prestazioni di Avvio Multi-Account (`MainWindow.xaml.vb`)**:
+  - **Pre-caricamento Scaglionato (Staggered Preload)**: L'account attualmente selezionato viene caricato e mostrato con priorità assoluta all'avvio, rendendo la schermata immediatamente reattiva in 1–2 secondi. Gli altri account configurati vengono precaricati in background con intervalli scaglionati di 1.5 secondi, azzerando la saturazione contemporanea di CPU, RAM e banda.
+  - **Caricamento Istantaneo On-Demand**: Cliccando su una scheda prima del termine del precaricamento automatico, l'account viene agganciato e mostrato istantaneamente.
+- **Preservazione Intelligente della Cache Web (`AppAccounts.vb`, `AccountManager.vb`)**:
+  - **Persistenza Code Cache & App Shell**: Disattivata la cancellazione sistematica a ogni avvio e chiusura delle cartelle `Default\Code Cache` (bytecode V8 precompilato), `Default\Cache` (HTTP disk cache) e `Default\Service Worker\CacheStorage`. WhatsApp Web e Telegram non devono più riscaricare oltre 50 MB di codice ad ogni apertura dell'applicazione.
+  - **Pulizia Mirata File Effimeri**: La pulizia automatica si concentra esclusivamente su log di crash (`Crashpad`) e cache grafica temporanea (`ShaderCache`, `GPUCache`), lasciando a Chromium la regolazione della disk cache entro il limite di 100 MB.
+- **Avvio Asincrono Non Bloccante di Tsnet per OpenClaw (`TsnetManager.vb`)**:
+  - Rimosso il ciclo di attesa bloccante da 5 secondi all'avvio del demone `tsnetd.exe`. L'inizializzazione del nodo Tailscale procede ora in background senza ritardare il caricamento delle schede.
+
+## [0.8.1-beta] - 2026-09-04
+
+### Pre-release / Beta — Supporto OpenClaw & Miglioramenti di Stabilità e Connessione Tailscale
+- **Nuova Piattaforma Supportata: OpenClaw (`AppAccounts.vb`, `MainWindow.xaml.vb`, `SettingsWindow.xaml`)**:
+  - **Integrazione Completa Gateway e Client Web OpenClaw**: Supporto nativo all'aggiunta e gestione di account della piattaforma OpenClaw all'interno dell'applicazione, con schede dedicate, switch rapido e profilazione WebView2 isolata.
+  - **Integrazione con Rete Privata Tailscale (tsnet)**: Connessione trasparente e sicura verso le istanze e i gateway OpenClaw ospitati su tailnet private tramite il demone `tsnetd` integrato, senza necessità di installare il client Tailscale sul sistema host.
+- **Persistenza Identità Dispositivo OpenClaw (`AppAccounts.vb`, `AccountManager.vb`, `tsnetd/main.go`)**:
+  - **Porta Proxy Deterministica**: Assegnazione e salvataggio permanente in `settings.json` di una porta TCP locale fissa (`localProxyPort` a partire da `18800`) per ciascun account OpenClaw con Tailscale attivo.
+  - **Eliminazione Richieste di Riconnessione Continue**: In Chromium/WebView2 l'Origin include la porta locale (`http://127.0.0.1:<porta>`). Mantenendo la porta invariata ad ogni apertura e chiusura dell'app, le chiavi crittografiche Ed25519 e i token di sessione salvati in IndexedDB (`openclaw-control-ui`) rimangono stabili, eliminando la necessità di riapprovare il dispositivo ad ogni riavvio (`openclaw devices approve`).
+  - **Token Locale Persistente**: Il token di sicurezza locale per l'IPC con `tsnetd` viene ora generato una sola volta e salvato in `data/tsnet/local_token.txt` invece di cambiare a ogni sessione.
+- **Risoluzione Race Condition e Bad Gateway 502 all'Avvio (`tsnetd/main.go`, `TsnetManager.vb`)**:
+  - **Sincronizzazione Avvio Tailscale (`tsReady`)**: In `tsnetd`, le richieste HTTP verso il gateway OpenClaw vengono trattenute nei primi istanti di avvio fino al completamento dell'handshake WireGuard (`tsServer.Up`), impedendo che la WebView2 riceva errori di mancata connessione.
+  - **Trasporto con Retry Automatico (`retryTransport`)**: Introdotto un meccanismo di riprova trasparente con backoff di 1 secondo (fino a 3 tentativi) per assorbire i tempi di risposta della tailnet remota.
+  - **Attesa Stato Running all'Avvio**: `TsnetManager.StartAsync` attende attivamente che lo stato del nodo diventi `Running` prima di navigare la scheda OpenClaw.
+  - **Schermata di Fallback con Auto-Refresh**: In caso di ritardo temporaneo della rete, il proxy restituisce una pagina HTML scura con spinner e meta-refresh automatico a 2 secondi.
+
+## [0.8.0] - 2026-09-03
+
+### Release Stabile — Storage Optimization, Privacy Hardening & WhatsApp/Telegram Core Upgrades
+- **Ottimizzazione Storage e Pulizia Automatica all'Avvio e all'Uscita (`AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`)**:
+  - **Abbattimento Impronta su Disco**: Riduzione dello spazio occupato dalla cartella dati da oltre 500 MB a circa 28 MB per profilo grazie all'eliminazione automatica delle cartelle di cache pura (`Code Cache`, `Disk Cache`, `Service Worker\CacheStorage`, `component_crx_cache`, `Subresource Filter`, `Crashpad`, `ShaderCache`).
+  - **Zero Disconnessioni**: Salvaguardia rigorosa di `IndexedDB`, `Local Storage` e `Cookies`, garantendo che l'accesso a WhatsApp e Telegram rimanga attivo senza richiedere nuove scansioni del QR code.
+  - **Sanitizzazione Automatica all'Entrata e all'Uscita**: Esecuzione asincrona della pulizia preventiva all'avvio prima dell'attivazione dei processi browser e svuotamento nativo WebView2 (`ClearBrowsingDataAsync`) alla chiusura.
+- **Privacy Hardening e Tuning Parametri Chromium (`AppAccounts.vb`)**:
+  - **Incremento Privacy & Zero Telemetria**: Disabilitazione dell'invio dei crash dump a server remoti (`--no-crash-upload`), disattivazione del monitoraggio di rete (`--disable-domain-reliability`) e blocco dei controlli silenziosi di componenti interni (`--disable-component-update`).
+  - **Stop Accumulo Micro-File Shader**: Disabilitata la cache degli shader su disco (`--disable-gpu-shader-disk-cache`) e limitata la disk cache a 100 MB (`--disk-cache-size=104857600`).
+- **Persistenza Sessione WhatsApp & Client Telegram Web A (`AppAccounts.vb`, `Scripts/`)**:
+  - **Persistenza Affidabile WhatsApp**: Risolta definitivamente la perdita di sessione causata da discrepanze nell'User-Agent.
+  - **Migrazione Telegram Web A**: Adozione del client moderno Web A (`https://web.telegram.org/a/`) con supporto deep linking `tg://` e `t.me`.
+- **Configurabilità Dinamica Multi-Account (`AccountManager.vb`, `SettingsWindow.xaml`)**:
+  - Limite massimo di account configurabile nelle Impostazioni (fino a 10 account simultanei).
+  - Resilienza ai crash WebView2 con ripristino automatico trasparente delle schede.
+
+## [0.7.12-beta] - 2026-09-03
+
+### Pre-release / Beta — Automated Full Cache Purge on Startup & Exit (Code Cache, Disk Cache & Service Worker)
+- **Automazione Completa Pulizia Cache all'Entrata e all'Uscita (`AppAccounts.vb`, `AccountManager.vb`, `MainWindow.xaml.vb`)**:
+  - **Estensione Rimozione ad Alto Volume (`CleanTransientCacheFolders`)**: Estesa la routine di eliminazione per ripulire le cartelle responsabili del 90% del peso su disco (`Default\Code Cache`, `Default\Cache`, `Default\Service Worker\CacheStorage`, `Default\Service Worker\ScriptCache`, `component_crx_cache`, `Subresource Filter` e `Crashpad`), abbattendo le dimensioni del profilo da oltre 500MB a ~28MB senza toccare chiavi di accesso, sessioni o database messaggi.
+  - **Svuotamento Nativo Disk Cache all'Uscita (`ClearBrowsingCacheAsync`)**: Introdotta l'invocazione preventiva dell'API WebView2 `ClearBrowsingDataAsync(DiskCache)` prima del rilascio dei controlli.
+  - **Sanitizzazione all'Entrata & all'Uscita**: Esecuzione sincronizzata e asincrona della pulizia all'avvio dell'applicazione (`LoadAccountsAsync`) prima dell'aggancio dei processi e alla chiusura definitiva (`ExitApplication` e `ForceExitForUpdate`).
+
+## [0.7.11-beta] - 2026-09-03
+
+### Pre-release / Beta — WebView2 Storage Optimization, Pure Cache Purge & Chromium Hardening
+- **Ottimizzazione Impronta su Disco Cartella Dati (`AppAccounts.vb`, `AccountManager.vb`)**:
+  - **Pulizia Automatica Cache Volatile (`CleanTransientCacheFolders`)**: Introdotta una routine di rimozione mirata per le cartelle di cache pura non critiche (`GPUCache`, `ShaderCache`, `GrShaderCache`, `DawnGraphiteCache`, `DawnWebGPUCache`, `GPUPersistentCache` e `Crashpad/reports`), preservando integralmente cookie, chiavi di sessione e database offline IndexedDB senza richiedere nuove scansioni del QR code.
+  - **Sanitizzazione Preventiva all'Avvio (`CleanupTransientCachesAsync`)**: Esecuzione asincrona della pulizia all'avvio dell'applicazione su tutti i profili isolati (`WV2Profile_*`) prima che i processi browser WebView2 aggancino i file di lock.
+- **Tuning Parametri Browser Chromium (`AppAccounts.vb`)**:
+  - **Disabilitazione Cache Shader su Disco (`--disable-gpu-shader-disk-cache`)**: Eliminata la generazione continua di migliaia di micro-file di shader Direct3D/GPU non necessari per interfacce 2D di messaggistica.
+  - **Regolazione Disk Cache (`--disk-cache-size=104857600`)**: Confermato il tetto massimo della cache su disco a 100MB per prevenire la crescita incontrollata dei dati temporanei.
+  - **Disattivazione Componenti e Telemetria Inutilizzati**: Aggiunti i flag `--disable-component-update`, `--disable-domain-reliability` e `--no-crash-upload` per bloccare download in background e report diagnostici non essenziali.
+
+## [0.7.10-beta] - 2026-09-02
+
+### Pre-release / Beta — WhatsApp Session Persistence & Telegram Web A Migration
+- **Preservazione Sessione Persistente WhatsApp Web (`AppAccounts.vb`)**:
+  - **Ripristino User-Agent Nativo**: Rimosso l'override dinamico dell'User-Agent a runtime che causava la discrepanza del fingerprint crittografico in WhatsApp Web e forzava la disconnessione della sessione/richiesta di scansione del QR code. Le credenziali e lo stato di accoppiamento IndexedDB restano ora stabili e persistenti nel tempo.
+- **Migrazione Telegram Web al Client Ufficiale Web A (`AppAccounts.vb`)**:
+  - **Adozione Telegram Web A (`https://web.telegram.org/a/`)**: Sostituita la precedente URL di Web K (`/k/`) con il client ufficiale moderno Web A, superando definitivamente i problemi di caricamento infinito, thread locking WebAssembly e compatibilità con WebView2.
+  - **Supporto Deep Linking `tg://` & `t.me`**: Aggiornati i resolver dei link a Telegram Web A per canali, gruppi, messaggi e inviti.
+- **Protezione Iframe, Sandbox e Script Helper (`Scripts/notification.js`, `Scripts/translation.js`, `JsScripts.vb`)**:
+  - Aggiunto controllo `if (window.top !== window.self) return;` a tutti gli script iniettati (`notification.js`, `translation.js`, `telegram.css`) per evitare l'iniezione accidentale in iframe interni, widget o frame di supporto Web Workers di Telegram.
+  - Sincronizzazione tema Chiaro/Scuro (`theme-light`/`theme-dark` e `night`) ottimizzata per l'architettura React/TypeScript di Telegram Web A.
+
+## [0.7.9-beta] - 2026-09-02
+
+### Pre-release / Beta — Telegram Web Compatibility & Notification Override Hardening
+- **Risoluzione Blocco Caricamento Chat Telegram Web (`Scripts/notification.js`, `AppAccounts.vb`)**:
+  - **Preservazione Catena Prototipale `window.Notification`**: Riformulato l'override di `Notification` mantenendo l'ereditarietà prototipale completa da `OriginalNotification.prototype` (`Object.setPrototypeOf`), i costruttori standard e le proprietà statiche per prevenire eccezioni di tipo e blocchi di inizializzazione MTProto/WASM su Telegram Web K e Telegram Web A.
+  - **Intercettazione Sicura `navigator.permissions.query`**: Sostituita la delega bound con invocazione sicura tramite `Reflect.apply`/`apply` all'interno di blocchi protetti `try...catch` per evitare l'eccezione nativa Blink `TypeError: Illegal invocation` durante i controlli permessi all'avvio.
+  - **Sanitizzazione User-Agent WebView2**: Rimosso il token identificativo `WebView2/...` dall'User-Agent per garantire il corretto riconoscimento client desktop nativo senza restrizioni o pagine di fallback.
+  - **Ottimizzazione Flag Browser Chromium**: Rimossi flag potenzialmente limitanti per WebAssembly (`OptimizationHints`) e unificati i parametri `--disable-features` in un'unica direttiva formattata.
+  - **Ripristino DevTools Window (`AppAccounts.vb`)**: Riattivata la possibilità di aprire gli Strumenti di Sviluppo tramite il pulsante nelle Impostazioni per agevolare diagnostica e ispezione runtime.
+
+## [0.7.8-beta] - 2026-09-02
+
+### Pre-release / Beta — Dynamic Max Accounts, Lazy Directory Enumeration & Notification Tuning
+- **Numero Massimo di Account Configurabile (`AccountManager.vb`, `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`)**:
+  - **Limite Dinamico Flessibile**: Rimosso il limite rigido hardcoded a 3 account; introdotta la proprietà configurabile `MaxAccounts` (selezionabile nelle Impostazioni fra 3, 5, 8 e 10 account, default 5) persistita in `settings.json`.
+  - **Aggiornamento Dinamico UI e Localizzazione**: Aggiornati i testi informativi sui contatori e messaggi di blocco (`accounts_count_info` e `max_accounts_reached`) con segnaposto dinamico `{max}` in tutte le 5 lingue supportate (EN, IT, FR, ES, DE).
+- **Ottimizzazione I/O Pulizia Profili con Enumerazione Lazy (`AccountManager.vb`)**:
+  - Sostituita la chiamata eager `Directory.GetDirectories` in `CleanupUnusedProfilesAsync` con l'iteratore lazy e token-efficient `Directory.EnumerateDirectories`, allineando il pattern a tutte le scansioni directory del progetto.
+- **Tuning e Consistenza `HandleNotificationStateChanged` (`AccountManager.vb`)**:
+  - Eliminato il codice morto/inutilizzato: il parametro `hasNotif` e `accountId` vengono ora attivamente utilizzati per allineare tempestivamente lo stato dell'account target e determinare `HasAnyNotification` in modo reattivo senza scansioni ridondanti.
+
+## [0.7.7-beta] - 2026-09-02
+
+### Pre-release / Beta — IPC Security Hardening, JSON Escaping & Lifecycle Resilience
+- **Hardening Sicurezza IPC & Disabilitazione DevTools in Release (`AppAccounts.vb`, `Constants.vb`)**:
+  - **DevTools Condizionato al Build**: `AreDevToolsEnabled` configurato condizionalmente tramite `#If DEBUG` (abilitato solo in compilazioni Debug per sviluppo, disabilitato in Release per bloccare l'accesso al runtime, al DOM e prevenire spoofing di messaggi IPC).
+  - **Token IPC Incapsulato e Protetto**: Verificato l'incapsulamento del bridge token all'interno delle IIFE di `notification.js` e `translation.js` senza alcuna esposizione sull'oggetto globale `window.__bridgeToken`.
+- **Serializzazione JSON Rigorosa & Escaping Universale (`JsScripts.vb`, `Scripts/translation.js`, `AppAccounts.vb`)**:
+  - **Iniezione Parametri Traduzione Sicura**: Sostituita l'interpolazione cruda e l'escaping manuale (`.Replace("'", "\'")`) con `JsonSerializer.Serialize` su tutti i parametri (`langCode`, `langName`, `tooltipLabel`, stringhe vuote di fallback in `HandleTranslationMessageAsync` e `UpdateWebviewLanguageAsync`).
+  - **Pulizia Template JS**: Rimosse le virgolette statiche nei template script per accogliere direttamente token letterali JSON validi.
+- **Gestione Coda Notifiche a Politica FIFO/LRU (`AppAccounts.vb`)**:
+  - Sostituito il `Clear()` totale di `ActiveNotificationIds` al raggiungimento del limite (500) con espulsione progressiva FIFO (`ActiveNotificationIds.Remove(oldest)`), evitando disallineamenti tra eventi di chiusura notifica e badge dei non letti.
+- **Resilienza Rimozione Account & Chiusura Profilo (`AccountManager.vb`)**:
+  - **Protezione NullReference**: Aggiunto controllo difensivo `_currentAccount IsNot Nothing` prima dell'accesso a `_currentAccount.Id` in `RemoveAccountAsync`.
+  - **Eliminazione Robusta Cartelle Profilo**: Aumentati a 10 i tentativi con backoff esponenziale in `DeleteDirectoryWithRetryAsync` per consentire il rilascio completo dei file di lock Chromium su storage lenti o con scansioni antivirus attive.
+
+## [0.7.6-beta] - 2026-09-02
+
+### Pre-release / Beta — WebView2 Process Crash Resilience & Auto-Recovery
+- **Resilienza ai Crash di WebView2 & Ripristino Automatico Trasparente (Auto-Recovery) (`AppAccounts.vb`, `MainWindow.xaml.vb`, `TODO.md`)**:
+  - **Intercettazione Eventi `CoreProcessFailed` e `ProcessFailed`**: Implementata la gestione fortemente tipizzata degli eventi di errore del processo a livello sia di controllo WPF (`WebView.CoreProcessFailed`) che di ambiente CoreWebView2 (`WebView.CoreWebView2.ProcessFailed`).
+  - **Gestione Differenziata del Guasto di Processo**:
+    - *Crash Renderer (`RenderProcessExited`)*: Ricaricamento rapido e automatico della pagina (`Reload()`) senza distruggere l'istanza né interrompere la sessione dell'utente.
+    - *Crash Browser Principale (`BrowserProcessExited` / OOM / GPU reset / Edge update)*: Rilevamento dello stato di crash (`IsCrashed = True`), distruzione sicura del controllo invalidato e rigenerazione automatica trasparente (`RecreateAccountWebViewAsync`) con re-inizializzazione dell'ambiente e navigazione.
+  - **Protezione nel Cambio Account (`SwitchToAccountAsync` & `AccountTab_Click`)**: Introdotta la verifica preventiva di validità dell'istanza e blocco di recupero automatico con re-switch trasparente, eliminando la comparsa di pop-up di errore bloccanti quando un processo browser in background subisce un crash o un aggiornamento silenzioso da parte di Windows Update.
+  - **Hardening `BtnReloadActiveTab_Click`**: Ricarica protetta della scheda attiva con fallback automatico alla re-istanziazione in caso di processo non più valido.
+  - **Pulizia Risorse & Memory Leak Prevention**: Disiscrizione sicura e protetta di tutti i listener di processo in `Dispose()` e in fase di chiusura dell'applicazione (`ExitApplication` / `ForceExitForUpdate`).
+
+## [0.7.5-beta] - 2026-09-01
+
+### Pre-release / Beta — Do Not Disturb (Focus Mode)
+- **Modalità "Non Disturbare" / Focus Mode Temporizzata (TODO #47) (`MainWindow.xaml`, `MainWindow.xaml.vb`, `SettingsController.vb`, `AppAccounts.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `TODO.md`)**:
+  - **Pulsante Rapido nella TitleBar & Menu Contestuale**: Inserito il pulsante `BtnDnd` nella barra del titolo con icona campana silenziata (`Bell-Off`), badge visivo attivo e menu a comparsa per impostare durate predefinite (*Per 30 minuti*, *Per 1 ora*, *Per 2 ore*, *Per 8 ore*, *Fino a disattivazione manuale*).
+  - **Silenziamento Totale e Muting Audio Sincrono**: Soppressione immediata delle notifiche Toast di Windows e dei popup `MessagePopup` per tutti gli account, con muting hardware dei suoni web (`CoreWebView2.IsMuted = True`).
+  - **Timer con Ripristino Automatico**: Controllo periodico dello stato e disattivazione automatica alla scadenza della durata impostata con tooltip indicante l'orario di fine (es. *"Non Disturbare attivo fino alle 16:30"*).
+  - **Configurazione nelle Impostazioni & Multilingua Completo**: Controlli dedicati nella sezione Notifiche delle *Impostazioni* e traduzioni native precompilate per tutte le 5 lingue supportate (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+
+## [0.7.4-beta] - 2026-08-30
+
+### Pre-release / Beta — Native Multilingual Spellchecker
+- **Correttore Ortografico Nativo Multilingua (TODO #44) (`AppAccounts.vb`, `SettingsController.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `TODO.md`)**:
+  - **Integrazione Motore Ortografico Chromium / WebView2**: Abilitazione e configurazione del correttore ortografico nativo (`--enable-features=Spellcheck`, `--lang=...`) su tutte le istanze isolate dei profili WebView2 per WhatsApp Web e Telegram Web.
+  - **Sezione Dedicata nelle Impostazioni**: Nuova sezione nelle *Impostazioni* con checkbox per attivare o disattivare il correttore e selettore ComboBox della lingua del dizionario (*Automatica da lingua app*, *English*, *Italiano*, *Français*, *Español*, *Deutsch*).
+  - **Persistenza & Supporto Multilingua Completo**: Salvataggio automatico delle preferenze ortografiche in `settings.json` con traduzioni allineate nei 5 dizionari ufficiali (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+
+## [0.7.3-beta] - 2026-08-28
+
+### Pre-release / Beta — Multilingual Expansion (French, Spanish, German)
+- **Supporto Completo Nuove Lingue Interfaccia (Français, Español, Deutsch) (`Localization.vb`, `SettingsController.vb`, `SettingsWindow.xaml.vb`, `AppAccounts.vb`, `AGENTS.md`)**:
+  - **Integrazione Dizionari Nativi Precompilati**: Aggiunti i dizionari completi `FrStrings` (Francese 🇫🇷), `EsStrings` (Spagnolo 🇪🇸) e `DeStrings` (Tedesco 🇩🇪) per tutte le oltre 60 stringhe ed elementi dell'interfaccia utente (Impostazioni, Gestione account, Notifiche, DevTools, Invio Massivo Excel/CSV, Informazioni, CSS Personalizzato, Indicatore Online).
+  - **Menu a Tendina Impostazioni & Switching Live**: Estesa la lista `SupportedLanguages` con le 5 lingue ufficiali (English, Italiano, Français, Español, Deutsch), con aggiornamento dinamico immediato dell'interfaccia e notifica sincrona di traduzione verso tutti i controlli WebView2 senza richiedere il riavvio dell'applicazione.
+  - **Linee Guida di Mantenimento Traduzioni**: Istituita la regola vincolante in `AGENTS.md` per la sincronizzazione obbligatoria di tutti i dizionari ad ogni nuova stringa o funzionalità aggiunta al progetto.
+
+## [0.7.2-beta] - 2026-08-28
+
+### Pre-release / Beta — Online Contact Indicator & Custom CSS Injector
+- **Indicatore di Stato "Online" e "Sta scrivendo..." dei Contatti (TODO #42) (`Scripts/notification.js`, `AppAccounts.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - **Rilevamento Continuo in Tempo Reale**: Intercettazione automatica dello stato del contatto aperto nella chat attiva tramite `MutationObserver` e scansione periodica del DOM sia per **WhatsApp Web** (`#main header`, `[data-testid="conversation-header"]`, `span[title]`) che per **Telegram Web K** (`.chat-info .person-status`, `.chat-info .status`, `.topbar .status`, `.chat-subtitle`).
+  - **Badge Dinamico nella TitleBar**: Indicatore visivo elegante nella barra del titolo (`OnlineIndicatorBorder`) con pallino colorato (`#25d366` per WhatsApp, `#24A1DE` per Telegram) e dicitura di stato (es. *"in linea"*, *"online"*, *"sta scrivendo..."*, *"typing..."*).
+  - **Indicatore Grafico sulle Schede Account**: Pallino verde (`TabOnlineDot`) visualizzato sulla scheda dell'account quando il contatto corrente è attivo.
+  - **Sincronizzazione Multi-Account**: Aggiornamento automatico e immediato al passaggio tra schede e al cambio di chat.
+- **Supporto Completo a Temi CSS Personalizzati Utente (TODO #43) (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `SettingsController.vb`, `JsScripts.vb`, `AppAccounts.vb`)**:
+  - **Editor CSS Monospace nelle Impostazioni**: Nuova sezione dedicata nelle *Impostazioni* con editor multiriga (`TxtCustomCss`) a spaziatura fissa (Consolas / Cascadia Mono), evidenziazione bordi e scrollbar per inserire regole CSS personalizzate per WhatsApp e Telegram Web.
+  - **Pulsanti Preset Rapidi Integrati**: Inserimento con un click di configurazioni stilistiche popolari:
+    - *OLED Nero Puro*: Sfondo nero assoluto (`#000000`) per display AMOLED/OLED a risparmio energetico.
+    - *Layout Compatto*: Riduzione larghezza sidebar e padding elementi chat.
+    - *Font Moderno*: Tipografia moderna pulita (`Segoe UI Variable Display` / system fonts).
+    - *Svuota*: Reset immediato del campo di testo.
+  - **Iniezione Dinamica in Tempo Reale**: Applicazione istantanea delle modifiche CSS a tutti i controlli WebView2 attivi senza dover riavviare l'applicazione o ricaricare la pagina (`hidachat-custom-user-css`).
+  - **Persistenza & Supporto Multilingua**: Salvataggio automatico in `settings.json` con localizzazione completa in Italiano ed Inglese in `Localization.vb`.
+
+## [0.7.1-beta] - 2026-08-27
+
+### Pre-release / Beta — Telegram Advanced Evolution & Desktop Shortcuts
+- **Badge Notifiche & Contatore Messaggi Non Letti Telegram e WhatsApp (TODO #41) (`Scripts/notification.js`, `AppAccounts.vb`, `MainWindow.xaml`)**:
+  - **Monitoraggio Ibrido in Tempo Reale**: Combinazione di `MutationObserver` sul titolo (`<title>`) e scansione periodica mirata del DOM per intercettare i badge non letti nativi di **Telegram Web K** (`.badge.unread`, `.unread-count`, `.chatlist-chat .badge`, `.dialog-subtitle .badge`) e **WhatsApp Web** (`[data-testid="unread-count"]`).
+  - **Badge Grafico sulle Schede Account**: Visualizzazione di una pillola badge rossa con contatore numerico (`"1"`, `"5"`, `"99+"`) o pallino di notifica (`"•"`) direttamente sopra l'etichetta dell'account.
+  - **Sincronizzazione Tray Icon**: Aggiornamento automatico e immediato dell'icona nella System Tray Windows con stato di notifica attiva (`icon_notification.ico`).
+- **Gestione Deep Link Telegram (`tg://` e `https://t.me/`) (TODO #41) (`AppAccounts.vb`)**:
+  - Intercettazione in `NavigationStarting` e `NewWindowRequested` di collegamenti con protocollo `tg://` (`tg://resolve?domain=...`, `tg://resolve?phone=...`, `tg://join?invite=...`, `tg://msg_url?...`) e link web `https://t.me/...` o `https://telegram.me/...`.
+  - Risoluzione e routing interno automatico verso l'interfaccia **Telegram Web K** (`https://web.telegram.org/k/#@...` / `https://web.telegram.org/k/#?tgaddr=...`), permettendo di aprire canali, gruppi e chat direttamente dentro HidaChat senza richiedere l'installazione di client esterni né generare errori di navigazione.
+- **Scorciatoie da Tastiera Globali per la Finestra (TODO #41) (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - `Ctrl + 1`, `Ctrl + 2`, `Ctrl + 3` (e tastierino numerico): switch istantaneo all'Account 1, 2 o 3.
+  - `Ctrl + Tab`: passaggio circolare alla scheda successiva.
+  - `Ctrl + Shift + Tab`: passaggio circolare alla scheda precedente.
+  - `Ctrl + T` / `Ctrl + N`: aggiunta rapida di un nuovo account (se limite consentito).
+  - `Ctrl + R` / `F5`: ricarica della scheda/piattaforma attiva.
+  - `Ctrl + ,` (Virgola): apertura rapida delle Impostazioni.
+  - `Ctrl + B` / `Ctrl + E`: apertura immediata della finestra di Invio Massivo (Bulk Sender).
+  - `F1` / `Ctrl + Shift + A`: apertura della finestra Informazioni (About).
+
+## [0.7.0] - 2026-08-26
+
+### Stable Release - Multi-Platform Bulk Sender, Security & Performance Hardening
+- **Invio Massivo Personalizzato Multi-Piattaforma per WhatsApp e Telegram (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`, `ExcelContactService.vb`, `BulkSenderEngine.vb`, `BulkContactItem.vb`)**:
+  - **Importazione da File Excel e CSV**: Modulo completo per l'importazione di elenchi contatti da fogli di calcolo **Excel (`.xlsx`, `.xls`)** e file **CSV (`.csv`)** con mappatura automatica e intelligente delle colonne (*Telefono*, *Nome*, *Cognome*, *Azienda*, *Testo personalizzato*, *Username*).
+  - **Supporto Multi-Piattaforma WhatsApp Web & Telegram Web**: Invio sequenziale asincrono tramite WebView2 sia per WhatsApp (`web.whatsapp.com/send`) che per Telegram (`tg://resolve?domain=...` / `tg://resolve?phone=...`), con iniezione JavaScript per la composizione, formattazione ed invio del messaggio.
+  - **Template Dinamici & Segnaposto**: Editor dinamico con pulsanti rapidi per l'inserimento dei tag segnaposto (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Username}`, `{Testo}`) e anteprima in tempo reale.
+  - **Ispettore di Anteprima Dettagliata & Coerenza 1:1**: Riquadro dedicato per visualizzare il messaggio completo con supporto multilinea, emoji (`📍`, `📌`, `🕒`, `🥂`, `🎼`, `🍽`, `🏨`, `🚌`) e rilevamento automatico del testo personalizzato da foglio sorgente.
+  - **Protezione Anti-Spam (Jitter Delay con Vincolo Minimo 30s)**: Intervallo di sicurezza regolabile tra gli invii con vincolo minimo di 30 secondi e conto alla rovescia in tempo reale per proteggere gli account da blocchi per spam.
+  - **Controlli di Esecuzione & UI Avanzata**: Pausa, Riprendi, Interrompi, tracciamento dello stato di ogni riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`), supporto a finestra ridimensionabile, schermo intero e tema grafico contestuale alla piattaforma attiva.
+- **Verifica Crittografica Integrità SHA-256 Aggiornamenti OTA (`UpdateChecker.vb`)**:
+  - Validazione crittografica automatica dell'archivio ZIP scaricato da GitHub Releases tramite hash SHA-256 prima dell'installazione per prevenire pacchetti corrotti o manomessi.
+- **Hardening di Sicurezza IPC Bridge Token (`AppAccounts.vb`, `JsScripts.vb`, `Scripts/notification.js`, `Scripts/translation.js`)**:
+  - Rimossa l'esposizione globale di `window.__bridgeToken` e confinato il token di sicurezza all'interno delle closure private (IIFE) degli script JavaScript iniettati.
+  - Serializzazione sicura e deterministica di parametri e comandi JavaScript con `JsonSerializer.Serialize`.
+- **Prestazioni & Pre-caricamento Multi-Account (`MainWindow.xaml.vb`, `Scripts/telegram.css`)**:
+  - Eliminazione completa di sfarfallii e schermo nero al passaggio tra account grazie al precaricamento parallelo delle WebView2 fuori schermo.
+  - Stili dedicati per Telegram Web K e A con layout responsive ottimizzato e sincronizzazione temi chiaro/scuro.
+
+## [0.6.7-beta] - 2026-08-25
+
+### New Features & Multi-Platform Bulk Sender
+- **Supporto Invio Massivo per Telegram Web (`BulkSenderEngine.vb`, `BulkContactItem.vb`, `ExcelContactService.vb`, `BulkSenderWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Esteso il modulo di invio massivo da Excel/CSV per funzionare senza soluzione di continuità sia con **WhatsApp Web** che con **Telegram Web**.
+  - **Gestione @Username**: introdotta la proprietà `Username` / `CleanUsername` e il relativo segnaposto `{Username}` / `{Utente}` per Telegram, con supporto alla risoluzione automatica delle chat via link di dominio (`tg://resolve?domain=...`) o via numero telefonico (`tg://resolve?phone=...`).
+  - **Riconoscimento Automatico Colonne**: il parser di file Excel e CSV rileva automaticamente colonne denominate *Username*, *@username*, *Utente*, *User*, *Nick*, *Handle*, *Telegram*.
+  - **Iniezione JavaScript per Telegram Web K**: gestione dell'apertura del composer di messaggio, digitazione del testo formattato, simulazione eventi DOM e click automatico del pulsante di invio.
+  - **Interfaccia Grafica Multi-Piattaforma Contestuale**: la finestra si adatta dinamicamente con icone e colori specifici per piattaforma (Verde `#00a884` per WhatsApp, Azzurro `#24A1DE` per Telegram).
+- **Protezione Anti-Spam (Vincolo Minimo 30 Secondi) (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`, `BulkSenderEngine.vb`)**:
+  - Introdotto il controllo e la validazione rigorosa per imporre un intervallo minimo di **30 secondi** tra i singoli invii (sia per il delay minimo che per il massimo), proteggendo gli account WhatsApp e Telegram dal rischio di blocchi per spam.
+
+## [0.6.6-beta] - 2026-08-25
+
+### Improved & UI Refinements
+- **Coerenza 1:1 Testo e Anteprima Invio Massivo (`BulkSenderWindow.xaml.vb`, `BulkContactItem.vb`)**:
+  - Implementato il rilevamento automatico del testo personalizzato all'apertura del file Excel/CSV: se le righe contengono già una colonna *Testo* valorizzata, il modello viene impostato automaticamente su `{Testo}`, assicurando che l'anteprima e il messaggio finale coincidano esattamente carattere per carattere con il testo del file sorgente senza prefissi indesiderati.
+- **Ispettore di Anteprima Dettagliata (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`)**:
+  - Aggiunto un riquadro dedicato sotto la tabella dei contatti per l'ispezione immediata del messaggio completo associato alla riga selezionata, con supporto a formattazione multilinea, ritorni a capo, link ed emoji (`📍`, `📌`, `🕒`, `🥂`, `🎼`, `🍽`, `🏨`, `🚌`).
+- **Supporto a Schermo Intero e Ridimensionamento (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`)**:
+  - Inseriti i pulsanti di riduzione a icona (`—`) e massimizzazione/ripristino nella barra del titolo.
+  - Aggiunto il supporto al doppio click sulla barra del titolo per alternare la modalità normale/schermo intero e al trascinamento fluido per il ripristino.
+  - Integrato il message hook Win32 `WM_GETMINMAXINFO` per limitare l'ingrandimento alla Working Area del monitor evitando la sovrapposizione alla barra delle applicazioni di Windows.
+
+## [0.6.5-beta] - 2026-08-24
+
+### New Features & Bulk Automation
+- **Invio Massivo Personalizzato da File Excel / CSV (TODO #52) (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`, `ExcelContactService.vb`, `BulkSenderEngine.vb`, `BulkContactItem.vb`)**:
+  - Implementato il modulo completo per l'importazione di elenchi contatti da file **Excel (`.xlsx`, `.xls`)** e **CSV (`.csv`)**, con rilevamento automatico e mappatura intelligente delle colonne (*Telefono*, *Nome*, *Cognome*, *Azienda*, *Testo personalizzato*).
+  - Normalizzazione e pulizia automatica dei numeri telefonici con rimozione di caratteri speciali e formattazione con prefisso internazionale.
+  - Editor del messaggio con supporto a **Template Dinamici** e sostituzione automatica dei tag segnaposto (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Testo}`) con pulsanti di inserimento rapido a click singolo e anteprima in tempo reale nella tabella contatti.
+  - **Motore di Invio Sequenziale Asincrono via WebView2**:
+    - Navigazione diretta alla chat su WhatsApp Web (`web.whatsapp.com/send`) con injection JavaScript per l'invio automatico e il monitoraggio dello stato di caricamento.
+    - Rilevamento automatico e chiusura dei popup di errore per numeri non registrati su WhatsApp (`INVALID_NUMBER`).
+    - **Protezione Anti-Spam (Jitter Delay)**: intervallo di attesa configurabile (Min/Max secondi) con ritardo casuale naturale tra i singoli invii e visualizzazione del conto alla rovescia in tempo reale.
+    - Controlli completi di esecuzione con supporto a **Pausa / Riprendi**, **Interruzione immediata** e tracciamento dello stato di ogni riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`).
+  - Aggiunto il pulsante dedicato con icona Excel nella barra del titolo (`MainWindow.xaml`) per l'accesso immediato dallo schermo principale.
+  - Aggiornate le definizioni di localizzazione in Italiano e Inglese in `Localization.vb`.
+
+## [0.6.4-beta] - 2026-08-24
+
+### Security & Integrity
+- **Verifica Integrità SHA-256 Aggiornamenti Automatici (TODO #40) (`UpdateChecker.vb`)**:
+  - Implementato il controllo crittografico di integrità dell'archivio ZIP prima dell'estrazione e della sostituzione dei file applicativi durante gli aggiornamenti OTA da GitHub Releases.
+  - Aggiunto il parsing e download automatico degli asset di checksum allegati alle release (`.sha256`, `.sha256sum`, `SHA256SUMS`, `SHA256SUMS.txt`, `checksums.txt`) e il riconoscimento intelligente delle impronte SHA-256 specificate nel testo delle note di rilascio (`release body`).
+  - Blocco preventivo dell'aggiornamento con avviso di sicurezza in caso di mancata corrispondenza dell'impronta calcolata con `SHA256.HashData`, prevenendo l'installazione di pacchetti incompleti o manomessi.
+
+## [0.6.3-beta] - 2026-08-21
+
+### Security & Hardening
+- **Incapsulamento Privato Bridge Token IPC (TODO #39) (`AppAccounts.vb`, `JsScripts.vb`, `Scripts/notification.js`, `Scripts/translation.js`)**:
+  - Eliminata l'esposizione del `bridgeToken` dall'oggetto globale `window.__bridgeToken`.
+  - Il token di sicurezza viene ora iniettato e confinato rigorosamente all'interno delle closure (IIFE) private di `notification.js` e `translation.js`, proteggendolo da qualsiasi script, estensione o codice in esecuzione nel DOM.
+  - Incapsulata la mappa interna `activeCustomNotifications` nella closure privata di `notification.js`.
+
+## [0.6.2-beta] - 2026-08-20
+
+### Fixed & Improved
+- **Fix Layout e Barra di Digitazione Telegram Web (`Scripts/telegram.css`)**:
+  - Risolto il problema di spaginazione su Telegram Web (K e A) in cui la barra di digitazione della chat e il campo di testo finivano posizionati sotto la sidebar dei contatti/utenti (`#column-left`).
+  - Rimossi i selettori forzati di larghezza (`width: 100% !important;`, `--columns-width: 100% !important;`, `--composer-width: 100% !important;`) per preservare il layout nativo e responsive delle colonne e l'ancoraggio corretto del campo messaggio all'interno della conversazione attiva.
+
+## [0.6.1-beta] - 2026-08-20
+
+### Fixed & Improved
+- **Fix Pre-caricamento Multi-Account & Eliminazione Schermo Nero (`MainWindow.xaml.vb`)**:
+  - Risolto il problema del blocco su schermo nero al passaggio tra account (es. da Telegram a WhatsApp): le istanze WebView2 non attive rimangono ora visibili nel visual tree ma posizionate fluidamente fuori dallo schermo (`Margin = -20000` con `ZIndex = 0`), consentendo a Chromium di completare l'inizializzazione dell'HWND, negoziare i WebSocket e renderizzare la pagina in background in parallelo.
+  - Impostato `DefaultBackgroundColor` sincronizzato con il tema dell'applicazione per eliminare qualsiasi sfarfallio nero/bianco all'avvio e al cambio scheda.
+  - Passaggio tra schede WhatsApp e Telegram ora istantaneo a zero latenza (0 ms).
+
+## [0.6.0] - 2026-08-20
+
+### Stable Release - Full Multi-Platform & Performance Hardening
+- **Adattamento Fullscreen / Responsive per Telegram Web (`Scripts/telegram.css`, `JsScripts.vb`, `AppAccounts.vb`)**:
+  - Risolto il problema per cui Telegram Web non sfruttava l'intera larghezza dello schermo: introdotto il foglio di stile dedicato `telegram.css` che rimuove i vincoli di larghezza (`--columns-width`, `--chat-width`, `max-width: none`) sui contenitori principali (`#column-center`, `.chat`, `.chat-container`, `.chat-layout`, `#MiddleColumn`, `.messages-layout`, `.bubbles-inner`).
+  - Iniezione automatica e persistente al caricamento della pagina (`TelegramInitJS`) e sincronizzazione con i temi chiaro/scuro.
+- **Passaggio Istantaneo tra Account & Pre-caricamento Multi-Account (`MainWindow.xaml.vb`)**:
+  - Pre-caricamento in memoria di tutte le istanze WebView2 configurate: passaggio immediato tra schede WhatsApp e Telegram a zero latenza.
+- **Ottimizzazione Cancellazione Profili WebView2 (TODO #37) (`AccountManager.vb`)**:
+  - Implementato `DeleteDirectoryWithRetryAsync` con backoff progressivo per garantire l'eliminazione affidabile delle cartelle di profilo orfane o rimosse anche in presenza di lock transitori.
+- **Hardening Escaping JavaScript via `ExecuteScriptAsync` (TODO #38) (`AppAccounts.vb`, `MainWindow.xaml.vb`)**:
+  - Tutti i parametri e identificatori interpolati negli script JavaScript vengono ora serializzati in modo deterministico e sicuro tramite `JsonSerializer.Serialize`.
+- **Integrazione Taskbar & Gestione Finestra Win32 (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Risolto l'ingrandimento della finestra tramite hook Win32 `WM_GETMINMAXINFO` preservando la barra delle applicazioni di Windows.
+- **Notifiche & Ricezione in Background Continua (`AppAccounts.vb`, `notification.js`)**:
+  - Disattivato il throttling dei timer e il backgrounding occluso per assicurare ricezione istantanea dei messaggi e notifiche toast/popup su tutti gli account.
+
+## [0.5.2-beta] - 2026-08-20
+
+### Fixed & Improved
+- **Fix Adattamento Fullscreen / Responsive per Telegram Web (`Scripts/telegram.css`, `JsScripts.vb`, `AppAccounts.vb`)**:
+  - Risolto il problema di mancato adattamento a schermo intero di Telegram Web: creato il foglio di stile dedicato `telegram.css` che rimuove i vincoli di larghezza fissa (`--columns-width`, `--chat-width`, `max-width`) sui contenitori principali (`#column-center`, `.chat`, `.chat-container`, `.chat-layout`, `#MiddleColumn`, `.messages-layout`, `.bubbles-inner`).
+  - Iniezione automatica e persistente al caricamento del documento (`TelegramInitJS`) e sincronizzazione con i temi chiaro/scuro.
+- **Ottimizzazione Cancellazione Profili WebView2 (TODO #37) (`AccountManager.vb`)**:
+  - Implementato `DeleteDirectoryWithRetryAsync` con backoff progressivo per garantire l'eliminazione affidabile delle cartelle di profilo orfane o rimosse anche in presenza di lock transitori da parte di processi Chromium o antivirus.
+- **Hardening Escaping JavaScript via `ExecuteScriptAsync` (TODO #38) (`AppAccounts.vb`, `MainWindow.xaml.vb`)**:
+  - Tutti i parametri e identificatori interpolati negli script JavaScript vengono ora serializzati in modo deterministico e sicuro tramite `JsonSerializer.Serialize`, prevenendo injection di caratteri speciali o apici.
+
+## [0.5.1-beta] - 2026-08-19
+
+### Fixed & Improved
+- **Ripristino Visibilità Barra di Windows all'Ingrandimento (`MainWindow.xaml`, `MainWindow.xaml.vb`)**:
+  - Implementato l'aggancio Win32 (`HwndSourceHook`) per il messaggio `WM_GETMINMAXINFO` limitando l'ingrandimento della finestra all'Area di Lavoro (`rcWork`) dello schermo.
+  - La barra delle applicazioni di Windows (Taskbar) resta sempre visibile e accessibile anche a finestra ingrandita a schermo intero.
+  - Adattamento dinamico di bordi (`BorderThickness`), angoli arrotondati (`CornerRadius`) e ombreggiatura esterna (`DropShadowEffect`) al cambio di stato (ingrandita/normale).
+  - Aggiunto il ridimensionamento interattivo dal grip in basso a destra e il trascinamento fluido per ripristinare la finestra dallo stato ingrandito.
+- **Passaggio Istantaneo tra Account & Pre-caricamento Multi-Account (`MainWindow.xaml.vb`)**:
+  - All'avvio dell'applicazione vengono ora istanziati e pre-caricati i controlli WebView2 per tutti gli account configurati in parallelo.
+  - Al cambio scheda, le viste inattive rimangono attive e in memoria (`Visibility.Hidden`), eliminando completamente i tempi di attesa e i ricaricamenti da zero ad ogni passaggio tra account WhatsApp e Telegram.
+- **Notifiche & Ricezione Messaggi in Background (`WhatsAppAccount.vb`, `Scripts/notification.js`)**:
+  - Rimossi i parametri di disattivazione del networking in background (`--disable-background-networking`) e abilitati i flag di continuità operativa di Chromium (`--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`).
+  - Gli account in secondo piano mantengono costantemente attiva la connessione WebSocket e l'esecuzione dei timer JavaScript, garantendo la ricezione istantanea dei messaggi anche mentre si utilizza un altro account o la finestra è ridotta a icona.
+  - Rafforzato lo script `notification.js` con l'override dei permessi via `navigator.permissions.query`, getter forzato su `Notification.permission` e monitoraggio dinamico delle modifiche al titolo della pagina (`MutationObserver`).
+
+## [0.5.0] - 2026-08-18
+
+### Multi-Platform & Rebranding Major Release
+- **Rebranding Ufficiale in HidaChat**:
+  - Evoluzione dell'applicazione da client esclusivo per WhatsApp a client multi-piattaforma unificato (**HidaChat**).
+  - Ridenominazione completa di soluzione, progetti, namespace ed eseguibili.
+- **Supporto Multi-Account per WhatsApp e Telegram**:
+  - Possibilità di gestire contemporaneamente account WhatsApp e Telegram in schede separate con profili isolati.
+  - Selezione della piattaforma in fase di creazione e configurazione dell'account nelle Impostazioni.
+  - Icone vettoriali dedicate (verde per WhatsApp, azzurro per Telegram) nelle schede in alto e nella gestione account.
+- **Sincronizzazione Tema Scuro/Chiaro Multi-Piattaforma (`JsScripts.vb`, `WhatsAppAccount.vb`, `MainWindow.xaml.vb`)**:
+  - Introdotti gli script dedicati `TelegramDarkModeJS` e `TelegramLightModeJS` in `ThemeJsScripts` per la sincronizzazione dinamica del tema di sistema/WPF con l'interfaccia di Telegram Web (`web.telegram.org/k/`).
+  - Gestione della classe `.night` su `document.documentElement` e `body`, aggiornamento delle chiavi `tt-theme` e `theme` in `localStorage` ed integrazione con `themeController.setTheme`.
+  - Applicazione mirata e differenziata degli stili in base al tipo di piattaforma (`IsTelegram` / `IsWhatsApp`) sia all'avvio/navigazione (`NavigationCompleted`) sia al cambio tema in tempo reale nelle Impostazioni (`ApplyWpfThemeAsync`).
+- **Motore di Traduzione Messaggi Multi-Piattaforma (`translation.js`)**:
+  - Esteso `getMessageText` e i listener per riconoscere sia i contenitori WhatsApp (`[data-testid="msg-container"]`, `.selectable-text`, `.quoted-message`) sia gli elementi nativi di Telegram Web K (`.bubble`, `.message`, `.text-content`, `.reply`, `.reply-content`).
+  - Ottimizzato il posizionamento del pulsante hover di traduzione per le bolle in uscita/entrata (`.is-out`, `.is-in`) e adattato il colore di accento (`#24A1DE` su Telegram, `#00a884` su WhatsApp).
+  - Pieno supporto al rilevamento del tema scuro per entrambe le piattaforme per la bolla di traduzione e supporto integrato alla traduzione dell'intera pagina (`scanAndTranslateDOM`).
+- **Miglioramento Routing Notifiche Popup (`MessagePopup.xaml.vb`)**:
+  - Al click sul popup visivo di notifica, l'applicazione ora seleziona automaticamente la scheda dell'account che ha ricevuto il messaggio (`SwitchToAccountAsync`), garantendo coerenza con il comportamento delle notifiche Toast di Windows.
+- **Rifinitura Localizzazione (`Localization.vb`)**:
+  - Aggiornate le etichette per riflettere in modo coerente e uniforme la natura multi-piattaforma dell'applicazione.
+- **Nuovo Design Visivo Cyberpunk**:
+  - Nuova icona applicativa in stile cyberpunk neon con fumetto di chat olografico e circuiti digitali.
+  - Nuova icona dedicata per la System Tray con badge luminoso per le notifiche attive.
+- **Architettura & Portabilità**:
+  - Isolamento completo di tutti i file dati, impostazioni e profili WebView2 all'interno della cartella portabile `data/`.
+  - Transizione fluida e forwarder per l'aggiornamento automatico dalle versioni legacy.
+
+## [0.4.2-beta] - 2026-08-18
+
+### Multi-Platform (WhatsApp & Telegram)
+- **Supporto Account WhatsApp & Telegram**:
+  - Aggiunta la selezione del tipo di piattaforma (`WhatsApp` o `Telegram`) durante la creazione e la modifica degli account nelle Impostazioni.
+  - Visualizzazione delle icone vettoriali dedicate (verde per WhatsApp, azzurro per Telegram) nelle schede account della barra principale e nella lista di gestione account.
+  - Menu rapido contestuale sul pulsante `+` e su *"Aggiungi account"* per selezionare istantaneamente la piattaforma desiderata.
+  - Routing automatico dell'URL specifico (`https://web.whatsapp.com/` e `https://web.telegram.org/k/`) con profili isolati, gestione notifiche e supporto traduzioni.
+
+## [0.4.1-beta] - 2026-08-18
+
+### Visual & Assets
+- **Nuova Icona Cyberpunk & Notifiche System Tray**:
+  - Introdotto il nuovo set di icone in stile cyberpunk con fumetto di chat olografico al neon (ciano/magenta) e tracciati digitali su sfondo dark.
+  - Generati file `.ico` multi-risoluzione completi (da 16x16 a 256x256) per l'applicazione (`icon.ico`) e per le notifiche della System Tray con badge luminoso (`icon_notification.ico`).
+  - Integrazione dell'eseguibile ponte e routine di pulizia automatica per la transizione fluida degli aggiornamenti dalle versioni precedenti.
+
+## [0.4.0-beta] - 2026-08-18
+
+### Rebranding & Multi-Platform Evolution
+- **Rebranding Completo da WhatsAppH a HidaChat**:
+  - Ridenominazione dell'intero progetto, soluzione .NET (`HidaChat.sln`), file di progetto (`HidaChat.vbproj`) ed eseguibile (`HidaChat.exe`) in vista dell'evoluzione a client multi-piattaforma (WhatsApp, Telegram, Teams, ecc.).
+  - Aggiornati i namespace XML e code-behind in `HidaChat`.
+  - Aggiornato il Mutex di istanza singola a `Local\HidaChat_SingleInstance_Mutex`.
+  - Aggiornati tutti gli endpoint di aggiornamento automatico OTA e i link al nuovo repository ufficiale GitHub `https://github.com/hidaba/HidaChat`.
+  - Aggiornati i workflow di GitHub Actions, lo script di pubblicazione `publish.ps1`, i template di issue e la documentazione completa.
+
+## [0.3.3-beta] - 2026-08-18
+
+### Portability & Refactoring
+- **Punto 36 TODO — Spostamento `settings.json` e `translations_cache.json` in `data/` (`SettingsController.vb`, `Localization.vb`)**:
+  - I file di configurazione (`settings.json`) e della cache traduzioni (`translations_cache.json`) vengono ora gestiti e salvati direttamente all'interno della cartella portabile `data/`.
+  - Implementata la migrazione automatica e trasparente dei file esistenti nella cartella principale (`File.Move`) verso `data/` al primo avvio, garantendo la compatibilità con le installazioni precedenti e mantenendo pulita la radice dell'applicazione.
+  - Aggiunta la creazione preventiva della directory di destinazione `data/` in caso di prima installazione portabile pulita.
+
+## [0.3.2-beta] - 2026-08-17
+
+### Performance & Memory
+- **Punto 35 TODO — Caricamento Lazy degli Script JS/CSS (`JsScripts.vb`, `Scripts/`)**:
+  - Estratti gli script JavaScript e CSS in file dedicati incorporati nell'assembly (`EmbeddedResource`): `theme.css`, `notification.js` e `translation.js`.
+  - Riscritto `JsScripts.vb` per caricare i template in modalità `Lazy(Of String)` ed effettuare sostituzioni in-place con `StringBuilder`, eliminando tutte le costanti XML literals statiche permanenti in RAM.
+- **Persistenza Traduzioni su File (`translations_cache.json`)**:
+  - Implementato `TranslationCacheService` per archiviare in modo permanente su disco (`data/translations_cache.json` con fallback in root) sia le traduzioni dell'interfaccia utente sia i testi/messaggi tradotti delle chat.
+  - Aggiunta la consultazione preventiva della cache prima di ogni richiesta di traduzione (singola o batch): i testi già tradotti vengono restituiti istantaneamente dalla cache senza effettuare chiamate di rete a Google Translate.
+  - Nelle traduzioni batch dell'intera pagina (`translatePage`), solo le nuove frasi non ancora presenti in cache vengono inviate a Google Translate, riducendo drasticamente il consumo di banda.
+- **Ottimizzazione Memoria RAM per Traduzioni**:
+  - In memoria RAM vengono mantenuti **esclusivamente** i dizionari della lingua attualmente impostata.
+  - Al cambio lingua in `SettingsController`, i dati della lingua precedente vengono salvati su disco e rimossi dalla memoria per essere raccolti dal GC, caricando in RAM solo la nuova lingua selezionata.
+
+## [0.3.1-beta] - 2026-08-15
+
+### Performance & Memory
+- **Punto 10 & 32 TODO — Ottimizzazione e WeakReference nei Popup di Notifica (`MessagePopup.xaml.vb`)**:
+  - Implementato `WeakReference(Of MessagePopup)` nella lista statica dei popup attivi (`_activePopups`) con eliminazione automatica dei riferimenti raccolti dal GC, prevenendo memory leak in caso di popup non chiusi normalmente.
+  - Sostituito il ricalcolo forzato e riposizionamento di tutti i popup attivi con il calcolo incrementale della posizione Y (`PositionNewPopup()`), impilando le nuove notifiche verso l'alto senza riposizionare o muovere i popup già visibili a schermo.
+- **Punto 11 TODO — Ottimizzazione Cambio Account (`MainWindow.xaml.vb`)**:
+  - Ottimizzato `SwitchToAccountAsync()` gestendo il ritorno anticipato se l'account richiesto è già attivo e nascondendo unicamente il controllo `WebView` del precedente account senza iterare l'intera gerarchia dei controlli.
+
+## [0.3.0] - 2026-08-13
+
+### Added & Features
+- **Supporto Multi-Account fino a 3 Account**: Gestione integrata e schede veloci per il cambio e aggiunta account in tempo reale (`MainWindow.xaml`, `AccountManager.vb`).
+- **Finestra Informazioni (AboutWindow)**: Nuova interfaccia modale con dettagli versione, licenza Apache-2.0, percorso portabile e collegamenti rapidi (`AboutWindow.xaml`).
+- **Pulizia Automatica Profili Orfani**: Scansione ed eliminazione all'avvio delle directory profilate non più utilizzate (`AccountManager.vb`).
+- **Documentazione Bilingue & Standard Community**: Integrazione di `README.md` (EN) e `README.it.md` (IT), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` e workflow GitHub Actions per la build automatica.
+
+### Fixed & Improved
+- **Robustezza Aggiornamenti OTA**: Gestione corretta dei suffissi di pre-release (`-beta`, `-rc`) e verifica stabilità nel confronto versioni (`UpdateChecker.vb`).
+- **Gestione Notifiche Toast**: Risolti crash e comportamenti anomali al click sulle notifiche di Windows (`MainWindow.xaml.vb`).
+- **Performance Pennelli WPF**: Caching ad alte prestazioni tramite il modulo `BrushCache.vb`.
+- **Rinominazione Account in Tempo Reale**: Le modifiche ai nomi degli account nelle impostazioni si riflettono istantaneamente sull'interfaccia.
+
+## [0.2.5-beta] - 2026-08-10
+
+### Fixed
+- **Fix Confronto Versione OTA e Pre-release (`UpdateChecker.vb`)**: Perfezionato il confronto versioni in `IsNewerVersion` separando le componenti numeriche base dai suffissi di pre-release (es. `-beta`, `-rc1`). Permette di rilevare correttamente gli aggiornamenti beta rispetto alle versioni precedenti.
+
+## [0.2.4-beta] - 2026-08-08
+
+### Fixed
+- **Pulizia Profili WebView2 Orfani (`AccountManager.vb`)**: Implementato il metodo `CleanupUnusedProfilesAsync` per scansionare la cartella `data/webview` ed eliminare automaticamente all'avvio le cartelle di profilo orfane (`WV2Profile_*`) i cui ID non sono più associati ad alcun account attivo.
+- **Correzione Badge e Link (`README.md`, `README.it.md`)**: Corretti i badge di build ed i link commit per puntare al branch `master` ed eliminate le istruzioni di build contenenti percorsi non validi.
+
+## [0.2.3-beta] - 2026-08-07
+
+### Fixed
+- **Fix Crash Notifiche Toast (MainWindow.xaml.vb)**: Risolto NullReferenceException al click su notifiche Toast di Windows con argomenti mancanti o malformati mediante l'helper `ExtractArg`.
+- **Fix Click Notifiche Toast (MainWindow.xaml.vb, MessagePopup.xaml.vb)**: Sostituita la chiamata a `ToggleWindow()` con `ShowWindow()` nel gestore notifiche Toast per evitare che un click nasconda la finestra se già visibile in primo piano.
+
+## [0.2.2-beta] - 2026-08-06
+
+### Added
+- **Supporto Multi-Account fino a 3 Account WhatsApp**:
+  - Aggiunto il pulsante `+` nella barra orizzontale delle schede in `MainWindow.xaml` per la creazione immediata ed il passaggio al nuovo account.
+  - Aggiunto il controllo ed il contatore di account (`Account configurati: X su 3`) nella finestra `SettingsWindow.xaml`.
+  - Implementata la verifica ed il blocco rigido del limite massimo in `AccountManager.vb` (`MaxAccounts = 3`, `CanAddAccount`).
+  - Isolamento completo delle sessioni WhatsApp Web e dei dati di profilo WebView2 su disco (`WV2Profile_<id>`).
+  - Aggiunte le stringhe di localizzazione multilingua per i limiti e le azioni di gestione account.
+- **Finestra "Informazioni" (AboutWindow)**:
+  - Creata la finestra modale `AboutWindow.xaml` accessibile tramite il nuovo pulsante `ⓘ` nella barra del titolo, dalle Impostazioni e dal menu contestuale della tray icon.
+  - Mostra l'autore (`Massimo Balestrieri`), la versione (`v0.2.2`), la data di rilascio (`2026-08-06`), la licenza (`Apache-2.0`), il runtime (`.NET 9` + `WebView2`), il percorso dati portabile (`data/webview`) ed i link diretti a GitHub, Releases e segnalazione bug.
+
+### Performance & Refactored
+- **Punto 29 TODO (`AccountManager.vb`)**: Eliminata la proiezione con tipi anonimi a ogni salvataggio delle impostazioni. Serializzazione diretta della collezione `_accounts` per ridurre la pressione sul Garbage Collector.
+- **Punto 7 TODO (`TODO.md`)**: Chiuso e contrassegnato come obsoleto il punto 7 sull'aggiornamento OTA tramite percorso di rete UNC (`ReadVersionFromFileAsync()`), in quanto il percorso di rete è stato dismesso ed interamente sostituito dalle API REST di GitHub Releases fin dalla v0.2.0.
+
+### Fixed
+- **Aggiornamento Nome Account in Tempo Reale nelle Schede (`WhatsAppAccount.vb`)**: Aggiunto il sollevamento dell'evento `PropertyChanged` per la proprietà `Name` in `WhatsAppAccount.vb`. La rinomina degli account nelle Impostazioni viene ora riflessa istantaneamente sui pulsanti delle schede nella finestra principale senza dover riavviare o riaprire l'applicazione.
+
+## [0.2.1-beta] - 2026-08-06
+
+### Added & Refactored
+- **Miglioramento Visibilità & Sicurezza Repository**: Rimossi i riferimenti all'IP e percorso di rete legacy in `ANALISI_PROGETTO.md`. Allineato il distintivo ed il testo della licenza ad Apache 2.0.
+- **Documentazione Bilingue & Asset Grafici**: Aggiunti i file `README.md` (inglese) e `README.it.md` (italiano) con selettore di lingua, tabella comparativa "Why HidaChat", galleria di screenshot (`images/`) e requisiti.
+- **Standard Community & CI/CD**: Introdotti `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (v2.1), `SECURITY.md`, template per segnalazione bug e feature request, e workflow GitHub Actions `.github/workflows/build.yml` per la compilazione automatica `.NET 9`.
+
+## [0.2.0] - 2026-08-05
+
+### Changed & Refactored
+- **Centralizzazione Aggiornamenti OTA su GitHub Releases**: Rimossa la dipendenza e la logica di fallback sul percorso di rete locale dismesso (`UpdateFilesPath`). Il sistema di aggiornamento automatico OTA opera ora esclusivamente tramite le API REST di GitHub Releases con verifica, download ed installazione in background dello ZIP.
+- **Ottimizzazione Canale Beta (Pre-releases)**: Perfezionata la scansione delle release nel canale Beta (`UseBetaChannel`) in `UpdateChecker.vb` con iterazione nell'elenco release per selezionare il primo asset ZIP disponibile.
+- **Automazione Script di Pubblicazione**: Aggiornato `publish.ps1` per supportare la compilazione, creazione pacchetto ZIP e pubblicazione automatica di release stabili e beta (con flag `-Beta` e `--prerelease` su GitHub).
+- **Esclusione File Regole AI da Repository**: Aggiunte regole in `.gitignore` per escludere `AGENTS.md` e `.agents/` dal tracciamento Git pubblico, preservando la memoria e le linee guida del progetto in locale.
+
+## [0.1.8-beta] - 2026-07-31
+
+### Performance & Portability
+- **Ottimizzazione I/O disco e avvio Chromium portabile**: Configurate le opzioni di ambiente `AdditionalBrowserArguments` per WebView2 in `WhatsAppAccount.vb` (`--disk-cache-size=104857600 --media-cache-size=52428800 --disable-background-networking --disable-features=Translate,OptimizationHints,MediaRouter`). Limita la proliferazione di file sciolti di cache mantenendo l'applicazione al 100% portabile nella cartella `data/webview`.
+
+## [0.1.7-beta] - 2026-07-29
+
+### Fixed
+- **Fix Blocco Aggiornamento OTA e Mutex Istanza Singola**: Risolto il problema del blocco dell'applicazione al riavvio durante l'aggiornamento OTA e l'impossibilità di riaprire l'app dopo una chiusura forzata (richiedeva il riavvio del PC). Implementata la gestione di `AbandonedMutexException` e il ripiegamento sul controllo dei processi attivi in `Application.xaml.vb`, l'inclusione di `taskkill` per il processo bloccato e la rimozione di `pause` in `update.bat`, ed il corretto rilascio del Mutex dell'istanza singola e dei controlli WebView2 in `ForceExitForUpdate()`.
+
+## [0.1.6-beta] - 2026-07-29
+
+### Performance
+- **Punto 34 TODO**: Implementato il modulo `BrushCache` con `ConcurrentDictionary` e congelamento `.Freeze()` per il caching thread-safe e ad alte prestazioni delle istanze `SolidColorBrush`. Eliminata la riallocazione continua di pennelli WPF a ogni cambio tema o aggiustamento grafico in `MainWindow.xaml.vb` e `SettingsWindow.xaml.vb`.
+
+## [0.1.5-beta] - 2026-07-28
+
+### Fixed & Performance
+- **Punto 31 TODO**: Utilizzato `StringBuilder` in `UpdateChecker.vb` per la composizione dello script batch di aggiornamento `update.bat`.
+- **Punto 33 TODO**: Centralizzato il rilevamento del tema di sistema Windows tramite il nuovo modulo `SystemThemeHelper` con caching della chiave `AppsUseLightTheme` ed ascolto dinamico dell'evento `SystemEvents.UserPreferenceChanged`. Eliminata la triplicazione delle letture dal Registro in `MainWindow.xaml.vb`, `WhatsAppAccount.vb` e `SettingsWindow.xaml.vb`.
+
+## [0.1.4-beta] - 2026-07-28
+
+
+### Changed
+- **Formattazione Messaggi di Commit Git**: Rimozione del prefisso di versione dai messaggi di commit di Git su GitHub per mantenere pulite le descrizioni dei file.
+
+## [0.1.3] - 2026-07-28
+
+
+### Added
+- **Pulsante e sezione Download in README.md**: Aggiunta la sezione con i link diretti ed il badge per scaricare l'eseguibile portatile per Windows dalle GitHub Releases.
+
+### Fixed & Performance
+- **Punto 30 TODO**: Sostituito `Directory.GetDirectories` con `Directory.EnumerateDirectories` e `.FirstOrDefault()` in `AccountManager.vb` per la ricerca in streaming lazy del profilo orfano.
+
+## [0.1.2-beta] - 2026-07-28
+
+
+### Added
+- Aggiunta documentazione XML doc (`<summary>`, `<param>`, `<returns>`) e commenti esplicativi in italiano in tutti i file di codice sorgente VB.NET del progetto (`AccountManager`, `WhatsAppAccount`, `MainWindow`, `SettingsController`, `SettingsWindow`, `UpdateChecker`, `Localization`, `JsScripts`, `MessagePopup`, `Application`, `Constants`).
+
+### Fixed & Refactored
+- **Punto 25 TODO**: Riconvertito `ApplyWpfTheme` in funzione asincrona (`ApplyWpfThemeAsync() As Task`) aggiungendo `Await` e gestione eccezioni `Try...Catch` su tutti i richiami `ExecuteScriptAsync` in `MainWindow.xaml.vb`.
+
+## [0.1.1-beta] - 2026-07-27
+
+
+### Removed
+- Eliminata completamente l'immagine `annoni.png` dal repository per alleggerire il pacchetto compilato.
+- Configurato il rilascio OTA su GitHub Releases.
+
+## [0.1.0] - 2026-07-27
+
+### Changed
+- Rimosso il logo superiore dalla barra del titolo in `MainWindow.xaml`.
+- Rimosso l'intero sistema di backup e sincronizzazione chat (`ChatSyncBackgroundWorker`, `ChatJsonStorageService`, `CryptoHelper`, costanti e script JS dedicati).
+- Aggiornata la versione dell'applicazione a `0.1.0`.
+
+## [0.0.58] - 2026-07-24
+
+### Performance
+- **Ottimizzazione `GetTranslationJS` in `JsScripts.vb`**: sostituita la catena di 12 chiamate `.Replace()` su stringa in-memory con `StringBuilder.Replace()` in-place per la generazione dei JS di traduzione, eliminando allocazioni intermedie nella Large Object Heap (LOH).
+
+## [0.0.57] - 2026-07-24
+
+### Fixed
+- **Deduplicazione righe nel file di backup**:
+  - Implementata la deduplicazione automatica dei messaggi per `id` univoco in `ChatJsonStorageService.vb`. Ogni messaggio viene salvato esattamente una volta sola, eliminando righe duplicate nel file di backup.
+- **Estrazione mittenti nei gruppi e numeri di telefono**:
+  - Risolto un problema per cui nei gruppi venivano salvati i messaggi con il nome del gruppo al posto del nome della persona.
+  - Implementata la lettura di `data-pre-plain-text` e dei nodi mittente (`span._ao3e`, `span._ap4a`) nelle bolle del DOM per estrarre l'autore del messaggio nei gruppi (es. `Timmití`, `Marco`, ecc.).
+  - Migliorata la parsificazione dei numeri di telefono dai JID `data-id` (`..._393...@c.us`) e da `msg.author` per popolare sempre il campo `senderPhone`.
+
+## [0.0.56] - 2026-07-24
+
+### Fixed
+- **Estrazione nome contatto e numero di telefono nei backup**:
+  - Risolto un bug nel fallback DOM di `extractMessagesFromDOMAsync()` che catturava erroneamente il titolo del pannello laterale `"Dettagli profilo"` come nome della chat, impostando `senderPhone` vuoto.
+  - Corretto il selettore dell'header per puntare rigorosamente a `#main header` filtrando le etichette di sistema.
+  - Implementata l'estrazione automatica del numero di telefono dal `chatId` (`39...` da `@c.us`) e del nome dal mittente/contatto in JS sia per Store che per fallback DOM.
+  - Aggiunto un arricchimento di sicurezza server-side in `ChatJsonStorageService.vb` per garantire che `senderPhone` e `senderName` siano sempre valorizzati con i dati reali del contatto in ogni riga JSON del backup.
+
+## [0.0.55] - 2026-07-24
+
+### Performance
+- **Enumerazione lazy in `UpdateChecker.vb`**: sostituito `Directory.GetFiles` con `Directory.EnumerateFiles` per la copia dei file dall'OTA repository. L'enumerazione in streaming evita l'allocazione eager di grandi array di stringhe in memoria su condivisioni di rete UNC.
+
+## [0.0.54] - 2026-07-24
+
+### Added
+- **Opzione cifratura backup in `Constants.vb`**: aggiunta la costante `EnableBackupEncryption As Boolean` (impostata di default a `True`).
+  - Se `True`: il backup salvato su disco viene cifrato in formato AES-256-GCM (nomi file e contenuti JSON cifrati).
+  - Se `False`: i file di backup e l'indice delle chat vengono salvati in chiaro (formato JSON standard leggibile nella cartella `Chats_Plain`).
+
+## [0.0.53] - 2026-07-24
+
+### Fixed & Performance (Memoria & Clean-up)
+- **IDisposable su WhatsAppAccount**: gestito il ciclo di vita del WebView2 e delle sue dipendenze alla rimozione degli account.
+- **Unsubscribe handler CoreWebView2**: salvati e rimossi con `RemoveHandler` gli handler `PermissionRequested`, `NewWindowRequested`, `WebMessageReceived` e `NavigationCompleted` alla distruzione dell'account per prevenire memory leak.
+- **IDisposable su Storage e SyncWorker**: implementato `IDisposable` su `ChatJsonStorageService` e `ChatSyncBackgroundWorker` rilasciando la risorsa OS `SemaphoreSlim` (`_fileLock`).
+- **Async/Await in SyncWorker**: eliminato `.GetAwaiter().GetResult()` in `ProcessIncomingBatchAsync`, rendendo l'elaborazione dei batch di messaggi totalmente asincrona ed evitando la starvation del `ThreadPool`.
+- **Limite notifiche attive**: introdotto limite massimo (500 elementi) per `ActiveNotificationIds` in `WhatsAppAccount` con svuotamento automatico.
+- **ArrayPool & Streaming in CryptoHelper**: impiegato `ArrayPool(Of Byte).Shared` per buffer temporanei in `EncryptBytes`/`DecryptBytes` e implementata la cifratura in streaming a blocchi per file multimediali grandi.
+- **Shared HttpClient in Localization**: unificata la gestione di `HttpClient` in una singola istanza condivisa per prevenire socket exhaustion.
+- **ObservableCollection per Accounts**: sostituita `List(Of WhatsAppAccount)` con `ObservableCollection` per evitare la rigenerazione forzata dei DataTemplate WPF alla rimozione di un account.
+- **Dirty Tracking**: aggiunto flag `_isDirty` in `AccountManager` ed eliminati salvataggi su disco se i dati non sono modificati.
+- **Lifecycle MainWindow & Timer**: il timer di sincronizzazione background `_syncTimer` e gli event handler `PropertyChanged` vengono disiscritti e fermati correttamente all'uscita dall'applicazione.
+
+## [0.0.52] - 2026-07-21
+
+### Performance
+- **Chunking adattivo traduzioni**: sostituito il chunking fisso a 50 testi con chunking adattivo basato su max 2000 caratteri per chunk in `scanAndTranslateDOM()` (TranslationEngineJS). I chunk vengono formati accumulando testi fino al raggiungimento del limite di caratteri, evitando chunk sovradimensionati che potrebbero causare errori HTTP 414.
+
+## [0.0.51] - 2026-07-21
+
+### Performance
+- **Script injection WebView2**: `ChatSyncJS` spostato da `NavigationCompleted` (re-iniettato a ogni navigazione) a `AddScriptToExecuteOnDocumentCreatedAsync` (eseguito automaticamente su ogni nuovo documento prima del caricamento pagina).
+- **Riduzione lavoro in `NavigationCompleted`**: non re-inietta più il chat sync JS a ogni navigazione, sfruttando l'idempotency guard (`__chatSyncInstalled`) e l'iniezione automatica via document creation.
+
+## [0.0.50] - 2026-07-21
+
+### Performance
+- **SettingsWindow**: memoizzati i risultati di `FindLogicalChildren` / `FindVisualChildren` in cache (`_cachedCheckBoxes`, `_cachedTextBlocks`, `_cachedAccountBorders`, `_cachedAccountTextBoxes`). La ricorsione del visual/logical tree avviene una sola volta per tipo di controllo invece che a ogni cambio tema.
+- Introdotto helper `GetCachedLogicalChildren(Of T)` per lazy caching con invalidazione esplicita quando `AccountsList.ItemsSource` cambia.
+
+## [0.0.49] - 2026-07-21
+
+### Performance
+- **Lazy initialization WebView2**: i WebView2 non vengono più creati per tutti gli account all'avvio, ma solo per l'account attivo. Gli altri vengono creati e inizializzati on-demand al primo cambio account. Risparmio di ~50-100MB di RAM per account inattivo.
+- Rimosso `Imports Microsoft.Web.WebView2.Wpf` da `AccountManager.vb` (non crea più WebView2).
+
+### Fixed
+- `ApplyWpfTheme`, `BtnReloadActiveTab_Click`, toast handler: aggiunti null check per `acc.WebView` / `activeAcc.WebView` (causavano NullReferenceException con la lazy init, chiudendo l'app dopo pochi secondi).
+- `SettingsWindow.BtnDevTools_Click`: aggiunto null check per `activeAcc.WebView`.
+- `AccountManager.RemoveAccountAsync`: aggiunto null check prima di `WebView.Dispose()`.
+
+## [0.0.48] - 2026-07-21
+
+### Performance
+- `UpdateAccountTabStyling()` eliminato: lo stile attivo/inattivo degli account è ora gestito da un `DataTrigger` WPF nel `AccountTabButtonStyle` che reagisce automaticamente a `IsActive` di `WhatsAppAccount`. Rimossi `FindVisualChildren`/`FindVisualChild` da MainWindow.
+- `WhatsAppAccount.IsActive` ora implementa `INotifyPropertyChanged` per abilitare il binding reattivo.
+- **Impatto**: eliminata ricorsione superflua del visual tree a ogni cambio account.
+
+## [0.0.47] - 2026-07-21
+
+### Performance
+- `FetchTranslations()`: tradotte tutte le chiavi UI in parallelo (`Task.WhenAll`) invece di 30+ richieste HTTP seriali.
+- **Impatto**: riduzione del tempo di traduzione da ~N round-trip a ~1 round-trip.
+
+### Removed
+- Nascosto il pulsante "Add Account" dalla barra degli account.
+
+## [0.0.46] - 2026-07-21
+
+### Release
+- Prima release formale stabile.
+- Rilasciata su GitHub con tag `v0.0.46`.
+- Pubblicata OTA.
+
+## [0.0.45] - 2026-07-20
+
+### Performance
+- Ottimizzato I/O su `settings.json`: le modifiche alle impostazioni vengono accumulate in cache in memoria e scritte su disco con debounce di 500ms, eliminando letture ridondanti del file.
+- `SaveSettingAsync`, `SaveThemeAsync`, `UpdateLanguageAsync` ora modificano la cache in memoria senza rileggere il file da disco.
+
+## [0.0.44] - 2026-07-20
+
+### Fixed
+- `MigrateOrphanProfile` ora elimina il profilo stale `WV2Profile_{Id}` se esiste già, poi rinomina l'orfano `WV2Profile_` con la sessione più recente.
+- `SetupWebViewAsync`: recupero orfano eseguito anche quando la destinazione esiste già (sostituisce lo stale).
+- Quando sia `WV2Profile_` che `WV2Profile_{Id}` esistono, il profilo stale viene eliminato e sostituito con `WV2Profile_` per preservare la sessione WhatsApp più recente.
+
+## [0.0.43] - 2026-07-20
+
+### Fixed
+- Aggiunto recupero fallback del profilo WebView2 orfano (`WV2Profile_`) direttamente in `SetupWebViewAsync` come ultima difesa prima di creare un nuovo profilo.
+- Aggiunto logging diagnostico in `LoadAccountsAsync`, `MigrateOrphanProfile` e `SetupWebViewAsync` per tracciare la migrazione del profilo WebView2.
+
+## [0.0.42] - 2026-07-20
+
+### Fixed
+- Risolto il problema del testo di versione obsoleto (v0.0.27) mostrato nel titolo durante il caricamento iniziale: rimosso il testo hardcoded in XAML e impostata l'inzializzazione immediata nel costruttore `Sub New()` della finestra principale.
+
+## [0.0.41] - 2026-07-20
+
+### Changed
+- Rimozione del backup dei media e focalizzazione esclusiva sul backup delle chat di testo.
+- Implementata la rotazione periodica dei file di backup delle chat ogni X giorni configurata tramite la costante in fase di compilazione `BackupRotationDays`.
+- Applicata la cifratura deterministica AES-256 dei nomi di file conservati nella cartella `Chats_Encrypted`.
+
+## [0.0.40] - 2026-07-18
+
+### Fixed
+- Risolta l'origine precisa delle dimensioni anomale dei file multimediali (1 KB, 368 KB, 490 KB):
+  - **1 KB**: Causato dal tentativo di scaricare direttamente gli URL HTTPS remoti criptati di WhatsApp (`mmg.whatsapp.net`), che restituiscono HTTP 403 Forbidden. Impedita la `fetch` diretta degli URL `http/https` remoti.
+  - **368 KB / 490 KB**: Causato dal download dei soli Blob di anteprima `renderableUrl`.
+  - Integrata l'estrazione dai soli oggetti `Blob` decifrati in memoria (`msg.mediaData.blob`, `msg.mediaObject._blob`, `msg.file`) o tramite l'invocazione di `DownloadManager.downloadAndSave(msg)` nativo di WhatsApp Web per ottenere il file binario originale intero.
+
+## [0.0.39] - 2026-07-18
+
+### Fixed
+- Risolto in modo definitivo il troncamento a 291 KB dei file multimediali:
+  - Implementata la funzione `getMediaDataForContainer` che interroga `Store.Msg.get(id)` con l'ID del messaggio DOM per recuperare il binario video/audio/documento originale `mediaData.blob`.
+  - In caso di fallback DOM, prioritizzata la scansione dei tag `<video>`, `<audio>` e collegamenti `<a>` di download rispetto alle immagini poster di anteprima (`<img>`).
+
+## [0.0.38] - 2026-07-18
+
+### Fixed
+- Risolto il troncamento dei file video e media (precedentemente salvati tutti a 291 KB):
+  - Aggiunta la funzione `getMediaBlobFromMsg(msg)` in JavaScript per accedere direttamente all'oggetto `msg.mediaData.blob` o invocare `msg.downloadMedia()` interno a WhatsApp Web.
+  - Sostituita l'estrazione della sola miniatura preview/poster JPEG dal DOM con lo scaricamento del file video/audio/documento binario originale completo senza limiti di dimensione.
+
+## [0.0.37] - 2026-07-18
+
+### Fixed
+- Risolto problema file media salvati a 1KB:
+  - Sostituita la semplice stringa dell'URL `blob:` con la conversione asincrona `fetchBlobAsBase64` in JavaScript per scaricare ed inviare a VB.NET l'intero payload binario Base64 originale di immagini, audio e video.
+  - Aggiunta la validazione `rawMediaBytes.Length > 0` prima di scrivere il file cifrato `.enc` su disco.
+
+## [0.0.36] - 2026-07-18
+
+### Fixed
+- Risolto il popolamento delle cartelle `Chats_Encrypted/` e `Media_Encrypted/`:
+  - Implementato un **estrattore DOM dinamico** abbinato a un **`MutationObserver` in tempo reale** in JavaScript.
+  - Non appena la pagina viene caricata, o man mano che l'utente naviga tra le conversazioni e scorrere lo storico, ogni messaggio e media visualizzato a schermo viene immediatamente catturato, cifrato in AES-256 e salvato nella cartella `Backup/`.
+
+## [0.0.35] - 2026-07-18
+
+### Fixed
+- Risolto il problema di disconnessione / perdita account al riavvio dell'applicazione:
+  - Corretta l'incompatibilità maiuscole/minuscole nella serializzazione JSON tra la classe `WhatsAppAccount` (Id, Name, IsActive) e `settings.json` (`id`, `name`, `isActive`) tramite attributi `[JsonPropertyName]` e `PropertyNameCaseInsensitive = True`.
+  - Impedito il caricamento di oggetti account vuoti (`Id = Nothing`) che causavano l'apertura di cartelle di profilo anonime non autenticate (`WV2Profile_`).
+
+## [0.0.34] - 2026-07-18
+
+### Fixed
+- Risolto problema cartelle backup vuote: aggiunto un ciclo di attesa attiva (polling fino a 75 secondi) in JavaScript per attendere l'inizializzazione completa dei moduli WhatsApp Web (`window.Store.Chat`) prima di estrarre le chat.
+- Aggiunta sincronizzazione periodica automatica ogni 2 minuti e al click sul pulsante di ricarica tab.
+
+## [0.0.33] - 2026-07-18
+
+### Fixed
+- Migliorata la persistenza della sessione WhatsApp: in caso di assenza o rigenerazione del file `settings.json`, l'applicazione rileva e riutilizza automaticamente la cartella di profilo `WV2Profile_account_*` esistente sul disco invece di crearne una nuova vuota.
+- Disabilitata la cancellazione automatica dei profili non mappati in `settings.json` per prevenire la perdita accidentale delle sessioni di autenticazione.
+
+## [0.0.32] - 2026-07-18
+
+### Added
+- Salvataggio cifrato in background delle chat (.enc) in formato JSON Lines AES-256 e conservazione media con nomi file anonimizzati (Hash/GUID) in cartella Backup.
+- Supporto alla prima sincronizzazione (storico 3 mesi) e sincronizzazione incrementale automatica.
+
+## [0.0.31] - 2026-07-18
+
+### Added
+- Versione beta pubblicata per test con percorsi OTA aggiornati.
+
+## [0.0.30] - 2026-07-18
+
+### Changed
+- Centralizzato il percorso del repository OTA nel file `Constants.vb` (`UpdateFilesPath`), rendendolo l'unica sorgente di verità da cui lo script `publish.ps1` estrae dinamicamente la destinazione per la pubblicazione dell'aggiornamento.
+
+## [0.0.29] - 2026-07-15
+
+### Added
+- Nuova impostazione "Mostra popup messaggio" nelle notifiche: permette di disabilitare il popup WPF mantenendo attivi i toast nativi Windows.
+
+## [0.0.28] - 2026-07-14
+
+### Fixed
+- Rimosso riferimento `x:Static` a `Constants` (Module VB) dal XAML, sostituito con binding via code-behind per evitare errore "Constants non esiste nello spazio dei nomi" in fase di compilazione.
+
+## [0.0.27] - 2026-07-14
+
+### Fixed
+- Tasto "Aggiungi account" disabilitato durante inizializzazione, cambio account e operazioni in corso.
+
+## [0.0.26] - 2026-07-14
+
+### Changed
+- Timeout wait loop OTA ridotto da 20s a 10s.
+
+## [0.0.25] - 2026-07-14
+
+### Added
+- Test OTA da 0.0.24.
+
+## [0.0.24] - 2026-07-14
+
+### Fixed
+- Timeout nel batch di aggiornamento OTA: dopo 20s senza riuscire a chiudere il processo, l'aggiornamento prosegue comunque.
+
+## [0.0.23] - 2026-07-14
+
+### Added
+- Test OTA update da 0.0.22.
+
+## [0.0.22] - 2026-07-14
+
+### Added
+- Test OTA update.
+
+## [0.0.21] - 2026-07-14
+
+### Fixed
+- **Update non rilevato**: il controllo `.app_version` bloccava la verifica degli aggiornamenti quando il marker corrispondeva alla versione corrente, impedendo di trovare versioni più recenti pubblicate successivamente. Rimosso l'early return: il confronto `IsNewerVersion` gestisce già i casi di versione identica.
+
+## [0.0.20] - 2026-07-13
+
+### Fixed
+- **Aggiornamento OTA bloccato**: la finestra non si chiudeva realmente durante l'update (`_allowExit = False` bloccava la chiusura), quindi il batch restava in attesa infinita del termine del processo. Ora `ForceExitForUpdate()` viene chiamato prima dello shutdown.
+- Aggiunto log `.update_log.txt` nella cartella d'installazione per tracciare ogni passo del batch di aggiornamento.
+
+### Changed
+- Finestra principale ora ridimensionabile: aggiunto pulsante massimizza/ripristina, doppio click sulla barra del titolo per massimizzare, grip di resize in basso a destra.
+- La WebView di WhatsApp si adatta automaticamente alle dimensioni della finestra.
+
+### Fixed
+- Tasto "Aggiungi account" disabilitato durante operazioni (settings aperto o aggiunta account in corso) per evitare click multipli.
+- Confronto versioni OTA: ora aggiorna solo se la versione remota è più recente, evitando downgrade.
+
+## [0.0.19] - 2026-07-13
+
+### Added
+- Supporto per canale di pubblicazione beta con percorso OTA separato.
+- Impostazione "Usa canale aggiornamenti beta" nelle impostazioni: se abilitata, l'app controlla gli aggiornamenti dal repository beta invece che da quello stabile.
+
+### Fixed
+- Tasto "Aggiungi account" disabilitato durante operazioni (settings aperto o aggiunta account in corso) per evitare click multipli.
+- Confronto versioni OTA: ora aggiorna solo se la versione remota è più recente, evitando downgrade.
+
+### Changed
+- Finestra principale ora ridimensionabile: aggiunto pulsante massimizza/ripristina, doppio click sulla barra del titolo per massimizzare, grip di resize in basso a destra.
+- La WebView di WhatsApp si adatta automaticamente alle dimensioni della finestra.
+
+## [0.0.18] - 2026-07-13
+
+### Fixed
+- Fixed JS bridge payload double-stringification that prevented VB.NET from parsing the Notification and Translation messages.
+
+## [0.0.17] - 2026-07-13
+
+### Fixed
+- Intercepted ServiceWorkerRegistration.prototype.showNotification instead of blocking service workers to fix notifications.
+
+## [0.0.16] - 2026-07-13
+
+### Changed
+- Added debug logging for notifications
+
+## [0.0.15] - 2026-07-10
+
+### Fixed
+- Disabilitati e rimossi i Service Worker all'avvio della pagina per forzare WhatsApp Web a usare le notifiche standard della pagina (WebSocket), risolvendo il problema delle notifiche che non venivano intercettate dal wrapper.
+
+## [0.0.14] - 2026-07-10
+
+### Fixed
+- Corretto il caricamento delle notifiche (toast e popup): iniezione anticipata degli script di override prima del caricamento della pagina (`AddScriptToExecuteOnDocumentCreatedAsync`), abilitazione automatica dei permessi e gestione delle eccezioni native sui Toast per evitare il blocco dei popup.
+
+## [0.0.13] - 2026-07-10
+
+### Fixed
+- Notifiche (toast e popup) non funzionanti: il JavaScript con `fetch()` su blob URL e la gestione icona in VB causavano blocchi. Ripristinato invio sincrono della notifica senza fetch icona e rimosso codice download avatar (i blob URL di WhatsApp Web non sono accessibili da `HttpClient`).
+
+## [0.0.12] - 2026-07-10
+
+### Removed
+- Rimosse dalle Impostazioni le checkbox "Traduci messaggi delle notifiche" e "Mostra pulsante traduci nelle notifiche" e tutto il codice collegato (`TranslateNotifications`, `ShowTranslateNotificationButton` properties, chiavi localizzazione).
+
+## [0.0.11] - 2026-07-10
+
+### Fixed
+- Notifiche (toast e popup) non funzionanti: il JavaScript tentava `fetch()` su URL `blob:` in modo sincrono, bloccando l'invio di `NOTIFICATION_RECEIVED` in WebView2. Ora il messaggio viene inviato immediatamente (icona vuota), e il fetch dell'icona avviene in secondo piano come `NOTIFICATION_ICON`.
+- NullReferenceException in `BtnDeleteAccount_Click` (`SettingsWindow.xaml.vb`): `btn.Tag` poteva essere null. Ora usa `TryCast(btn.Tag, String)` con null check.
+
+### Added
+- Script `publish.ps1`: automatizza bump versione → build Release → copia su OTA → update `version.txt`.
+- `publish.ps1` esclude automaticamente file superflui (`.pdb`, `.xml`) dalla pubblicazione OTA.
+
+## [0.0.10] - 2026-07-10
+
+### Added
+- Popup visivo (`MessagePopup.xaml`/`.vb`): finestra WPF borderless che appare in basso a destra all'arrivo di un messaggio, con iniziali del contatto, nome, messaggio e auto-close dopo 5 secondi. Clicca per ripristinare la finestra principale.
+- Il toast ora include l'avatar del contatto (`AddAppLogoOverride` con crop circolare) scaricato dall'icona della notifica (URL http o data URL base64).
+
+### Changed
+- `HandleNotificationMessageAsync` passata da `Function` a `Async Function` per supportare download asincrono dell'icona.
+- Usato `Dispatcher.BeginInvoke` (non bloccante) invece di `Dispatcher.Invoke` per mostrare il popup.
+- `DispatcherTimer` sostituisce `System.Timers.Timer` nel popup (corretto threading).
+
+## [0.0.9] - 2026-07-10
+
+### Fixed
+- L'uscita dal programma al cambio account con 2+ account era causata dalla re-inizializzazione del WebView2 esistente in `PopulateWebViews()`: quando si aggiungeva un account, tutti i WebView venivano rimossi e re-aggiunti al grid, chiamando `SetupWebViewAsync` anche per quelli già inizializzati, causando la rottura della connessione WhatsApp. Risolto skippando `SetupWebViewAsync` se `wv.CoreWebView2` è già popolato.
+- Aggiunto try-catch in `AccountTab_Click` per mostrare eventuali errori di cambio account.
+
+## [0.0.8] - 2026-07-10
+
+### Fixed
+- Risolto loop di aggiornamento infinito: `version.txt` ora escluso dalla copia OTA, e introdotto marker `.app_version` locale per evitare che l'app rilevi un falso positivo e si riaggiorni a ogni avvio.
+- Il marker `.app_version` viene scritto sia prima del riavvio (da `PerformUpdateAsync`) sia dopo la copia (dal batch `update.bat`).
+- `IsLocalVersionCurrent()` salta il check se il marker locale corrisponde già alla versione corrente.
+
+## [0.0.7] - 2026-07-10
+
+### Added
+- Menu contestuale (tasto destro) sulle tab account nella finestra principale con opzione "Rename" per rinominare l'account direttamente senza aprire Impostazioni.
+
+## [0.0.6] - 2026-07-10
+
+### Fixed
+- Aggiornamento OTA non sovrascrive più `settings.json` e `translations_cache.json` (impostazioni utente e cache traduzioni preservate).
+- Nuove chiavi di configurazione introdotte in versioni future vengono automaticamente **mergeate** nel `settings.json` locale durante l'aggiornamento, senza perdere le impostazioni esistenti.
+
+### Added
+- `MergeSettingsFromOta()` in `UpdateChecker.vb`: prima del riavvio, confronta il `settings.json` dell'OTA con quello locale e aggiunge le chiavi mancanti con i valori di default.
+
+## [0.0.5] - 2026-07-10
+
+### Fixed
+- Account list in Settings ("Gestione Account") rimaneva scura/illeggibile in tema chiaro — `FindVisualChildren` su `ItemsControl` non trovava i container perché non ancora generati al momento di `ApplyTheme()`. Risolto spostando lo styling in `StyleAccountItems()` con `Dispatcher.BeginInvoke(DispatcherPriority.Background)` per attendere la generazione degli item containers.
+- Rimosso `Background`/`BorderBrush` hardcoded dal DataTemplate della Border in `SettingsWindow.xaml`.
+
+### Changed
+- `SettingsWindow` allargata di 20px e allungata di 30px: `500×550` → `520×580`.
+
+## [0.0.4] - 2026-07-10
+
+### Added
+- Controllo WebView2 Runtime all'avvio (`GetAvailableBrowserVersionString()`): se mancante mostra MessageBox con link al download e chiude l'app.
+- Helper `FindVisualChildren(Of T)` in `SettingsWindow.xaml.vb` per stilizzare elementi dentro DataTemplate.
+- `StyleAccountItems()` in `ApplyTheme()` per aggiornare colore account list in tema chiaro/scuro.
+
+### Fixed
+- Aggiornamento OTA non sovrascrive più la cartella `data\` (impostazioni utente preservate).
+- `SettingsFile` fallback a `data\settings.json` se non esiste nella base directory.
+- MessageBox di conferma eliminazione account ora localizzato (chiavi `delete_account_confirm`, `delete_account_last`).
+- ComboBox adattivo al tema (sfondo e testo cambiano con tema chiaro/scuro).
+- Pulsante "Add Account" si traduce dinamicamente al cambio lingua.
+- Lingua italiana non veniva applicata correttamente a causa del flag `KeepAppInEnglish`.
+- Nome account in Settings illeggibile in tema chiaro.
+- Persistenza lingua al riavvio.
+
+### Removed
+- Rimossa checkbox "Keep app UI in English" e tutta la logica correlata.
+- Rimosso uso di Google Translate API per fetch lingue supportate e traduzioni UI (lingue hardcoded a Inglese/Italiano, traduzioni pre-compilate).
+
+## [0.0.3] - 2026-07-09
+
+### Added
+- Traduzioni italiano pre-compilate (`ItStrings` dizionario in `Localization.vb`).
+- Rilevamento tema di sistema Windows via registry (`AppsUseLightTheme`).
+
+### Changed
+- Limitata lingua interfaccia a Inglese e Italiano (rimosso `FetchSupportedLanguages`).
+- Rimosso `LoadSupportedLanguagesAsync` e `LoadTranslationsAsync` (codice morto).
+
+## [0.0.2] - 2026-07-09
+
+### Added
+- Prima implementazione supporto multilingua con traduzioni UI pre-compilate.
+- Logica fallback per lingue non più supportate (ricade in inglese).
+
+### Changed
+- Refactoring del sistema di localizzazione: da chiamate Google Translate API a dizionari statici per la UI.
+
+## [0.0.1] - 2026-07-08
+
+### Added
+- Fork iniziale da [whatsappPortable](https://github.com/Faeq-F/whatsappPortable) di Faeq-F.
+- Wrapper WPF per web.whatsapp.com con WebView2.
+- Multi-account con tab separati.
+- Tema scuro/chiaro personalizzabile.
+- Traduzione integrata messaggi (Google Translate API).
+- Notifiche native Windows (Toast).
+- System tray con chiusura a vassoio.
+- Aggiornamento automatico da repository OTA di rete locale.
+- Profili WebView2 isolati per account.

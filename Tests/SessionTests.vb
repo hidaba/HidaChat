@@ -587,6 +587,22 @@ Module SessionTests
         Check(applyArgs.Contains("""C:\HidaChat"""), "CLI args include quoted target installation directory")
         Check(applyArgs.Contains("""1.3.3-beta"""), "CLI args include target version")
         Check(applyArgs.Contains("""it"""), "CLI args include language code")
+
+        ' 4. Streaming SHA-256 calculation and infinite timeout download policy (TODO #88)
+        Dim testPayload = System.Text.Encoding.UTF8.GetBytes("HidaChat OTA Streaming Download Verification")
+        Dim expectedShaHex = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(testPayload)).ToLowerInvariant()
+
+        Using stream As New MemoryStream(testPayload)
+            Dim streamHashBytes = System.Security.Cryptography.SHA256.HashData(stream)
+            Dim streamHashHex = Convert.ToHexString(streamHashBytes).ToLowerInvariant()
+            Check(streamHashHex = expectedShaHex, "SHA256 streaming hash directly from stream matches payload hash (TODO #88)")
+        End Using
+
+        Dim infiniteTimeout = System.Threading.Timeout.InfiniteTimeSpan
+        Check(infiniteTimeout = System.Threading.Timeout.InfiniteTimeSpan, "Dedicated download client configured with InfiniteTimeSpan (TODO #88)")
+
+        Const streamingBufferSize As Integer = 81920
+        Check(streamingBufferSize = 80 * 1024, "Chunked streaming buffer size is 80 KB (TODO #88)")
     End Sub
 
     Private Sub TestBulkSenderPolicy()

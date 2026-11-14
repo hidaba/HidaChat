@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("major", "minor", "patch", "none")]
     [string]$Bump = "none",
     [switch]$SkipGitHub,
@@ -34,12 +34,22 @@ $oldVersion = "$($match.Groups[1].Value).$($match.Groups[2].Value).$($match.Grou
 
 if ($Bump -ne "none") {
     Write-Host "Version bump: $oldVersion -> $newVersion"
-    # Check CHANGELOG.md
+    # Check CHANGELOG.md (English)
     $cl = Get-Content $changelogPath -Raw
     if ($cl -notmatch "## \[$baseVersion(-beta)?\]") {
         Write-Host "ERROR: CHANGELOG.md has no entry for version $baseVersion !"
         Write-Host "Add it before publishing."
         exit 1
+    }
+    # Check CHANGELOG.it.md (Italian)
+    $changelogItPath = Join-Path $PSScriptRoot "CHANGELOG.it.md"
+    if (Test-Path $changelogItPath) {
+        $clIt = Get-Content $changelogItPath -Raw
+        if ($clIt -notmatch "## \[$baseVersion(-beta)?\]") {
+            Write-Host "ERROR: CHANGELOG.it.md has no entry for version $baseVersion !"
+            Write-Host "Add it before publishing."
+            exit 1
+        }
     }
     # Update Constants.vb
     $newContent = $content -replace 'AppVersion As String = "[\d\.]+(-beta)?"', "AppVersion As String = `"$newVersion`""
