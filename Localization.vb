@@ -501,14 +501,18 @@ Public Class TranslationCacheService
         Dim provider = ActiveProvider
         Try
             Dim batchRes = Await provider.TranslateBatchAsync(missingTexts, targetLang, cancellationToken)
-            If batchRes.Success Then
+            ' TODO #85: verificare rigorosamente che la risposta batch abbia avuto successo E che il numero di traduzioni corrisponda esattamente
+            If batchRes.Success AndAlso batchRes.Translations IsNot Nothing AndAlso batchRes.Translations.Count = missingTexts.Count Then
                 Dim newCacheEntries As New List(Of KeyValuePair(Of String, String))()
                 For j As Integer = 0 To missingIndices.Count - 1
                     Dim origIndex = missingIndices(j)
-                    Dim translatedPart = If(j < batchRes.Translations.Count AndAlso Not String.IsNullOrEmpty(batchRes.Translations(j)), batchRes.Translations(j), missingTexts(j))
-                    results(origIndex) = translatedPart
-                    If translatedPart <> missingTexts(j) Then
-                        newCacheEntries.Add(New KeyValuePair(Of String, String)(missingTexts(j), translatedPart))
+                    Dim origText = missingTexts(j)
+                    Dim translatedPart = batchRes.Translations(j)
+                    If Not String.IsNullOrEmpty(translatedPart) AndAlso translatedPart <> origText Then
+                        results(origIndex) = translatedPart
+                        newCacheEntries.Add(New KeyValuePair(Of String, String)(origText, translatedPart))
+                    Else
+                        results(origIndex) = origText
                     End If
                 Next
 
@@ -517,10 +521,25 @@ Public Class TranslationCacheService
                 End If
                 Return TranslationBatchResult.Succeeded(results)
             Else
+                ' Fallback atomico 1-ad-1 per prevenire disallineamenti di indice e contaminazione della cache (TODO #85)
+                Debug.WriteLine("[TranslationCacheService] Batch result count mismatch or failure; falling back to atomic 1-by-1 translation.")
+                Dim newCacheEntries As New List(Of KeyValuePair(Of String, String))()
                 For j As Integer = 0 To missingIndices.Count - 1
-                    results(missingIndices(j)) = missingTexts(j)
+                    Dim origIndex = missingIndices(j)
+                    Dim origText = missingTexts(j)
+                    Dim singleRes = Await provider.TranslateSingleAsync(origText, targetLang, cancellationToken)
+                    If singleRes.Success AndAlso Not String.IsNullOrEmpty(singleRes.TranslatedText) AndAlso singleRes.TranslatedText <> origText Then
+                        results(origIndex) = singleRes.TranslatedText
+                        newCacheEntries.Add(New KeyValuePair(Of String, String)(origText, singleRes.TranslatedText))
+                    Else
+                        results(origIndex) = origText
+                    End If
                 Next
-                Return TranslationBatchResult.Failed(batchRes.ErrorMessage, results)
+
+                If newCacheEntries.Count > 0 Then
+                    CacheMessagesBatch(newCacheEntries, targetLang)
+                End If
+                Return TranslationBatchResult.Succeeded(results)
             End If
         Catch ex As Exception
             Debug.WriteLine($"[TranslationCacheService] Batch translation provider error ({provider.DisplayName}): {ex.Message}")
@@ -618,6 +637,8 @@ Public Class AppLocalizations
         {"cancel", "Cancel"},
         {"delete", "Delete"},
         {"rename", "Rename"},
+        {"account_switch_error", "Error switching account: "},
+        {"dialog_title_error", "Error"},
         {"language", "Language"},
         {"translate_to_lang", "Translate to {lang}"},
         {"translate_all_messages", "Translate all messages"},
@@ -640,6 +661,7 @@ Public Class AppLocalizations
         {"add_telegram_account", "Add Telegram account"},
         {"add_openclaw_account", "Add OpenClaw account"},
         {"add_hermes_account", "Add Hermes Agent account"},
+        {"add_discord_account", "Add Discord account"},
         {"openclaw_server_url", "Gateway / Tailscale URL:"},
         {"openclaw_auth_token", "Gateway Auth Token:"},
         {"test_connection", "Test Connection"},
@@ -808,7 +830,12 @@ Public Class AppLocalizations
         {"bulk_err_send_rejected", "Send action ignored or not accepted by client: sending unconfirmed"},
         {"bulk_err_send_timeout", "Timeout waiting for client send confirmation"},
         {"bulk_err_number_not_registered", "Phone number not registered on WhatsApp"},
-        {"bulk_err_user_not_found", "User or phone number not found on Telegram"}
+        {"bulk_err_user_not_found", "User or phone number not found on Telegram"},
+        {"bulk_status_stopping", "Stopping in progress..."},
+        {"bulk_status_cancelled", "Sending cancelled by user."},
+        {"bulk_title_cancelled", "Sending Cancelled"},
+        {"bulk_status_completed", "Completed"},
+        {"bulk_status_failed", "Error during sending: {0}"}
     }
 
 
@@ -826,6 +853,7 @@ Public Class AppLocalizations
         {"add_telegram_account", "Aggiungi account Telegram"},
         {"add_openclaw_account", "Aggiungi account OpenClaw"},
         {"add_hermes_account", "Aggiungi account Hermes Agent"},
+        {"add_discord_account", "Aggiungi account Discord"},
         {"openclaw_server_url", "URL Gateway / Tailscale:"},
         {"openclaw_auth_token", "Token di Autenticazione Gateway:"},
         {"test_connection", "Verifica Connessione"},
@@ -845,6 +873,8 @@ Public Class AppLocalizations
         {"cancel", "Annulla"},
         {"delete", "Elimina"},
         {"rename", "Rinomina"},
+        {"account_switch_error", "Errore nel cambio account: "},
+        {"dialog_title_error", "Errore"},
         {"language", "Lingua"},
         {"translate_to_lang", "Traduci in {lang}"},
         {"translate_all_messages", "Traduci tutti i messaggi"},
@@ -1024,7 +1054,12 @@ Public Class AppLocalizations
         {"bulk_err_send_rejected", "Azione di invio non accettata dal client o pressione di invio ignorata"},
         {"bulk_err_send_timeout", "Timeout durante l'attesa della conferma di invio del client"},
         {"bulk_err_number_not_registered", "Numero non registrato su WhatsApp"},
-        {"bulk_err_user_not_found", "Utente o numero non trovato su Telegram"}
+        {"bulk_err_user_not_found", "Utente o numero non trovato su Telegram"},
+        {"bulk_status_stopping", "Arresto in corso..."},
+        {"bulk_status_cancelled", "Invio interrotto dall'utente."},
+        {"bulk_title_cancelled", "Invio Interrotto"},
+        {"bulk_status_completed", "Completato"},
+        {"bulk_status_failed", "Errore durante l'invio: {0}"}
     }
 
 
@@ -1042,6 +1077,7 @@ Public Class AppLocalizations
         {"add_telegram_account", "Ajouter un compte Telegram"},
         {"add_openclaw_account", "Ajouter un compte OpenClaw"},
         {"add_hermes_account", "Ajouter un compte Hermes Agent"},
+        {"add_discord_account", "Ajouter un compte Discord"},
         {"openclaw_server_url", "URL Passerelle / Tailscale :"},
         {"openclaw_auth_token", "Jeton d'authentification Passerelle :"},
         {"test_connection", "Tester la connexion"},
@@ -1061,6 +1097,8 @@ Public Class AppLocalizations
         {"cancel", "Annuler"},
         {"delete", "Supprimer"},
         {"rename", "Renommer"},
+        {"account_switch_error", "Erreur lors du changement de compte : "},
+        {"dialog_title_error", "Erreur"},
         {"language", "Langue"},
         {"translate_to_lang", "Traduire en {lang}"},
         {"translate_all_messages", "Traduire tous les messages"},
@@ -1240,7 +1278,12 @@ Public Class AppLocalizations
         {"bulk_err_send_rejected", "Action d'envoi non acceptée par le client ou touche Entrée ignorée"},
         {"bulk_err_send_timeout", "Délai dépassé lors de l'attente de la confirmation d'envoi du client"},
         {"bulk_err_number_not_registered", "Numéro non enregistré sur WhatsApp"},
-        {"bulk_err_user_not_found", "Utilisateur ou numéro introuvable sur Telegram"}
+        {"bulk_err_user_not_found", "Utilisateur ou numéro introuvable sur Telegram"},
+        {"bulk_status_stopping", "ArrÃªt en cours..."},
+        {"bulk_status_cancelled", "Envoi interrompu par l'utilisateur."},
+        {"bulk_title_cancelled", "Envoi Interrompu"},
+        {"bulk_status_completed", "TerminÃ©"},
+        {"bulk_status_failed", "Erreur pendant l'envoi : {0}"}
     }
 
 
@@ -1258,6 +1301,7 @@ Public Class AppLocalizations
         {"add_telegram_account", "Añadir cuenta de Telegram"},
         {"add_openclaw_account", "Añadir cuenta de OpenClaw"},
         {"add_hermes_account", "Añadir cuenta de Hermes Agent"},
+        {"add_discord_account", "Añadir cuenta de Discord"},
         {"openclaw_server_url", "URL Gateway / Tailscale:"},
         {"openclaw_auth_token", "Token de Autenticación Gateway:"},
         {"test_connection", "Probar Conexión"},
@@ -1277,6 +1321,8 @@ Public Class AppLocalizations
         {"cancel", "Cancelar"},
         {"delete", "Eliminar"},
         {"rename", "Renombrar"},
+        {"account_switch_error", "Error al cambiar de cuenta: "},
+        {"dialog_title_error", "Error"},
         {"language", "Idioma"},
         {"translate_to_lang", "Traducir a {lang}"},
         {"translate_all_messages", "Traducir todos los mensajes"},
@@ -1456,7 +1502,12 @@ Public Class AppLocalizations
         {"bulk_err_send_rejected", "Acción de envío no aceptada por el cliente o tecla Entrar ignorada"},
         {"bulk_err_send_timeout", "Tiempo de espera agotado aguardando confirmación de envío del cliente"},
         {"bulk_err_number_not_registered", "Número no registrado en WhatsApp"},
-        {"bulk_err_user_not_found", "Usuario o número no encontrado en Telegram"}
+        {"bulk_err_user_not_found", "Usuario o número no encontrado en Telegram"},
+        {"bulk_status_stopping", "Deteniendo envÃ­o..."},
+        {"bulk_status_cancelled", "EnvÃ­o cancelado por el usuario."},
+        {"bulk_title_cancelled", "EnvÃ­o Cancelado"},
+        {"bulk_status_completed", "Completado"},
+        {"bulk_status_failed", "Error durante el envÃ­o: {0}"}
     }
 
 
@@ -1474,6 +1525,7 @@ Public Class AppLocalizations
         {"add_telegram_account", "Telegram-Konto hinzufügen"},
         {"add_openclaw_account", "OpenClaw-Konto hinzufügen"},
         {"add_hermes_account", "Hermes Agent-Konto hinzufügen"},
+        {"add_discord_account", "Discord-Konto hinzufügen"},
         {"openclaw_server_url", "Gateway- / Tailscale-URL:"},
         {"openclaw_auth_token", "Gateway-Authentifizierungstoken:"},
         {"test_connection", "Verbindung testen"},
@@ -1493,6 +1545,8 @@ Public Class AppLocalizations
         {"cancel", "Abbrechen"},
         {"delete", "Löschen"},
         {"rename", "Umbenennen"},
+        {"account_switch_error", "Fehler beim Kontowechsel: "},
+        {"dialog_title_error", "Fehler"},
         {"language", "Sprache"},
         {"translate_to_lang", "Auf {lang} übersetzen"},
         {"translate_all_messages", "Alle Nachrichten übersetzen"},
@@ -1672,7 +1726,12 @@ Public Class AppLocalizations
         {"bulk_err_send_rejected", "Sendeaktion vom Client nicht akzeptiert oder Eingabetaste ignoriert"},
         {"bulk_err_send_timeout", "Zeitüberschreitung beim Warten auf die Sendebestätigung des Clients"},
         {"bulk_err_number_not_registered", "Nummer nicht bei WhatsApp registriert"},
-        {"bulk_err_user_not_found", "Benutzer oder Nummer auf Telegram nicht gefunden"}
+        {"bulk_err_user_not_found", "Benutzer oder Nummer auf Telegram nicht gefunden"},
+        {"bulk_status_stopping", "Wird gestoppt..."},
+        {"bulk_status_cancelled", "Versand vom Benutzer abgebrochen."},
+        {"bulk_title_cancelled", "Versand Abgebrochen"},
+        {"bulk_status_completed", "Abgeschlossen"},
+        {"bulk_status_failed", "Fehler beim Senden: {0}"}
     }
 
 

@@ -685,6 +685,14 @@ Public Class SettingsWindow
         menu.Items.Add(itemWhatsApp)
         menu.Items.Add(itemTelegram)
         menu.Items.Add(itemOpenClaw)
+        Dim itemDiscord As New MenuItem With {
+            .Header = locStrings.Get("add_discord_account")
+        }
+        AddHandler itemDiscord.Click, Async Sub()
+            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Discord)
+        End Sub
+
+        menu.Items.Add(itemDiscord)
         menu.Items.Add(itemHermes)
         menu.PlacementTarget = BtnAddAccountSettings
         menu.IsOpen = True

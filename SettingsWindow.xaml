@@ -336,6 +336,7 @@
                                                       VerticalAlignment="Center" Margin="0,0,10,0">
                                                 <ComboBoxItem Content="WhatsApp" Tag="WhatsApp" Foreground="#8696a0"/>
                                                 <ComboBoxItem Content="Telegram" Tag="Telegram" Foreground="#8696a0"/>
+                                                <ComboBoxItem Content="Discord" Tag="Discord" Foreground="#8696a0"/>
                                                 <ComboBoxItem Content="OpenClaw" Tag="OpenClaw" Foreground="#8696a0"/>
                                                 <ComboBoxItem Content="Hermes Agent" Tag="Hermes" Foreground="#8696a0"/>
                                             </ComboBox>

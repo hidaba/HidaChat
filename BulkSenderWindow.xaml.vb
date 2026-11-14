@@ -211,16 +211,17 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
+    Private Async Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
         If _engine.IsRunning Then
             Dim res = MessageBox.Show(
-                "Un invio di messaggi è attualmente in corso. Vuoi interromperlo e chiudere la finestra?",
+                "Un invio di messaggi Ã¨ attualmente in corso. Vuoi interromperlo e chiudere la finestra?",
                 "Conferma Chiusura",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question
             )
             If res = MessageBoxResult.Yes Then
-                _engine.Cancel()
+                SetUiStoppingState()
+                Await _engine.CancelAsync()
                 Me.Close()
             End If
         Else
@@ -390,6 +391,11 @@ Public Class BulkSenderWindow
             Return
         End If
 
+        If Not def.SupportsBulkSender Then
+            MessageBox.Show($"L'invio massivo non è supportato per la piattaforma {def.DisplayName}.", "Piattaforma Non Supportata", MessageBoxButton.OK, MessageBoxImage.Warning)
+            Return
+        End If
+
         Dim isTelegram = (def.Platform = ChatPlatform.Telegram)
         If isTelegram Then
             Dim validTg = selected.Where(Function(c) Not String.IsNullOrEmpty(c.CleanUsername) OrElse Not String.IsNullOrEmpty(c.CleanPhone)).ToList()
@@ -418,62 +424,93 @@ Public Class BulkSenderWindow
 
         Dim template = TxtTemplate.Text
 
-        Await _engine.RunAsync(
-            _contacts,
-            template,
-            minDelay,
-            maxDelay,
-            _platform,
-            _webView,
-            Sub(prog)
-                Dispatcher.Invoke(Sub()
-                    If prog.IsCompleted Then
-                        SetUiRunningState(False)
-                        TxtStatus.Text = $"Completato! Inviati: {prog.SentCount}, Errori: {prog.ErrorCount}"
-                        ProgressBarSending.Value = 100
-                        MessageBox.Show(
-                            $"Invio completato su {_platform}!" & vbCrLf & vbCrLf &
-                            $"• Inviati con successo: {prog.SentCount}" & vbCrLf &
-                            $"• Errori / Non trovati: {prog.ErrorCount}",
-                            "Riepilogo Invio Massivo",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information
-                        )
-                    Else
-                        If prog.TotalCount > 0 Then
-                            ProgressBarSending.Value = (prog.CurrentIndex / CDbl(prog.TotalCount)) * 100
-                        End If
-
-                        If prog.CountdownRemainingSeconds > 0 Then
-                            TxtStatus.Text = $"Inviati {prog.SentCount}/{prog.TotalCount} — Prossimo invio tra {prog.CountdownRemainingSeconds}s..."
+        Try
+            Await _engine.RunAsync(
+                _contacts,
+                template,
+                minDelay,
+                maxDelay,
+                _platform,
+                _webView,
+                Sub(prog)
+                    Dispatcher.Invoke(Sub()
+                        If prog.IsCompleted Then
+                            SetUiRunningState(False)
+                            TxtStatus.Text = $"{AppLocalizations.GetText("bulk_status_completed", "Completato")}! Inviati: {prog.SentCount}, Errori: {prog.ErrorCount}"
+                            ProgressBarSending.Value = 100
+                            MessageBox.Show(
+                                $"Invio completato su {_platform}!" & vbCrLf & vbCrLf &
+                                $"• Inviati con successo: {prog.SentCount}" & vbCrLf &
+                                $"• Errori / Non trovati: {prog.ErrorCount}",
+                                "Riepilogo Invio Massivo",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Information
+                            )
+                        ElseIf prog.IsCancelled Then
+                            SetUiRunningState(False)
+                            TxtStatus.Text = $"{AppLocalizations.GetText("bulk_status_cancelled", "Invio interrotto dall'utente.")} (Inviati: {prog.SentCount}, Errori: {prog.ErrorCount})"
+                            If prog.TotalCount > 0 Then
+                                ProgressBarSending.Value = (prog.CurrentIndex / CDbl(prog.TotalCount)) * 100
+                            End If
+                            MessageBox.Show(
+                                $"Invio interrotto su {_platform}." & vbCrLf & vbCrLf &
+                                $"• Inviati con successo: {prog.SentCount}" & vbCrLf &
+                                $"• Errori / Non trovati: {prog.ErrorCount}" & vbCrLf &
+                                $"• Non inviati: {Math.Max(0, prog.TotalCount - prog.SentCount - prog.ErrorCount)}",
+                                AppLocalizations.GetText("bulk_title_cancelled", "Invio Interrotto"),
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning
+                            )
+                        ElseIf prog.IsFailed Then
+                            SetUiRunningState(False)
+                            TxtStatus.Text = prog.StatusMessage
+                            MessageBox.Show(
+                                prog.StatusMessage,
+                                "Errore Invio Massivo",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error
+                            )
                         Else
-                            TxtStatus.Text = $"[{prog.CurrentIndex}/{prog.TotalCount}] {prog.StatusMessage}"
+                            If prog.TotalCount > 0 Then
+                                ProgressBarSending.Value = (prog.CurrentIndex / CDbl(prog.TotalCount)) * 100
+                            End If
+
+                            If prog.CountdownRemainingSeconds > 0 Then
+                                TxtStatus.Text = $"Inviati {prog.SentCount}/{prog.TotalCount} — Prossimo invio tra {prog.CountdownRemainingSeconds}s..."
+                            Else
+                                TxtStatus.Text = $"[{prog.CurrentIndex}/{prog.TotalCount}] {prog.StatusMessage}"
+                            End If
                         End If
-                    End If
-                End Sub)
-            End Sub
-        )
+                    End Sub)
+                End Sub
+            )
+        Catch ex As InvalidOperationException
+            MessageBox.Show(ex.Message, "Invio Massivo", MessageBoxButton.OK, MessageBoxImage.Warning)
+            SetUiRunningState(False)
+        Catch ex As Exception
+            MessageBox.Show($"Errore inatteso durante l'invio: {ex.Message}", "Invio Massivo", MessageBoxButton.OK, MessageBoxImage.Error)
+            SetUiRunningState(False)
+        End Try
     End Sub
 
     Private Sub BtnPause_Click(sender As Object, e As RoutedEventArgs)
-        If _engine.IsRunning Then
+        If _engine.IsRunning AndAlso Not _engine.IsStopping Then
             If _engine.IsPaused Then
                 _engine.ResumeSending()
-                BtnPause.Content = "⏸ Pausa"
+                BtnPause.Content = "â¸ Pausa"
                 TxtStatus.Text = "Invio ripreso..."
             Else
                 _engine.Pause()
-                BtnPause.Content = "▶ Riprendi"
+                BtnPause.Content = "â–¶ Riprendi"
                 TxtStatus.Text = "Invio in pausa. Premi 'Riprendi' per continuare."
             End If
         End If
     End Sub
 
-    Private Sub BtnStop_Click(sender As Object, e As RoutedEventArgs)
-        If _engine.IsRunning Then
-            _engine.Cancel()
-            TxtStatus.Text = "Invio interrotto dall'utente."
-            SetUiRunningState(False)
+    Private Async Sub BtnStop_Click(sender As Object, e As RoutedEventArgs)
+        If _engine.IsRunning AndAlso Not _engine.IsStopping Then
+            SetUiStoppingState()
+            Await _engine.CancelAsync()
         End If
     End Sub
 
@@ -513,5 +550,17 @@ Public Class BulkSenderWindow
         BtnPause.IsEnabled = isRunning
         BtnPause.Content = "⏸ Pausa"
         BtnStop.IsEnabled = isRunning
+    End Sub
+
+    Private Sub SetUiStoppingState()
+        BtnStart.IsEnabled = False
+        BtnLoadFile.IsEnabled = False
+        TxtTemplate.IsEnabled = False
+        TxtMinDelay.IsEnabled = False
+        TxtMaxDelay.IsEnabled = False
+
+        BtnPause.IsEnabled = False
+        BtnStop.IsEnabled = False
+        TxtStatus.Text = AppLocalizations.GetText("bulk_status_stopping", "Arresto in corso...")
     End Sub
 End Class

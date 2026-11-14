@@ -3,7 +3,7 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
 
-**Client Desktop Portabile per Windows (.NET 9 / WPF)** con gestione **Multi-Account e Multi-Piattaforma** (**WhatsApp Web**, **Telegram Web**, **OpenClaw** ed **Hermes Agent**), **Pre-caricamento Istantaneo in Background**, **Traduzione Integrata dei Messaggi**, **Notifiche Native Windows Toast & Popup** e **Zero Installazione**.
+**Client Desktop Portabile per Windows (.NET 9 / WPF)** con gestione **Multi-Account e Multi-Piattaforma** (**WhatsApp Web**, **Telegram Web**, **Discord**, **OpenClaw** ed **Hermes Agent**), **Pre-caricamento Istantaneo in Background**, **Traduzione Integrata dei Messaggi**, **Notifiche Native Windows Toast & Popup** e **Zero Installazione**.
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
@@ -12,7 +12,7 @@
 [![Download Totali](https://img.shields.io/github/downloads/hidaba/HidaChat/total)](https://github.com/hidaba/HidaChat/releases)
 [![Ultimo Commit](https://img.shields.io/github/last-commit/hidaba/HidaChat)](https://github.com/hidaba/HidaChat/commits/master)
 [![Stato Build](https://img.shields.io/github/actions/workflow/status/hidaba/HidaChat/build.yml?branch=master)](https://github.com/hidaba/HidaChat/actions)
-[![Piattaforme](https://img.shields.io/badge/Piattaforme-WhatsApp%20%7C%20Telegram%20%7C%20OpenClaw%20%7C%20Hermes-00a884.svg)](#-multi-account--multi-piattaforma-whatsapp-telegram-openclaw-hermes)
+[![Piattaforme](https://img.shields.io/badge/Piattaforme-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20OpenClaw%20%7C%20Hermes-00a884.svg)](#-multi-account--multi-piattaforma-whatsapp-telegram-discord-openclaw-hermes)
 [![Agenti IA](https://img.shields.io/badge/Agenti%20IA-OpenClaw%20%26%20Hermes-FF5722.svg)](#-guida-alla-connessione-degli-account-openclaw-ed-hermes-agent-passo-passo)
 [![Tailscale Mesh](https://img.shields.io/badge/Mesh%20VPN-Tailscale%20tsnet-24292E.svg?logo=tailscale&logoColor=white)](#-guida-alla-connessione-degli-account-openclaw-ed-hermes-agent-passo-passo)
 
@@ -82,15 +82,16 @@ Scegli tra la **Versione Stabile** (testata, consigliata per l'uso quotidiano) e
 - **Protezione Anti-Spam (Jitter Delay)**: Intervallo casuale di sicurezza naturale configurabile con vincolo minimo di **30 secondi** e conto alla rovescia in tempo reale per proteggere gli account dal blocco spam.
 - **Controlli Completi di Esecuzione**: Pausa, Riprendi, Interrompi subito e monitoraggio dello stato puntuale di ogni riga (`In attesa`, `Inviando...`, `Inviato ✔`, `Errore ✖`, `Non valido`).
 
-### 👥 Multi-Account & Multi-Piattaforma (WhatsApp, Telegram, OpenClaw, Hermes)
-- **4 Ecosistemi Supportati**: Gestisci schede orizzontali simultanee per messaggistica istantanea e agenti IA autonomi:
+### 👥 Multi-Account & Multi-Piattaforma (WhatsApp, Telegram, Discord, OpenClaw, Hermes)
+- **5 Ecosistemi Supportati**: Gestisci schede orizzontali simultanee per messaggistica istantanea e agenti IA autonomi:
   - 🟢 **WhatsApp Web**: Client web completo con login QR, messaggistica istantanea, anteprima allegati audio/video, traduzione istantanea al passaggio del mouse e integrazione invio massivo.
   - 🔷 **Telegram Web**: Pieno supporto per Telegram Web A, K e Z con integrazione nativa della Badging API (`navigator.setAppBadge`), eliminazione dei falsi positivi unread e notifiche istantanee.
+  - 🟣 **Discord Web**: Client web ufficiale (`https://discord.com/app`) con isolamento multi-account, persistenza della sessione, risoluzione inviti e deep-link (`discord.gg`), rilevamento badge di menzione e non letti, e notifiche Windows Toast senza popup duplicati.
   - 🟠 **OpenClaw (Autonomous AI Agent Gateway & Web UI)**: Supporto nativo per la console web OpenClaw. Connessione trasparente a gateway locali (`http://127.0.0.1:18789`) o host remoti su reti private Tailscale tramite il demone companion `tsnetd.exe` (Go statico). Utilizza porte proxy locali deterministiche (`18800+`) e token persistente per mantenere stabili le chiavi crittografiche Ed25519 in IndexedDB, eliminando la richiesta continua di riapprovazione del dispositivo (`openclaw devices approve`).
   - 🌐 **Hermes Agent (Nous Research)**: Dashboard e console web per istanze Hermes AI Agent. Dotato di iniezione automatica dell'header `Authorization: Bearer <token>` in WebView2, connettività locale diretta (`http://127.0.0.1:9119`), routing remoto cifrato tramite Tailscale Mesh VPN (`18900+`) e branding grafico a tema elmo alato azzurro ciano (`#00B0FF`).
 - **Profili WebView2 Isolati**: Ciascun account opera in una sandbox completamente isolata (cookie, sessioni, cache e storage separati in `data/webview/`).
 - **Pre-caricamento Istantaneo**: All'avvio dell'app viene data priorità all'account attivo e avviato in background il caricamento degli altri account, consentendo un passaggio immediato da una scheda all'altra senza tempi di attesa né schermate nere.
-- **Selettore Piattaforma Rapido**: Con il pulsante `+` o dalle Impostazioni puoi creare istantaneamente un nuovo account WhatsApp, Telegram, OpenClaw o Hermes con icona e colore distintivo dedicato.
+- **Selettore Piattaforma Rapido**: Con il pulsante `+` o dalle Impostazioni puoi creare istantaneamente un nuovo account WhatsApp, Telegram, Discord, OpenClaw o Hermes con icona e colore distintivo dedicato.
 - **Notifiche Sempre Attive in Background**: Anche mentre interagisci con una console agente IA o un'altra scheda, le chat continuano a ricevere messaggi in tempo reale e generano notifiche Toast e Popup su schermo.
 
 ### 🌐 Motore di Traduzione Integrato
@@ -138,7 +139,7 @@ In alternativa, puoi aprire la soluzione `HidaChat.sln` con **Visual Studio 2022
 
 ## 📖 Guida Rapida all'Uso
 
-1. **Aggiunta Account**: Avvia `HidaChat.exe`. Clicca sul pulsante `+` nella barra delle schede in alto e seleziona **WhatsApp**, **Telegram**, **OpenClaw** o **Hermes Agent**.
+1. **Aggiunta Account**: Avvia `HidaChat.exe`. Clicca sul pulsante `+` nella barra delle schede in alto e seleziona **WhatsApp**, **Telegram**, **Discord**, **OpenClaw** o **Hermes Agent**.
 2. **Accesso e Connessione**:
    - **WhatsApp**: Inquadra il codice QR con l'app WhatsApp dello smartphone (*Dispositivi collegati*).
    - **Telegram**: Inquadra il codice QR con l'app Telegram o accedi con numero di telefono e codice SMS.

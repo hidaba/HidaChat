@@ -26,6 +26,7 @@ Friend NotInheritable Class SessionRecoveryPolicy
         Return parsed.Scheme = Uri.UriSchemeHttps AndAlso parsed.Port = 443 AndAlso
             String.IsNullOrEmpty(parsed.UserInfo) AndAlso
             (parsed.Host.Equals("web.whatsapp.com", StringComparison.OrdinalIgnoreCase) OrElse
-             parsed.Host.Equals("web.telegram.org", StringComparison.OrdinalIgnoreCase))
+             parsed.Host.Equals("web.telegram.org", StringComparison.OrdinalIgnoreCase) OrElse
+             parsed.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase))
     End Function
 End Class

@@ -1,4 +1,4 @@
-﻿Imports System.Threading.Tasks
+Imports System.Threading.Tasks
 Imports System.IO
 Imports System.ComponentModel
 Imports System.Runtime.InteropServices
@@ -779,7 +779,9 @@ Public Class MainWindow
                 End If
             End If
             If Not recoverySuccess Then
-                MessageBox.Show("Errore nel cambio account: " & switchException.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error)
+                Dim errMsg = If(_settingsController?.Localizations IsNot Nothing, _settingsController.Localizations.Get("account_switch_error"), "Errore nel cambio account: ") & switchException.Message
+                Dim errTitle = If(_settingsController?.Localizations IsNot Nothing, _settingsController.Localizations.Get("dialog_title_error"), "Errore")
+                MessageBox.Show(errMsg, errTitle, MessageBoxButton.OK, MessageBoxImage.Error)
             End If
         End If
     End Sub
@@ -1368,6 +1370,19 @@ Public Class MainWindow
             menu.Items.Add(itemWhatsApp)
             menu.Items.Add(itemTelegram)
             menu.Items.Add(itemOpenClaw)
+            Dim itemDiscord As New MenuItem With {
+                .Header = loc.Get("add_discord_account")
+            }
+            AddHandler itemDiscord.Click, Async Sub()
+                Try
+                    Await AddAccountWithPlatformAsync("Discord")
+                Catch ex As Exception
+                    Debug.WriteLine($"Error adding Discord account: {ex.Message}")
+                    Application.LogUnhandledException("MainWindow.AddDiscordAccount", ex)
+                End Try
+            End Sub
+
+            menu.Items.Add(itemDiscord)
             menu.Items.Add(itemHermes)
             menu.PlacementTarget = BtnAddAccount
             menu.IsOpen = True
@@ -1477,7 +1492,7 @@ Public Class MainWindow
                 status = _settingsController.Localizations.Get("contact_online")
             End If
             Dim def = current.PlatformDefinition
-            OnlineIndicatorBorder.Background = BrushCache.GetBrush(If(def.Platform = ChatPlatform.Telegram, "#152d3d", "#1b3d2f"))
+            OnlineIndicatorBorder.Background = BrushCache.GetBrush(If(def.Platform = ChatPlatform.Discord, "#1e1f29", If(def.Platform = ChatPlatform.Telegram, "#152d3d", "#1b3d2f")))
             OnlineDot.Fill = def.ThemeBrush
             OnlineStatusText.Foreground = def.ThemeBrush
             OnlineIndicatorBorder.Visibility = Visibility.Visible

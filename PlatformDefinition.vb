@@ -14,6 +14,7 @@ Public Enum ChatPlatform
     Telegram = 1
     OpenClaw = 2
     Hermes = 3
+    Discord = 4
 End Enum
 
 ''' <summary>
@@ -619,6 +620,137 @@ End Class
 ''' <summary>
 ''' Registro centrale thread-safe per la risoluzione e l'estensione delle piattaforme supportate (TODO #68).
 ''' </summary>
+''' <summary>
+''' Definizione specifica per la piattaforma Discord Web.
+''' </summary>
+Public Class DiscordPlatformDefinition
+    Inherits PlatformDefinition
+
+    Public Overrides ReadOnly Property Platform As ChatPlatform
+        Get
+            Return ChatPlatform.Discord
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property Id As String
+        Get
+            Return "Discord"
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property DisplayName As String
+        Get
+            Return "Discord"
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property DefaultUrl As String
+        Get
+            Return "https://discord.com/app"
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property DefaultPort As Integer
+        Get
+            Return 0
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property ThemeColorHex As String
+        Get
+            Return "#5865F2"
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property IconSvgPath As String
+        Get
+            Return "M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09-.01-.02-.04-.03-.07-.03-1.5.26-2.93.71-4.27 1.33-.01 0-.02.01-.03.02-2.72 4.07-3.47 8.03-3.1 11.95 0 .02.01.04.03.05 1.8 1.32 3.53 2.12 5.24 2.65.03.01.06 0 .07-.02.4-.55.76-1.13 1.07-1.74.02-.04 0-.08-.04-.09-.57-.22-1.11-.48-1.64-.78-.04-.02-.04-.08-.01-.11.11-.08.22-.17.33-.25.02-.02.05-.02.07-.01 3.44 1.57 7.15 1.57 10.55 0 .02-.01.05-.01.07.01.11.09.22.17.33.26.04.03.04.09-.01.11-.52.31-1.07.56-1.64.78-.04.01-.05.06-.04.09.32.61.68 1.19 1.07 1.74.03.01.06.02.09.01 1.72-.53 3.45-1.33 5.25-2.65.02-.01.03-.03.03-.05.44-4.53-.73-8.46-3.1-11.95-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property SupportsBulkSender As Boolean
+        Get
+            Return False
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property SupportsThemeScript As Boolean
+        Get
+            Return False
+        End Get
+    End Property
+
+    Public Overrides ReadOnly Property SupportsTranslation As Boolean
+        Get
+            Return False
+        End Get
+    End Property
+
+    Public Overrides Function IsAuthorizedOrigin(sourceUriStr As String, configuredServerUrl As String) As Boolean
+        If String.IsNullOrWhiteSpace(sourceUriStr) Then Return False
+        Dim uri As Uri = Nothing
+        If Not Uri.TryCreate(sourceUriStr, UriKind.Absolute, uri) Then Return False
+        If uri.Scheme <> Uri.UriSchemeHttps Then Return False
+        If Not uri.IsDefaultPort Then Return False
+        If Not String.IsNullOrEmpty(uri.UserInfo) Then Return False
+        Dim host = uri.Host.ToLowerInvariant()
+        Return host = "discord.com"
+    End Function
+
+    Public Overrides Function IsAllowedNewWindowHost(uri As Uri, configuredServerUrl As String) As Boolean
+        If uri Is Nothing Then Return False
+        Dim host = uri.Host.ToLowerInvariant()
+        If host = "discord.com" Then
+            Dim path = uri.AbsolutePath.ToLowerInvariant()
+            Return path.StartsWith("/channels/") OrElse path.StartsWith("/invite/") OrElse path.StartsWith("/app")
+        End If
+        Return False
+    End Function
+
+    Public Overrides Function ResolveDeepLink(uriStr As String) As String
+        If String.IsNullOrWhiteSpace(uriStr) Then Return Nothing
+        Dim trimmed = uriStr.Trim()
+
+        ' 1. Schema discord://
+        If trimmed.StartsWith("discord:", StringComparison.OrdinalIgnoreCase) Then
+            Dim afterScheme = trimmed.Substring("discord:".Length).TrimStart("/"c)
+            If afterScheme.StartsWith("-/") Then
+                afterScheme = afterScheme.Substring(2)
+            ElseIf afterScheme.StartsWith("discord.com/") Then
+                afterScheme = afterScheme.Substring("discord.com/".Length)
+            End If
+            If afterScheme.StartsWith("channels/", StringComparison.OrdinalIgnoreCase) OrElse
+               afterScheme.StartsWith("invite/", StringComparison.OrdinalIgnoreCase) OrElse
+               afterScheme.StartsWith("app", StringComparison.OrdinalIgnoreCase) Then
+                Return "https://discord.com/" & afterScheme
+            End If
+            Return Nothing
+        End If
+
+        ' 2. Link discord.gg/CODE o discordapp.com
+        Try
+            Dim uriObj As New Uri(trimmed)
+            Dim host = uriObj.Host.ToLowerInvariant()
+            If host = "discord.gg" Then
+                Dim inviteCode = uriObj.AbsolutePath.Trim("/"c)
+                If Not String.IsNullOrEmpty(inviteCode) AndAlso System.Text.RegularExpressions.Regex.IsMatch(inviteCode, "^[a-zA-Z0-9\-_]+$") Then
+                    Return $"https://discord.com/invite/{inviteCode}"
+                End If
+            ElseIf host = "discordapp.com" Then
+                Dim path = uriObj.AbsolutePath
+                If path.StartsWith("/channels/", StringComparison.OrdinalIgnoreCase) OrElse
+                   path.StartsWith("/invite/", StringComparison.OrdinalIgnoreCase) Then
+                    Return $"https://discord.com{path}{uriObj.Query}"
+                End If
+            End If
+        Catch
+        End Try
+
+        Return Nothing
+    End Function
+
+End Class
+
 Public Module PlatformRegistry
 
     Private ReadOnly _definitionsByEnum As New ConcurrentDictionary(Of ChatPlatform, PlatformDefinition)()
@@ -629,6 +761,7 @@ Public Module PlatformRegistry
         Register(New TelegramPlatformDefinition())
         Register(New OpenClawPlatformDefinition())
         Register(New HermesPlatformDefinition())
+        Register(New DiscordPlatformDefinition())
     End Sub
 
     ''' <summary>

@@ -110,8 +110,10 @@ Public Class NetworkProfileSync
     End Sub
 
     ''' <summary>
-    ''' Bootstrap ONLY an empty staging directory. Existing local state always wins;
-    ''' file size and timestamps cannot establish authentication or database integrity.
+    ''' Sincronizza il profilo master sulla share di rete verso lo staging locale.
+    ''' Se lo staging locale è vuoto, effettua il bootstrap iniziale.
+    ''' Se lo staging locale esiste già ma il Master sulla rete è più recente (esportato da un altro PC),
+    ''' aggiorna lo staging locale con la versione master per garantire la continuità della sessione (TODO #109).
     ''' </summary>
     Public Shared Async Function SyncMasterToLocalStagingAsync(accountId As String) As Task(Of Boolean)
         If Not HasSessionLock(accountId) Then Return False
@@ -119,18 +121,109 @@ Public Class NetworkProfileSync
         Await accountLock.WaitAsync()
         Try
             Dim staging = GetLocalStagingProfileDir(accountId)
+            Dim master = GetMasterProfileDir(accountId)
             ColdProfileCopy.RecoverInterruptedPublication(staging)
-            If ColdProfileCopy.HasData(staging) Then
-                AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; no merge or automatic rollback.")
+            ColdProfileCopy.RecoverInterruptedPublication(master)
+
+            If Not ColdProfileCopy.HasData(staging) Then
+                AppLogger.LogSync($"[COLD_IMPORT] account={accountId}; first import into empty local staging.")
+                Return Await ColdProfileCopy.SeedIfEmptyAsync(master, staging)
+            End If
+
+            If ShouldRefreshStagingFromMaster(master, staging, accountId) Then
+                AppLogger.LogSync($"[COLD_IMPORT] account={accountId}; master has newer session data from network. Refreshing local staging.")
+                Dim refreshed = Await ColdProfileCopy.PublishAsync(master, staging)
+                If refreshed Then
+                    Return True
+                ElseIf ColdProfileCopy.HasData(staging) Then
+                    AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; master refresh skipped (profile in use or locked). Retaining existing valid local staging.")
+                    Return True
+                Else
+                    Return False
+                End If
+            Else
+                AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; local staging is up to date with master.")
                 Return True
             End If
-            AppLogger.LogSync($"[COLD_IMPORT] account={accountId}; first import into empty local staging.")
-            Return Await ColdProfileCopy.SeedIfEmptyAsync(GetMasterProfileDir(accountId), staging)
         Catch ex As Exception
             AppLogger.LogSync($"[COLD_IMPORT_FAILED] account={accountId}: {ex.Message}")
+            If ColdProfileCopy.HasData(GetLocalStagingProfileDir(accountId)) Then
+                AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; exception during import, but valid local staging exists. Continuing.")
+                Return True
+            End If
             Return False
         Finally
             accountLock.Release()
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Determina se lo staging locale deve essere rinfrescato dal master su rete.
+    ''' </summary>
+    Public Shared Function ShouldRefreshStagingFromMaster(master As String, staging As String, accountId As String) As Boolean
+        If String.IsNullOrWhiteSpace(master) OrElse Not Directory.Exists(master) OrElse Not ColdProfileCopy.HasData(master) Then
+            Return False
+        End If
+        If String.IsNullOrWhiteSpace(staging) OrElse Not Directory.Exists(staging) OrElse Not ColdProfileCopy.HasData(staging) Then
+            Return True
+        End If
+
+        ' 1. Verifica tramite metadati .sync_state.json
+        Dim masterState = ReadSyncState(master)
+        Dim stagingState = ReadSyncState(staging)
+
+        If masterState IsNot Nothing AndAlso stagingState IsNot Nothing Then
+            If masterState.ExportedUtc > stagingState.ExportedUtc Then
+                Return True
+            Else
+                Return False
+            End If
+        ElseIf masterState IsNot Nothing AndAlso stagingState Is Nothing Then
+            Return True
+        End If
+
+        ' 2. Controllo differenziale file-by-file se i metadati non sono disponibili
+        If ColdProfileCopy.HasModifications(master, staging) Then
+            Return True
+        End If
+
+        Return False
+    End Function
+
+    Private Shared Sub WriteSyncState(profileDir As String, accountId As String)
+        Try
+            If String.IsNullOrWhiteSpace(profileDir) OrElse Not Directory.Exists(profileDir) Then Return
+            Dim statePath = Path.Combine(profileDir, ".sync_state.json")
+            Dim state As New ProfileSyncState With {
+                .AccountId = accountId,
+                .ExportedUtc = DateTime.UtcNow,
+                .Machine = Environment.MachineName,
+                .User = Environment.UserName,
+                .Generation = DateTime.UtcNow.Ticks
+            }
+            Dim json = JsonSerializer.Serialize(state, New JsonSerializerOptions With {.WriteIndented = True})
+            ' Rimuove eventuali attributi Hidden o ReadOnly ereditati da share Linux/Samba o Win32 CopyFileEx
+            If File.Exists(statePath) Then
+                Dim attrs = File.GetAttributes(statePath)
+                If (attrs And (FileAttributes.Hidden Or FileAttributes.ReadOnly)) <> 0 Then
+                    File.SetAttributes(statePath, attrs And Not (FileAttributes.Hidden Or FileAttributes.ReadOnly))
+                End If
+            End If
+            File.WriteAllText(statePath, json, Encoding.UTF8)
+        Catch ex As Exception
+            AppLogger.LogSync($"[SYNC_STATE_WRITE_FAILED] account={accountId}: {ex.Message}")
+        End Try
+    End Sub
+
+    Private Shared Function ReadSyncState(profileDir As String) As ProfileSyncState
+        Try
+            If String.IsNullOrWhiteSpace(profileDir) OrElse Not Directory.Exists(profileDir) Then Return Nothing
+            Dim statePath = Path.Combine(profileDir, ".sync_state.json")
+            If Not File.Exists(statePath) Then Return Nothing
+            Dim json = File.ReadAllText(statePath, Encoding.UTF8)
+            Return JsonSerializer.Deserialize(Of ProfileSyncState)(json)
+        Catch
+            Return Nothing
         End Try
     End Function
 
@@ -157,6 +250,9 @@ Public Class NetworkProfileSync
                 AppLogger.LogSync($"[EXPORT_UNCHANGED] account={accountId}; no local changes, network sync skipped.")
                 Return True
             End If
+
+            ' Scrive lo stato di sync aggiornato prima dell'esportazione
+            WriteSyncState(source, accountId)
 
             AppLogger.LogSync($"[COLD_EXPORT] account={accountId}; browser exit confirmed.")
             Return Await ColdProfileCopy.PublishAsync(source, master)
@@ -220,4 +316,15 @@ Public Class NetworkProfileSync
         Dim staging = GetLocalStagingProfileDir(accountId)
         If Directory.Exists(staging) Then Directory.Delete(staging, recursive:=True)
     End Sub
+End Class
+
+''' <summary>
+''' Metadati di stato di sincronizzazione del profilo salvati in .sync_state.json per coordinamento multi-PC.
+''' </summary>
+Public Class ProfileSyncState
+    Public Property AccountId As String
+    Public Property ExportedUtc As DateTime
+    Public Property Machine As String
+    Public Property User As String
+    Public Property Generation As Long
 End Class

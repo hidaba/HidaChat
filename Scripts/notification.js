@@ -468,8 +468,64 @@
     return { count: count, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
   }
 
+  function scanDiscordUnread() {
+    let count = 0;
+    const debugItems = [];
+    let latestChatTitle = '';
+    let latestMessageText = '';
+    try {
+      const discordMentionSelectors = [
+        'div[class*="numberBadge"]',
+        'span[class*="numberBadge"]',
+        'div[class*="mention"]',
+        'div[class*="unreadMentions"]',
+        'div[class*="lowerBadge"] div[class*="badge"]',
+        '[aria-label*="menzion" i]',
+        '[aria-label*="mention" i]'
+      ];
+      const mentionEls = document.querySelectorAll(discordMentionSelectors.join(', '));
+      if (mentionEls && mentionEls.length > 0) {
+        const seen = new Set();
+        mentionEls.forEach(el => {
+          if (seen.has(el)) return;
+          seen.add(el);
+          const rawText = (el.textContent || '').trim();
+          const digits = rawText.replace(/[^\d]/g, '');
+          if (digits) {
+            const n = parseInt(digits, 10);
+            if (!isNaN(n) && n > 0) {
+              count += n;
+              debugItems.push({
+                chatTitle: 'Discord Mention',
+                count: n,
+                rawText: rawText,
+                classes: el.className
+              });
+            }
+          } else if (rawText === '•' || rawText === '*') {
+            count += 1;
+          }
+        });
+      }
+
+      if (count === 0) {
+        const unreadPills = document.querySelectorAll('div[class*="unread__"], div[class*="unread-"], div[class^="unread_"]');
+        if (unreadPills && unreadPills.length > 0) {
+          count = 1;
+          debugItems.push({
+            chatTitle: 'Discord Unread Pill',
+            count: 1,
+            classes: unreadPills[0].className
+          });
+        }
+      }
+    } catch(e) {}
+    return { count: count, items: debugItems, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
+  }
+
   function checkAndNotifyUnreadCount() {
     const isTelegram = (location.hostname || '').includes('telegram');
+    const isDiscord = (location.hostname || '').includes('discord');
     const title = document.title || '';
     const titleMatch = title.match(/[\(\[](\d+)\+?[\)\]]/);
     const hasBullet = /[\(•\*\)]/.test(title) && (title.includes('•') || title.includes('*') || /\(\s*\)/.test(title));
@@ -485,6 +541,12 @@
       debugItems = tgRes.items;
       latestChatTitle = tgRes.latestChatTitle || '';
       latestMessageText = tgRes.latestMessageText || '';
+    } else if (isDiscord) {
+      const dcRes = scanDiscordUnread();
+      domCount = dcRes.count;
+      debugItems = dcRes.items;
+      latestChatTitle = dcRes.latestChatTitle || '';
+      latestMessageText = dcRes.latestMessageText || '';
     } else {
       const waRes = scanWhatsAppUnread();
       domCount = waRes.count;
@@ -494,7 +556,7 @@
 
     if (!latestChatTitle && titleMatch) {
       const cleanedTitle = title.replace(/[\(\[]\d+\+?[\)\]]/, '').trim();
-      if (cleanedTitle && cleanedTitle.toLowerCase() !== 'whatsapp' && cleanedTitle.toLowerCase() !== 'telegram') {
+      if (cleanedTitle && cleanedTitle.toLowerCase() !== 'whatsapp' && cleanedTitle.toLowerCase() !== 'telegram' && cleanedTitle.toLowerCase() !== 'discord') {
         latestChatTitle = cleanedTitle;
       }
     }

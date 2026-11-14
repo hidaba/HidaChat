@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Text
 Imports System.Data
 Imports System.Linq
@@ -131,20 +131,17 @@ Public Class ExcelContactService
     End Function
 
     ''' <summary>
-    ''' Legge un file CSV supportando vari separatori (, ; \t) e gestione dei doppi apici.
+    ''' Legge un file CSV supportando vari separatori (, ; \t), gestione campi tra virgolette multilinea (RFC 4180) e quote escaping.
     ''' </summary>
-    Private Shared Function LoadContactsFromCsv(filePath As String) As List(Of BulkContactItem)
+    Public Shared Function LoadContactsFromCsv(filePath As String) As List(Of BulkContactItem)
         Dim items As New List(Of BulkContactItem)()
-        Dim lines = File.ReadAllLines(filePath, Encoding.UTF8)
-        If lines.Length = 0 Then Return items
+        If Not File.Exists(filePath) Then Return items
 
-        Dim delimiter = DetectCsvDelimiter(lines)
+        Dim csvContent = File.ReadAllText(filePath, Encoding.UTF8)
+        If String.IsNullOrWhiteSpace(csvContent) Then Return items
 
-        Dim parsedRows As New List(Of List(Of String))()
-        For Each line In lines
-            If String.IsNullOrWhiteSpace(line) Then Continue For
-            parsedRows.Add(ParseCsvLine(line, delimiter))
-        Next
+        Dim delimiter = DetectCsvDelimiter(csvContent)
+        Dim parsedRows = ParseCsvRecords(csvContent, delimiter)
 
         If parsedRows.Count = 0 Then Return items
 
@@ -221,49 +218,121 @@ Public Class ExcelContactService
         Return items
     End Function
 
-    Private Shared Function DetectCsvDelimiter(lines As String()) As Char
-        Dim sample = lines.Take(5).ToArray()
+    ''' <summary>
+    ''' Rileva il delimitatore CSV (, ; \t) analizzando i caratteri al di fuori dei campi quotati (RFC 4180).
+    ''' Ignora virgole, punti e virgola o tabulazioni racchiusi tra doppi apici (TODO #84).
+    ''' </summary>
+    Public Shared Function DetectCsvDelimiter(csvContent As String) As Char
+        If String.IsNullOrEmpty(csvContent) Then Return ","c
+
         Dim commaCount = 0
         Dim semiCount = 0
         Dim tabCount = 0
+        Dim inQuotes = False
+        Dim lineCount = 0
+        Dim maxLinesToSample = 10
+        Dim maxCharsToSample = Math.Min(csvContent.Length, 8192)
 
-        For Each l In sample
-            commaCount += l.Count(Function(c) c = ","c)
-            semiCount += l.Count(Function(c) c = ";"c)
-            tabCount += l.Count(Function(c) c = vbTab)
-        Next
+        Dim i = 0
+        While i < maxCharsToSample
+            Dim c = csvContent(i)
+            If c = """"c Then
+                If inQuotes AndAlso i + 1 < maxCharsToSample AndAlso csvContent(i + 1) = """"c Then
+                    i += 1
+                Else
+                    inQuotes = Not inQuotes
+                End If
+            ElseIf Not inQuotes Then
+                If c = ","c Then
+                    commaCount += 1
+                ElseIf c = ";"c Then
+                    semiCount += 1
+                ElseIf c = ControlChars.Tab Then
+                    tabCount += 1
+                ElseIf c = ControlChars.Lf Then
+                    lineCount += 1
+                    If lineCount >= maxLinesToSample Then Exit While
+                End If
+            End If
+            i += 1
+        End While
 
         If semiCount > commaCount AndAlso semiCount > tabCount Then Return ";"c
-        If tabCount > commaCount AndAlso tabCount > semiCount Then Return vbTab
+        If tabCount > commaCount AndAlso tabCount > semiCount Then Return ControlChars.Tab
         Return ","c
     End Function
 
-    Private Shared Function ParseCsvLine(line As String, delimiter As Char) As List(Of String)
-        Dim fields As New List(Of String)()
-        Dim sb As New StringBuilder()
+    ''' <summary>
+    ''' Overload per array di righe testuali.
+    ''' </summary>
+    Public Shared Function DetectCsvDelimiter(lines As String()) As Char
+        If lines Is Nothing OrElse lines.Length = 0 Then Return ","c
+        Return DetectCsvDelimiter(String.Join(vbLf, lines))
+    End Function
+
+    ''' <summary>
+    ''' Analizza l'intero contenuto CSV in record conformi allo standard RFC 4180.
+    ''' Mantiene i ritorni a capo all'interno di campi racchiusi tra virgolette, gestisce l'escape delle virgolette doppie ("")
+    ''' e separa correttamente le righe senza rompere i messaggi multilinea (TODO #84).
+    ''' </summary>
+    Public Shared Function ParseCsvRecords(csvContent As String, delimiter As Char) As List(Of List(Of String))
+        Dim records As New List(Of List(Of String))()
+        If String.IsNullOrWhiteSpace(csvContent) Then Return records
+
+        Dim currentRecord As New List(Of String)()
+        Dim currentField As New StringBuilder()
         Dim inQuotes = False
         Dim i = 0
+        Dim len = csvContent.Length
 
-        While i < line.Length
-            Dim c = line(i)
+        While i < len
+            Dim c = csvContent(i)
+
             If c = """"c Then
-                If inQuotes AndAlso i + 1 < line.Length AndAlso line(i + 1) = """"c Then
-                    sb.Append(""""c)
+                If inQuotes AndAlso i + 1 < len AndAlso csvContent(i + 1) = """"c Then
+                    currentField.Append(""""c)
                     i += 1
                 Else
                     inQuotes = Not inQuotes
                 End If
             ElseIf c = delimiter AndAlso Not inQuotes Then
-                fields.Add(sb.ToString().Trim())
-                sb.Clear()
+                currentRecord.Add(currentField.ToString().Trim())
+                currentField.Clear()
+            ElseIf (c = ControlChars.Cr OrElse c = ControlChars.Lf) AndAlso Not inQuotes Then
+                If c = ControlChars.Cr AndAlso i + 1 < len AndAlso csvContent(i + 1) = ControlChars.Lf Then
+                    i += 1
+                End If
+                currentRecord.Add(currentField.ToString().Trim())
+                currentField.Clear()
+
+                If currentRecord.Count > 1 OrElse (currentRecord.Count = 1 AndAlso Not String.IsNullOrWhiteSpace(currentRecord(0))) Then
+                    records.Add(currentRecord)
+                End If
+                currentRecord = New List(Of String)()
             Else
-                sb.Append(c)
+                currentField.Append(c)
             End If
+
             i += 1
         End While
 
-        fields.Add(sb.ToString().Trim())
-        Return fields
+        If currentField.Length > 0 OrElse currentRecord.Count > 0 Then
+            currentRecord.Add(currentField.ToString().Trim())
+            If currentRecord.Count > 1 OrElse (currentRecord.Count = 1 AndAlso Not String.IsNullOrWhiteSpace(currentRecord(0))) Then
+                records.Add(currentRecord)
+            End If
+        End If
+
+        Return records
+    End Function
+
+    ''' <summary>
+    ''' Analizza una singola riga CSV (mantenuto per retrocompatibilitÃ ).
+    ''' </summary>
+    Public Shared Function ParseCsvLine(line As String, delimiter As Char) As List(Of String)
+        Dim res = ParseCsvRecords(line, delimiter)
+        If res.Count > 0 Then Return res(0)
+        Return New List(Of String)()
     End Function
 
     Private Shared Function FormatCellValue(cellValue As Object) As String

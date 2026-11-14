@@ -282,4 +282,163 @@ Public Module BulkSenderPolicy
         Return res
     End Function
 
+
+    ''' <summary>
+    ''' Rileva il delimitatore CSV (, ; \t) analizzando i caratteri al di fuori dei campi quotati (RFC 4180).
+    ''' Ignora virgole, punti e virgola o tabulazioni racchiusi tra doppi apici (TODO #84).
+    ''' </summary>
+    Public Function DetectCsvDelimiter(csvContent As String) As Char
+        If String.IsNullOrEmpty(csvContent) Then Return ","c
+
+        Dim commaCount = 0
+        Dim semiCount = 0
+        Dim tabCount = 0
+        Dim inQuotes = False
+        Dim lineCount = 0
+        Dim maxLinesToSample = 10
+        Dim maxCharsToSample = Math.Min(csvContent.Length, 8192)
+
+        Dim i = 0
+        While i < maxCharsToSample
+            Dim c = csvContent(i)
+            If c = """"c Then
+                If inQuotes AndAlso i + 1 < maxCharsToSample AndAlso csvContent(i + 1) = """"c Then
+                    i += 1
+                Else
+                    inQuotes = Not inQuotes
+                End If
+            ElseIf Not inQuotes Then
+                If c = ","c Then
+                    commaCount += 1
+                ElseIf c = ";"c Then
+                    semiCount += 1
+                ElseIf c = ControlChars.Tab Then
+                    tabCount += 1
+                ElseIf c = ControlChars.Lf Then
+                    lineCount += 1
+                    If lineCount >= maxLinesToSample Then Exit While
+                End If
+            End If
+            i += 1
+        End While
+
+        If semiCount > commaCount AndAlso semiCount > tabCount Then Return ";"c
+        If tabCount > commaCount AndAlso tabCount > semiCount Then Return ControlChars.Tab
+        Return ","c
+    End Function
+
+    ''' <summary>
+    ''' Analizza l'intero contenuto CSV in record conformi allo standard RFC 4180.
+    ''' Mantiene i ritorni a capo all'interno di campi racchiusi tra virgolette, gestisce l'escape delle virgolette doppie ("")
+    ''' e separa correttamente le righe senza rompere i messaggi multilinea (TODO #84).
+    ''' </summary>
+    Public Function ParseCsvRecords(csvContent As String, delimiter As Char) As List(Of List(Of String))
+        Dim records As New List(Of List(Of String))()
+        If String.IsNullOrWhiteSpace(csvContent) Then Return records
+
+        Dim currentRecord As New List(Of String)()
+        Dim currentField As New System.Text.StringBuilder()
+        Dim inQuotes = False
+        Dim i = 0
+        Dim len = csvContent.Length
+
+        While i < len
+            Dim c = csvContent(i)
+
+            If c = """"c Then
+                If inQuotes AndAlso i + 1 < len AndAlso csvContent(i + 1) = """"c Then
+                    currentField.Append(""""c)
+                    i += 1
+                Else
+                    inQuotes = Not inQuotes
+                End If
+            ElseIf c = delimiter AndAlso Not inQuotes Then
+                currentRecord.Add(currentField.ToString().Trim())
+                currentField.Clear()
+            ElseIf (c = ControlChars.Cr OrElse c = ControlChars.Lf) AndAlso Not inQuotes Then
+                If c = ControlChars.Cr AndAlso i + 1 < len AndAlso csvContent(i + 1) = ControlChars.Lf Then
+                    i += 1
+                End If
+                currentRecord.Add(currentField.ToString().Trim())
+                currentField.Clear()
+
+                If currentRecord.Count > 1 OrElse (currentRecord.Count = 1 AndAlso Not String.IsNullOrWhiteSpace(currentRecord(0))) Then
+                    records.Add(currentRecord)
+                End If
+                currentRecord = New List(Of String)()
+            Else
+                currentField.Append(c)
+            End If
+
+            i += 1
+        End While
+
+        If currentField.Length > 0 OrElse currentRecord.Count > 0 Then
+            currentRecord.Add(currentField.ToString().Trim())
+            If currentRecord.Count > 1 OrElse (currentRecord.Count = 1 AndAlso Not String.IsNullOrWhiteSpace(currentRecord(0))) Then
+                records.Add(currentRecord)
+            End If
+        End If
+
+        Return records
+    End Function
+    ''' <summary>
+    ''' Verifica se la piattaforma specificata supporta lo strumento di invio massivo.
+    ''' </summary>
+    Public Function IsPlatformSupported(platformDef As PlatformDefinition) As Boolean
+        If platformDef Is Nothing Then Return False
+        Return platformDef.SupportsBulkSender
+    End Function
+
 End Module
+
+''' <summary>
+''' Esito finale dell'invio massivo (TODO #80).
+''' </summary>
+Public Enum BulkSenderOutcome
+    Running
+    Stopping
+    Completed
+    Cancelled
+    Failed
+End Enum
+
+''' <summary>
+''' Coordinatore thread-safe della concorrenza e degli stati di esecuzione dell'invio massivo (TODO #80).
+''' </summary>
+Public Class BulkSenderExecutionCoordinator
+    Private ReadOnly _syncLock As New Object()
+
+    Public Property IsRunning As Boolean = False
+    Public Property IsStopping As Boolean = False
+
+    Public Function TryBeginExecution() As Boolean
+        SyncLock _syncLock
+            If IsRunning OrElse IsStopping Then Return False
+            IsRunning = True
+            IsStopping = False
+            Return True
+        End SyncLock
+    End Function
+
+    Public Sub BeginStop()
+        SyncLock _syncLock
+            If IsRunning Then
+                IsStopping = True
+            End If
+        End SyncLock
+    End Sub
+
+    Public Sub EndExecution()
+        SyncLock _syncLock
+            IsRunning = False
+            IsStopping = False
+        End SyncLock
+    End Sub
+
+    Public Function DetermineOutcome(sentCount As Integer, errorCount As Integer, total As Integer, wasCancelled As Boolean, errorOccurred As Boolean) As BulkSenderOutcome
+        If wasCancelled Then Return BulkSenderOutcome.Cancelled
+        If errorOccurred Then Return BulkSenderOutcome.Failed
+        Return BulkSenderOutcome.Completed
+    End Function
+End Class

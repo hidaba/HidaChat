@@ -154,14 +154,17 @@ Friend NotInheritable Class ColdProfileCopy
             If Directory.Exists(previous) Then
                 RejectReparsePoint(previous)
                 trash = target & ".trash-" & Guid.NewGuid().ToString("N")
-                Directory.Move(previous, trash)
+                SafeMoveDirectory(previous, trash)
             End If
-            If Directory.Exists(target) Then Directory.Move(target, previous)
+            If Directory.Exists(target) Then SafeMoveDirectory(target, previous)
             Try
-                Directory.Move(incoming, target)
+                SafeMoveDirectory(incoming, target)
             Catch
                 If Not Directory.Exists(target) AndAlso Directory.Exists(previous) Then
-                    Directory.Move(previous, target)
+                    Try
+                        SafeMoveDirectory(previous, target)
+                    Catch
+                    End Try
                 End If
                 Throw
             End Try
@@ -194,6 +197,22 @@ Friend NotInheritable Class ColdProfileCopy
             End If
         End Try
     End Function
+
+    Private Shared Sub SafeMoveDirectory(sourceDir As String, destDir As String, Optional maxRetries As Integer = 3)
+        Dim lastEx As Exception = Nothing
+        For attempt As Integer = 1 To maxRetries
+            Try
+                Directory.Move(sourceDir, destDir)
+                Return
+            Catch ex As Exception
+                lastEx = ex
+                If attempt < maxRetries Then
+                    Threading.Thread.Sleep(150 * attempt)
+                End If
+            End Try
+        Next
+        If lastEx IsNot Nothing Then Throw lastEx
+    End Sub
 
     Private Shared Sub CopyTree(source As String, target As String, relative As String)
         Dim directoriesToCreate As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)

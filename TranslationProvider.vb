@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Collections.Generic
 Imports System.Diagnostics
 Imports System.Net.Http
@@ -204,20 +204,33 @@ Imports System.Threading.Tasks
             Return TranslationBatchResult.Succeeded(results)
         End Function
 
+        ''' <summary>
+        ''' Rileva se uno dei testi da tradurre contiene la stringa separatrice (TODO #85).
+        ''' </summary>
+        Public Shared Function HasSeparatorCollision(texts As IEnumerable(Of String), separator As String) As Boolean
+            If texts Is Nothing OrElse String.IsNullOrEmpty(separator) Then Return False
+            Dim trimmedSep = separator.Trim()
+            Return texts.Any(Function(t) t IsNot Nothing AndAlso t.Contains(trimmedSep))
+        End Function
+
         Private Async Function TranslateBatchChunkAsync(batchTexts As List(Of String), batchIndices As List(Of Integer), allResults As List(Of String), targetLang As String, separator As String, cancellationToken As CancellationToken) As Task
-            Dim combined = String.Join(separator, batchTexts)
-            Dim res = Await TranslateSingleAsync(combined, targetLang, cancellationToken)
-            If res.Success AndAlso Not String.IsNullOrEmpty(res.TranslatedText) Then
-                Dim parts = res.TranslatedText.Split(New String() {separator, vbLf & " ###" & vbLf, vbLf & "### " & vbLf, "###"}, StringSplitOptions.None)
-                If parts.Length = batchTexts.Count Then
-                    For j As Integer = 0 To batchIndices.Count - 1
-                        allResults(batchIndices(j)) = parts(j).Trim()
-                    Next
-                    Return
+            ' Controllo collisione separatore: se anche un solo testo contiene "###", non unire con ### per evitare sfasamento degli indici (TODO #85)
+            Dim hasCollision = HasSeparatorCollision(batchTexts, separator)
+            If Not hasCollision Then
+                Dim combined = String.Join(separator, batchTexts)
+                Dim res = Await TranslateSingleAsync(combined, targetLang, cancellationToken)
+                If res.Success AndAlso Not String.IsNullOrEmpty(res.TranslatedText) Then
+                    Dim parts = res.TranslatedText.Split(New String() {separator, vbLf & " ###" & vbLf, vbLf & "### " & vbLf, "###"}, StringSplitOptions.None)
+                    If parts.Length = batchTexts.Count Then
+                        For j As Integer = 0 To batchIndices.Count - 1
+                            allResults(batchIndices(j)) = parts(j).Trim()
+                        Next
+                        Return
+                    End If
                 End If
             End If
 
-            ' Fallback sicuro: se lo split non corrisponde o fallisce, traduce i singoli elementi del chunk
+            ' Fallback sicuro: se vi Ã¨ collisione, split fallito o incongruente nel numero di parti, traduce i singoli elementi del chunk
             For j As Integer = 0 To batchIndices.Count - 1
                 Dim singleRes = Await TranslateSingleAsync(batchTexts(j), targetLang, cancellationToken)
                 allResults(batchIndices(j)) = If(singleRes.Success, singleRes.TranslatedText, batchTexts(j))

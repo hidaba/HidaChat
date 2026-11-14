@@ -77,6 +77,13 @@ Public Class AppAccounts
     End Property
 
     <JsonIgnore>
+    Public ReadOnly Property IsDiscord As Boolean
+        Get
+            Return _platformType = ChatPlatform.Discord
+        End Get
+    End Property
+
+    <JsonIgnore>
     Public ReadOnly Property IsWhatsApp As Boolean
         Get
             Return _platformType = ChatPlatform.WhatsApp
@@ -1062,8 +1069,13 @@ Public Class AppAccounts
             Dim conflict = NetworkProfileSync.AcquireSessionLock(Id)
             If Not String.IsNullOrEmpty(conflict) Then Throw New IOException(conflict)
             profileDir = NetworkProfileSync.GetLocalStagingProfileDir(Id)
-            If Not Await NetworkProfileSync.SyncMasterToLocalStagingAsync(Id) Then
-                Throw New IOException("Profile import failed. Existing data were not reset; initialization stopped.")
+            Dim importOk = Await NetworkProfileSync.SyncMasterToLocalStagingAsync(Id)
+            If Not importOk Then
+                If ColdProfileCopy.HasData(profileDir) Then
+                    AppLogger.LogApp($"[STAGING_FALLBACK] account={Id}; network import failed but valid local staging exists; proceeding.")
+                Else
+                    Throw New IOException("Profile import failed. Existing data were not reset; initialization stopped.")
+                End If
             End If
         End If
         ThrowIfSetupStopped()
@@ -1169,7 +1181,7 @@ Public Class AppAccounts
                             ThrowIfSetupStopped()
                         End If
                     End If
-                    For Each origin In {"https://web.whatsapp.com", "https://web.telegram.org"}
+                    For Each origin In {"https://web.whatsapp.com", "https://web.telegram.org", "https://discord.com"}
                         Await WebView.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.PersistentStorage, origin, CoreWebView2PermissionState.Allow)
                         ThrowIfSetupStopped()
                     Next
@@ -1622,6 +1634,7 @@ Public Class AppAccounts
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformDefinition)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsWhatsApp)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsTelegram)))
+            RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsDiscord)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsOpenClaw)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(IsHermes)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(OpenClawSettingsVisibility)))

@@ -1,5 +1,70 @@
-﻿# Changelog
+# Changelog
 
+## [1.4.3-beta] - 2026-11-12
+
+### Pre-release / Beta — Resilienza sincronizzazione profili di rete e cambio account senza interruzioni
+- **Resilienza e Fallback Staging Locale nel Cambio Account (`AppAccounts.vb`, `NetworkProfileSync.vb`, `ColdProfileCopy.vb`)**:
+  - Risolto il blocco critico e la comparsa della finestra di dialogo di errore (`Profile import failed. Existing data were not reset; initialization stopped.`) durante il cambio scheda tra Telegram e WhatsApp (o altri account) quando l'applicazione è in esecuzione su percorsi di rete o drive mappati.
+  - Implementato il fallback automatico trasparente allo staging locale: se il rinfresco da Master sulla share di rete fallisce (ad esempio a causa di file aperti o lock temporanei mantenuti dal runtime Chromium o dal processo browser attivo), HidaChat verifica la presenza dei dati di sessione locali validi (`ColdProfileCopy.HasData`) e prosegue l'inizializzazione senza sollevare eccezioni né interrompere l'esperienza utente.
+  - In `ColdProfileCopy.Publish`, introdotto il meccanismo `SafeMoveDirectory` con tentativi multipli e backoff progressivo per superare i blocchi temporanei di file e cartelle durante le rotazioni atomiche dei profili.
+- **Correzione Sovrascrittura Metadati `.sync_state.json` su Condivisioni SMB / Linux (`NetworkProfileSync.vb`, `Tests/SessionTests.vb`)**:
+  - Risolto il bug di mancato aggiornamento dello stato di sincronizzazione: su condivisioni di rete gestite da Samba o Linux, i file che iniziano per punto ereditano automaticamente l'attributo `Hidden`, impedendo a `File.WriteAllText` di aggiornare il file con errore di accesso negato (`UnauthorizedAccessException`). `WriteSyncState` ora rimuove preventivamente gli attributi `Hidden` e `ReadOnly` prima della riscrittura.
+  - Perfezionata la logica di `ShouldRefreshStagingFromMaster`: se i metadati indicano che lo staging locale possiede una sessione più recente o identica a quella su rete (`ExportedUtc`), il confronto ritorna immediatamente `False` senza ricadere nel controllo differenziale file-by-file che poteva innescare falsi positivi sui timestamp SMB.
+- **Localizzazione Multilingua Notifiche Errore (`MainWindow.xaml.vb`, `Localization.vb`)**:
+  - Sostituite le stringhe hardcoded nei messaggi di errore durante il cambio account con le chiavi localizzate `account_switch_error` e `dialog_title_error`, sincronizzate in tutte le 5 lingue ufficiali supportate (Inglese, Italiano, Francese, Spagnolo, Tedesco).
+- **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**:
+  - Aggiunte nuove asserzioni unitarie di regressione per la verifica del confronto `ShouldRefreshStagingFromMaster` con staging più recente e per la riscrittura resiliente di `.sync_state.json` con attributi nascosti (totale **634 asserzioni con 0 errori**).
+
+
+## [1.4.2-beta] - 2026-11-06
+
+### Pre-release / Beta — Integrazione ufficiale Discord Web con isolamento profili e notifiche native
+- **Supporto Piattaforma Discord Web (`PlatformDefinition.vb`, `AppAccounts.vb`)**:
+  - Aggiunta la piattaforma `Discord` all'enumerazione `ChatPlatform` e implementata la classe `DiscordPlatformDefinition` registrata in `PlatformRegistry`.
+  - Configurato l'URL iniziale ufficiale `https://discord.com/app`, colore tema caratteristico `#5865F2` (Discord Blurple) e icona vettoriale SVG standard Clyde.
+  - Politica di autorizzazione rigorosa delle origini del bridge IPC (`IsAuthorizedOrigin`): autorizzata esclusivamente l'origine HTTPS `https://discord.com` sulla porta 443 standard, con rifiuto esplicito di schemi insicuri HTTP, porte non standard, credenziali userinfo, sottodomini CDN (`cdn.discordapp.com`) e tentativi di spoofing del dominio.
+  - Risoluzione intelligente di deep-link e inviti (`ResolveDeepLink`): gestione trasparente degli inviti ufficiali `discord.gg/<codice>` e `discordapp.com` convertiti su `https://discord.com/invite/<codice>`, e normalizzazione dello schema `discord://` verso le rotte interne dell'applicazione.
+  - Politica di navigazione finestre (`IsAllowedNewWindowHost`): i link interni ai canali e inviti Discord rimangono all'interno della scheda WebView2, mentre tutti i link esterni cliccati nelle chat vengono aperti in sicurezza nel browser di sistema predefinito.
+- **Isolamento Profili, Sessioni Persistenti e Storage (`SessionRecoveryPolicy.vb`, `AppAccounts.vb`)**:
+  - Inclusa l'origine `https://discord.com` tra le origini attendibili per lo storage persistente (`PersistentStorage`) in `SessionRecoveryPolicy.IsTrustedStorageOrigin`, proteggendo database IndexedDB e sessione Chromium contro l'eliminazione da quote disco.
+  - Profili WebView2 separati e isolati in cartelle univoche basate sull'identificativo interno dell'account, consentendo sessioni contemporanee indipendenti per più account Discord senza conflitti o sovrascritture.
+  - Persistenza garantita durante la rinomina, riavvio e passaggio tra schede.
+- **Integrazione Desktop Notifiche Windows e Rilevamento Unread (`Scripts/notification.js`, `AppAccounts.vb`, `MainWindow.xaml.vb`)**:
+  - In `notification.js`, introdotto lo scanner DOM dedicato `scanDiscordUnread` per il rilevamento istantaneo di menzioni e messaggi non letti (badge numerici di menzione e indicatori pillola non letti).
+  - Intercettazione di `window.Notification` e `ServiceWorkerRegistration.showNotification` con soppressione preventiva dei popup duplicati Chromium e instradamento tramite Windows Toast nativi con argomenti sicuri di selezione account (`accountId`).
+  - Il click sulla notifica toast ripristina la finestra, seleziona immediatamente l'account Discord di destinazione e invoca il callback `window.onNotificationClicked(id)` per aprire direttamente la conversazione.
+- **Interfaccia Utente e Localizzazione Multilingua (`MainWindow.xaml.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`)**:
+  - Aggiunta la voce "Aggiungi account Discord" nel menu contestuale del pulsante `+` della barra schede principale e nella finestra Impostazioni.
+  - Aggiunta la voce `Discord` nel selettore a tendina delle piattaforme in Impostazioni account.
+  - Aggiornati contestualmente tutti i 5 dizionari linguistici supportati (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) in `Localization.vb`.
+- **Protezione Invio Massivo (Bulk Sender)**:
+  - Capacità `SupportsBulkSender` impostata rigidamente su `False` per Discord sia a livello di metadati piattaforma che nel motore applicativo `BulkSenderEngine` e `BulkSenderWindow`, impedendo qualsiasi tentativo di invio automatico o massivo.
+- **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**:
+  - Aggiunte nuove asserzioni unitarie di regressione a copertura di: conformità enum e registro Discord, convalida e rifiuto origini autorizzate, risoluzione deep-link/inviti Discord, gestione finestre NewWindow, permessi di storage persistente e blocco del Bulk Sender.
+- **Sincronizzazione Multi-PC Intelligente dei Profili su Condivisioni di Rete (`NetworkProfileSync.vb`, `Tests/SessionTests.vb` — TODO #109)**:
+  - Risolto il problema critico di mancato aggiornamento dello staging locale su macchine secondarie: in precedenza, se una macchina host possedeva già una cartella di staging `%LOCALAPPDATA%\HidaChat\NetworkProfiles` da sessioni precedenti, `SyncMasterToLocalStagingAsync` rifiutava a priori il refresh (`[LOCAL_PROFILE_PRESERVED]`), ignorando le sessioni più recenti salvate su Master da un altro computer ed esponendo schermate di login/disconnessione o QR code.
+  - Introdotto il tracciamento dei metadati di sincronizzazione (`.sync_state.json`) con timestamp UTC di esportazione, macchina e utente.
+  - Implementato `ShouldRefreshStagingFromMaster(master, staging)`: confronta i metadati di sincronizzazione e i timestamp differenziali dei file tra Master e staging locale. Quando il Master sulla share di rete contiene una sessione esportata più di recente rispetto allo staging locale, HidaChat effettua un rinfresco a freddo atomico (`PublishAsync`), garantendo che il cambio di PC su unità portatile/rete conservi l'accesso e la sessione attiva per tutti gli account configurati.
+  - Suite di test estesa a **632 asserzioni automatiche con 0 errori**.
+
+## [1.4.1-beta] - 2026-11-04
+
+### Pre-release / Beta — Invio massivo robusto con arresto concorrente, parser CSV RFC 4180 e traduzione batch sicura
+- **Rimozione Forzatura Smarcamento Canale Beta (`SettingsController.vb`, `SettingsMigration.vb`, `Tests/SessionTests.vb`)**:
+  - Rimossa definitivamente la forzatura automatica che impostava `useBetaChannel = False` all'avvio. La scelta dell'utente per il canale beta viene rispettata e preservata senza reset o sovrascritture in `settings.json`.
+- **Controllo Concorrenza e Annullamento Asincrono Invio Massivo (`BulkSenderEngine.vb`, `BulkSenderWindow.xaml.vb`, `BulkSenderPolicy.vb` — TODO #80)**:
+  - Introdotto lo stato "Arresto in corso..." (`IsStopping`) e il metodo asincrono `CancelAsync()`, che attende la reale conclusione delle operazioni asincrone in corso prima di riabilitare i controlli dell'interfaccia utente.
+  - Implementato `BulkSenderExecutionCoordinator` e blocco di concorrenza a livello di motore che impedisce tassativamente esecuzioni concorrenti sovrapposte sulla stessa WebView (`InvalidOperationException`).
+  - Separati gli esiti dell'invio in stati espliciti (`IsCompleted`, `IsCancelled`, `IsFailed`) nel report di progresso `BulkSenderProgress`: l'annullamento non forza più la barra al 100% né visualizza il riepilogo "Completato", preservando i conteggi effettivi di messaggi inviati, falliti e rimanenti.
+- **Parser CSV Multilinea Conforme a RFC 4180 e Rilevamento Intelligente Delimitatore (`BulkSenderPolicy.vb`, `ExcelContactService.vb` — TODO #84)**:
+  - Implementato il parser `ParseCsvRecords` conforme a RFC 4180 che mantiene intatti i campi multilinea racchiusi tra doppi apici e gestisce correttamente l'escape delle virgolette doppie (`""`), evitando la frammentazione dei messaggi con ritorni a capo in contatti fantasma.
+  - Il rilevamento automatico del delimitatore (`DetectCsvDelimiter`) analizza i separatori (`,`, `;`, `\t`) esclusivamente al di fuori dei campi quotati, impedendo che punteggiatura o punti e virgola interni ai messaggi falsino il delimitatore effettivo del file.
+- **Prevenzione Collisione e Disallineamento Traduzioni Batch (`TranslationProvider.vb`, `Localization.vb` — TODO #85)**:
+  - Introdotto il controllo di collisione `HasSeparatorCollision` in `GoogleTranslationProvider`: se una frase contiene il delimitatore `###`, il testo non viene unito in blocco ma tradotto atomicamente 1-a-1 per evitare lo sfasamento degli indici.
+  - In `Localization.TranslateBatchDetailedAsync`, verificata la corrispondenza esatta tra numero di traduzioni restituite e testi richiesti: in caso di incongruenza o fallimento, il sistema ripiega sulla traduzione individuale senza contaminare la cache con associazioni errate.
+  - Localizzazione sincronizzata in tutte le 5 lingue supportate (EN, IT, FR, ES, DE) con nuove chiavi UI per gli stati di arresto e annullamento (`bulk_status_stopping`, `bulk_status_cancelled`, `bulk_title_cancelled`, `bulk_status_completed`, `bulk_status_failed`).
+- **Suite di Test Automatizzati Estesa (`Tests/SessionTests.vb`)**:
+  - Aggiunte 21 nuove asserzioni unitarie di regressione a copertura del coordinatore di concorrenza, dell'arresto asincrono, del parser CSV multilinea RFC 4180 e del controllo collisioni traduzione (totale **593 asserzioni automatiche con 0 errori**).
 ## [1.4.0] - 2026-11-03
 
 ### Release Stabile — Ottimizzazione radicale dello spazio su disco e accelerazione della sincronizzazione su rete

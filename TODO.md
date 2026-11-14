@@ -1096,6 +1096,85 @@
 - **Test di accettazione**: Verificare la chiusura ultra-rapida su unità di rete `Y:` con sincronizzazione immediata dei profili modificati, 0 I/O per account non modificati e log compatti senza latenze residue.
 - **Priorità**: P1 (Gravità alta) | **Impatto**: Altissimo | **Sforzo**: Basso
 
+## 109. [P2] Notifiche popup in-app (MessagePopup): logo chat/piattaforma, nome mittente e anteprima messaggio
+- **File**: `MessagePopup.xaml`, `MessagePopup.xaml.vb`, `AppAccounts.vb`, `Scripts/notification.js`
+- **Problema / Esigenza**: Quando si riceve un nuovo messaggio, la notifica popup grafica in-app (`MessagePopup`) deve fornire informazioni complete e immediatamente distinguibili ad un colpo d'occhio:
+  1. **Logo della chat di appartenenza**: visualizzare il logo/icona del servizio/piattaforma di messaggistica a cui appartiene la chat (WhatsApp, Telegram, Discord, OpenClaw, Hermes) o l'icona/avatar della conversazione.
+  2. **Nome di chi scrive**: mostrare in evidenza il nome del contatto, utente o gruppo che ha inviato il messaggio.
+  3. **Messaggio**: mostrare chiaramente il corpo del testo o l'anteprima del messaggio ricevuto con corretta formattazione.
+- **Soluzione proposta / Fix da implementare**:
+  - Revisionare il layout di `MessagePopup.xaml` per posizionare in modo chiaro ed armonico il logo della piattaforma/chat di appartenenza accanto all'avatar del contatto.
+  - Assicurare in `AppAccounts.vb` e nello script `Scripts/notification.js` che all'evento di notifica vengano estratti e passati al costruttore di `MessagePopup` tutti i metadati necessari (mittente, testo effettivo del messaggio e indicatore della chat di provenienza).
+  - Verificare leggibilità del testo e troncamento corretto con ellissi in caso di messaggi lunghi.
+- **Test di accettazione**: Alla ricezione di un nuovo messaggio su qualsiasi account configurato (WhatsApp, Telegram, ecc.), verificare che il popup toast mostri il logo distintivo della chat/piattaforma, il nome del mittente e l'anteprima del testo del messaggio.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso
+
+## 110. [P2] Correzione contrasto e colori menu a tendina "Fornitore di Traduzioni" in SettingsWindow
+- **File**: `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`
+- **Problema / Esigenza**: Nella schermata delle Impostazioni (`SettingsWindow`), il menu a tendina per la selezione del Fornitore di Traduzioni (`ComboTranslationProvider`) risulta illeggibile. A differenza degli altri menu a tendina (es. Tema, Lingua, Modalità DND, Numero Massimo Account, Correttore Ortografico, Timeout Ibernazione, Limite Cache Disco), `ComboTranslationProvider` non è gestito all'interno del metodo `ApplyTheme()`, causando contrasto errato tra testo e sfondo (es. testo chiaro su sfondo bianco in tema chiaro).
+- **Soluzione proposta / Fix da implementare**:
+  - Aggiornare `ApplyTheme()` in `SettingsWindow.xaml.vb` applicando a `ComboTranslationProvider.Background` e `ComboTranslationProvider.Foreground` la stessa logica coerente e gli stessi pennelli (`fgBrush`, sfondo scuro `#2a3942` o chiaro `#ffffff`) utilizzati per gli altri controlli `ComboBox`.
+  - Verificare che i `ComboBoxItem` interni (`CbiProviderGoogle`, `CbiProviderLibreTranslate`, `CbiProviderOllama`, `CbiProviderOpenAi`) ereditino correttamente lo stile o ricevano lo stile `CustomComboBoxStyle` con colori di testo e hover coerenti con il resto delle impostazioni.
+- **Test di accettazione**: Aprire la finestra Impostazioni sia con tema Scuro che con tema Chiaro; verificare che le voci del menu a tendina "Fornitore di Traduzioni" abbiano lo stesso colore di testo e la stessa piena leggibilità di tutti gli altri menu a tendina presenti.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
+
+## 111. [P2] Adattamento cromatico e leggibilità della schermata / sezione Tailscale
+- **File**: `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `TailscaleConnectionErrorDialog.xaml`, `TailscaleConnectionErrorDialog.xaml.vb`
+- **Problema / Esigenza**: La sezione integrata di Tailscale (`tsnet`) nelle Impostazioni e la finestra di dialogo modale di stato/errore connettività (`TailscaleConnectionErrorDialog`) presentano caratteri poco visibili e colorazioni scure fisse (`#202c33`, `#111b21`, `#8696a0`) che non si adattano al tema dell'applicazione. Di conseguenza, i testi esplicativi, le etichette di autenticazione e lo stato del nodo risultano difficili da leggere e visivamente disallineati rispetto al resto dell'interfaccia.
+- **Soluzione proposta / Fix da implementare**:
+  - In `SettingsWindow.xaml` e `SettingsWindow.xaml.vb`:
+    - Adattare dinamicamente il contenitore della sezione Tailscale nel metodo `ApplyTheme()` (sfondo, bordi, testi esplicativi ed etichetta AuthKey) utilizzando i colori standard dei blocchi impostazioni.
+    - Migliorare il contrasto del badge di stato (`BadgeTsnetStatus`, `TxtTsnetStatus`) e del campo `TxtTsnetAuthKey` affinché i caratteri siano nitidi sia in tema scuro che in tema chiaro.
+  - In `TailscaleConnectionErrorDialog.xaml` e `.vb`:
+    - Rivedere la palette cromatica (sfondo finestra, bordi, testi secondari `TxtHeader` e `TxtMessage`, pulsanti di azione) garantendo contrasto elevato conforme agli standard di accessibilità e piena coerenza stilistica con l'UI di HidaChat.
+- **Test di accettazione**: Verificare la sezione Tailscale nelle Impostazioni e aprire il dialog di stato/errore Tailscale con entrambi i temi (scuro e chiaro): accertarsi che tutti i testi e le etichette siano chiaramente visibili e leggibili con colorazioni armoniche e coerenti.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
+
+## 112. [P2] Contrasto e visibilità del titolo "HidaChat" nella finestra Informazioni (AboutWindow)
+- **File**: `AboutWindow.xaml`, `AboutWindow.xaml.vb`
+- **Problema / Esigenza**: Nella finestra Informazioni sull'applicazione (`AboutWindow`), il titolo principale "HidaChat" risulta poco visibile e con contrasto insufficiente. Nel layout XAML, l'elemento `<TextBlock Text="HidaChat" .../>` ha un colore fisso chiaro (`#ffffff` o grigio chiaro) e non dispone di un identificatore `x:Name` per essere aggiornato dinamicamente dal metodo `ApplyTheme()`, rendendolo scarsamente leggibile e non coerente quando viene applicato il tema dell'interfaccia.
+- **Soluzione proposta / Fix da implementare**:
+  - Assegnare un identificatore esplicito (es. `x:Name="TxtAppTitle"`) al `TextBlock` dell'intestazione in `AboutWindow.xaml`.
+  - In `AboutWindow.xaml.vb`, aggiornare il metodo `ApplyTheme()` per sincronizzare la proprietà `Foreground` del titolo sia per il tema Scuro (bianco brillante `#ffffff` o `#e9edef`) sia per il tema Chiaro (colore scuro ad alto contrasto `#111b21`), garantendo massima nitidezza e piena leggibilità.
+- **Test di accettazione**: Aprire la finestra Informazioni con entrambi i temi (scuro e chiaro): verificare che il titolo "HidaChat" sia ben marcato, nitido e perfettamente leggibile su qualsiasi sfondo.
+- **Priorità**: P2 (Gravità media) | **Impatto**: Basso-Medio | **Sforzo**: Basso
+
+## 113. [P3] Integrazione e supporto nativo per la chat Microsoft Teams (Teams Web)
+- **File**: `PlatformDefinition.vb`, `AppAccounts.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Scripts/notification.js`
+- **Problema / Esigenza**: Consentire agli utenti di aggiungere e gestire account per **Microsoft Teams** direttamente all'interno di HidaChat, affiancandolo a WhatsApp, Telegram e Discord per una gestione unificata della messaggistica di lavoro e collaborazione.
+- **Specifiche & Soluzione da implementare**:
+  - **Modello Piattaforma (`PlatformDefinition.vb`)**:
+    - Aggiungere il valore `Teams` (o `MicrosoftTeams`) all'enumerazione `ChatPlatform`.
+    - Creare la classe `TeamsPlatformDefinition` con URL predefinito (`https://teams.microsoft.com/v2/`), colore distintivo brand indigo/viola (`#505ac9` / `#6264a7`) e tracciato vettoriale SVG dell'icona Teams per tab, popup e indicatori.
+  - **Isolamento & Autenticazione (`AppAccounts.vb`)**:
+    - Profilo dedicato e isolato in `data/webview/` per preservare login Microsoft 365 / Entra ID e sessioni aziendali/personali senza contaminazione tra account.
+    - Gestione dei popup di autenticazione SSO (`NewWindowRequested`) per il corretto completamento dell'accesso Microsoft OAuth.
+  - **Notifiche & Badge non letti (`Scripts/notification.js`)**:
+    - Intercettazione del contatore messaggi e menzioni non lette (monitoraggio titolo pagina `(N) Teams` o selettori badge attività) e propagazione a Windows Toast e al popup in-app `MessagePopup`.
+  - **Interfaccia Utente (`SettingsWindow.xaml`)**:
+    - Aggiunta della voce "Microsoft Teams" nel menu a tendina di selezione piattaforma account.
+- **Test di accettazione**: Aggiungere un nuovo account impostando la piattaforma "Microsoft Teams", effettuare il login su Teams Web, inviare/ricevere messaggi e verificare la corretta comparsa dei badge di notifica e del popup con icona Teams.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Medio-Alto | **Sforzo**: Medio
+
+## 114. [P3] Integrazione e supporto nativo per la chat Facebook Messenger (Messenger Web)
+- **File**: `PlatformDefinition.vb`, `AppAccounts.vb`, `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Scripts/notification.js`
+- **Problema / Esigenza**: Aggiungere il supporto a **Facebook Messenger** (`https://www.messenger.com/`) come piattaforma di chat integrata in HidaChat, consentendo agli utenti di comunicare via Messenger in un'istanza WebView2 isolata e portatile.
+- **Specifiche & Soluzione da implementare**:
+  - **Modello Piattaforma (`PlatformDefinition.vb`)**:
+    - Aggiungere il valore `Messenger` all'enumerazione `ChatPlatform`.
+    - Creare la classe `MessengerPlatformDefinition` con URL predefinito `https://www.messenger.com/`, colore identificativo blu/gradient (`#0084ff` / `#00b2ff`) e icona SVG vettoriale ufficiale (nuvola con fulmine).
+  - **Isolamento & Autenticazione (`AppAccounts.vb`)**:
+    - Profilo WebView2 isolato al 100% per sessioni indipendenti da altri servizi Meta (es. WhatsApp Web).
+    - Gestione sicura dei cookie e salvataggio persistente in `data/webview/`.
+  - **Notifiche & Badge non letti (`Scripts/notification.js`)**:
+    - Rilevamento continuo dei messaggi non letti (osservatore su mutazioni titolo `(N) Messenger` o badge DOM) e bridging verso notifiche di sistema e toast personalizzati in-app.
+  - **Interfaccia Utente (`SettingsWindow.xaml`)**:
+    - Aggiunta di "Facebook Messenger" nell'elenco delle piattaforme selezionabili durante la creazione/modifica account.
+- **Test di accettazione**: Creare un account Messenger, accedere a `messenger.com`, verificare la ricezione di messaggi, l'incremento del badge non letti e la corretta visualizzazione di notifiche e avatar/logo della piattaforma.
+- **Priorità**: P3 (Gravità bassa) | **Impatto**: Medio-Alto | **Sforzo**: Medio
+
+
+
 
 
 
