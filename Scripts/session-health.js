@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   if (window.top !== window.self) return;
-  if (location.origin !== 'https://web.whatsapp.com' && location.origin !== 'https://web.telegram.org') return;
+  if (location.origin !== 'https://web.whatsapp.com' && location.origin !== 'https://web.telegram.org' && location.origin !== 'https://discord.com') return;
   if (window.__hidaSessionHealthInstalled) return;
   window.__hidaSessionHealthInstalled = true;
   const bridgeToken = $$BRIDGE_TOKEN$$;
@@ -17,6 +17,11 @@
   }
 
   function uiState() {
+    if (location.hostname === 'discord.com') {
+      if (document.querySelector('[data-list-id="guildsnav"], nav[aria-label], div[class*="guilds"]')) return 'chat-list-visible';
+      if (document.querySelector('input[name="email"], input[type="password"], [class*="qrCode"]')) return 'login-visible';
+      return 'unknown';
+    }
     if (location.hostname !== 'web.whatsapp.com') return 'not-whatsapp';
     // Presence-only hints; never read QR data, phone numbers, HTML, or chat content.
     if (document.querySelector('#pane-side, [data-testid="chat-list"]')) return 'chat-list-visible';

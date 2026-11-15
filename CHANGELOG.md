@@ -5,6 +5,27 @@
 
 ---
 
+## [1.4.5-beta] - 2026-11-15
+
+### Pre-release / Beta — Discord Hardening, Voice Call Hibernation Protection, and Notification Fixes
+- **Active Voice Call & Media Protection in Tab Hibernation (`AppAccounts.vb` — TASK-0115)**:
+  - Guarded `TryHibernateAsync()` with audio activity detection: checks both `IsPlayingAudio` and `CoreWebView2.IsDocumentPlayingAudio` to ensure background tabs in active voice channels, voice calls, or media playback are never suspended.
+- **Secure Media Permission Handling (`AppAccounts.vb` — TASK-0115)**:
+  - Extended `_permissionRequestedHandler` to explicitly handle `CoreWebView2PermissionKind.Microphone` and `CoreWebView2PermissionKind.Camera`. Grants media access strictly to authorized origins (`IsAuthorizedOrigin`) while denying untrusted or cross-origin requests.
+- **Discord Authentication & Navigation In-App Support (`PlatformDefinition.vb`, `Tests/SessionTests.vb` — TASK-0115)**:
+  - Expanded `IsAllowedNewWindowHost` for Discord to allow authentication and popout paths (`/login`, `/register`, `/verify`, `/oauth2/`, `/popout/`, `/guild-discovery`, `/store`), preventing in-app login and verification flows from being improperly kicked out to the external browser.
+  - Enhanced `ResolveDeepLink` for `discord://` protocol scheme to support `login`, `register`, and `oauth2` routes alongside channels and invites.
+- **JavaScript Security Hardening (`Scripts/notification.js`, `Scripts/translation.js` — TASK-0115)**:
+  - Replaced loose `.includes('discord')` and `.includes('telegram')` substring hostname matching with strict exact and subdomain-suffix checks (`host === 'discord.com' || host.endsWith('.discord.com')`), eliminating spoofing risks from malicious domains containing platform keywords.
+- **Discord Notification & Unread Badge Accuracy (`Scripts/notification.js` — TASK-0115)**:
+  - Resolved badge double-counting in `scanDiscordUnread()` by filtering out container elements containing matched child badges.
+  - Filtered out muted channels and servers from unread pill detection.
+  - Improved chat title extraction from window titles by stripping trailing ` - Discord` or ` | Discord` branding.
+- **Persistent Storage & Diagnostic Session Health for Discord (`Scripts/session-health.js` — TASK-0115)**:
+  - Added `https://discord.com` to authorized origins in `session-health.js` to ensure `navigator.storage.persist()` is called on Discord sessions, protecting IndexedDB from quota eviction.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`)**:
+  - Added new regression unit tests covering Discord NewWindow authentication paths, deep-link resolution, origin authorization security, and storage trust policies (totaling **653 automated regression assertions with 0 errors**).
+
 ## [1.4.4-beta] - 2026-11-14
 
 ### Pre-release / Beta — Resilient OTA Streaming Download and RAM Footprint Optimization

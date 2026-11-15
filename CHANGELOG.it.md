@@ -3,6 +3,27 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.4.5-beta] - 2026-11-15
+
+### Pre-release / Beta — Rafforzamento Discord, protezione chiamate vocali in ibernazione e correzione notifiche
+- **Protezione chiamate vocali e audio attivo nell'ibernazione delle schede (`AppAccounts.vb` — TASK-0115)**:
+  - Protetto `TryHibernateAsync()` con rilevamento attività audio: verifica sia `IsPlayingAudio` che `CoreWebView2.IsDocumentPlayingAudio` per assicurare che le schede in background con canali vocali attivi, chiamate o riproduzione audio non vengano mai sospese.
+- **Gestione sicura dei permessi multimediali (`AppAccounts.vb` — TASK-0115)**:
+  - Esteso `_permissionRequestedHandler` per gestire esplicitamente `CoreWebView2PermissionKind.Microphone` e `CoreWebView2PermissionKind.Camera`. Consente l'accesso multimediale rigorosamente alle origini autorizzate (`IsAuthorizedOrigin`), negando richieste da domini non attendibili o cross-origin.
+- **Supporto all'autenticazione e navigazione in-app per Discord (`PlatformDefinition.vb`, `Tests/SessionTests.vb` — TASK-0115)**:
+  - Esteso `IsAllowedNewWindowHost` per Discord per consentire percorsi di autenticazione e popout (`/login`, `/register`, `/verify`, `/oauth2/`, `/popout/`, `/guild-discovery`, `/store`), impedendo che i flussi di accesso e verifica vengano impropriamente deviati sul browser esterno.
+  - Migliorato `ResolveDeepLink` per lo schema di protocollo `discord://` supportando route `login`, `register` e `oauth2` oltre a canali e inviti.
+- **Rafforzamento della sicurezza JavaScript (`Scripts/notification.js`, `Scripts/translation.js` — TASK-0115)**:
+  - Sostituito il confronto permissivo con sottostringhe `.includes('discord')` e `.includes('telegram')` con controlli precisi su dominio esatto e suffissi di sottodominio (`host === 'discord.com' || host.endsWith('.discord.com')`), eliminando rischi di spoofing da domini malevoli contenenti parole chiave.
+- **Accuratezza notifiche e badge non letti per Discord (`Scripts/notification.js` — TASK-0115)**:
+  - Risolto il doppio conteggio dei badge in `scanDiscordUnread()` filtrando gli elementi contenitore che racchiudono badge figli già conteggiati.
+  - Esclusi canali e server silenziati dal rilevamento degli unread pill.
+  - Migliorata l'estrazione del titolo chat dai titoli finestra rimuovendo il branding finale ` - Discord` o ` | Discord`.
+- **Archiviazione persistente e diagnostica sessione per Discord (`Scripts/session-health.js` — TASK-0115)**:
+  - Aggiunto `https://discord.com` alle origini autorizzate in `session-health.js` per garantire l'invocazione di `navigator.storage.persist()` sulle sessioni Discord, proteggendo IndexedDB da rimozioni per quota disco.
+- **Estensione suite di test automatizzati (`Tests/SessionTests.vb`)**:
+  - Aggiunti nuovi test unitari di regressione su percorsi di autenticazione NewWindow per Discord, risoluzione deep-link, sicurezza autorizzazione origini e criteri di affidabilità storage (totale di **653 asserzioni di regressione con 0 errori**).
+
 ## [1.4.4-beta] - 2026-11-14
 
 ### Pre-release / Beta — Download in streaming resiliente per aggiornamenti OTA e ottimizzazione memoria RAM

@@ -36,7 +36,7 @@ Public Class AppAccounts
         End Set
     End Property
 
-    ''' <summary>Tipo di piattaforma ("WhatsApp", "Telegram", "OpenClaw" o "Hermes").</summary>
+    ''' <summary>Tipo di piattaforma ("WhatsApp", "Telegram", "Discord", "OpenClaw" o "Hermes").</summary>
     <JsonPropertyName("platform")>
     Public Property Platform As String
         Get
@@ -1137,7 +1137,7 @@ Public Class AppAccounts
             ' Salvataggio riferimenti handler per poterli rimuovere in Dispose()
             _permissionRequestedHandler = Sub(sender, e)
                 If e.PermissionKind = CoreWebView2PermissionKind.Notifications Then
-                    ' Blocca i permessi notifiche native del browser per evitare la comparsa di popup doppi dell'account
+                    ' Block native browser notification popups to avoid duplicate OS toasts
                     e.State = CoreWebView2PermissionState.Deny
                     e.Handled = True
                 ElseIf e.PermissionKind = CoreWebView2PermissionKind.PersistentStorage AndAlso
@@ -1145,6 +1145,23 @@ Public Class AppAccounts
                     e.State = CoreWebView2PermissionState.Allow
                     e.Handled = True
                     AppLogger.LogApp($"[PERSISTENT_STORAGE_ALLOWED] account={Id}")
+                ElseIf e.PermissionKind = CoreWebView2PermissionKind.Microphone OrElse
+                       e.PermissionKind = CoreWebView2PermissionKind.Camera Then
+                    ' Allow microphone/camera for voice channels and video calls strictly on authorized origins
+                    If IsAuthorizedOrigin(e.Uri) Then
+                        e.State = CoreWebView2PermissionState.Allow
+                        e.Handled = True
+                        AppLogger.LogApp($"[MEDIA_PERMISSION_ALLOWED] kind={e.PermissionKind}, account={Id}, uri={e.Uri}")
+                    Else
+                        e.State = CoreWebView2PermissionState.Deny
+                        e.Handled = True
+                        AppLogger.LogApp($"[MEDIA_PERMISSION_DENIED] kind={e.PermissionKind}, account={Id}, uri={e.Uri}")
+                    End If
+                ElseIf Not IsAuthorizedOrigin(e.Uri) Then
+                    ' Block any other privileged permissions from untrusted origins
+                    e.State = CoreWebView2PermissionState.Deny
+                    e.Handled = True
+                    AppLogger.LogApp($"[PERMISSION_DENIED_UNTRUSTED] kind={e.PermissionKind}, account={Id}, uri={e.Uri}")
                 End If
             End Sub
             AddHandler WebView.CoreWebView2.PermissionRequested, _permissionRequestedHandler
@@ -2275,6 +2292,8 @@ Public Class AppAccounts
     Public Async Function TryHibernateAsync() As Task(Of Boolean)
         If IsActive OrElse _isDisposed Then Return False
         If WebView?.CoreWebView2 Is Nothing Then Return False
+        ' Never suspend accounts with active voice calls or audio playback
+        If IsPlayingAudio OrElse WebView.CoreWebView2.IsDocumentPlayingAudio Then Return False
         If _isHibernated Then Return True
 
         Try

@@ -483,7 +483,9 @@
         '[aria-label*="menzion" i]',
         '[aria-label*="mention" i]'
       ];
-      const mentionEls = document.querySelectorAll(discordMentionSelectors.join(', '));
+      const rawEls = Array.from(document.querySelectorAll(discordMentionSelectors.join(', ')));
+      // Filter out containers that contain another matched badge element to avoid double-counting
+      const mentionEls = rawEls.filter(el => !rawEls.some(child => child !== el && el.contains(child)));
       if (mentionEls && mentionEls.length > 0) {
         const seen = new Set();
         mentionEls.forEach(el => {
@@ -509,7 +511,8 @@
       }
 
       if (count === 0) {
-        const unreadPills = document.querySelectorAll('div[class*="unread__"], div[class*="unread-"], div[class^="unread_"]');
+        const unreadPills = Array.from(document.querySelectorAll('div[class*="unread__"], div[class*="unread-"], div[class^="unread_"]'))
+          .filter(pill => !pill.closest('[class*="muted"], [class*="isMuted"], [class*="modeMuted"]'));
         if (unreadPills && unreadPills.length > 0) {
           count = 1;
           debugItems.push({
@@ -524,8 +527,10 @@
   }
 
   function checkAndNotifyUnreadCount() {
-    const isTelegram = (location.hostname || '').includes('telegram');
-    const isDiscord = (location.hostname || '').includes('discord');
+    const host = (location.hostname || '').toLowerCase();
+    const isTelegram = host === 'web.telegram.org' || host === 'telegram.org' || host.endsWith('.telegram.org');
+    const isDiscord = host === 'discord.com' || host.endsWith('.discord.com');
+    const isWhatsApp = host === 'web.whatsapp.com' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com');
     const title = document.title || '';
     const titleMatch = title.match(/[\(\[](\d+)\+?[\)\]]/);
     const hasBullet = /[\(•\*\)]/.test(title) && (title.includes('•') || title.includes('*') || /\(\s*\)/.test(title));
@@ -547,7 +552,7 @@
       debugItems = dcRes.items;
       latestChatTitle = dcRes.latestChatTitle || '';
       latestMessageText = dcRes.latestMessageText || '';
-    } else {
+    } else if (isWhatsApp) {
       const waRes = scanWhatsAppUnread();
       domCount = waRes.count;
       latestChatTitle = waRes.latestChatTitle || '';
@@ -555,7 +560,8 @@
     }
 
     if (!latestChatTitle && titleMatch) {
-      const cleanedTitle = title.replace(/[\(\[]\d+\+?[\)\]]/, '').trim();
+      let cleanedTitle = title.replace(/[\(\[]\d+\+?[\)\]]/, '').trim();
+      cleanedTitle = cleanedTitle.replace(/\s*[\-\|]\s*Discord$/i, '').trim();
       if (cleanedTitle && cleanedTitle.toLowerCase() !== 'whatsapp' && cleanedTitle.toLowerCase() !== 'telegram' && cleanedTitle.toLowerCase() !== 'discord') {
         latestChatTitle = cleanedTitle;
       }

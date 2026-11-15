@@ -702,7 +702,16 @@ Public Class DiscordPlatformDefinition
         Dim host = uri.Host.ToLowerInvariant()
         If host = "discord.com" Then
             Dim path = uri.AbsolutePath.ToLowerInvariant()
-            Return path.StartsWith("/channels/") OrElse path.StartsWith("/invite/") OrElse path.StartsWith("/app")
+            Return path.StartsWith("/channels/") OrElse
+                   path.StartsWith("/invite/") OrElse
+                   path.StartsWith("/app") OrElse
+                   path.StartsWith("/login") OrElse
+                   path.StartsWith("/register") OrElse
+                   path.StartsWith("/verify") OrElse
+                   path.StartsWith("/oauth2/") OrElse
+                   path.StartsWith("/popout/") OrElse
+                   path.StartsWith("/guild-discovery") OrElse
+                   path.StartsWith("/store")
         End If
         Return False
     End Function
@@ -721,7 +730,10 @@ Public Class DiscordPlatformDefinition
             End If
             If afterScheme.StartsWith("channels/", StringComparison.OrdinalIgnoreCase) OrElse
                afterScheme.StartsWith("invite/", StringComparison.OrdinalIgnoreCase) OrElse
-               afterScheme.StartsWith("app", StringComparison.OrdinalIgnoreCase) Then
+               afterScheme.StartsWith("app", StringComparison.OrdinalIgnoreCase) OrElse
+               afterScheme.StartsWith("login", StringComparison.OrdinalIgnoreCase) OrElse
+               afterScheme.StartsWith("register", StringComparison.OrdinalIgnoreCase) OrElse
+               afterScheme.StartsWith("oauth2/", StringComparison.OrdinalIgnoreCase) Then
                 Return "https://discord.com/" & afterScheme
             End If
             Return Nothing
