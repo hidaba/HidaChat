@@ -45,6 +45,18 @@ Public Class AccountManager
 
     Private ReadOnly _settingsController As SettingsController
     Private _isDirty As Boolean = False
+    Private _loadFailed As Boolean = False
+
+    ''' <summary>
+    ''' Indicates whether loading or deserializing the accounts list from settings.json failed.
+    ''' When True, saving accounts to disk and deleting/moving profile directories are strictly inhibited
+    ''' to prevent accidental loss of valid user sessions.
+    ''' </summary>
+    Public ReadOnly Property LoadFailed As Boolean
+        Get
+            Return _loadFailed
+        End Get
+    End Property
 
     ''' <summary>
     ''' Indica se è possibile aggiungere un nuovo account (limite massimo configurato non ancora raggiunto).
@@ -253,14 +265,80 @@ Public Class AccountManager
                     NotifyPropertyChanged(NameOf(HasExcessAccounts))
                     NotifyPropertyChanged(NameOf(ExcessAccountsCount))
                     Return
+                Else
+                    Throw New JsonException("Deserialized accounts data is null or empty.")
                 End If
             Catch ex As Exception
+                _loadFailed = True
+                AppLogger.LogApp($"[ACCOUNT_LOAD_ERROR] Deserialization of accounts failed: {ex.Message}")
                 Debug.WriteLine($"Error deserializing accounts: {ex.Message}")
+
+                ' Immediately create a backup copy settings.json.bak before any other operation
+                Dim backupPath As String = Nothing
+                Try
+                    Dim targetFile = GetSettingsFilePath()
+                    backupPath = AccountLoadSafetyPolicy.CreateBackup(targetFile)
+                    If Not String.IsNullOrEmpty(backupPath) Then
+                        AppLogger.LogApp($"[ACCOUNT_LOAD_ERROR] Safety backup created at '{backupPath}'")
+                    End If
+                Catch exBak As Exception
+                    AppLogger.LogApp($"[ACCOUNT_LOAD_ERROR] Failed to create settings backup: {exBak.Message}")
+                End Try
+
+                ' Display a warning/error dialog to the user reporting configuration file corruption
+                NotifyAccountsCorruptedAndProtected(backupPath)
             End Try
         End If
 
         Await CreateDefaultAccountAsync()
     End Function
+
+    Private Function GetSettingsFilePath() As String
+        If _settingsController IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(_settingsController.SettingsFilePath) Then
+            Return _settingsController.SettingsFilePath
+        End If
+        Dim dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "settings.json")
+        If File.Exists(dataPath) Then Return dataPath
+        Return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")
+    End Function
+
+    ''' <summary>
+    ''' Notifies the user via a modal dialog that accounts deserialization from settings.json failed,
+    ''' that a safety backup (.bak) was created, and that writes and profile cleanups have been disabled
+    ''' to prevent loss of existing login sessions.
+    ''' </summary>
+    Private Sub NotifyAccountsCorruptedAndProtected(backupPath As String)
+        Try
+            Dim backupFileName = If(Not String.IsNullOrWhiteSpace(backupPath), Path.GetFileName(backupPath), "settings.json.bak")
+            Dim showAction As Action = Sub()
+                Try
+                    Dim loc = _settingsController?.Localizations
+                    Dim title = If(loc IsNot Nothing, loc.Get("accounts_corrupt_title"), "Account Configuration Error")
+                    Dim msg = If(loc IsNot Nothing,
+                        loc.Get("accounts_corrupt_msg", New Dictionary(Of String, String) From {{"file", backupFileName}}),
+                        $"The accounts configuration in 'settings.json' could not be loaded because it is corrupted or contains invalid data." & vbCrLf & vbCrLf &
+                        $"A safety backup has been created as '{backupFileName}'." & vbCrLf & vbCrLf &
+                        "To protect your login sessions and chat history from accidental deletion, automatic saving and profile cleanup have been disabled." & vbCrLf & vbCrLf &
+                        "Please verify or restore your configuration file manually.")
+                    MessageBox.Show(msg, title, MessageBoxButton.OK, MessageBoxImage.Warning)
+                Catch exShow As Exception
+                    Debug.WriteLine($"NotifyAccountsCorruptedAndProtected display error: {exShow.Message}")
+                End Try
+            End Sub
+
+            If Application.Current?.Dispatcher IsNot Nothing Then
+                If Application.Current.Dispatcher.CheckAccess() Then
+                    showAction()
+                Else
+                    Application.Current.Dispatcher.Invoke(showAction)
+                End If
+            Else
+                showAction()
+            End If
+        Catch ex As Exception
+            AppLogger.LogApp($"[ACCOUNT_LOAD_ERROR] Failed to show corruption warning dialog: {ex.Message}")
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Elimina ricorsivamente una cartella di profilo eseguendo tentativi multipli con backoff progressivo 
@@ -295,6 +373,7 @@ Public Class AccountManager
     ''' preservando in modo non distruttivo il profilo esistente rinominandolo in .bak anziché cancellarlo preventivamente.
     ''' </summary>
     Private Sub MigrateOrphanProfile()
+        If AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then Return
         Try
             Dim orphan = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
             If Not Directory.Exists(orphan) Then Return
@@ -319,6 +398,7 @@ Public Class AccountManager
     ''' nella struttura corretta dei profili nativi di WebView2 (data/webview/EBWebView/WV2Profile_{id}) (TODO #103).
     ''' </summary>
     Private Sub MigrateLegacyProfilesToNativeProfiles()
+        If AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then Return
         Try
             Dim sharedDir = AppAccounts.SharedDataDirectory
             If Not Directory.Exists(sharedDir) Then Return
@@ -538,6 +618,11 @@ Public Class AccountManager
     ''' con tentativi di retry, eseguendo l'intera scansione in Task.Run fuori dal thread UI per non rallentare l'avvio.
     ''' </summary>
     Private Function CleanupUnusedProfilesAsync(activeIds As List(Of String)) As Task
+        If AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then
+            AppLogger.LogApp("[CLEANUP_INHIBITED] Profile cleanup inhibited because load failed (_loadFailed=True).")
+            Return Task.CompletedTask
+        End If
+
         Return Task.Run(Async Function()
             Try
                 Dim sharedDir = AppAccounts.SharedDataDirectory
@@ -798,16 +883,18 @@ Public Class AccountManager
             Debug.WriteLine($"CreateDefaultAccount: sharedDir={sharedDir}, exists={Directory.Exists(sharedDir)}")
             If Directory.Exists(sharedDir) Then
                 ' 1. Se è presente un profilo orfano anonimo (WV2Profile_), lo assegna a un nuovo id
-                Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
-                If Directory.Exists(orphanProfile) Then
-                    Dim newOrphanId = AppAccounts.GenerateId()
-                    Dim targetDir = Path.Combine(sharedDir, $"WV2Profile_{newOrphanId}")
-                    Try
-                        Directory.Move(orphanProfile, targetDir)
-                        Debug.WriteLine($"CreateDefaultAccount: spostato orfano anonimo {orphanProfile} -> {targetDir}")
-                    Catch ex As Exception
-                        Debug.WriteLine($"CreateDefaultAccount: errore spostamento orfano: {ex.Message}")
-                    End Try
+                If Not AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then
+                    Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
+                    If Directory.Exists(orphanProfile) Then
+                        Dim newOrphanId = AppAccounts.GenerateId()
+                        Dim targetDir = Path.Combine(sharedDir, $"WV2Profile_{newOrphanId}")
+                        Try
+                            Directory.Move(orphanProfile, targetDir)
+                            Debug.WriteLine($"CreateDefaultAccount: spostato orfano anonimo {orphanProfile} -> {targetDir}")
+                        Catch ex As Exception
+                            Debug.WriteLine($"CreateDefaultAccount: errore spostamento orfano: {ex.Message}")
+                        End Try
+                    End If
                 End If
 
                 ' 2. Scansione non ricorsiva delle cartelle di profilo valide esistenti a livello principale (escludendo cestino e backup)
@@ -886,6 +973,12 @@ Public Class AccountManager
     ''' </summary>
     ''' <param name="force">Se true, forzatura del salvataggio anche se non ci sono modifiche rilevate.</param>
     Public Async Function SaveAccountsAsync(Optional force As Boolean = False) As Task
+        If AccountLoadSafetyPolicy.ShouldInhibitSave(_loadFailed) Then
+            AppLogger.LogApp("[SAVE_INHIBITED] Saving accounts inhibited because load failed (_loadFailed=True).")
+            Debug.WriteLine("SaveAccountsAsync: Inibito a causa di errore di caricamento/deserializzazione precedente (_loadFailed = True)")
+            Return
+        End If
+
         If Not _isDirty AndAlso Not force Then Return
 
         Dim settings = Await _settingsController.ReadSettingsAsync()
@@ -1007,25 +1100,27 @@ Public Class AccountManager
         Dim legacyProfDir = ProfileIsolationPolicy.GetLegacyProfileDirectory(AppAccounts.SharedDataDirectory, accountId)
         If Directory.Exists(legacyProfDir) Then dirsToRemove.Add(legacyProfDir)
 
-        For Each profileDir In dirsToRemove
-            Dim dirName = Path.GetFileName(profileDir)
-            Dim trashDir = Path.Combine(AppAccounts.SharedDataDirectory, "_trash")
-            Try
-                If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
-                Dim trashDest = Path.Combine(trashDir, $"{dirName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}")
-                Directory.Move(profileDir, trashDest)
-                Debug.WriteLine($"RemoveAccountAsync: profilo spostato in cestino: {profileDir} -> {trashDest}")
-                Dim deleteBgTask = Task.Run(Async Function()
-                    Await Task.Delay(2000)
-                    Await DeleteDirectoryWithRetryAsync(trashDest, maxAttempts:=10)
-                End Function)
-            Catch ex As Exception
-                Debug.WriteLine($"RemoveAccountAsync: fallback a cancellazione differita diretta: {ex.Message}")
-                Dim fallbackDeleteTask = Task.Run(Async Function()
-                    Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=10)
-                End Function)
-            End Try
-        Next
+        If Not AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then
+            For Each profileDir In dirsToRemove
+                Dim dirName = Path.GetFileName(profileDir)
+                Dim trashDir = Path.Combine(AppAccounts.SharedDataDirectory, "_trash")
+                Try
+                    If Not Directory.Exists(trashDir) Then Directory.CreateDirectory(trashDir)
+                    Dim trashDest = Path.Combine(trashDir, $"{dirName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}")
+                    Directory.Move(profileDir, trashDest)
+                    Debug.WriteLine($"RemoveAccountAsync: profilo spostato in cestino: {profileDir} -> {trashDest}")
+                    Dim deleteBgTask = Task.Run(Async Function()
+                        Await Task.Delay(2000)
+                        Await DeleteDirectoryWithRetryAsync(trashDest, maxAttempts:=10)
+                    End Function)
+                Catch ex As Exception
+                    Debug.WriteLine($"RemoveAccountAsync: fallback a cancellazione differita diretta: {ex.Message}")
+                    Dim fallbackDeleteTask = Task.Run(Async Function()
+                        Await DeleteDirectoryWithRetryAsync(profileDir, maxAttempts:=10)
+                    End Function)
+                End Try
+            Next
+        End If
 
         If accountToRemove.UsesNetworkStaging Then
             NetworkProfileSync.CleanLocalStaging(accountId)

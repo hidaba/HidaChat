@@ -3,6 +3,18 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 
+## 2026-11-16
+
+- [x] **TASK-0089** [High] Potential loss of all sessions on deserialization error (AccountManager.LoadAccountsAsync)
+  - Result:
+    - Encapsulated non-destructive error handling in `AccountLoadSafetyPolicy.vb` and integrated it with `AccountManager.vb`.
+    - In `AccountManager.LoadAccountsAsync` Catch block: immediately creates a safety backup copy `settings.json.bak` before any other fallback operation.
+    - Added safety flag `_loadFailed = True` and public property `LoadFailed` in `AccountManager`.
+    - Strictly inhibited saving accounts (`SaveAccountsAsync`), profile folder deletions and moves (`CleanupUnusedProfilesAsync`, `MigrateOrphanProfile`, `MigrateLegacyProfilesToNativeProfiles`, `RemoveAccountAsync`, and orphan renaming in `CreateDefaultAccountAsync`) whenever `_loadFailed` is True.
+    - Implemented `NotifyAccountsCorruptedAndProtected` modal warning dialog to explicitly inform the user of the configuration issue, that a safety backup was made, and that writing and cleanups were paused to protect all existing login sessions.
+    - Synchronously updated all 5 UI localization dictionaries in `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) with `accounts_corrupt_title` and `accounts_corrupt_msg`.
+  - Verification: Added unit regression tests in `SessionTests.vb` covering JSON syntax error rejection, incompatible property types rejection, empty array rejection, non-destructive backup file generation, and verification that profile directories and databases remain completely untouched on disk (totaling **674 automated regression assertions with 0 errors**). Clean build with 0 warnings and 0 errors.
+
 ## 2026-11-15
 
 - [x] **TASK-0115** [High] Discord Integration Code Review, Security Hardening, Media Permissions, Voice Call Protection, and Notification Fixes

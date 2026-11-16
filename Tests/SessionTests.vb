@@ -1090,5 +1090,73 @@ Module SessionTests
         Catch ex As Exception
             Check(True, "TranslateBatchAsync handles offline provider gracefully")
         End Try
+
+        ' Test TASK-0089: Account load safety policy and non-destructive deserialization failure handling
+        Check(AccountLoadSafetyPolicy.ShouldInhibitSave(True), "AccountLoadSafetyPolicy inhibits save when load failed")
+        Check(Not AccountLoadSafetyPolicy.ShouldInhibitSave(False), "AccountLoadSafetyPolicy allows save when load succeeded")
+        Check(AccountLoadSafetyPolicy.ShouldInhibitCleanup(True), "AccountLoadSafetyPolicy inhibits cleanup when load failed")
+        Check(Not AccountLoadSafetyPolicy.ShouldInhibitCleanup(False), "AccountLoadSafetyPolicy allows cleanup when load succeeded")
+
+        Dim validAccountsJson = "[{""id"":""acc_1"",""name"":""Account 1"",""platform"":""WhatsApp""},{""id"":""acc_2"",""name"":""Account 2"",""platform"":""Telegram""}]"
+        Dim errVal As String = Nothing
+        Check(AccountLoadSafetyPolicy.TryValidateAccountsJson(validAccountsJson, errVal), "TryValidateAccountsJson accepts valid accounts array")
+        Check(errVal Is Nothing, "TryValidateAccountsJson has no error for valid accounts")
+
+        Dim syntaxErrorJson = "[{""id"":""acc_1"", ""name"": ""broken... "
+        Check(Not AccountLoadSafetyPolicy.TryValidateAccountsJson(syntaxErrorJson, errVal), "TryValidateAccountsJson rejects syntax error in JSON")
+        Check(Not String.IsNullOrEmpty(errVal), "TryValidateAccountsJson provides error for syntax error")
+
+        Dim incompatibleTypeIdJson = "[{""id"": 12345, ""name"": ""Account 1""}]"
+        Check(Not AccountLoadSafetyPolicy.TryValidateAccountsJson(incompatibleTypeIdJson, errVal), "TryValidateAccountsJson rejects number type for id")
+        Check(errVal.Contains("invalid type"), "TryValidateAccountsJson reports invalid type for id")
+
+        Dim incompatibleTypeNameJson = "[{""id"": ""acc_1"", ""name"": true}]"
+        Check(Not AccountLoadSafetyPolicy.TryValidateAccountsJson(incompatibleTypeNameJson, errVal), "TryValidateAccountsJson rejects boolean type for name")
+
+        Dim emptyArrayJson = "[]"
+        Check(Not AccountLoadSafetyPolicy.TryValidateAccountsJson(emptyArrayJson, errVal), "TryValidateAccountsJson rejects empty accounts array")
+
+        Dim objectInsteadOfArrayJson = "{""id"":""acc_1""}"
+        Check(Not AccountLoadSafetyPolicy.TryValidateAccountsJson(objectInsteadOfArrayJson, errVal), "TryValidateAccountsJson rejects non-array root")
+
+        ' Backup creation test on simulated settings file
+        Dim tempDir = Path.Combine(Path.GetTempPath(), "HidaChat_Task89_Test_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(tempDir)
+        Try
+            Dim simSettingsFile = Path.Combine(tempDir, "settings.json")
+            Dim corruptPayload = "{""theme"":""Dark"",""accounts"":[{""id"":99999,""name"":""Corrupted""}]}"
+            File.WriteAllText(simSettingsFile, corruptPayload)
+
+            ' Verify backup file generation
+            Dim createdBak = AccountLoadSafetyPolicy.CreateBackup(simSettingsFile)
+            Check(Not String.IsNullOrEmpty(createdBak), "CreateBackup returns non-empty path on existing settings file")
+            Check(File.Exists(createdBak), "CreateBackup created .bak file on disk")
+            Dim bakContent = File.ReadAllText(createdBak)
+            Check(bakContent = corruptPayload, "Backup file content exactly matches corrupted original file")
+
+            ' Verify that invalid file fails validation and triggers inhibitor
+            Dim validationOk = AccountLoadSafetyPolicy.TryValidateAccountsJson("[{""id"":99999,""name"":""Corrupted""}]", errVal)
+            Check(Not validationOk, "Simulated corrupted accounts fails validation")
+            Dim simulatedLoadFailed = Not validationOk
+            Check(AccountLoadSafetyPolicy.ShouldInhibitSave(simulatedLoadFailed), "Simulated save is strictly inhibited")
+            Check(AccountLoadSafetyPolicy.ShouldInhibitCleanup(simulatedLoadFailed), "Simulated profile cleanup is strictly inhibited")
+
+            ' Verify profiles folder preservation
+            Dim dummyProfileDir = Path.Combine(tempDir, "WV2Profile_acc1")
+            Directory.CreateDirectory(dummyProfileDir)
+            File.WriteAllText(Path.Combine(dummyProfileDir, "session.db"), "user_login_data")
+
+            ' Under simulatedLoadFailed, profile must not be deleted
+            If Not AccountLoadSafetyPolicy.ShouldInhibitCleanup(simulatedLoadFailed) Then
+                Directory.Delete(dummyProfileDir, True)
+            End If
+            Check(Directory.Exists(dummyProfileDir), "User profile directory remains preserved and untouched on load failure")
+            Check(File.Exists(Path.Combine(dummyProfileDir, "session.db")), "Session database inside profile remains preserved")
+        Finally
+            Try
+                If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
+            Catch
+            End Try
+        End Try
     End Function
 End Module

@@ -3,6 +3,18 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-16
+
+- [x] **TASK-0089** [Alta] Possibile perdita di tutte le sessioni su errore di deserializzazione (AccountManager.LoadAccountsAsync)
+  - Risultato:
+    - Incapsulata la logica di protezione e non distruttività in `AccountLoadSafetyPolicy.vb` ed integrata in `AccountManager.vb`.
+    - Nel blocco Catch di `AccountManager.LoadAccountsAsync`: creazione immediata della copia di backup di sicurezza `settings.json.bak` prima di qualsiasi altra operazione di fallback.
+    - Introdotto il flag di sicurezza `_loadFailed = True` e la proprietà pubblica `LoadFailed` in `AccountManager`.
+    - Inibito rigorosamente il salvataggio degli account (`SaveAccountsAsync`), la cancellazione o lo spostamento di cartelle di profilo (`CleanupUnusedProfilesAsync`, `MigrateOrphanProfile`, `MigrateLegacyProfilesToNativeProfiles`, `RemoveAccountAsync` e la rinomina dell'orfano in `CreateDefaultAccountAsync`) quando `_loadFailed` è attivo.
+    - Implementata la finestra di dialogo modale di avviso `NotifyAccountsCorruptedAndProtected` per informare esplicitamente l'utente del problema di configurazione, dell'avvenuto backup e del blocco preventivo dei salvataggi per proteggere tutte le sessioni di accesso esistenti.
+    - Aggiornati contestualmente tutti i 5 dizionari di localizzazione UI in `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) con le chiavi `accounts_corrupt_title` e `accounts_corrupt_msg`.
+  - Verifica: aggiunti test di regressione unitari in `SessionTests.vb` che verificano il rifiuto di errori di sintassi JSON, tipi incompatibili, array vuoti, la creazione non distruttiva del backup e che directory di profilo e database di sessione rimangano intatti su disco (totale di **674 asserzioni di regressione automatizzate con 0 errori**). Compilazione pulita con 0 avvisi e 0 errori.
+
 ## 2026-11-15
 
 - [x] **TASK-0115** [Alta] Revisione del codice integrazione Discord, rafforzamento sicurezza, permessi multimediali, protezione chiamate vocali e correzione notifiche

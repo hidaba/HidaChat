@@ -718,9 +718,15 @@ Public Class SettingsController
     End Function
 
     ' --- File JSON delle impostazioni ---
-    Private ReadOnly Property SettingsFile As String
+    Public ReadOnly Property SettingsFilePath As String
         Get
             Return _settingsFilePathLazy.Value
+        End Get
+    End Property
+
+    Private ReadOnly Property SettingsFile As String
+        Get
+            Return SettingsFilePath
         End Get
     End Property
 

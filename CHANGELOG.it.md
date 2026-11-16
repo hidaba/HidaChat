@@ -3,6 +3,22 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.4.6-beta] - 2026-11-16
+
+### Pre-release / Beta — Protezione non distruttiva su errori di deserializzazione e salvaguardia sessioni
+- **Backup immediato delle impostazioni su errore di deserializzazione account (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - In `AccountManager.LoadAccountsAsync`, protetto il blocco `Catch` di deserializzazione JSON creando immediatamente una copia di sicurezza `settings.json.bak` prima di qualsiasi operazione di fallback o creazione account.
+- **Modalità Fail-Safe e inibizione salvataggio (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - Introdotto il flag di sicurezza `_loadFailed = True` e la proprietà pubblica `LoadFailed` in `AccountManager`.
+  - Quando `_loadFailed` è attivo, inibito rigorosamente il salvataggio sia automatico che forzato in `SaveAccountsAsync`, impedendo la sovrascrittura di `settings.json` con l'account predefinito.
+- **Preservazione completa delle directory di profilo (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - Inibite tutte le routine di cancellazione e ridenominazione dei profili (`CleanupUnusedProfilesAsync`, `MigrateOrphanProfile`, `MigrateLegacyProfilesToNativeProfiles`, `RemoveAccountAsync` e la rinomina del profilo orfano in `CreateDefaultAccountAsync`) quando `_loadFailed` è attivo, garantendo che le sessioni di login WebView2 (WhatsApp, Telegram, Discord, OpenClaw, Hermes) non vengano mai cancellate o distrutte.
+- **Finestra modale di avviso esplicito (`AccountManager.vb`, `Localization.vb` — TASK-0089)**:
+  - Implementato `NotifyAccountsCorruptedAndProtected`, che mostra una finestra di dialogo modale localizzata per informare l'utente del problema di configurazione, del file di backup creato e del blocco preventivo dei salvataggi a tutela dei dati.
+  - Aggiunte le stringhe localizzate `accounts_corrupt_title` e `accounts_corrupt_msg` in tutte le 5 lingue supportate (EN, IT, FR, ES, DE) in `Localization.vb`.
+- **Estensione della suite di regressione automatizzata (`Tests/SessionTests.vb`, `AccountLoadSafetyPolicy.vb`)**:
+  - Aggiunti test di regressione unitari che verificano il rifiuto di errori sintattici JSON, tipi incompatibili, array vuoti, la creazione non distruttiva del backup e la preservazione delle directory di profilo in caso di fallimento (totale di **674 asserzioni di regressione automatizzate con 0 errori**).
+
 ## [1.4.5-beta] - 2026-11-15
 
 ### Pre-release / Beta — Rafforzamento Discord, protezione chiamate vocali in ibernazione e correzione notifiche

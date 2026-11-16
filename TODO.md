@@ -42,17 +42,6 @@
   - **Acceptance Test**: Artificially delay cleanup and launch two updates from separate portable copies. Neither session must delete files actively used by the other.
   - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Medium
 
-- [ ] **TASK-0089** [High] Potential loss of all sessions on deserialization error (AccountManager.LoadAccountsAsync)
-  - **File**: `AccountManager.vb` (`LoadAccountsAsync` method)
-  - **Problem / Need**: If deserialization of the `accounts` list fails (e.g. due to mismatched field types, corrupted JSON, manual user edits, or schema changes between versions), the `Catch` block falls back to calling `CreateDefaultAccountAsync()`. The latter invokes `SaveAccountsAsync(force:=True)`, overwriting the entire `settings.json` file with a single default account. On next restart or maintenance cycle, `CleanupUnusedProfilesAsync` deletes all `WV2Profile_*` directories no longer tracked in configuration, causing irreversible destruction of all login sessions for WhatsApp, Telegram, OpenClaw, and Hermes.
-  - **Fix to Implement**:
-    - In `LoadAccountsAsync` deserialization `Catch` block, immediately create a backup copy `settings.json.bak` before any other operation.
-    - Set a safety flag `_loadFailed = True` at manager level.
-    - Inhibit both forced saving (`SaveAccountsAsync`) and profile cleanup (`CleanupUnusedProfilesAsync`) when `_loadFailed` is active.
-    - Display a warning/error dialog to the user reporting configuration file corruption, prompting manual recovery or correction rather than silently wiping accounts.
-  - **Acceptance Test**: Introduce a syntax error or incompatible type in the `accounts` block of `settings.json`. On startup, original file must be saved to `settings.json.bak`, no disk profile must be deleted or overwritten, and an explicit warning dialog must appear.
-  - **Priority**: P1 (High severity) | **Impact**: Critical | **Effort**: Medium
-
 - [ ] **TASK-0090** [High] MigrateOrphanProfile deletes or overwrites a valid profile
   - **File**: `AccountManager.vb` (`MigrateOrphanProfile` method)
   - **Problem / Need**: If both `WV2Profile_` (orphan or legacy profile without specified ID) and `WV2Profile_{id}` associated with the first account coexist on the filesystem, a flawed or destructive migration logic risks deleting the valid first account profile to move the orphan on top of it, causing the loss of the user's active session.

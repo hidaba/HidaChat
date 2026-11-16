@@ -42,17 +42,6 @@
   - **Test di accettazione**: Ritardare artificialmente la pulizia e avviare due aggiornamenti da copie distinte. Nessuna sessione deve eliminare file ancora usati dall’altra.
   - **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio
 
-- [ ] **TASK-0089** [Alta] Possibile perdita di tutte le sessioni su errore di deserializzazione (AccountManager.LoadAccountsAsync)
-  - **File**: `AccountManager.vb` (metodo `LoadAccountsAsync`)
-  - **Problema / Esigenza**: Se la deserializzazione dell'elenco `accounts` fallisce (ad esempio a causa di un campo con tipo errato, JSON corrotto, modifiche manuali dell'utente o formati tra versioni differenti), il blocco `Catch` ricade nell'invocazione di `CreateDefaultAccountAsync()`. Quest'ultimo chiama `SaveAccountsAsync(force:=True)`, sovrascrivendo l'intero file `settings.json` con un unico account predefinito. Al successivo riavvio o ciclo di manutenzione, `CleanupUnusedProfilesAsync` elimina tutte le cartelle `WV2Profile_*` non più censite nella configurazione, provocando la distruzione irreversibile di tutte le sessioni di login di WhatsApp, Telegram, OpenClaw ed Hermes.
-  - **Fix da implementare**:
-    - Nel blocco `Catch` di deserializzazione di `LoadAccountsAsync`, creare immediatamente una copia di salvataggio `settings.json.bak` prima di qualsiasi altra operazione.
-    - Impostare un flag di sicurezza `_loadFailed = True` a livello di gestore.
-    - Inibire sia il salvataggio forzato (`SaveAccountsAsync`) sia la pulizia dei profili (`CleanupUnusedProfilesAsync`) quando `_loadFailed` è attivo.
-    - Mostrare all'utente una finestra di dialogo di avviso/errore per segnalare la corruzione del file di configurazione, invitando al ripristino o alla correzione manuale anziché azzerare silenziosamente gli account.
-  - **Test di accettazione**: Introdurre un errore di sintassi o tipo incompatibile nel blocco `accounts` di `settings.json`. All'avvio il file originale deve essere salvaguardato in `settings.json.bak`, nessun profilo su disco deve essere cancellato o sovrascritto, e deve apparire un avviso esplicito.
-  - **Priorità**: P1 (Gravità alta) | **Impatto**: Critico | **Sforzo**: Medio
-
 - [ ] **TASK-0090** [Alta] MigrateOrphanProfile cancella o sovrascrive un profilo valido
   - **File**: `AccountManager.vb` (metodo `MigrateOrphanProfile`)
   - **Problema / Esigenza**: Se sul filesystem coesistono sia la cartella `WV2Profile_` (profilo orfano o legacy senza ID specificato) sia la cartella `WV2Profile_{id}` associata al primo account, una logica di migrazione errata o distruttiva rischia di eliminare il profilo valido del primo account per spostarvi sopra la cartella orfana, causando la perdita della sessione reale e attiva dell'utente.

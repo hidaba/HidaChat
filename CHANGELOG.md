@@ -5,6 +5,22 @@
 
 ---
 
+## [1.4.6-beta] - 2026-11-16
+
+### Pre-release / Beta — Non-Destructive Deserialization Failure Protection and Session Preservation
+- **Immediate Settings Backup on Account Deserialization Failure (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - In `AccountManager.LoadAccountsAsync`, protected the JSON deserialization `Catch` block by immediately creating a safety backup copy `settings.json.bak` before any fallback or account creation can occur.
+- **Fail-Safe Mode & Save Inhibition (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - Introduced safety flag `_loadFailed = True` and public property `LoadFailed` in `AccountManager`.
+  - When `_loadFailed` is active, strictly inhibited both automatic and forced saving in `SaveAccountsAsync`, preventing fallback default accounts from overwriting `settings.json`.
+- **Complete Profile Directory Preservation (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - Inhibited all profile deletion and renaming routines (`CleanupUnusedProfilesAsync`, `MigrateOrphanProfile`, `MigrateLegacyProfilesToNativeProfiles`, `RemoveAccountAsync`, and orphan renaming in `CreateDefaultAccountAsync`) when `_loadFailed` is True, guaranteeing that existing WebView2 login sessions (WhatsApp, Telegram, Discord, OpenClaw, Hermes) are never wiped or destroyed.
+- **Explicit Modal Warning Dialog (`AccountManager.vb`, `Localization.vb` — TASK-0089)**:
+  - Implemented `NotifyAccountsCorruptedAndProtected`, prompting a localized modal warning dialog that reports the configuration issue, points to the safety backup file, and informs the user that saving and cleanup have been disabled to protect their data.
+  - Added localized strings `accounts_corrupt_title` and `accounts_corrupt_msg` across all 5 supported languages (EN, IT, FR, ES, DE) in `Localization.vb`.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`, `AccountLoadSafetyPolicy.vb`)**:
+  - Added regression test suite verifying JSON syntax error rejection, incompatible property types rejection, empty array rejection, non-destructive backup file creation, and profile directory preservation under failure states (totaling **674 automated regression assertions with 0 errors**).
+
 ## [1.4.5-beta] - 2026-11-15
 
 ### Pre-release / Beta — Discord Hardening, Voice Call Hibernation Protection, and Notification Fixes
