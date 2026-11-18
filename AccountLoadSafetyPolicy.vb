@@ -99,4 +99,68 @@ Public Class AccountLoadSafetyPolicy
         End Try
     End Function
 
+    ''' <summary>
+    ''' Evaluates whether an anonymous orphan profile (WV2Profile_) can safely be migrated to an account profile
+    ''' without overwriting, replacing, or colliding with an existing valid profile, backup, or snapshot (TASK-0090).
+    ''' Returns True ONLY if the orphan directory exists and NO valid target profile, backup, or snapshot exists on disk.
+    ''' </summary>
+    Public Shared Function CanSafelyMigrateOrphanProfile(sharedDir As String, accountId As String) As Boolean
+        If String.IsNullOrWhiteSpace(sharedDir) OrElse String.IsNullOrWhiteSpace(accountId) Then
+            Return False
+        End If
+
+        Dim orphan = Path.Combine(sharedDir, "WV2Profile_")
+        If Not Directory.Exists(orphan) Then
+            Return False
+        End If
+
+        ' 1. Check legacy target directory and all its snapshot/backup variants
+        Dim legacyTarget = Path.Combine(sharedDir, $"{ProfileIsolationPolicy.LegacyProfilePrefix}{accountId}")
+        If Directory.Exists(legacyTarget) OrElse
+           Directory.Exists(legacyTarget & ".previous") OrElse
+           Directory.Exists(legacyTarget & ".bak") OrElse
+           Directory.Exists(legacyTarget & ".migrated") OrElse
+           Directory.Exists(legacyTarget & "_Snapshot") Then
+            Return False
+        End If
+
+        ' 2. Check native profile directory under EBWebView and all its snapshot/backup variants
+        Dim nativeTarget = ProfileIsolationPolicy.GetNativeProfileDirectory(sharedDir, accountId)
+        If Not String.IsNullOrEmpty(nativeTarget) Then
+            If Directory.Exists(nativeTarget) OrElse
+               Directory.Exists(nativeTarget & ".previous") OrElse
+               Directory.Exists(nativeTarget & ".bak") OrElse
+               Directory.Exists(nativeTarget & ".migrated") OrElse
+               Directory.Exists(nativeTarget & "_Snapshot") Then
+                Return False
+            End If
+        End If
+
+        ' 3. Check alternate subdirectories under EBWebView (e.g. EBWebView/Account_{id} or safe name)
+        Dim ebDir = Path.Combine(sharedDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
+        If Directory.Exists(ebDir) Then
+            Dim targetFolder = ProfileIsolationPolicy.GetNativeProfileFolderName(accountId)
+            Dim betaName = ProfileIsolationPolicy.GetSafeProfileName(accountId)
+            If Directory.Exists(Path.Combine(ebDir, targetFolder)) OrElse
+               Directory.Exists(Path.Combine(ebDir, betaName)) OrElse
+               Directory.Exists(Path.Combine(ebDir, "Account_" & accountId)) Then
+                Return False
+            End If
+        End If
+
+        ' 4. Check effective profile directory resolved by policy
+        Dim effectiveTarget = ProfileIsolationPolicy.ResolveEffectiveProfileDirectory(sharedDir, accountId)
+        If Not String.IsNullOrEmpty(effectiveTarget) Then
+            If Directory.Exists(effectiveTarget) OrElse
+               Directory.Exists(effectiveTarget & ".previous") OrElse
+               Directory.Exists(effectiveTarget & ".bak") OrElse
+               Directory.Exists(effectiveTarget & ".migrated") OrElse
+               Directory.Exists(effectiveTarget & "_Snapshot") Then
+                Return False
+            End If
+        End If
+
+        Return True
+    End Function
+
 End Class

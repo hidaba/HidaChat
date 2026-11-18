@@ -42,16 +42,6 @@
   - **Acceptance Test**: Artificially delay cleanup and launch two updates from separate portable copies. Neither session must delete files actively used by the other.
   - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Medium
 
-- [ ] **TASK-0090** [High] MigrateOrphanProfile deletes or overwrites a valid profile
-  - **File**: `AccountManager.vb` (`MigrateOrphanProfile` method)
-  - **Problem / Need**: If both `WV2Profile_` (orphan or legacy profile without specified ID) and `WV2Profile_{id}` associated with the first account coexist on the filesystem, a flawed or destructive migration logic risks deleting the valid first account profile to move the orphan on top of it, causing the loss of the user's active session.
-  - **Fix to Implement**:
-    - Inside `MigrateOrphanProfile`, preliminarily check for the existence of the target folder `WV2Profile_{id}` (and any `.previous` snapshots).
-    - If the target folder already exists, abort migration immediately (`Continue For` / `Return`), preserving the existing valid profile intact.
-    - Allow the orphan folder to be handled safely by non-destructive cleanup mechanisms or retained as a backup.
-  - **Acceptance Test**: Manually create both `data/webview/WV2Profile_` and `data/webview/WV2Profile_{id}` with differing files. On app launch, contents of `WV2Profile_{id}` must remain untouched and not be replaced or deleted by the orphan.
-  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low
-
 - [ ] **TASK-0096** [Low] CleanupUnusedProfilesAsync performs synchronous recursive deletion on UI thread with potential startup freeze
   - **File**: `AccountManager.vb` (`CleanupUnusedProfilesAsync` method)
   - **Problem / Need**: Method has async signature, but when called directly or executing synchronous `Directory.Delete(..., True)` on the main thread during startup, it can freeze the UI when dealing with large Chromium profiles (thousands of cache, LevelDB, and blob files) or temporarily locked files.

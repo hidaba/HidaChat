@@ -1158,5 +1158,107 @@ Module SessionTests
             Catch
             End Try
         End Try
+
+        ' Test TASK-0090: Safe orphan profile migration (CanSafelyMigrateOrphanProfile and acceptance tests)
+        Dim orphanTestDir = Path.Combine(Path.GetTempPath(), "HidaChat_Task90_Test_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(orphanTestDir)
+        Try
+            Dim testAccId = "acc_test1"
+            Dim orphanPath = Path.Combine(orphanTestDir, "WV2Profile_")
+            Dim legacyTargetPath = Path.Combine(orphanTestDir, $"WV2Profile_{testAccId}")
+            Dim nativeTargetPath = ProfileIsolationPolicy.GetNativeProfileDirectory(orphanTestDir, testAccId)
+
+            ' 1. Null / empty arguments
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(Nothing, testAccId), "CanSafelyMigrateOrphanProfile rejects null sharedDir")
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, Nothing), "CanSafelyMigrateOrphanProfile rejects null accountId")
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, ""), "CanSafelyMigrateOrphanProfile rejects empty accountId")
+
+            ' 2. Orphan folder does not exist
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile returns False when orphan does not exist")
+
+            ' 3. Create orphan folder
+            Directory.CreateDirectory(orphanPath)
+            File.WriteAllText(Path.Combine(orphanPath, "orphan_marker.txt"), "orphan_payload")
+
+            ' 4. ACCEPTANCE TEST (TASK-0090): Coexistence of WV2Profile_ and WV2Profile_{id} with differing files
+            Directory.CreateDirectory(legacyTargetPath)
+            Dim validMarkerPath = Path.Combine(legacyTargetPath, "valid_account_session.txt")
+            File.WriteAllText(validMarkerPath, "active_user_valid_session_token_12345")
+
+            ' Policy MUST strictly reject migration
+            Dim canMigrateWhenBothExist = AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId)
+            Check(Not canMigrateWhenBothExist, "CanSafelyMigrateOrphanProfile strictly rejects migration when valid WV2Profile_{id} already exists")
+
+            ' If rejected, simulate abort: contents of valid profile must remain 100% untouched
+            If canMigrateWhenBothExist Then
+                Directory.Move(orphanPath, legacyTargetPath)
+            End If
+
+            Check(Directory.Exists(legacyTargetPath), "Valid profile directory WV2Profile_{id} remains intact")
+            Check(File.Exists(validMarkerPath), "Valid profile marker file remains intact")
+            Check(File.ReadAllText(validMarkerPath) = "active_user_valid_session_token_12345", "Valid profile contents are untouched and not overwritten by orphan")
+            Check(Directory.Exists(orphanPath), "Orphan directory remains preserved for safe inspection")
+            Check(File.Exists(Path.Combine(orphanPath, "orphan_marker.txt")), "Orphan contents remain preserved")
+
+            ' Clean legacyTargetPath for snapshot tests
+            Directory.Delete(legacyTargetPath, True)
+
+            ' 5. Snapshot checks: .previous
+            Dim legacyPrev = legacyTargetPath & ".previous"
+            Directory.CreateDirectory(legacyPrev)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when WV2Profile_{id}.previous exists")
+            Directory.Delete(legacyPrev, True)
+
+            ' 6. Snapshot checks: .bak
+            Dim legacyBak = legacyTargetPath & ".bak"
+            Directory.CreateDirectory(legacyBak)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when WV2Profile_{id}.bak exists")
+            Directory.Delete(legacyBak, True)
+
+            ' 7. Snapshot checks: .migrated
+            Dim legacyMigrated = legacyTargetPath & ".migrated"
+            Directory.CreateDirectory(legacyMigrated)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when WV2Profile_{id}.migrated exists")
+            Directory.Delete(legacyMigrated, True)
+
+            ' 8. Snapshot checks: _Snapshot
+            Dim legacySnapshot = legacyTargetPath & "_Snapshot"
+            Directory.CreateDirectory(legacySnapshot)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when WV2Profile_{id}_Snapshot exists")
+            Directory.Delete(legacySnapshot, True)
+
+            ' 9. Native target checks: EBWebView/wv2profile_{id}
+            Directory.CreateDirectory(nativeTargetPath)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when native profile EBWebView/wv2profile_{id} exists")
+            Directory.Delete(nativeTargetPath, True)
+
+            ' 10. Native snapshot checks: EBWebView/wv2profile_{id}.previous
+            Dim nativePrev = nativeTargetPath & ".previous"
+            Directory.CreateDirectory(nativePrev)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when native EBWebView/wv2profile_{id}.previous exists")
+            Directory.Delete(nativePrev, True)
+
+            ' 11. Alternate native naming checks: EBWebView/Account_{id}
+            Dim ebDir = Path.Combine(orphanTestDir, ProfileIsolationPolicy.SharedEbWebViewFolder)
+            Directory.CreateDirectory(ebDir)
+            Dim altNativeDir = Path.Combine(ebDir, "Account_" & testAccId)
+            Directory.CreateDirectory(altNativeDir)
+            Check(Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile rejects migration when alternate native EBWebView/Account_{id} exists")
+            Directory.Delete(altNativeDir, True)
+
+            ' 12. Clean slate: orphan exists, and NO profile exists for account anywhere
+            Check(AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(orphanTestDir, testAccId), "CanSafelyMigrateOrphanProfile returns True when orphan exists and no profile exists for account")
+
+            ' Execute safe move when authorized
+            Directory.Move(orphanPath, legacyTargetPath)
+            Check(Directory.Exists(legacyTargetPath), "Orphan successfully migrated to legacyTarget directory")
+            Check(File.Exists(Path.Combine(legacyTargetPath, "orphan_marker.txt")), "Migrated profile contains original orphan data")
+            Check(Not Directory.Exists(orphanPath), "Orphan directory no longer exists at original location after move")
+        Finally
+            Try
+                If Directory.Exists(orphanTestDir) Then Directory.Delete(orphanTestDir, True)
+            Catch
+            End Try
+        End Try
     End Function
 End Module

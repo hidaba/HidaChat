@@ -369,25 +369,41 @@ Public Class AccountManager
     End Function
 
     ''' <summary>
-    ''' Verifica la presenza di una cartella di profilo WebView2 orfana (creata senza ID specificato) e la riassocia al primo account,
-    ''' preservando in modo non distruttivo il profilo esistente rinominandolo in .bak anziché cancellarlo preventivamente.
+    ''' Inspects the filesystem for an anonymous orphan WebView2 profile (WV2Profile_ created without an account ID).
+    ''' If exactly one account exists and no target profile or snapshot exists for it, safely reassociates the orphan
+    ''' as the legacy profile of that account. If a valid target profile or snapshot already exists, migration is
+    ''' strictly aborted, preserving the valid active session completely untouched (TASK-0090).
     ''' </summary>
     Private Sub MigrateOrphanProfile()
         If AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then Return
         Try
-            Dim orphan = Path.Combine(AppAccounts.SharedDataDirectory, "WV2Profile_")
+            Dim sharedDir = AppAccounts.SharedDataDirectory
+            Dim orphan = Path.Combine(sharedDir, "WV2Profile_")
             If Not Directory.Exists(orphan) Then Return
+
             ' An anonymous profile cannot be attributed safely among multiple accounts.
-            If _accounts.Count <> 1 Then
-                AppLogger.LogApp("[ORPHAN_PRESERVED] Multiple accounts; manual attribution required.")
+            If _accounts Is Nothing OrElse _accounts.Count <> 1 Then
+                AppLogger.LogApp("[ORPHAN_PRESERVED] Multiple accounts or no accounts; manual attribution required.")
                 Return
             End If
-            Dim target = NetworkProfileSync.GetMasterProfileDir(_accounts(0).Id)
-            If Directory.Exists(target) OrElse Directory.Exists(target & ".previous") Then
-                AppLogger.LogApp("[ORPHAN_PRESERVED] Existing account profile must never be replaced.")
+
+            Dim firstAccount = _accounts(0)
+            If firstAccount Is Nothing OrElse String.IsNullOrWhiteSpace(firstAccount.Id) Then
+                AppLogger.LogApp("[ORPHAN_PRESERVED] First account ID is missing or invalid.")
                 Return
             End If
-            Directory.Move(orphan, target)
+
+            Dim accountId = firstAccount.Id
+
+            ' Check if target profile or any snapshot/backup already exists on disk (TASK-0090)
+            If Not AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(sharedDir, accountId) Then
+                AppLogger.LogApp($"[ORPHAN_PRESERVED] Valid existing profile or snapshot already exists for account '{accountId}'; orphan will never overwrite it.")
+                Return
+            End If
+
+            Dim legacyTarget = Path.Combine(sharedDir, $"{ProfileIsolationPolicy.LegacyProfilePrefix}{accountId}")
+            Directory.Move(orphan, legacyTarget)
+            AppLogger.LogApp($"[ORPHAN_MIGRATED] Safely migrated orphan profile '{orphan}' to target '{legacyTarget}' for account '{accountId}'.")
         Catch ex As Exception
             AppLogger.LogApp($"[ORPHAN_MIGRATION_FAILED] {ex.Message}")
         End Try
@@ -882,18 +898,20 @@ Public Class AccountManager
             Dim sharedDir = AppAccounts.SharedDataDirectory
             Debug.WriteLine($"CreateDefaultAccount: sharedDir={sharedDir}, exists={Directory.Exists(sharedDir)}")
             If Directory.Exists(sharedDir) Then
-                ' 1. Se è presente un profilo orfano anonimo (WV2Profile_), lo assegna a un nuovo id
+                ' 1. If an anonymous orphan profile (WV2Profile_) is present, assign it to a new unique ID without overwriting
                 If Not AccountLoadSafetyPolicy.ShouldInhibitCleanup(_loadFailed) Then
                     Dim orphanProfile = Path.Combine(sharedDir, "WV2Profile_")
                     If Directory.Exists(orphanProfile) Then
                         Dim newOrphanId = AppAccounts.GenerateId()
                         Dim targetDir = Path.Combine(sharedDir, $"WV2Profile_{newOrphanId}")
-                        Try
-                            Directory.Move(orphanProfile, targetDir)
-                            Debug.WriteLine($"CreateDefaultAccount: spostato orfano anonimo {orphanProfile} -> {targetDir}")
-                        Catch ex As Exception
-                            Debug.WriteLine($"CreateDefaultAccount: errore spostamento orfano: {ex.Message}")
-                        End Try
+                        If Not Directory.Exists(targetDir) Then
+                            Try
+                                Directory.Move(orphanProfile, targetDir)
+                                Debug.WriteLine($"CreateDefaultAccount: moved anonymous orphan {orphanProfile} -> {targetDir}")
+                            Catch ex As Exception
+                                Debug.WriteLine($"CreateDefaultAccount: error moving orphan: {ex.Message}")
+                            End Try
+                        End If
                     End If
                 End If
 

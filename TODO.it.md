@@ -42,16 +42,6 @@
   - **Test di accettazione**: Ritardare artificialmente la pulizia e avviare due aggiornamenti da copie distinte. Nessuna sessione deve eliminare file ancora usati dall’altra.
   - **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio
 
-- [ ] **TASK-0090** [Alta] MigrateOrphanProfile cancella o sovrascrive un profilo valido
-  - **File**: `AccountManager.vb` (metodo `MigrateOrphanProfile`)
-  - **Problema / Esigenza**: Se sul filesystem coesistono sia la cartella `WV2Profile_` (profilo orfano o legacy senza ID specificato) sia la cartella `WV2Profile_{id}` associata al primo account, una logica di migrazione errata o distruttiva rischia di eliminare il profilo valido del primo account per spostarvi sopra la cartella orfana, causando la perdita della sessione reale e attiva dell'utente.
-  - **Fix da implementare**:
-    - All'interno di `MigrateOrphanProfile`, verificare preliminarmente l'esistenza della cartella di destinazione `WV2Profile_{id}` (e di eventuali snapshot `.previous`).
-    - Se la cartella di destinazione esiste già, interrompere immediatamente la migrazione (`Continue For` / `Return`), lasciando intatto il profilo valido esistente.
-    - Lasciare che la cartella orfana venga gestita in sicurezza dai meccanismi di cleanup non distruttivi o conservata come backup.
-  - **Test di accettazione**: Creare manualmente sia `data/webview/WV2Profile_` che `data/webview/WV2Profile_{id}` con file differenti. All'avvio dell'applicazione, il contenuto di `WV2Profile_{id}` deve rimanere inalterato e non essere sostituito o cancellato dall'orfano.
-  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso
-
 - [ ] **TASK-0096** [Bassa] CleanupUnusedProfilesAsync esegue cancellazione ricorsiva sincrona nel thread UI con possibile freeze all'avvio
   - **File**: `AccountManager.vb` (metodo `CleanupUnusedProfilesAsync`)
   - **Problema / Esigenza**: Il metodo ha firma asincrona ma, se invocato direttamente o se esegue `Directory.Delete(..., True)` in modo sincrono nel contesto del thread principale all'avvio, può causare blocchi e freeze dell'interfaccia utente in presenza di profili Chromium voluminosi (migliaia di file di cache, LevelDB e blob) o contesi temporaneamente.

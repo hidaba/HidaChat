@@ -3,6 +3,19 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.4.7-beta] - 2026-11-18
+
+### Pre-release / Beta — Migrazione non distruttiva del profilo orfano e salvaguardia sessioni
+- **Riassociazione sicura profilo orfano e prevenzione sovrascritture (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0090)**:
+  - In `AccountLoadSafetyPolicy`, implementato `CanSafelyMigrateOrphanProfile(sharedDir, accountId)` per verificare se una cartella di profilo orfano anonimo (`WV2Profile_`) può essere migrata in sicurezza senza collidere né distruggere profili esistenti.
+  - Verifica preliminarmente l'esistenza della directory di destinazione `WV2Profile_{id}`, della directory del profilo nativo `EBWebView/wv2profile_{id}`, di formati di denominazione nativa alternativi e di tutte le varianti di snapshot/backup (`.previous`, `.bak`, `.migrated`, `_Snapshot`).
+  - In `AccountManager.MigrateOrphanProfile`, se per l'account esiste già un profilo valido o uno snapshot, la migrazione viene interrotta immediatamente e rigorosamente (`Return`), registrando `[ORPHAN_PRESERVED]` nel log e preservando la sessione attiva dell'utente intatta e non modificata.
+  - La cartella orfana viene conservata in sicurezza come backup ed esclusa da qualsiasi eliminazione distruttiva.
+  - In `AccountManager.CreateDefaultAccountAsync`, aggiunto il controllo di esistenza preventivo prima dello spostamento dell'orfano anonimo per prevenire potenziali collisioni.
+- **Estensione della suite di regressione automatizzata (`Tests/SessionTests.vb`)**:
+  - Aggiunti test di regressione unitari completi che verificano il rifiuto da parte di `CanSafelyMigrateOrphanProfile` di argomenti nulli/vuoti, cartella orfana assente, cartelle legacy valide preesistenti, tutte le varianti di snapshot (`.previous`, `.bak`, `.migrated`, `_Snapshot`), cartelle native e snapshot nativi.
+  - Verificato il test di accettazione end-to-end: con la coesistenza di `WV2Profile_` e `WV2Profile_{id}` aventi file differenti, la migrazione viene respinta preservando `WV2Profile_{id}` intatto al 100% senza alcuna sovrascrittura o cancellazione e `WV2Profile_` rimane conservato per un'ispezione sicura (totale di **695 asserzioni di regressione automatizzate con 0 errori**).
+
 ## [1.4.6-beta] - 2026-11-16
 
 ### Pre-release / Beta — Protezione non distruttiva su errori di deserializzazione e salvaguardia sessioni

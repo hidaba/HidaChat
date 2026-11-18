@@ -3,6 +3,17 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-18
+
+- [x] **TASK-0090** [Alta] MigrateOrphanProfile cancella o sovrascrive un profilo valido
+  - Risultato:
+    - Incapsulata la valutazione di sicurezza della migrazione del profilo orfano in `AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(sharedDir, accountId)`.
+    - Verifica preliminarmente l'esistenza della cartella legacy di destinazione `WV2Profile_{id}`, della cartella del profilo nativo `EBWebView/wv2profile_{id}`, di pattern di denominazione nativa alternativi e di tutte le varianti di snapshot/backup (`.previous`, `.bak`, `.migrated`, `_Snapshot`).
+    - Se la cartella di destinazione o uno snapshot esiste già su disco, `MigrateOrphanProfile` interrompe immediatamente e rigorosamente la migrazione (`Return`), preservando il profilo valido esistente e la sessione attiva dell'utente intatta al 100%.
+    - Conservata la directory orfana `WV2Profile_` in sicurezza come backup, evitando sovrascritture distruttive ed escludendola da cancellazioni automatiche.
+    - In `AccountManager.CreateDefaultAccountAsync`, aggiunto il controllo di esistenza preventivo prima dello spostamento dell'orfano anonimo per prevenire potenziali collisioni.
+  - Verifica: Aggiunte 21 nuove asserzioni di regressione in `SessionTests.vb` verificando il rifiuto di parametri nulli/vuoti, cartella orfana mancante, destinazione valida preesistente e tutte le varianti di snapshot/profili nativi. Eseguito il test di accettazione esatto: con `WV2Profile_` e `WV2Profile_{id}` coesistenti con file differenti, la migrazione è stata respinta preservando `WV2Profile_{id}` intatto al 100% (totale di **695 asserzioni di regressione automatizzate con 0 errori**). Compilazione pulita con 0 avvisi e 0 errori.
+
 ## 2026-11-16
 
 - [x] **TASK-0089** [Alta] Possibile perdita di tutte le sessioni su errore di deserializzazione (AccountManager.LoadAccountsAsync)

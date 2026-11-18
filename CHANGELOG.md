@@ -5,6 +5,19 @@
 
 ---
 
+## [1.4.7-beta] - 2026-11-18
+
+### Pre-release / Beta — Non-Destructive Orphan Profile Migration and Session Safeguarding
+- **Safe Orphan Profile Reassociation & Overwrite Prevention (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0090)**:
+  - In `AccountLoadSafetyPolicy`, implemented `CanSafelyMigrateOrphanProfile(sharedDir, accountId)` to verify whether an anonymous orphan profile folder (`WV2Profile_`) can safely be migrated without colliding with or destroying existing profiles.
+  - Preliminarily checks for the existence of target directory `WV2Profile_{id}`, native profile directory `EBWebView/wv2profile_{id}`, alternative native naming formats, and all snapshot/backup variants (`.previous`, `.bak`, `.migrated`, `_Snapshot`).
+  - In `AccountManager.MigrateOrphanProfile`, if a valid profile or snapshot already exists for the account, migration is immediately and strictly aborted (`Return`), logging `[ORPHAN_PRESERVED]` and keeping the user's active session completely intact and untouched.
+  - The orphan directory is safely preserved as a backup and excluded from destructive cleanup.
+  - In `AccountManager.CreateDefaultAccountAsync`, added existence check before moving anonymous orphan to prevent potential collisions.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`)**:
+  - Added comprehensive automated regression tests verifying that `CanSafelyMigrateOrphanProfile` rejects null/empty arguments, missing orphan folder, existing valid legacy directories, all snapshot variants (`.previous`, `.bak`, `.migrated`, `_Snapshot`), native directories, and native snapshots.
+  - Verified full end-to-end acceptance test: when both `WV2Profile_` and `WV2Profile_{id}` coexist with differing files, migration is rejected, `WV2Profile_{id}` and its contents remain 100% untouched and preserved, and `WV2Profile_` remains preserved for safe inspection (totaling **695 automated regression assertions with 0 errors**).
+
 ## [1.4.6-beta] - 2026-11-16
 
 ### Pre-release / Beta — Non-Destructive Deserialization Failure Protection and Session Preservation

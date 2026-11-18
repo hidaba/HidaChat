@@ -3,6 +3,17 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 
+## 2026-11-18
+
+- [x] **TASK-0090** [High] MigrateOrphanProfile deletes or overwrites a valid profile
+  - Result:
+    - Encapsulated orphan profile migration safety evaluation in `AccountLoadSafetyPolicy.CanSafelyMigrateOrphanProfile(sharedDir, accountId)`.
+    - Preliminarily checks for the existence of legacy target folder `WV2Profile_{id}`, native profile folder `EBWebView/wv2profile_{id}`, alternative native naming patterns, and all snapshot/backup variants (`.previous`, `.bak`, `.migrated`, `_Snapshot`).
+    - If the target folder or any snapshot already exists on disk, `MigrateOrphanProfile` immediately and strictly aborts migration (`Return`), preserving the existing valid profile and active user session 100% untouched.
+    - Preserved the orphan directory `WV2Profile_` safely as a backup, avoiding destructive overwrite and excluding it from deletion.
+    - In `AccountManager.CreateDefaultAccountAsync`, added existence check before moving anonymous orphan to prevent potential collisions.
+  - Verification: Added 21 new regression assertions in `SessionTests.vb` testing null/empty rejection, missing orphan rejection, existing valid target rejection, and all snapshot/native variants. Performed the exact acceptance test: coexisting `WV2Profile_` and `WV2Profile_{id}` with differing files was rejected, preserving `WV2Profile_{id}` completely untouched (totaling **695 automated regression assertions with 0 errors**). Clean build with 0 warnings and 0 errors.
+
 ## 2026-11-16
 
 - [x] **TASK-0089** [High] Potential loss of all sessions on deserialization error (AccountManager.LoadAccountsAsync)
