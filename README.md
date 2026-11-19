@@ -60,7 +60,7 @@ Choose between the **Stable Release** (tested, recommended for daily use) and th
 |---|:---:|:---:|:---:|:---:|
 | **Installation Required** | ❌ **No (100% Portable)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Moveable Data / Portable** | ✅ **Yes (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
-| **Multi-Platform in One App** | ✅ **Yes (4 Platforms)** | ❌ WhatsApp only | ❌ Telegram only | ❌ WhatsApp only |
+| **Multi-Platform in One App** | ✅ **Yes (5 Platforms: WhatsApp, Telegram, Discord, OpenClaw, Hermes)** | ❌ WhatsApp only | ❌ Telegram only | ❌ WhatsApp only |
 | **AI Agent Gateway (OpenClaw & Hermes)** | ✅ **Yes (via Tailscale Mesh & Local)** | ❌ No | ❌ No | ❌ No |
 | **Multi-Account Tabs** | ✅ **Yes (Isolated Profiles)** | ❌ No | ⚠️ Switcher only | ✅ Yes |
 | **Bulk Sender (Excel & CSV)** | ✅ **Yes (WhatsApp & Telegram)** | ❌ No | ❌ No | ❌ No |
@@ -143,6 +143,7 @@ Alternatively, open `HidaChat.sln` in **Visual Studio 2022** (.NET 9 SDK install
 2. **Log In & Connect**:
    - **WhatsApp**: Scan the displayed QR code using your WhatsApp mobile app (*Linked Devices*).
    - **Telegram**: Scan the QR code with your Telegram mobile app or log in via phone number / SMS code.
+   - **Discord**: Log in with your Discord credentials or scan the mobile QR code. Benefit from isolated multi-account Discord sessions, voice call hibernation guard, and native Windows notifications.
    - **OpenClaw**: Enter your Gateway URL (default `http://127.0.0.1:18789` or remote Tailnet IP/hostname) and Auth Token. Enable **Tailscale Mesh Integration** if connecting over a private Tailnet without installing Tailscale on Windows. Click **Test Connection** to verify status.
    - **Hermes Agent**: Enter the Hermes URL (default `http://127.0.0.1:9119` or remote Tailnet address) and Auth Token / API Key (automatically injected as Bearer token). Enable **Tailscale Mesh Integration** if needed, and click **Test Connection**.
 3. **Rename & Organize Tabs**: Right-click on any tab header and select **Rename** to customize the label, or configure accounts anytime via Settings (⚙️).

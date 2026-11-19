@@ -3,6 +3,32 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.0] - 2026-11-19
+
+### Release Stabile — Integrazione Ufficiale Discord, Blindatura delle Sessioni e Architettura di Storage Resiliente
+- **Integrazione Ufficiale Discord (Espansione Multi-Piattaforma di Messaggistica — TASK-0115)**:
+  - Introdotto il supporto ufficiale per Discord Web (`https://discord.com/app`) insieme a WhatsApp, Telegram, OpenClaw ed Hermes Agent, portando HidaChat a 5 piattaforme supportate.
+  - Isolamento multi-account: schede WebView2 dedicate con sandbox di memorizzazione, cookie persistenti e sessioni di login indipendenti in `data/webview/`.
+  - Protezione completa per chiamate vocali e flussi multimediali durante l'ibernazione delle schede (`AppAccounts.vb`): rilevamento audio attivo (`IsPlayingAudio` e `CoreWebView2.IsDocumentPlayingAudio`) per garantire che le schede Discord in chiamata vocale o stream non vengano mai sospese in background.
+  - Gestione granulare dei permessi multimediali (`AppAccounts.vb`): gestione sicura per microfono e fotocamera (`CoreWebView2PermissionKind.Microphone` e `Camera`) vincolata rigorosamente ai domini autorizzati Discord.
+  - Navigazione e autenticazione interna all'app (`PlatformDefinition.vb`): abilitati i percorsi di login e verifica Discord (`/login`, `/register`, `/verify`, `/oauth2/`, `/popout/`, `/guild-discovery`, `/store`), impedendo l'uscita forzata sul browser esterno.
+  - Risoluzione dei deep-link (`PlatformDefinition.vb`): gestore nativo per lo schema di protocollo `discord://` e per i link di invito (`discord.gg`).
+  - Rilevamento badge non letti e notifiche toast (`Scripts/notification.js`): tracciamento preciso delle menzioni, deduplicazione dei badge padre/figlio, filtraggio dei canali silenziati e notifiche Windows Toast native.
+  - Protezione persistenza storage (`Scripts/session-health.js`): chiamata automatica a `navigator.storage.persist()` per proteggere i database IndexedDB di Discord dallo sfratto per quota.
+- **Protezione Fail-Safe delle Impostazioni e Deserializzazione Non Distruttiva (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - Generazione immediata di una copia di backup di emergenza (`settings.json.bak`) in caso di errore di deserializzazione JSON prima di qualsiasi operazione di fallback.
+  - Blocco dello stato di sicurezza (`_loadFailed = True`) che inibisce il salvataggio automatico e forzato per impedire la sovrascrittura distruttiva delle configurazioni valide.
+  - Conservazione totale dei profili: inibite tutte le routine di pulizia e cancellazione cartelle profilo in stato di errore, garantendo che le sessioni esistenti (WhatsApp, Telegram, Discord, OpenClaw, Hermes) non vengano mai cancellate.
+  - Finestra modale di avviso per informare chiaramente l'utente del problema di configurazione e della presenza del file di backup.
+- **Migrazione Sicura Profili Orfani e Prevenzione Sovrascritture (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0090)**:
+  - Criterio di sicurezza `CanSafelyMigrateOrphanProfile` che verifica se una cartella orfana (`WV2Profile_`) possa essere migrata senza collidere o distruggere profili o snapshot esistenti (`.previous`, `.bak`, `.migrated`, `_Snapshot`).
+  - Conservazione rigorosa dei profili validi con abort sicuro della migrazione in caso di rischio di collisione, preservando le sessioni attive.
+- **Aggiornamenti Streaming Diretti su Disco e Ottimizzazione RAM (`UpdateChecker.vb` — TASK-0088)**:
+  - Sostituito il download bufferizzato in memoria con streaming progressivo a blocchi (buffer di 80 KB) direttamente su file temporaneo con client a timeout esteso (10 minuti).
+  - Calcolo crittografico SHA-256 diretto dal flusso su disco (`SHA256.HashDataAsync`), riducendo al minimo l'impronta di memoria durante gli aggiornamenti OTA.
+- **Espansione Architettura Piattaforme e Regression Test Suite (`Tests/SessionTests.vb`)**:
+  - Suite completa di 695 asserzioni di test e regressione automatizzate superate con 0 errori su routing piattaforme, autorizzazioni origini, deep link, isolamento storage e politiche di fail-safe.
+
 ## [1.4.7-beta] - 2026-11-18
 
 ### Pre-release / Beta — Migrazione non distruttiva del profilo orfano e salvaguardia sessioni

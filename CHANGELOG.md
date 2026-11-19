@@ -5,6 +5,32 @@
 
 ---
 
+## [1.5.0] - 2026-11-19
+
+### Stable Release — Discord Integration, Session Hardening, and Resilient Storage Architecture
+- **Discord Integration (Multi-Platform Messaging Expansion — TASK-0115)**:
+  - Added official Discord Web platform support (`https://discord.com/app`) alongside WhatsApp, Telegram, OpenClaw, and Hermes Agent, expanding HidaChat to 5 core messaging ecosystems.
+  - Multi-account isolation: dedicated WebView2 tabs with sandboxed storage, persistent cookies, and independent logins under `data/webview/`.
+  - Comprehensive voice call and media protection in tab hibernation (`AppAccounts.vb`): active audio detection via `IsPlayingAudio` and `CoreWebView2.IsDocumentPlayingAudio` ensures background Discord tabs during voice calls, meetings, or streams are never suspended.
+  - Granular hardware media permissions (`AppAccounts.vb`): secure handling for `CoreWebView2PermissionKind.Microphone` and `Camera` strictly restricted to authorized Discord domains.
+  - In-app login and verification navigation (`PlatformDefinition.vb`): enabled Discord authentication paths (`/login`, `/register`, `/verify`, `/oauth2/`, `/popout/`, `/guild-discovery`, `/store`), preventing external browser dropouts.
+  - Deep link resolution (`PlatformDefinition.vb`): native handler for `discord://` protocol scheme and invite links (`discord.gg`).
+  - Unread badge tracking and toast alerts (`Scripts/notification.js`): accurate mention detection, parent/child badge deduplication, muted channel filtering, and native Windows Toast notifications.
+  - Persistent storage API protection (`Scripts/session-health.js`): automated `navigator.storage.persist()` registration protecting Discord IndexedDB data from quota evictions.
+- **Fail-Safe Settings Protection and Non-Destructive Deserialization (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0089)**:
+  - Automatic emergency backup copy (`settings.json.bak`) generated immediately upon JSON deserialization failure before any fallback action.
+  - Fail-safe state lock (`_loadFailed = True`) inhibiting both auto-save and manual saving to strictly prevent corrupted configurations from overwriting valid user data.
+  - Protected profile persistence: completely inhibited profile folder cleanup and deletions during failure states, guaranteeing that existing sessions (WhatsApp, Telegram, Discord, OpenClaw, Hermes) are never lost.
+  - User-facing modal notification dialog informing of configuration issues with instructions to check the backup file.
+- **Safe Orphan Profile Reassociation and Collision Prevention (`AccountManager.vb`, `AccountLoadSafetyPolicy.vb` — TASK-0090)**:
+  - Safety policy `CanSafelyMigrateOrphanProfile` verifies whether orphan directories (`WV2Profile_`) can be reassociated without destroying existing profiles or snapshots (`.previous`, `.bak`, `.migrated`, `_Snapshot`).
+  - Strictly preserves existing valid accounts and aborts migration safely if collision risks exist, safeguarding user sessions.
+- **Resilient Direct-to-Disk Streaming Updates (`UpdateChecker.vb` — TASK-0088)**:
+  - Replaced memory-buffered downloads with direct-to-disk chunked streaming (80 KB buffer) with dedicated long-timeout client (10-minute timeout).
+  - Direct file-stream cryptographic SHA-256 calculation (`SHA256.HashDataAsync`), minimizing RAM consumption during updates.
+- **Platform Architecture & Test Suite Expansion (`Tests/SessionTests.vb`)**:
+  - Full suite of 695 automated unit and regression assertions passing with 0 errors across platform routing, origin authorization, deep links, storage isolation, and fail-safe policies.
+
 ## [1.4.7-beta] - 2026-11-18
 
 ### Pre-release / Beta — Non-Destructive Orphan Profile Migration and Session Safeguarding

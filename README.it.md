@@ -60,7 +60,7 @@ Scegli tra la **Versione Stabile** (testata, consigliata per l'uso quotidiano) e
 |---|:---:|:---:|:---:|:---:|
 | **Installazione Richiesta** | ❌ **Nessuna (Portabile)** | ✅ Richiesta | ✅ Richiesta | ✅ Richiesta |
 | **Dati Spostabili (USB/Rete)** | ✅ **Sì (ZIP / USB)** | ❌ No | ❌ No | ❌ No |
-| **Multi-Piattaforma in 1 App** | ✅ **Sì (4 Piattaforme)** | ❌ Solo WhatsApp | ❌ Solo Telegram | ❌ Solo WhatsApp |
+| **Multi-Piattaforma in 1 App** | ✅ **Sì (5 Piattaforme: WhatsApp, Telegram, Discord, OpenClaw, Hermes)** | ❌ Solo WhatsApp | ❌ Solo Telegram | ❌ Solo WhatsApp |
 | **Gateway Agenti IA (OpenClaw & Hermes)** | ✅ **Sì (via Tailscale Mesh e Locale)** | ❌ No | ❌ No | ❌ No |
 | **Schede Multi-Account** | ✅ **Sì (Profili Isolati)** | ❌ No | ⚠️ Solo selettore | ✅ Sì |
 | **Invio Massivo (Excel & CSV)** | ✅ **Sì (WhatsApp & Telegram)** | ❌ No | ❌ No | ❌ No |
@@ -143,6 +143,7 @@ In alternativa, puoi aprire la soluzione `HidaChat.sln` con **Visual Studio 2022
 2. **Accesso e Connessione**:
    - **WhatsApp**: Inquadra il codice QR con l'app WhatsApp dello smartphone (*Dispositivi collegati*).
    - **Telegram**: Inquadra il codice QR con l'app Telegram o accedi con numero di telefono e codice SMS.
+   - **Discord**: Accedi con le tue credenziali Discord o scansiona il codice QR dall'app mobile. Approfitta dell'isolamento multi-account per Discord, della protezione per le chiamate vocali durante l'ibernazione e delle notifiche native.
    - **OpenClaw**: Inserisci l'URL del Gateway (default `http://127.0.0.1:18789` o indirizzo/hostname Tailnet) e il Token di Autenticazione. Attiva **Integrazione Rete Mesh Tailscale** per connetterti a un'istanza remota senza installare il client Tailscale sul PC. Clicca **Verifica Connessione**.
    - **Hermes Agent**: Inserisci l'URL del server (default `http://127.0.0.1:9119` o indirizzo Tailnet) e il Token / API Key (iniettato automaticamente come Bearer token). Attiva **Integrazione Rete Mesh Tailscale** se necessario, e clicca **Verifica Connessione**.
 3. **Rinomina Schede e Impostazioni**: Fai clic con il tasto destro sulla scheda desiderata e seleziona **Rename** per personalizzarne il nome, oppure gestisci gli account dalla finestra Impostazioni (⚙️).

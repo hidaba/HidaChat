@@ -84,64 +84,71 @@
 
 ## OTA Updates & Lifecycle
 
-- [ ] **TASK-0091** [High] Version marker written before robocopy and temporary batch script leftovers
-  - **File**: `UpdateChecker.vb` (`PerformUpdateFromGitHubAsync`, `WriteLocalVersionMarker` methods)
+- [ ] **TASK-0091** [High] Version marker written before robocopy, unique temp directory naming, and temporary leftovers cleanup
+  - **File**: `UpdateChecker.vb` (`PerformUpdateFromGitHubAsync`, `WriteLocalVersionMarker` methods), `Application.xaml.vb`
   - **Problem / Need**:
-    1. `WriteLocalVersionMarker` was invoked by VB code before the batch script completed file replacement: if the robocopy command failed or was aborted, `.app_version` still claimed the new version even though application binaries were not updated. Additionally, the batch script already rewrites the marker upon successful copy, making the preliminary VB call redundant and harmful, with format discrepancies (e.g. `0.7.1` in VB vs `v0.7.1` in batch).
-    2. The `update.bat` script is created inside `tempDir`. If the ZIP archive contains `HidaChat.exe` at root, `sourceDir = tempDir`: robocopy then copies `update.bat` into the application installation folder.
-    3. The extracted temporary folder `tempDir` (potentially hundreds of MBs) was not deleted upon update completion, leaving wasted disk space.
+    1. `WriteLocalVersionMarker` was invoked by VB code before the file copy completed: if robocopy failed or was aborted, `.app_version` still claimed the new version even though application binaries were not updated. Additionally, the updater already writes the marker upon successful copy, making the preliminary VB call redundant and harmful, with format discrepancies (e.g. `0.7.1` in VB vs `v0.7.1`).
+    2. The update script was generated inside `tempDir`. If the ZIP archive contains `HidaChat.exe` at root, `sourceDir = tempDir`: robocopy then copies the script into the application installation folder.
+    3. The extracted temporary folder `tempDir` (potentially hundreds of MBs) and temporary zip files were not reliably cleaned up after update completion, wasting disk space.
+    4. Using a fixed temporary folder name (`%TEMP%\HidaChat_Update`) causes collisions and file lock conflicts if multiple users or portable instances update simultaneously.
   - **Fix to Implement**:
-    - Remove `WriteLocalVersionMarker` call from VB flow, delegating marker writing solely to the batch script (or updater process) only upon successful robocopy completion (`%RC% < 8`). Unify version format.
-    - Place batch script in `Path.GetTempPath()` outside both `tempDir` and `sourceDir`, preventing robocopy from including it in target destination.
-    - Add forced removal of extracted temporary directory (`rd /s /q "<tempDir>"`) and temporary zip file at the end of the script.
-  - **Acceptance Test**: Run an update procedure: verify that `update.bat` is not present in final installation folder, that `tempDir` is completely deleted upon completion, and that `.app_version` marker is not written if robocopy fails.
+    - Remove `WriteLocalVersionMarker` call from VB flow, delegating marker writing solely to the updater only upon successful copy completion (`%RC% < 8`). Unify version format.
+    - Generate unique session-specific temporary directories (e.g. `HidaChat_Update_{updateSessionId}`) to prevent collisions between concurrent instances or user accounts.
+    - Place temporary runner scripts outside both `tempDir` and `sourceDir` (e.g. directly in `Path.GetTempPath()`), preventing robocopy from copying them into destination.
+    - Ensure complete cleanup of extracted temporary folders (`rd /s /q "<tempDir>"`) and temporary zip files upon completion or failure.
+  - **Acceptance Test**: Run an update procedure: verify that updater scripts are not present in final installation folder, that `tempDir` is completely deleted upon completion, that concurrent updates in separate folders use isolated temporary directories, and that `.app_version` marker is not written if copy fails.
   - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
 
-- [ ] **TASK-0092** [Medium] Fragile update batch script (parentheses in paths, root USB drive, and error handling)
+- [ ] **TASK-0092** [High] Fragile update batch script (OEM/UTF-8 codepage, accented characters, special characters, parentheses, and root USB drive)
   - **File**: `UpdateChecker.vb` (batch generation in `PerformUpdateFromGitHubAsync`)
   - **Problem / Need**:
-    1. Inside the `if %RC% GEQ 8 ( ... )` block, the command `echo ... {logFile}` did not wrap the path in double quotes. In a path containing parentheses such as `C:\Program Files (x86)\...`, the closing parenthesis `)` prematurely closed the `if` block, causing a cmd syntax error and script failure.
-    2. If the application is located at the root of a USB drive (e.g. `E:\HidaChat.exe`, a scenario explicitly supported by README for portable use), `installDir` resolves to `E:\`. In robocopy, `"E:\"` is interpreted as an escaped quote (`\"`), breaking the command. Normalization using `installDir.TrimEnd("\""c) & "\."` is required.
-    3. On robocopy failure, the script executed `exit /b 1` without a `pause` command: the console closed immediately without allowing the user to read the error, and the application was not restarted, leaving the user with no UI.
-    4. Using `taskkill /f /im HidaChat.exe` forcefully killed all running HidaChat instances rather than verifying the PID of the calling process.
+    1. The script is written via `File.WriteAllText` in UTF-8, but `cmd.exe` parses files in OEM codepage (e.g. CP437/CP850). If the path contains accented characters (e.g. Italian vowels `è`, `à`, `ò` in username or folder path), robocopy reads corrupted paths and fails.
+    2. Special characters such as `%` or `!` in the path break `cmd.exe` variable parsing and delayed expansion.
+    3. Inside `if (...)` blocks, commands like `echo ... {logFile}` with unquoted/unescaped paths containing closing parentheses `)` (e.g. `HidaChat (1)` or `Program Files (x86)`) prematurely terminate the `if` block, causing syntax errors.
+    4. If the application is located at the root of a USB drive (e.g. `E:\HidaChat.exe`, a scenario explicitly supported for portable use), `installDir` resolves to `E:\`. In robocopy, `"E:\"` escapes the trailing double quote (`\"`), corrupting the arguments. Normalization using `installDir.TrimEnd("\""c) & "\."` is required.
+    5. On robocopy failure, executing `exit /b 1` without `pause` causes the console to vanish instantly without letting the user see the error.
   - **Fix to Implement**:
-    - Always wrap expanded paths in double quotes in batch echo commands (`echo ... "%logFile%"` or `"%LOG%"`).
-    - Handle drive roots by normalizing the destination path for robocopy with `installDir.TrimEnd("\""c) & "\."`.
-    - On batch error (`%RC% GEQ 8`), insert a `pause` before exit or re-launch the original application in emergency fallback mode to avoid leaving the user without an app.
-    - Wait for orderly shutdown by checking the specific PID (`tasklist /fi "PID eq {Environment.ProcessId}"`) rather than using blanket forceful process termination.
-  - **Acceptance Test**: Perform update with path containing parentheses (e.g. `C:\Program Files (x86)\HidaChat`) and from root drive (`E:\`). Verify robocopy succeeds and, on simulated error, that a readable message appears before exit.
-  - **Priority**: P2 (Medium severity) | **Impact**: Medium-High | **Effort**: Low-Medium
+    - Add `chcp 65001 >nul` at the beginning of the batch script (or write the batch file with OEM encoding `Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage)`) to support accented paths.
+    - Properly escape or remove `echo` with `{logFile}` inside `if` blocks, and escape or avoid `%` / `!` expansion issues in path handling.
+    - Wrap all paths in double quotes and normalize drive roots for robocopy with `installDir.TrimEnd("\""c) & "\."`.
+    - On robocopy error (`%RC% GEQ 8`), insert a `pause` before exit to allow inspection of the log.
+  - **Acceptance Test**: Perform update with installation paths containing accented characters (`C:\Users\è_test\HidaChat`), duplicate parentheses (`HidaChat (1)`), `%` symbols, and from USB root (`E:\`). Verify robocopy succeeds without syntax errors.
+  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
 
-- [ ] **TASK-0093** [Medium] SHA-256 verification: false mismatches with multiple files and fail-open if checksum is missing
+- [ ] **TASK-0093** [Medium] SHA-256 verification: false mismatches with multiple files, filename:hash format, and fail-open if checksum is missing
   - **File**: `UpdateChecker.vb` (`ExtractSha256FromText` method)
-  - **Problem / Need**: If the ZIP filename is not matched exactly in checksum text (e.g. listed as `./HidaChat.zip` or with path prefixes), a fallback grabbing the first 64-character hex string risks picking an irrelevant hash (e.g. hash of another archive in a multi-asset `SHA256SUMS` file or a commit SHA in release notes), blocking updates due to false "mismatches". Conversely, if no hash is found and strict fail-closed policy is not enforced, update risks proceeding without integrity verification.
+  - **Related to**: TASK-0040
+  - **Problem / Need**:
+    1. If the release lacks both an asset checksum and release notes hash, update currently proceeds ("Verified via HTTPS transport"). This fail-open behavior contradicts the verified integrity requirement of TASK-0040. Missing hash must be treated as an error (or explicit warning) rather than silently proceeding.
+    2. In `ExtractSha256FromText`, the fallback searching for "any 64-hex string" picks the wrong hash when encountering multi-asset `SHA256SUMS` files or commit SHAs in release notes, causing false "Integrity check failed" errors.
+    3. Checksum formats like `filename: hash` or `hash *filename` with relative `./` prefixes are not reliably parsed.
   - **Fix to Implement**:
-    - Normalize filename matching by stripping relative prefixes such as `./` or escape characters `*`.
-    - If a `filename` is specified, ignore generic arbitrary fallback or accept it exclusively if the text contains a single unambiguous 64-character hash.
-    - Strictly enforce Fail-Closed policy: if no valid and unique checksum is resolved for the downloaded file, abort update and notify user with a clear error message.
-  - **Acceptance Test**: Provide a `SHA256SUMS` file containing hashes of multiple files and verify only the hash matching HidaChat's zip is extracted. Verify that missing checksum blocks update with alert without attempting unverified installation.
+    - Remove loose/permissive 64-hex fallback; only extract hash if explicitly paired with the target zip filename or if the text contains a single unambiguous hash.
+    - Support standard checksum lines (`hash filename`, `hash *filename`, and `filename: hash`), stripping `./` and `*` prefixes.
+    - Enforce strict Fail-Closed policy: if no valid checksum is found matching the downloaded zip, abort update with a clear error dialog instead of allowing unverified installation.
+  - **Acceptance Test**: Test with a `SHA256SUMS` file containing multiple hashes, a `filename: hash` formatted file, and a release with no hash. Verify correct hash extraction and that missing checksum halts installation with an integrity alert.
   - **Priority**: P2 (Medium severity) | **Impact**: Medium-High | **Effort**: Low-Medium
 
-- [ ] **TASK-0094** [Medium] Manual update check lacks user feedback on network errors or missing assets
+- [ ] **TASK-0094** [Medium] Manual update check lacks user feedback on network errors or missing assets and startup latch bug
   - **File**: `UpdateChecker.vb` (`CheckForUpdatesAsync`, `FetchGitHubReleaseInfoAsync` methods)
-  - **Problem / Need**: When user explicitly clicks "Check for Updates" (`force = True`), if GitHub API responds with an error (403 rate limit, offline, unreachable endpoint) or if the remote release lacks an attached ZIP archive, execution terminated with a simple `Debug.WriteLine`. User received zero visual feedback and the button appeared broken.
+  - **Problem / Need**:
+    1. When user explicitly clicks "Check for Updates" (`force = True`), network connectivity errors, GitHub API 403 rate limits (60 unauthenticated requests/hr), or releases without zip assets only log to `Debug.WriteLine`. The user sees no feedback and the button appears non-functional.
+    2. `_hasChecked = True` is set before executing the check: if a transient network failure occurs during application startup, update checking is latched and never retried until application restart.
   - **Fix to Implement**:
-    - When `force = True`, always display an explicit dialog across three critical scenarios:
-      1. Network connectivity failure or exception;
-      2. Non-success HTTP response from GitHub API (including 403 rate limiting and 404);
-      3. New version found but lacks a valid ZIP update asset.
-  - **Acceptance Test**: Trigger manual check while disconnected or simulate 403 GitHub response: an informative MessageBox with error explanation must appear instead of silent termination.
+    - When `force = True`, display an explicit localized dialog for network exceptions, HTTP errors (403 rate limit, 404), or releases lacking zip assets.
+    - Only set `_hasChecked = True` upon successful check completion, or reset `_hasChecked = False` on failure so startup checks can be retried.
+  - **Acceptance Test**: Trigger manual check while offline or simulate GitHub 403 response: verify an informative MessageBox appears. Verify startup check retries if initial network connection was down.
   - **Priority**: P2 (Medium severity) | **Impact**: Medium | **Effort**: Low
 
 - [ ] **TASK-0095** [Medium] Flawed pre-release/beta version comparison and remote release selection
   - **File**: `UpdateChecker.vb` (`ComparePrerelease`, `IsNewerVersion`, `FetchGitHubReleaseInfoAsync` methods)
   - **Problem / Need**:
-    1. Lexicographical comparison `String.Compare("beta10", "beta2")` produces incorrect result `beta10 < beta2` because '1' precedes '2', preventing proper detection of multi-digit beta releases.
+    1. Lexicographical comparison `String.Compare("beta10", "beta9")` produces incorrect result `"beta10" < "beta9"` because '1' precedes '9', preventing users on `beta9` from ever seeing `beta10`.
     2. On beta channel, GitHub API endpoint returns a release list: code selected the first release by date, which may not represent highest semantic version during out-of-order releases or hotfixes.
   - **Fix to Implement**:
-    - Implement SemVer 2.0-compliant parsing: split alphanumeric and numeric tokens in pre-release tags, comparing digit-only segments numerically (`Integer.TryParse`) and alphanumeric segments lexicographically.
+    - Implement SemVer 2.0-compliant parsing: extract numeric suffixes from pre-release tags, comparing digit segments numerically (`Integer.TryParse`) and alphanumeric segments lexicographically.
     - On beta channel, parse all API-returned releases containing attached ZIPs and select the one with highest actual semantic version rather than first chronological entry.
-  - **Acceptance Test**: Validate that `v1.2.10-beta` is evaluated as newer than `v1.2.2-beta`. With an out-of-order GitHub release list, verify highest semantic version is selected.
+  - **Acceptance Test**: Validate that `v1.2.10-beta` is evaluated as newer than `v1.2.9-beta`. With an out-of-order GitHub release list, verify highest semantic version is selected.
   - **Priority**: P2 (Medium severity) | **Impact**: Medium | **Effort**: Medium
 
 - [ ] **TASK-0099** [Low] MessageBox dialogs in UpdateChecker.vb hardcoded in Italian instead of multilingual (Localization.vb)
@@ -152,6 +159,76 @@
     - Add and synchronize corresponding translation keys across all 5 official dictionaries in `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
     - Use `loc.Get(...)` to retrieve localized titles and strings according to active language.
   - **Acceptance Test**: Switch application language to English or French; verify all `UpdateChecker.vb` popups appear in selected language.
+  - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
+
+- [ ] **TASK-0117** [High] Verification and enforcement of dedicated download client, timeout handling, and file streaming
+  - **Files**: `UpdateChecker.vb`, `UpdateProgressDialog.xaml`, `UpdateProgressDialog.xaml.vb`
+  - **Related to**: TASK-0088
+  - **Problem / Need**:
+    - If update ZIP download uses default `_httpClient` with a 15-second timeout, downloading large archives (dozens of MBs) over slow or high-latency connections triggers `TaskCanceledException` with a generic "Installation error" message.
+    - Downloading via `GetByteArrayAsync` buffers the entire archive into RAM, increasing memory pressure on portable machines.
+    - `UpdateProgressDialog` must be guaranteed to display active real-time download progress (MB read / total MB and percentage) rather than remaining unused or indeterminate.
+  - **Fix to Implement**:
+    - Verify and ensure dedicated `_downloadClient` with `Timeout = Timeout.InfiniteTimeSpan` guarded by a 10-minute `CancellationTokenSource` is strictly used for all update asset downloads.
+    - Stream downloaded bytes directly from response stream to disk file (`File.Create(tempZipPath)`) using chunked buffers (80 KB) without buffering entire archive in RAM.
+    - Guarantee `UpdateProgressDialog` is instantiated and updated on the UI dispatcher with real-time transfer progress.
+  - **Acceptance Test**: Simulate slow connection (throttled download): verify download continues past 15 seconds without timing out, RAM usage remains constant, and `UpdateProgressDialog` displays live progress bar and downloaded MB.
+  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
+
+- [ ] **TASK-0118** [High] Target-specific process termination by PID and orderly shutdown of tsnetd.exe child process during update
+  - **Files**: `UpdateChecker.vb`, `TsnetManager.vb`, `MainWindow.xaml.vb`
+  - **Problem / Need**:
+    1. Using image-name process termination (`taskkill /f /im HidaChat.exe /t`) terminates all running instances of HidaChat on the system. In portable usage (e.g. a second instance running from a USB drive or different folder), unrelated instances are terminated after 10 seconds.
+    2. The update script does not wait for `tsnetd.exe` (Tailscale daemon child process): if `tsnetd.exe` remains active, robocopy fails when trying to overwrite its executable binary in the installation folder.
+  - **Fix to Implement**:
+    - Pass the calling process PID (`Environment.ProcessId`) to the updater and wait specifically for that PID and its descendants to exit (`tasklist /fi "PID eq {pid}"` or `Process.GetProcessById`).
+    - In `ForceExitForUpdateAsync`, explicitly await clean shutdown and termination of `tsnetd.exe` (`TsnetManager.ShutdownAsync()`), verifying its process has fully exited before handing off to file copy.
+  - **Acceptance Test**: Run two independent portable copies of HidaChat simultaneously. Trigger update on one copy: verify only the updating instance exits and the second instance continues running undisturbed. Verify `tsnetd.exe` is shut down before robocopy replaces files.
+  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
+
+- [ ] **TASK-0119** [High] Installation directory backup, automatic rollback, and application relaunch on update copy failure
+  - **Files**: `UpdateChecker.vb`, `Application.xaml.vb`
+  - **Problem / Need**:
+    1. If file replacement (robocopy exit code >= 8 or IO error) fails halfway through, the script exits (`exit /b 1`), leaving the installation in a corrupted state with mixed old and new binaries, without backup or recovery.
+    2. The console window closes immediately, leaving the user with an unbootable app and no visible explanation.
+    3. Premature writing of `.app_version` leaves the version marker claiming the new version despite failed binary copy.
+  - **Fix to Implement**:
+    - Create a temporary safety backup of installation binaries (excluding user data directory `data/`) before starting file copy.
+    - If robocopy or file copy fails: automatically restore original binaries from backup, delete backup, prompt a clear error dialog, and relaunch the previous working version of `HidaChat.exe`.
+    - Ensure `.app_version` marker is written strictly after file copy succeeds and is verified.
+  - **Acceptance Test**: Simulate robocopy failure during update (e.g. lock a target dll): verify updater detects failure, restores old binaries from backup, and relaunches previous working version with an informative error message.
+  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Medium
+
+- [ ] **TASK-0120** [Low] Residual Directory.GetFiles and unused Directory.GetDirectories enumeration in tempDir
+  - **File**: `UpdateChecker.vb`
+  - **Related to**: TASK-0021
+  - **Problem / Need**:
+    - Task #21 was declared completed (`[x] TASK-0021`), but `Directory.GetFiles(tempDir, "HidaChat.exe", SearchOption.AllDirectories)` remains in the codebase, along with `Directory.GetDirectories(tempDir)` assigned to `subDirs` and never used.
+    - Redundant directory enumeration remains in code contrary to the completed task description.
+  - **Fix to Implement**:
+    - Clean up redundant `GetDirectories` assignments and optimize search for `HidaChat.exe` in `tempDir` to direct child checking or single-level resolution.
+  - **Acceptance Test**: Verify `UpdateChecker.vb` has no unused directory enumeration variables and compiles cleanly.
+  - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
+
+- [ ] **TASK-0121** [Low] Inaccurate permission error message suggesting protected system directory C:\Programmi\HidaChat
+  - **Files**: `UpdateChecker.vb`, `Localization.vb`
+  - **Problem / Need**:
+    - When write permission check in installation directory fails, the error dialog advises moving the application to `C:\Programmi\HidaChat`. In standard Windows setups, `C:\Program Files` (`C:\Programmi`) requires administrator privileges and triggers the exact same write permission error.
+    - Contradicts the 100% portable philosophy of HidaChat.
+  - **Fix to Implement**:
+    - Update localized strings across all 5 dictionaries in `Localization.vb` (`update_insufficient_permissions`) and fallback message in `UpdateChecker.vb`.
+    - Suggest writable user-owned portable locations (e.g. `Documents`, `Desktop`, or USB drive) and explicitly warn against system protected paths like `C:\Program Files` / `C:\Programmi`.
+  - **Acceptance Test**: Trigger permission warning (e.g. read-only folder): verify message suggests user directories and explicitly advises against `C:\Programmi`.
+  - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
+
+- [ ] **TASK-0122** [Low] Handle Process.Start failure of updater script/process after ForceExitForUpdate to prevent orphan zombie state
+  - **File**: `UpdateChecker.vb`
+  - **Problem / Need**:
+    - If `Process.Start` of the update process or batch script fails (e.g. blocked by antivirus, security policy blocking executable launch from `%TEMP%`, or missing file) after `ForceExitForUpdateAsync` has already closed webviews and application resources, the app remains alive in a non-functional zombie state.
+  - **Fix to Implement**:
+    - Wrap `Process.Start` in a protected try/catch block before calling `Environment.Exit(0)`.
+    - If starting updater fails, display an explanatory error dialog to the user, log the failure to `updates.log`, and cleanly terminate or offer application restart.
+  - **Acceptance Test**: Simulate `Process.Start` failure (e.g. invalid executable path): verify a modal error dialog appears informing the user rather than leaving the app hung in a silent zombie state.
   - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
 
 
@@ -225,6 +302,36 @@
     - In `AboutWindow.xaml.vb`, update `ApplyTheme()` to synchronize title `Foreground` property for both Dark Theme (bright white `#ffffff` or `#e9edef`) and Light Theme (high-contrast dark `#111b21`), ensuring crispness and full legibility.
   - **Acceptance Test**: Open About window in both themes (dark and light): verify "HidaChat" title is bold, crisp, and clearly legible on any background.
   - **Priority**: P2 (Medium severity) | **Impact**: Low-Medium | **Effort**: Low
+
+- [ ] **TASK-0123** [Medium] Modern restyling and structured reorganization of Settings window (SettingsWindow)
+  - **Files**: `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`
+  - **Problem / Need**:
+    - Currently, all application settings (Appearance & Theme, Language & Translation providers, Notifications & DND, Multi-Account management, Tailscale tsnet configuration, Custom CSS editor with code presets, Spellchecker, Network drive local staging, Tab hibernation, Chromium disk cache and storage optimization, Beta update channel, and DevTools) are dumped in a single unorganized, linear vertical scrolling list inside a 520x580 fixed dialog.
+    - Lack of categorization makes navigation cumbersome and cluttered as features grow.
+    - Misplaced controls: "Check Now" for updates is positioned arbitrarily inside the DevTools section rather than under Updates/About.
+    - Incomplete/hardcoded localization: Several labels and buttons (e.g. "Usa nodo Tailscale integrato", "Pulisci Cache", "Compatto", "Svuota", "Applica CSS") are hardcoded in Italian in XAML without leveraging `Localization.vb`.
+    - Dynamic translation panels (LibreTranslate, Ollama, OpenAI) cause jumpy scrolling and visual clutter in the main scroll area.
+    - Cramped account management view where credentials, server URLs, and connection test buttons are squeezed into narrow inline cards.
+  - **Specifications & Solution to Implement**:
+    - **Categorized Navigation Architecture (Tabs or Modern Sidebar)**:
+      - Replace the single long scroll stack with a clean, intuitive categorized layout (left sidebar or top tab bar):
+        - **General**: App Theme (System, Dark, Light), Language selection, Notifications toggle, Do Not Disturb duration, Spellchecker language.
+        - **Accounts**: Spacious account management cards with platform selector, name, server URL, auth tokens, Tailscale toggle, and test connection button.
+        - **Translation**: Translation switches, provider selection (Google, LibreTranslate, Ollama, OpenAI), structured configuration panels, privacy consent, and connection test.
+        - **Network & Tailscale**: Tailscale (tsnet) node status badge, AuthKey, login trigger, and network drive local staging settings.
+        - **Custom CSS & Appearance**: Dedicated CSS editor with monospace font, presets (OLED, Compact, Font, Clear), and live apply button.
+        - **Storage & Performance**: Inactive tab hibernation timeout, Chromium disk cache limit, live storage compaction, and cache cleaning actions.
+        - **About & Updates**: App version information, update channel selection (Beta/Stable), check for updates trigger (relocated from DevTools), release notes link, and developer tools toggle.
+    - **Modern Visual Polish & Card Layout**:
+      - Encapsulate settings into distinct, cohesive visual cards with subtle borders, rounded corners, and clear section subtitles.
+      - Ensure consistent typography, button heights, padding, and alignments.
+    - **Full Localization Support**:
+      - Extract all hardcoded strings into `Localization.vb` across all 5 supported languages (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+    - **Dynamic Theme Compatibility & Sizing**:
+      - Ensure seamless theme switching in `ApplyTheme()` across all navigation elements, cards, and input controls for both Dark and Light modes.
+      - Expand window dimensions (e.g. Width ~680–720px, Height ~540–580px) to provide comfortable breathing room without nested scroll conflicts.
+  - **Acceptance Test**: Open Settings in both Dark and Light themes; verify all setting categories are easily navigable via tabs/sidebar, all existing controls persist and function correctly (account CRUD, CSS editing, translation testing, cache optimization, updates check), no hardcoded strings remain, and language switching dynamically updates all setting tabs and labels across all 5 languages.
+  - **Priority**: P2 (Medium severity) | **Impact**: High | **Effort**: Medium
 
 
 

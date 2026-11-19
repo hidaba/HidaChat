@@ -84,64 +84,71 @@
 
 ## Aggiornamenti OTA e Ciclo di Vita
 
-- [ ] **TASK-0091** [Alta] Marker di versione scritto prima della copia robocopy e residui temporanei dello script batch
-  - **File**: `UpdateChecker.vb` (metodo `PerformUpdateFromGitHubAsync`, `WriteLocalVersionMarker`)
+- [ ] **TASK-0091** [Alta] Marker di versione scritto prima della copia robocopy, naming univoco directory temporanea e pulizia residui temporanei
+  - **File**: `UpdateChecker.vb` (metodo `PerformUpdateFromGitHubAsync`, `WriteLocalVersionMarker`), `Application.xaml.vb`
   - **Problema / Esigenza**:
-    1. `WriteLocalVersionMarker` viene invocato dal codice VB prima che lo script batch completi la sostituzione dei file: se il comando robocopy fallisce o viene interrotto, il file `.app_version` dichiara comunque la nuova versione anche se i file dell'applicazione non sono stati aggiornati. Inoltre lo script batch riscrive già il marker dopo una copia riuscita, rendendo la chiamata preventiva in VB inutile e dannosa, con incongruenza tra formati (es. `0.7.1` in VB vs `v0.7.1` nel batch).
-    2. Lo script `update.bat` viene creato all'interno di `tempDir`. Se l'archivio ZIP contiene `HidaChat.exe` alla radice, `sourceDir = tempDir`: robocopy copia quindi anche `update.bat` nella cartella di installazione dell'applicazione.
-    3. La cartella temporanea estratta `tempDir` (potenzialmente centinaia di MB) non viene cancellata al termine dell'aggiornamento, lasciando spazio occupato inutilmente.
+    1. `WriteLocalVersionMarker` viene invocato dal codice VB prima che la copia dei file sia completata: se robocopy fallisce o viene interrotto, il file `.app_version` dichiara comunque la nuova versione anche se i file dell'applicazione non sono stati aggiornati. Inoltre l'updater riscrive già il marker dopo una copia riuscita, rendendo la chiamata preventiva in VB inutile e dannosa, con incongruenza tra formati (es. `0.7.1` in VB vs `v0.7.1`).
+    2. Lo script di aggiornamento veniva creato all'interno di `tempDir`. Se l'archivio ZIP contiene `HidaChat.exe` alla radice, `sourceDir = tempDir`: robocopy copia quindi anche lo script nella cartella di installazione dell'applicazione.
+    3. La cartella temporanea estratta `tempDir` (potenzialmente centinaia di MB) e i file zip temporanei non venivano cancellati in modo affidabile al termine dell'aggiornamento, lasciando spazio occupato inutilmente.
+    4. L'uso di un nome fisso per la directory temporanea (`%TEMP%\HidaChat_Update`) provoca collisioni e conflitti di file lock se due utenti o istanze portabili eseguono l'aggiornamento contemporaneamente.
   - **Fix da implementare**:
-    - Rimuovere la chiamata a `WriteLocalVersionMarker` dal flusso VB, delegando la scrittura del marker unicamente allo script batch (o al processo updater) solo a seguito di robocopy completato con esito favorevole (`%RC% < 8`). Unificare il formato della versione.
-    - Posizionare lo script batch in `Path.GetTempPath()` all'esterno sia di `tempDir` sia di `sourceDir`, evitando che robocopy lo includa nella cartella di destinazione.
-    - Aggiungere a fine script la rimozione forzata della directory temporanea estratta (`rd /s /q "<tempDir>"`) e del file zip temporaneo.
-  - **Test di accettazione**: Eseguire una procedura di aggiornamento: verificare che `update.bat` non sia presente nella cartella di installazione finale, che `tempDir` venga completamente rimossa al termine e che il marker `.app_version` non venga scritto se la copia robocopy fallisce.
+    - Rimuovere la chiamata a `WriteLocalVersionMarker` dal flusso VB, delegando la scrittura del marker unicamente all'updater solo a seguito di copia completata con esito favorevole (`%RC% < 8`). Unificare il formato della versione.
+    - Generare nomi univoci basati su sessione per le directory temporanee (es. `HidaChat_Update_{updateSessionId}`) per prevenire collisioni tra istanze o utenti concorrenti.
+    - Posizionare gli script temporanei di avvio all'esterno sia di `tempDir` sia di `sourceDir` (es. direttamente in `Path.GetTempPath()`), evitando che robocopy li includa nella destinazione finale.
+    - Garantire la rimozione completa della directory temporanea estratta (`rd /s /q "<tempDir>"`) e dei file zip temporanei al termine o in caso di errore.
+  - **Test di accettazione**: Eseguire una procedura di aggiornamento: verificare che gli script non siano presenti nella cartella di installazione finale, che `tempDir` venga completamente rimossa al termine, che aggiornamenti concorrenti utilizzino cartelle temporanee isolate e che `.app_version` non venga scritto se la copia fallisce.
   - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
 
-- [ ] **TASK-0092** [Media] Script batch di aggiornamento fragile (parentesi nei percorsi, unità root USB e gestione errori)
+- [ ] **TASK-0092** [Alta] Script batch di aggiornamento fragile (codepage OEM/UTF-8, caratteri accentati, caratteri speciali, parentesi e unità root USB)
   - **File**: `UpdateChecker.vb` (generazione batch in `PerformUpdateFromGitHubAsync`)
   - **Problema / Esigenza**:
-    1. All'interno del blocco `if %RC% GEQ 8 ( ... )`, il comando `echo ... {logFile}` non racchiude il percorso tra virgolette doppie. In un percorso con parentesi come `C:\Program Files (x86)\...`, la parentesi chiusa `)` chiude anticipatamente il blocco `if`, causando un errore di sintassi cmd e il fallimento dello script.
-    2. Se l'applicazione è alla radice di un drive USB (es. `E:\HidaChat.exe`, scenario esplicitamente supportato dal README per uso portabile), `installDir` risulta essere `E:\`. In robocopy la notazione `"E:\"` viene interpretata come virgoletta escapata (`\"`), rompendo il comando. È necessario normalizzare con `installDir.TrimEnd("\""c) & "\."`.
-    3. In caso di errore robocopy, lo script esegue `exit /b 1` senza un comando `pause`: la console si chiude istantaneamente senza che l'utente possa leggere l'errore e l'applicazione non viene riavviata, lasciando l'utente senza interfaccia.
-    4. L'uso di `taskkill /f /im HidaChat.exe` termina forzatamente qualsiasi istanza di HidaChat in esecuzione anziché verificare il PID del processo chiamante.
+    1. Lo script viene scritto con `File.WriteAllText` in UTF-8, mentre `cmd.exe` legge i file con codepage OEM (es. CP437/CP850). Se il percorso contiene caratteri accentati (es. vocali italiane `è`, `à`, `ò` nel nome utente o nella cartella), robocopy interpreta male il percorso e fallisce.
+    2. Caratteri speciali come `%` o `!` nel percorso compromettono il parsing delle variabili e la delayed expansion in `cmd.exe`.
+    3. All'interno dei blocchi `if (...)`, i comandi come `echo ... {logFile}` con percorsi non racchiusi tra virgolette o contenenti parentesi tonde chiuse `)` (es. `HidaChat (1)` o `Program Files (x86)`) chiudono anticipatamente il blocco `if`, causando errori di sintassi cmd e l'interruzione dello script.
+    4. Se l'applicazione è alla radice di un drive USB (es. `E:\HidaChat.exe`, scenario esplicitamente supportato per uso portabile), `installDir` risulta essere `E:\`. In robocopy la notazione `"E:\"` viene interpretata come virgoletta escapata (`\"`), rompendo il comando. È necessario normalizzare con `installDir.TrimEnd("\""c) & "\."`.
+    5. In caso di errore robocopy, l'esecuzione di `exit /b 1` senza un comando `pause` fa chiudere istantaneamente la console senza permettere all'utente di leggere l'errore.
   - **Fix da implementare**:
-    - Racchiudere sempre tra virgolette doppie i percorsi espansi nei comandi echo del batch (`echo ... "%logFile%"` o `"%LOG%"`).
-    - Gestire le radici disco normalizzando il percorso di destinazione per robocopy con `installDir.TrimEnd("\""c) & "\."`.
-    - In caso di errore nel batch (`%RC% GEQ 8`), inserire una `pause` prima di uscire o rilanciare l'applicazione originale in modalità di emergenza per non lasciare l'utente con l'app terminata.
-    - Attendere la chiusura ordinata verificando specificamente il PID (`tasklist /fi "PID eq {Environment.ProcessId}"`) anziché ricorrere a terminazioni forzate su tutti i processi.
-  - **Test di accettazione**: Eseguire un aggiornamento con percorso contenente parentesi tonde (es. `C:\Program Files (x86)\HidaChat`) e da radice drive (`E:\`). Verificare la corretta esecuzione di robocopy e, a fronte di un errore forzato, la presenza del messaggio leggibile prima della chiusura.
-  - **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso-Medio
+    - Inserire `chcp 65001 >nul` all'inizio dello script batch (oppure scrivere il file batch con codepage OEM `Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage)`) per supportare correttamente i caratteri accentati.
+    - Rimuovere o racchiudere tra virgolette doppie ed escapare i percorsi nei comandi `echo` all'interno dei blocchi `if`, gestendo adeguatamente i caratteri speciali `%` e `!`.
+    - Racchiudere sempre tutti i percorsi tra virgolette doppie e normalizzare la destinazione robocopy per unità radice con `installDir.TrimEnd("\""c) & "\."`.
+    - In caso di errore robocopy (`%RC% GEQ 8`), inserire una `pause` prima di uscire per consentire la lettura del log.
+  - **Test di accettazione**: Eseguire un aggiornamento con percorsi contenenti caratteri accentati (`C:\Users\è_test\HidaChat`), parentesi tonde (`HidaChat (1)`), simboli `%` e da radice drive USB (`E:\`). Verificare la corretta esecuzione di robocopy senza errori di sintassi.
+  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
 
-- [ ] **TASK-0093** [Media] Verifica SHA-256: falsi mismatch con file multipli e fail-open se manca il checksum
+- [ ] **TASK-0093** [Media] Verifica SHA-256: falsi mismatch con file multipli, formato nome: hash e fail-open se manca il checksum
   - **File**: `UpdateChecker.vb` (metodo `ExtractSha256FromText`)
-  - **Problema / Esigenza**: Se il nome del file ZIP non viene individuato esattamente nel testo del checksum (ad esempio perché indicato come `./HidaChat.zip` o con prefissi di percorso), un fallback che preleva la prima stringa esadecimale da 64 caratteri del testo rischia di estrarre un hash non pertinente (ad esempio l'hash di un altro archivio in un file `SHA256SUMS` multi-asset o un commit SHA nelle note di rilascio), bloccando l'aggiornamento per falso "mismatch". Se invece non viene trovato alcun hash e non viene applicato un fail-closed rigoroso, l'update rischierebbe di procedere senza alcun controllo di integrità.
+  - **Correlato a**: TASK-0040
+  - **Problema / Esigenza**:
+    1. Se la release non ha né file di checksum né hash nelle note, l'installazione procede comunque ("Verified via HTTPS transport"). Questo comportamento fail-open contraddice quanto dichiarato nell'item TASK-0040. L'assenza di hash verificabile deve essere considerata un errore (o avviso esplicito bloccante) anziché procedere silenziosamente.
+    2. In `ExtractSha256FromText`, il fallback che preleva la prima stringa esadecimale da 64 caratteri rischia di estrarre un hash non pertinente in presenza di file `SHA256SUMS` multi-asset o commit SHA nelle note, bloccando l'aggiornamento per falso "mismatch".
+    3. I formati di checksum del tipo `nomefile: hash` o `hash *nomefile` con prefissi relativi `./` non vengono gestiti correttamente.
   - **Fix da implementare**:
-    - Normalizzare il matching del filename rimuovendo prefissi relativi come `./` o caratteri escape `*`.
-    - Se è stato specificato un `filename`, ignorare il fallback generico arbitrario o accettarlo esclusivamente se nel testo è presente un unico e inequivocabile hash da 64 caratteri.
-    - Applicare rigorosamente la policy Fail-Closed: se nessun checksum valido e univoco viene individuato per il file scaricato, bloccare l'aggiornamento e informare l'utente con un messaggio di errore chiaro.
-  - **Test di accettazione**: Fornire un file `SHA256SUMS` contenente gli hash di più file e verificare che venga estratto solo l'hash associato allo zip di HidaChat. Verificare che l'assenza di checksum blocchi l'aggiornamento con avviso e senza tentare l'installazione non verificata.
+    - Rimuovere il fallback permissivo sulla prima stringa da 64 caratteri hex; estrarre l'hash solo se esplicitamente associato al nome del file zip o se nel testo è presente un unico e inequivocabile hash.
+    - Supportare i formati standard di checksum (`hash nomefile`, `hash *nomefile` e `nomefile: hash`), rimuovendo prefissi `./` e caratteri escape `*`.
+    - Applicare rigorosamente la policy Fail-Closed: se nessun checksum valido e univoco viene individuato per il file scaricato, bloccare l'aggiornamento con un avviso chiaro anziché consentire l'installazione non verificata.
+  - **Test di accettazione**: Fornire un file `SHA256SUMS` con più file, un file con formato `nomefile: hash` e una release priva di hash. Verificare l'estrazione corretta dell'hash corrispondente allo zip e che l'assenza di checksum blocchi l'installazione con notifica di errore integrità.
   - **Priorità**: P2 (Gravità media) | **Impatto**: Medio-Alto | **Sforzo**: Basso-Medio
 
-- [ ] **TASK-0094** [Media] Controllo manuale aggiornamenti privo di feedback all'utente su errori di rete o assenza asset
+- [ ] **TASK-0094** [Media] Controllo manuale aggiornamenti privo di feedback all'utente su errori di rete o assenza asset e mancato retry all'avvio
   - **File**: `UpdateChecker.vb` (metodi `CheckForUpdatesAsync`, `FetchGitHubReleaseInfoAsync`)
-  - **Problema / Esigenza**: Quando l'utente preme esplicitamente il pulsante "Verifica aggiornamenti" (`force = True`), se l'API di GitHub risponde con un errore (rate limit 403, offline, endpoint non raggiungibile) oppure se la release remota non ha un archivio ZIP allegato tra gli asset, l'esecuzione termina con un semplice `Debug.WriteLine`. L'utente non riceve alcun feedback visivo e il pulsante appare non funzionante.
+  - **Problema / Esigenza**:
+    1. Quando l'utente preme esplicitamente "Verifica aggiornamenti" (`force = True`), errori di rete, limitazioni rate limit 403 di GitHub (60 richieste/ora non autenticate) o release senza asset ZIP terminano con un semplice `Debug.WriteLine`. L'utente non riceve alcun feedback visivo e il pulsante sembra non funzionare.
+    2. La variabile `_hasChecked = True` viene impostata prima del controllo: se all'avvio si verifica un errore temporaneo di rete, il controllo viene marcato come già eseguito e non viene più ritentato fino al riavvio dell'applicazione.
   - **Fix da implementare**:
-    - Quando `force = True`, mostrare sempre una finestra di dialogo esplicita nei tre casi critici:
-      1. Eccezione o mancata connettività di rete;
-      2. Risposta HTTP non positiva dalle API GitHub (compreso rate limit 403 e 404);
-      3. Nuova versione individuata ma priva di asset ZIP valido per l'aggiornamento.
-  - **Test di accettazione**: Eseguire il controllo manuale con rete disconnessa o simulando una risposta 403 da GitHub: deve apparire una MessageBox informativa con spiegazione dell'errore anziché una chiusura silenziosa.
+    - Quando `force = True`, mostrare sempre una MessageBox localizzata in caso di errore di connessione, risposta HTTP 403/404 da GitHub o release priva di asset ZIP.
+    - Impostare `_hasChecked = True` solo ad avvenuto completamento con successo del controllo, o reimpostarla a `False` in caso di errore di rete all'avvio per consentire successivi tentativi.
+  - **Test di accettazione**: Eseguire il controllo manuale da disconnessi o simulando risposta 403: verificare la comparsa della MessageBox informativa. Verificare che l'assenza iniziale di rete consenta il successivo retry del controllo.
   - **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
 
 - [ ] **TASK-0095** [Media] Confronto errato delle versioni pre-release/beta e selezione della release remota
   - **File**: `UpdateChecker.vb` (metodi `ComparePrerelease`, `IsNewerVersion`, `FetchGitHubReleaseInfoAsync`)
   - **Problema / Esigenza**:
-    1. Il confronto lessicografico `String.Compare("beta10", "beta2")` produce il risultato non corretto `beta10 < beta2` poiché il carattere '1' precede '2', impedendo il rilevamento di release beta con numerazione a più cifre.
+    1. Il confronto lessicografico `String.Compare("beta10", "beta2")` produce il risultato non corretto `beta10 < beta2` poiché il carattere '1' precede '2', impedendo a chi è su `beta9` di rilevare `beta10`.
     2. Nel canale beta, l'endpoint GitHub restituisce una lista di release: il codice seleziona la prima release dell'elenco per data, che potrebbe non corrispondere alla versione con numero semantico più alto in caso di release non sequenziali o hotfix.
   - **Fix da implementare**:
-    - Implementare un parsing conforme allo standard SemVer 2.0: suddividere i token alfanumerici e numerici nei tag di pre-release, confrontando i segmenti composti unicamente da cifre con comparazione numerica (`Integer.TryParse`) e i segmenti alfanumerici con comparazione lessicografica.
+    - Implementare un parsing conforme allo standard SemVer 2.0: estrarre i suffissi numerici nei tag di pre-release, confrontando i segmenti composti unicamente da cifre con comparazione numerica (`Integer.TryParse`) e i segmenti alfanumerici con comparazione lessicografica.
     - Nel canale beta, analizzare tutte le release fornite dall'API aventi uno ZIP allegato e selezionare quella con la versione semantica massima reale, anziché limitarsi alla prima riga temporale.
-  - **Test di accettazione**: Validare che `v1.2.10-beta` risulti correttamente più recente di `v1.2.2-beta`. Con una lista di release GitHub fuori ordine temporale, verificare che venga selezionata la versione semantica più elevata.
+  - **Test di accettazione**: Validare che `v1.2.10-beta` risulti correttamente più recente di `v1.2.9-beta`. Con una lista di release GitHub fuori ordine temporale, verificare che venga selezionata la versione semantica più elevata.
   - **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Medio
 
 - [ ] **TASK-0099** [Bassa] Messaggi MessageBox in UpdateChecker.vb hardcoded in italiano anziché multilingua (Localization.vb)
@@ -152,6 +159,75 @@
     - Aggiungere e sincronizzare le chiavi di traduzione corrispondenti in tutti i 5 dizionari ufficiali di `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
     - Utilizzare `loc.Get(...)` per recuperare titoli e testi localizzati in base alla lingua impostata.
   - **Test di accettazione**: Cambiare la lingua dell'applicazione in inglese o francese; verificare che tutti i popup di `UpdateChecker.vb` appaiano tradotti nella lingua scelta.
+  - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
+
+- [ ] **TASK-0117** [Alta] Verifica ed enforcement client di download dedicato, gestione timeout e streaming su file
+  - **File**: `UpdateChecker.vb`, `UpdateProgressDialog.xaml`, `UpdateProgressDialog.xaml.vb`
+  - **Correlato a**: TASK-0088
+  - **Problema / Esigenza**:
+    - Se il download dello ZIP di aggiornamento utilizza il client `_httpClient` standard configurato con un timeout di 15 secondi, su connessioni lente il download di archivi di decine di MB fallisce per `TaskCanceledException` con il messaggio generico "Errore durante l'installazione".
+    - Il download tramite `GetByteArrayAsync` carica l'intero archivio nella RAM prima della scrittura, aumentando la pressione sulla memoria nei dispositivi portatili.
+    - `UpdateProgressDialog` deve essere garantito come attivo e visibile, riportando in tempo reale l'avanzamento del download (MB scaricati / totali e percentuale) anziché risultare inutilizzato o non sincronizzato.
+  - **Fix da implementare**:
+    - Verificare ed assicurare l'uso rigoroso di un `_downloadClient` separato con `Timeout = Timeout.InfiniteTimeSpan` protetto da un `CancellationTokenSource` di 10 minuti per tutti i percorsi di download degli asset.
+    - Effettuare lo streaming progressivo dei byte direttamente dal flusso HTTP al file su disco (`File.Create(tempZipPath)`) tramite buffer a blocchi (80 KB) senza caricare l'intero ZIP in memoria RAM.
+    - Garantire l'istanziamento e l'aggiornamento costante di `UpdateProgressDialog` sul dispatcher UI con il progresso in tempo reale.
+  - **Test di accettazione**: Simulare una connessione lenta con download limitato: verificare che il download prosegua oltre i 15 secondi senza interruzioni per timeout, che la RAM rimanga costante e che `UpdateProgressDialog` mostri la barra di avanzamento e i MB scaricati.
+  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
+
+- [ ] **TASK-0118** [Alta] Terminazione mirata dei processi per PID e attesa chiusura del processo figlio tsnetd.exe durante l'aggiornamento
+  - **File**: `UpdateChecker.vb`, `TsnetManager.vb`, `MainWindow.xaml.vb`
+  - **Problema / Esigenza**:
+    1. L'uso del comando di chiusura per nome immagine (`taskkill /f /im HidaChat.exe /t`) termina indistintamente tutte le istanze di HidaChat in esecuzione sul sistema. Trattandosi di un'applicazione portabile, un'altra copia in esecuzione da una cartella o unità differente (es. pendrive USB) viene terminata dopo 10 secondi.
+    2. Lo script di aggiornamento non attende la chiusura di `tsnetd.exe` (processo demone Tailscale): se `tsnetd.exe` è ancora attivo, la copia robocopy fallisce nel momento in cui tenta di sovrascrivere il suo binario eseguibile.
+  - **Fix da implementare**:
+    - Passare il PID del processo chiamante (`Environment.ProcessId`) all'updater e attendere specificamente l'uscita di quel PID e dei suoi processi figli (`tasklist /fi "PID eq {pid}"` o `Process.GetProcessById`).
+    - In `ForceExitForUpdateAsync`, attendere esplicitamente l'arresto ordinato e la chiusura di `tsnetd.exe` (`TsnetManager.ShutdownAsync()`), verificando che il processo sia terminato prima del passaggio di consegne alla copia dei file.
+  - **Test di accettazione**: Avviare due istanze portabili indipendenti di HidaChat da cartelle diverse. Avviare l'aggiornamento su una sola copia: verificare che solo l'istanza chiamante venga terminata mentre la seconda istanza prosegue normalmente. Verificare che `tsnetd.exe` sia completamente terminato prima che robocopy inizi la sovrascrittura.
+  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
+
+- [ ] **TASK-0119** [Alta] Backup della cartella di installazione, rollback automatico e rilancio dell'applicazione in caso di fallimento della copia
+  - **File**: `UpdateChecker.vb`, `Application.xaml.vb`
+  - **Problema / Esigenza**:
+    1. Se la sostituzione dei file (robocopy con codice di uscita >= 8 o errore di I/O) fallisce a metà operazione, lo script esegue `exit /b 1`, lasciando l'installazione in uno stato inconsistente e corrotto con file misti vecchi e nuovi, senza possibilità di ripristino.
+    2. La finestra di console scompare istantaneamente, lasciando l'applicazione chiusa e l'utente senza alcuna indicazione o interfaccia.
+    3. La scrittura anticipata di `.app_version` lascia il marker impostato sulla nuova versione nonostante i binari non siano stati aggiornati.
+  - **Fix da implementare**:
+    - Creare una copia di backup di sicurezza dei binari della cartella di installazione (escludendo la cartella dati `data/`) prima di avviare la sostituzione dei file.
+    - In caso di errore durante la copia robocopy: ripristinare automaticamente i vecchi binari dal backup, eliminare la cartella di backup temporanea, mostrare una finestra di dialogo esplicita di errore e rilanciare la precedente versione funzionante di `HidaChat.exe`.
+    - Garantire che la scrittura del marcatore `.app_version` avvenga solo a copia robocopy completata con successo e verificata.
+  - **Test di accettazione**: Simulare un fallimento di robocopy durante l'aggiornamento (es. bloccando un file dll di destinazione): verificare che l'updater rilevi l'errore, ripristini i vecchi binari dal backup e rilanci la versione precedente mostrando un messaggio di errore chiaro.
+  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Medio
+
+- [ ] **TASK-0120** [Bassa] Chiamata residua Directory.GetFiles ed enumerazione Directory.GetDirectories non utilizzata in tempDir
+  - **File**: `UpdateChecker.vb`
+  - **Correlato a**: TASK-0021
+  - **Problema / Esigenza**:
+    - Nonostante l'attività #21 sia contrassegnata come completata (`[x] TASK-0021`), nel codice sorgente è ancora presente `Directory.GetFiles(tempDir, "HidaChat.exe", SearchOption.AllDirectories)` insieme a `Directory.GetDirectories(tempDir)` assegnato a `subDirs` e mai utilizzato.
+    - Questa enumerazione ridondante di directory è presente nel codice contrariamente a quanto documentato.
+  - **Fix da implementare**:
+    - Rimuovere l'assegnazione non utilizzata a `subDirs` ed ottimizzare la ricerca di `HidaChat.exe` in `tempDir` tramite verifica a singolo livello o risoluzione diretta del percorso.
+  - **Test di accettazione**: Verificare che in `UpdateChecker.vb` non vi siano enumerazioni di directory inutilizzate e che il progetto compili senza avvisi.
+  - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
+
+- [ ] **TASK-0121** [Bassa] Messaggio di errore sui permessi errato che suggerisce la cartella di sistema protetta C:\Programmi\HidaChat
+  - **File**: `UpdateChecker.vb`, `Localization.vb`
+  - **Problema / Esigenza**:
+    - Quando il controllo rileva permessi di scrittura insufficienti nella cartella dell'applicazione, il messaggio di avviso suggerisce all'utente di spostare l'applicazione in `C:\Programmi\HidaChat`. In ambienti Windows standard, `C:\Programmi` (`C:\Program Files`) richiede privilegi di amministratore, riproducendo esattamente il medesimo errore di permessi e contraddicendo la natura 100% portabile di HidaChat.
+  - **Fix da implementare**:
+    - Aggiornare le stringhe di localizzazione in tutti i 5 dizionari di `Localization.vb` (`update_insufficient_permissions`) e il messaggio di fallback in `UpdateChecker.vb`.
+    - Suggerire percorsi utente con permessi di scrittura (es. `Documenti`, `Desktop` o unità USB) e sconsigliare esplicitamente percorsi di sistema protetti come `C:\Programmi`.
+  - **Test di accettazione**: Provocare l'avviso di permessi insufficienti (es. cartella di sola lettura): verificare che il messaggio raccomandi cartelle utente ed escluda `C:\Programmi`.
+  - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
+
+- [ ] **TASK-0122** [Bassa] Gestione del fallimento di Process.Start dello script o updater dopo ForceExitForUpdate per evitare stato zombie orfano
+  - **File**: `UpdateChecker.vb`
+  - **Problema / Esigenza**:
+    - Se l'esecuzione di `Process.Start` del processo di aggiornamento o dello script batch fallisce (es. bloccato da antivirus, policy di sicurezza che vietano l'avvio da `%TEMP%` o file mancante) dopo che `ForceExitForUpdateAsync` ha già rilasciato le WebView e chiuso l'interfaccia, l'applicazione rimane attiva in uno stato zombie inutilizzabile senza aggiornarsi né riavviarsi.
+  - **Fix da implementare**:
+    - Proteggere la chiamata a `Process.Start` dell'updater all'interno di un blocco try/catch prima di invocare `Environment.Exit(0)`.
+    - In caso di fallimento dell'avvio, mostrare una MessageBox esplicita all'utente con l'errore riscontrato, registrare l'errore nel file di log e consentire il rilancio dell'interfaccia o la chiusura controllata.
+  - **Test di accettazione**: Simulare il fallimento di `Process.Start` (es. percorso updater non valido): verificare che venga mostrata una finestra modale di errore all'utente anziché lasciare l'applicazione bloccata silenziosamente in background.
   - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
 
 
@@ -225,6 +301,36 @@
     - In `AboutWindow.xaml.vb`, aggiornare il metodo `ApplyTheme()` per sincronizzare la proprietà `Foreground` del titolo sia per il tema Scuro (bianco brillante `#ffffff` o `#e9edef`) sia per il tema Chiaro (colore scuro ad alto contrasto `#111b21`), garantendo massima nitidezza e piena leggibilità.
   - **Test di accettazione**: Aprire la finestra Informazioni con entrambi i temi (scuro e chiaro): verificare che il titolo "HidaChat" sia ben marcato, nitido e perfettamente leggibile su qualsiasi sfondo.
   - **Priorità**: P2 (Gravità media) | **Impatto**: Basso-Medio | **Sforzo**: Basso
+
+- [ ] **TASK-0123** [Media] Restyling moderno e riorganizzazione strutturata della finestra Impostazioni (SettingsWindow)
+  - **File**: `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`
+  - **Problema / Esigenza**:
+    - Attualmente tutte le impostazioni dell'applicazione (Aspetto e Tema, Lingua e Traduzioni, Notifiche e Non Disturbare, Gestione Multi-Account, Configurazione Tailscale tsnet, Editor CSS personalizzato con preset, Correttore ortografico, Staging locale dischi di rete, Ibernazione schede, Limite cache disco Chromium e ottimizzazione spazio, Canale aggiornamenti Beta e Strumenti di sviluppo) sono raggruppate in un unico elenco a scorrimento verticale lineare all'interno di una finestra fissa di 520x580 pixel.
+    - L'assenza di una suddivisione per categorie rende la navigazione disordinata e scomoda con il continuo aggiungersi di nuove funzionalità.
+    - Controlli fuori contesto: il pulsante "Controlla ora" per gli aggiornamenti è collocato arbitrariamente nella sezione DevTools anziché in Aggiornamenti/Info.
+    - Localizzazione incompleta o fissa nel markup: diversi testi e pulsanti (es. "Usa nodo Tailscale integrato", "Pulisci Cache", "Compatto", "Svuota", "Applica CSS") sono scritti direttamente in italiano nel file XAML anziché utilizzare i dizionari di `Localization.vb`.
+    - I pannelli dinamici per i fornitori di traduzione (LibreTranslate, Ollama, OpenAI) creano disordine visivo e continui salti di scorrimento nella vista principale.
+    - Gestione account sacrificata: le credenziali, l'URL del server, l'integrazione Tailscale e il test di connessione sono compressi in spazi ristretti.
+  - **Specifiche & Soluzione da implementare**:
+    - **Architettura di Navigazione Categorizzata (Schede o Sidebar moderna)**:
+      - Sostituire l'unica colonna a scorrimento con un'interfaccia a categorie pulita e intuitiva (sidebar laterale o barra a schede superiore):
+        - **Generale**: Tema applicazione (Sistema, Scuro, Chiaro), Lingua interfaccia, Notifiche popup, Durata Non Disturbare (DND), Lingua correttore ortografico.
+        - **Account**: Schede spaziose per la gestione account con selettore piattaforma, nome, URL del server, token di autenticazione, switch Tailscale e test di connessione.
+        - **Traduzioni**: Abilitazione pulsanti e traduzione intera pagina, scelta fornitore (Google, LibreTranslate, Ollama, OpenAI), pannelli di configurazione dedicati, consenso privacy e test di connettività.
+        - **Rete e Tailscale**: Badge di stato nodo Tailscale (tsnet), AuthKey, pulsante di accesso e opzione di staging locale per dischi di rete (SMB/UNC).
+        - **Aspetto e CSS**: Editor CSS personalizzato con font monospace, pulsanti di preset (OLED, Compatto, Font, Svuota) e pulsante di applicazione immediata.
+        - **Archiviazione e Prestazioni**: Timeout ibernazione schede inattive, limite cache disco Chromium, compattazione live dello spazio e pulizia cache sicura.
+        - **Info e Aggiornamenti**: Informazioni sulla versione, selezione canale (Beta/Stabile), pulsante di verifica aggiornamenti (spostato da DevTools), link alle release note e opzione per DevTools.
+    - **Rifinitura Grafica e Layout a Schede/Card**:
+      - Organizzare le impostazioni correlate in box/card visivamente distinti con bordi arrotondati, sfondi armonici e sottotitoli descrittivi.
+      - Garantire uniformità tipografica, allineamenti, altezze dei pulsanti e margini coerenti.
+    - **Localizzazione Completa**:
+      - Spostare tutte le stringhe hardcoded in `Localization.vb` sincronizzando tutti i 5 dizionari supportati (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+    - **Compatibilità con i Temi e Dimensionamento**:
+      - Assicurare il perfetto funzionamento di `ApplyTheme()` su tutti i componenti di navigazione, card e campi di input sia in tema Scuro che in tema Chiaro.
+      - Ampliare le dimensioni della finestra (es. larghezza ~680–720px, altezza ~540–580px) per offrire una visualizzazione confortevole senza conflitti di scrolling.
+  - **Test di accettazione**: Aprire le Impostazioni sia in tema Scuro che in tema Chiaro; verificare che tutte le categorie siano accessibili tramite navigazione intuitiva, che ogni impostazione mantenga lo stato e funzioni correttamente (modifiche account, CSS, test traduzione, pulizia cache, verifica aggiornamenti), che non vi siano stringhe fisse non localizzate e che il cambio lingua aggiorni dinamicamente tutte le etichette e sezioni nelle 5 lingue previste.
+  - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
 
 
 
