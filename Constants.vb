@@ -24,6 +24,6 @@ Public Module Constants
     ' Configurazione repository GitHub per il sistema di aggiornamento OTA
     Public Const GitHubOwner As String = "hidaba"
     Public Const GitHubRepo As String = "HidaChat"
-    Public Const GitHubReleasesApiUrl As String = "https://api.github.com/repos/hidaba/HidaChat/releases"
+    Public Const GitHubReleasesApiUrl As String = "https://api.github.com/repos/hidaba/HidaChat/releases?per_page=100"
     Public Const GitHubLatestReleaseApiUrl As String = "https://api.github.com/repos/hidaba/HidaChat/releases/latest"
 End Module

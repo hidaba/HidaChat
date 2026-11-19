@@ -217,7 +217,8 @@ if (-not $SkipGitHub) {
             Write-Host "Git commit message: $commitMsg"
             git commit -m $commitMsg
         }
-        git push origin master
+        git tag -f "v$newVersion" HEAD
+        git push origin master --tags
     } finally {
         Pop-Location
     }
@@ -245,13 +246,18 @@ if (-not $SkipGitHub) {
     $existingRelease = gh release view $tagName --repo hidaba/HidaChat 2>$null
     if ($existingRelease) {
         Write-Host "Updating existing GitHub Release $tagName..."
+        if ($isBetaRelease) {
+            gh release edit $tagName --repo hidaba/HidaChat --title $title -F $releaseNotesPath --prerelease
+        } else {
+            gh release edit $tagName --repo hidaba/HidaChat --title $title -F $releaseNotesPath
+        }
         gh release upload $tagName "$zipPath" "$sha256Path" --repo hidaba/HidaChat --clobber
     } else {
         Write-Host "Creating new GitHub Release $tagName..."
         if ($isBetaRelease) {
-            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $releaseNotesPath --prerelease
+            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $releaseNotesPath --prerelease --target master
         } else {
-            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $releaseNotesPath
+            gh release create $tagName $zipPath $sha256Path --repo hidaba/HidaChat --title $title -F $releaseNotesPath --target master
         }
     }
 }
