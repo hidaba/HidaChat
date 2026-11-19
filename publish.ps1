@@ -218,7 +218,8 @@ if (-not $SkipGitHub) {
             git commit -m $commitMsg
         }
         git tag -f "v$newVersion" HEAD
-        git push origin master --tags
+        git push origin master
+        git push origin "v$newVersion" --force
     } finally {
         Pop-Location
     }
