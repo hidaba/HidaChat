@@ -9,8 +9,8 @@ Imports Microsoft.Win32
 Imports Microsoft.Web.WebView2.Wpf
 
 ''' <summary>
-''' Code-behind per la finestra di invio massivo personalizzato da file Excel / CSV.
-''' Supporta sia WhatsApp Web che Telegram Web, ridimensionamento, schermo intero e ispezione dettagliata dei messaggi.
+''' Code-behind for custom bulk sender window from Excel/CSV files.
+''' Supports WhatsApp Web and Telegram Web, dynamic resizing, fullscreen, and detailed preview inspection.
 ''' </summary>
 Public Class BulkSenderWindow
     Private ReadOnly _account As AppAccounts
@@ -20,6 +20,7 @@ Public Class BulkSenderWindow
     Private ReadOnly _contacts As New ObservableCollection(Of BulkContactItem)()
     Private ReadOnly _platform As String
     Private _defaultShadowEffect As Effect
+    Private _isCancellingAndClosing As Boolean = False
 
     Public Sub New(account As AppAccounts, settingsController As SettingsController)
         InitializeComponent()
@@ -94,7 +95,7 @@ Public Class BulkSenderWindow
     End Function
 
     ''' <summary>
-    ''' Limita l'ingrandimento a schermo intero alla Working Area per evitare di sovrapporsi alla barra delle applicazioni di Windows.
+    ''' Restricts fullscreen maximization to the Windows Working Area so it does not overlap the taskbar.
     ''' </summary>
     Private Shared Sub WmGetMinMaxInfo(hwnd As IntPtr, lParam As IntPtr)
         Dim mmi As MINMAXINFO = Marshal.PtrToStructure(Of MINMAXINFO)(lParam)
@@ -138,9 +139,6 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    ''' <summary>
-    ''' Gestisce il trascinamento e il doppio click per massimizzare/ripristinare la finestra dalla barra del titolo.
-    ''' </summary>
     Private Sub Header_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
         If e.ChangedButton = MouseButton.Left AndAlso e.ClickCount = 2 Then
             ToggleMaximize()
@@ -151,9 +149,6 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    ''' <summary>
-    ''' Ripristina e trascina fluidamente la finestra partendo dallo stato ingrandito.
-    ''' </summary>
     Private Sub Header_MouseMove(sender As Object, e As MouseEventArgs)
         If e.LeftButton = MouseButtonState.Pressed AndAlso Me.WindowState = WindowState.Maximized Then
             Dim mousePos = PointToScreen(e.GetPosition(Me))
@@ -179,9 +174,6 @@ Public Class BulkSenderWindow
         ToggleMaximize()
     End Sub
 
-    ''' <summary>
-    ''' Alterna lo stato tra finestra normale e schermo intero (ingrandita).
-    ''' </summary>
     Private Sub ToggleMaximize()
         If Me.WindowState = WindowState.Maximized Then
             Me.WindowState = WindowState.Normal
@@ -190,9 +182,6 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    ''' <summary>
-    ''' Aggiorna l'icona del pulsante massimizza/ripristina e i bordi della finestra al cambio di stato.
-    ''' </summary>
     Private Sub BulkSenderWindow_StateChanged(sender As Object, e As EventArgs) Handles Me.StateChanged
         If BtnMaximize Is Nothing Then Return
 
@@ -211,26 +200,35 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    Private Async Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
+    ''' <summary>
+    ''' Handles window closing: if bulk sending is active, confirms with user and gracefully cancels execution (TASK-0080).
+    ''' </summary>
+    Private Async Sub BulkSenderWindow_Closing(sender As Object, e As ComponentModel.CancelEventArgs) Handles Me.Closing
+        If _isCancellingAndClosing Then Return
+
         If _engine.IsRunning Then
+            e.Cancel = True
             Dim res = MessageBox.Show(
-                "Un invio di messaggi Ã¨ attualmente in corso. Vuoi interromperlo e chiudere la finestra?",
+                "Un invio di messaggi è attualmente in corso. Vuoi interromperlo e chiudere la finestra?",
                 "Conferma Chiusura",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question
             )
             If res = MessageBoxResult.Yes Then
+                _isCancellingAndClosing = True
                 SetUiStoppingState()
                 Await _engine.CancelAsync()
                 Me.Close()
             End If
-        Else
-            Me.Close()
         End If
     End Sub
 
+    Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
+        Me.Close()
+    End Sub
+
     ''' <summary>
-    ''' Seleziona e carica un file Excel (.xlsx, .xls) o CSV.
+    ''' Selects and loads an Excel (.xlsx, .xls) or CSV file.
     ''' </summary>
     Private Sub BtnLoadFile_Click(sender As Object, e As RoutedEventArgs)
         Try
@@ -256,7 +254,6 @@ Public Class BulkSenderWindow
                 TxtFileName.Text = Path.GetFileName(ofd.FileName)
                 TxtFileName.ToolTip = ofd.FileName
 
-                ' Se il file contiene già testi personalizzati nella colonna Testo, imposta il template a {Testo} per garantire perfetta coerenza 1:1
                 Dim hasCustomText = loaded.Any(Function(c) Not String.IsNullOrWhiteSpace(c.CustomText))
                 If hasCustomText Then
                     TxtTemplate.Text = "{Testo}"
@@ -289,9 +286,6 @@ Public Class BulkSenderWindow
         End Try
     End Sub
 
-    ''' <summary>
-    ''' Inserisce un tag dinamico ({Nome}, {Cognome}, {Username}, ecc.) all'interno del TextBox del template.
-    ''' </summary>
     Private Sub BtnInsertTag_Click(sender As Object, e As RoutedEventArgs)
         Dim btn = TryCast(sender, Button)
         If btn IsNot Nothing AndAlso btn.Tag IsNot Nothing Then
@@ -303,9 +297,6 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    ''' <summary>
-    ''' Aggiorna l'anteprima dei messaggi in tabella quando l'utente modifica il template.
-    ''' </summary>
     Private Sub TxtTemplate_TextChanged(sender As Object, e As TextChangedEventArgs)
         If _contacts Is Nothing OrElse _contacts.Count = 0 Then Return
         Dim tmpl = TxtTemplate.Text
@@ -319,9 +310,6 @@ Public Class BulkSenderWindow
         End If
     End Sub
 
-    ''' <summary>
-    ''' Gestisce la selezione di una riga nel DataGrid per mostrare il testo completo nell'ispettore di anteprima.
-    ''' </summary>
     Private Sub GridContacts_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         Dim selectedItem = TryCast(GridContacts.SelectedItem, BulkContactItem)
         If selectedItem IsNot Nothing Then
@@ -370,7 +358,7 @@ Public Class BulkSenderWindow
     End Sub
 
     ''' <summary>
-    ''' Avvia il ciclo di invio massivo per tutti i contatti selezionati sulla piattaforma attiva.
+    ''' Starts the bulk sending process for all selected contacts on the active platform.
     ''' </summary>
     Private Async Sub BtnStart_Click(sender As Object, e As RoutedEventArgs)
         If _contacts.Count = 0 Then
@@ -486,10 +474,12 @@ Public Class BulkSenderWindow
             )
         Catch ex As InvalidOperationException
             MessageBox.Show(ex.Message, "Invio Massivo", MessageBoxButton.OK, MessageBoxImage.Warning)
-            SetUiRunningState(False)
         Catch ex As Exception
             MessageBox.Show($"Errore inatteso durante l'invio: {ex.Message}", "Invio Massivo", MessageBoxButton.OK, MessageBoxImage.Error)
-            SetUiRunningState(False)
+        Finally
+            If Not _engine.IsRunning AndAlso Not _engine.IsStopping Then
+                SetUiRunningState(False)
+            End If
         End Try
     End Sub
 
@@ -497,11 +487,11 @@ Public Class BulkSenderWindow
         If _engine.IsRunning AndAlso Not _engine.IsStopping Then
             If _engine.IsPaused Then
                 _engine.ResumeSending()
-                BtnPause.Content = "â¸ Pausa"
+                BtnPause.Content = "⏸ Pausa"
                 TxtStatus.Text = "Invio ripreso..."
             Else
                 _engine.Pause()
-                BtnPause.Content = "â–¶ Riprendi"
+                BtnPause.Content = "▶ Riprendi"
                 TxtStatus.Text = "Invio in pausa. Premi 'Riprendi' per continuare."
             End If
         End If
@@ -519,7 +509,7 @@ Public Class BulkSenderWindow
     End Sub
 
     ''' <summary>
-    ''' Valida i campi del delay imponendo un minimo assoluto di 30 secondi sia per il delay minimo che per il massimo.
+    ''' Validates delay inputs, enforcing a minimum of 30 seconds for anti-spam safety.
     ''' </summary>
     Private Sub ValidateDelayInputs()
         Dim minVal As Integer

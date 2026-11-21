@@ -3,6 +3,20 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-21
+
+- [x] **TASK-0080** [Alta] Stop e riavvio possono sovrapporre due esecuzioni dell’invio massivo
+  - Risultato:
+    - Incapsulato il coordinamento della concorrenza e la determinazione dell'esito dell'invio massivo in `BulkSenderExecutionCoordinator` e integrato con `BulkSenderEngine.vb`.
+    - Il motore impedisce le esecuzioni concorrenti in modo autonomo e indipendente dalla UI: `RunAsync` verifica `TryBeginExecution()` sotto lock e respinge i tentativi di avvio concorrente con `InvalidOperationException` durante l'esecuzione o l'arresto.
+    - Implementato il metodo `CancelAsync()` che richiede l'arresto (`BeginStop()`), sblocca l'evento di pausa, annulla il CancellationTokenSource e attende la conclusione effettiva del task attivo con timeout di salvaguardia.
+    - Introdotto lo stato UI "Arresto in corso..." (`SetUiStoppingState()`) in `BulkSenderWindow.xaml.vb` che disabilita i pulsanti Avvio, Pausa e Stop, aggiornando la barra di stato.
+    - Separati nettamente gli esiti finali di esecuzione in stati distinti: `Completed`, `Cancelled` e `Failed`. Un'esecuzione interrotta non passa più dal riepilogo "Completato" e non porta la barra al 100%.
+    - L'annullamento durante la trasmissione di un messaggio o una chiamata JavaScript imposta lo stato del contatto a `Interrotto` (`bulk_status_interrupted`) anziché `Errore`, non incrementa erroneamente `ErrorCount` e riporta conteggi reali esatti di messaggi inviati, errori e non inviati.
+    - Aggiunto il gestore del ciclo di vita della finestra (`BulkSenderWindow_Closing`) che gestisce la chiusura sicura con conferma e arresto controllato quando l'invio è attivo.
+    - Aggiornati contestualmente tutti i 5 dizionari di localizzazione in `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) con `bulk_status_interrupted` e corretti i caratteri di codifica.
+  - Verifica: Aggiunte 13 nuove asserzioni di regressione in `SessionTests.vb` verificando le transizioni di stato di arresto, il blocco rigoroso di avvii concorrenti durante operazioni JavaScript asincrone pendenti, la classificazione corretta dell'esito come Cancelled, la preservazione del conteggio inviati, l'assenza di falsi errori e il conteggio esatto dei contatti non inviati (totale di **708 asserzioni di regressione automatizzate con 0 errori**). Compilazione pulita con 0 avvisi e 0 errori.
+
 ## 2026-11-18
 
 - [x] **TASK-0090** [Alta] MigrateOrphanProfile cancella o sovrascrive un profilo valido

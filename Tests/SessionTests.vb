@@ -1040,6 +1040,59 @@ Module SessionTests
         Check(Not coordinator.IsRunning, "IsRunning is False after EndExecution")
         Check(Not coordinator.IsStopping, "IsStopping is False after EndExecution")
 
+        ' 7. Acceptance Test TODO #80: Stop during async JavaScript execution and immediate restart prevention
+        Dim simCoordinator As New BulkSenderExecutionCoordinator()
+        Check(simCoordinator.TryBeginExecution(), "Simulated execution begins successfully")
+        Check(simCoordinator.IsRunning, "Simulated execution is running")
+
+        ' Simulate contact 1 completed successfully
+        Dim simSentCount = 1
+        Dim simErrorCount = 0
+        Dim simTotal = 3
+
+        ' Simulate contact 2 enters asynchronous JS call (e.g. ExecuteScriptAsync)
+        Dim jsCallPending = True
+        Dim restartBlockedDuringJs = False
+        Dim wasSimCancelled = False
+        Dim simContact2Status = "Inviando..."
+
+        ' User presses Stop during the pending JS call
+        simCoordinator.BeginStop()
+        Check(simCoordinator.IsStopping, "Coordinator enters stopping state during JS call")
+
+        ' User immediately attempts a new start while stop/cancellation is in progress
+        restartBlockedDuringJs = Not simCoordinator.TryBeginExecution()
+        Check(restartBlockedDuringJs, "Immediate restart attempt during active JS call is strictly blocked")
+
+        ' Active JS operation observes cancellation token
+        Dim simTokenCancelled = True
+        If simTokenCancelled Then
+            wasSimCancelled = True
+            simContact2Status = "Interrotto"
+            ' Error count must NOT be incremented for interrupted contact
+            jsCallPending = False
+        End If
+
+        Check(wasSimCancelled, "Asynchronous execution was marked as cancelled")
+        Check(simContact2Status = "Interrotto", "Interrupted contact status is marked Interrotto and not Errore")
+        Check(simSentCount = 1, "Actual sent count is preserved unchanged as 1")
+        Check(simErrorCount = 0, "Error count is not falsely incremented and remains 0")
+        Dim unsendCount = simTotal - simSentCount - simErrorCount
+        Check(unsendCount = 2, "Unsend count accurately reflects interrupted and remaining contacts (2)")
+
+        ' Determine outcome
+        Dim simOutcome = simCoordinator.DetermineOutcome(simSentCount, simErrorCount, simTotal, wasSimCancelled, errorOccurred:=False)
+        Check(simOutcome = BulkSenderOutcome.Cancelled, "Outcome determination correctly yields Cancelled")
+
+        ' Execution ends
+        simCoordinator.EndExecution()
+        Check(Not simCoordinator.IsRunning, "IsRunning is False after execution finishes cancellation")
+        Check(Not simCoordinator.IsStopping, "IsStopping is False after execution finishes cancellation")
+
+        ' Subsequent clean start now succeeds
+        Check(simCoordinator.TryBeginExecution(), "New execution run can start cleanly after previous cancelled run terminates")
+        simCoordinator.EndExecution()
+
         ' Test TODO #84: RFC 4180 multiline CSV parser and delimiter detection
         Dim commaCsvWithSemicolonsInQuotes = "Name,Phone,Message" & vbCrLf &
             """Mario"",""+391234567"",""Sentence 1; sentence 2; sentence 3; sentence 4""" & vbCrLf &

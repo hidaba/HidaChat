@@ -5,7 +5,7 @@ Imports Microsoft.Web.WebView2.Wpf
 Imports System.Text.Json
 
 ''' <summary>
-''' Notifica di progresso inviata dal motore di invio all'interfaccia utente.
+''' Progress notification sent by the bulk sender engine to the UI.
 ''' </summary>
 Public Class BulkSenderProgress
     Public Property CurrentIndex As Integer
@@ -21,24 +21,41 @@ Public Class BulkSenderProgress
 End Class
 
 ''' <summary>
-''' Motore di esecuzione asincrono per l'invio sequenziale di messaggi per WhatsApp Web e Telegram Web tramite WebView2.
-''' Gestisce controlli di pausa/ripresa, annullamento asincrono, delay casuale anti-spam, gestione errori e routing dei protocolli.
-''' Integra controlli anti-bozza, esclusione concorrente e terminazione con stati separati Completed/Cancelled/Failed (TODO #80).
+''' Asynchronous execution engine for bulk message sending on WhatsApp Web and Telegram Web via WebView2.
+''' Manages pause/resume, asynchronous cancellation, anti-spam randomized delays, error handling, and protocol routing.
+''' Integrates pre-existing draft checks, concurrency exclusion, and clean Completed/Cancelled/Failed outcome separation (TASK-0080).
 ''' </summary>
 Public Class BulkSenderEngine
     Private _cts As CancellationTokenSource
     Private ReadOnly _pauseEvent As New ManualResetEventSlim(True)
     Private ReadOnly _random As New Random()
     Private ReadOnly _syncLock As New Object()
+    Private ReadOnly _coordinator As New BulkSenderExecutionCoordinator()
     Private _activeRunTcs As TaskCompletionSource(Of Boolean) = Nothing
 
-    Public Property IsRunning As Boolean = False
+    Public ReadOnly Property IsRunning As Boolean
+        Get
+            Return _coordinator.IsRunning
+        End Get
+    End Property
+
     Public Property IsPaused As Boolean = False
-    Public Property IsStopping As Boolean = False
+
+    Public ReadOnly Property IsStopping As Boolean
+        Get
+            Return _coordinator.IsStopping
+        End Get
+    End Property
+
+    Public ReadOnly Property Coordinator As BulkSenderExecutionCoordinator
+        Get
+            Return _coordinator
+        End Get
+    End Property
 
     Public Sub Pause()
         SyncLock _syncLock
-            If _isRunning AndAlso Not _isPaused AndAlso Not _isStopping Then
+            If _coordinator.IsRunning AndAlso Not _isPaused AndAlso Not _coordinator.IsStopping Then
                 _isPaused = True
                 _pauseEvent.Reset()
             End If
@@ -47,7 +64,7 @@ Public Class BulkSenderEngine
 
     Public Sub ResumeSending()
         SyncLock _syncLock
-            If _isRunning AndAlso _isPaused AndAlso Not _isStopping Then
+            If _coordinator.IsRunning AndAlso _isPaused AndAlso Not _coordinator.IsStopping Then
                 _isPaused = False
                 _pauseEvent.Set()
             End If
@@ -56,8 +73,8 @@ Public Class BulkSenderEngine
 
     Public Sub Cancel()
         SyncLock _syncLock
-            If Not _isRunning Then Return
-            _isStopping = True
+            If Not _coordinator.IsRunning Then Return
+            _coordinator.BeginStop()
         End SyncLock
         If _cts IsNot Nothing Then
             Try
@@ -69,13 +86,13 @@ Public Class BulkSenderEngine
     End Sub
 
     ''' <summary>
-    ''' Richiede l'annullamento dell'invio massivo e attende la conclusione effettiva del task in esecuzione (TODO #80).
+    ''' Requests cancellation of bulk sending and awaits the actual completion of the active execution task (TASK-0080).
     ''' </summary>
     Public Async Function CancelAsync() As Task
         Dim waitTask As Task = Nothing
         SyncLock _syncLock
-            If Not _isRunning Then Return
-            _isStopping = True
+            If Not _coordinator.IsRunning Then Return
+            _coordinator.BeginStop()
             If _activeRunTcs IsNot Nothing Then
                 waitTask = _activeRunTcs.Task
             End If
@@ -98,8 +115,8 @@ Public Class BulkSenderEngine
     End Function
 
     ''' <summary>
-    ''' Avvia il ciclo di invio sequenziale per tutti i contatti selezionati sulla piattaforma indicata ("WhatsApp" o "Telegram").
-    ''' Impedisce l'esecuzione concorrente mediante stato IsStopping/IsRunning (TODO #80).
+    ''' Starts the sequential sending cycle for all selected contacts on the indicated platform ("WhatsApp" or "Telegram").
+    ''' Prevents concurrent execution independently of UI via BulkSenderExecutionCoordinator (TASK-0080).
     ''' </summary>
     Public Async Function RunAsync(
         contacts As IList(Of BulkContactItem),
@@ -113,7 +130,7 @@ Public Class BulkSenderEngine
     ) As Task
         If messageSender Is Nothing Then
             If webView Is Nothing OrElse webView.CoreWebView2 Is Nothing Then
-                Throw New InvalidOperationException("Il controllo Web (WebView2) non Ã¨ inizializzato o non Ã¨ attivo.")
+                Throw New InvalidOperationException("Il controllo Web (WebView2) non è inizializzato o non è attivo.")
             End If
         End If
 
@@ -122,11 +139,9 @@ Public Class BulkSenderEngine
 
         Dim tcs As New TaskCompletionSource(Of Boolean)(TaskCreationOptions.RunContinuationsAsynchronously)
         SyncLock _syncLock
-            If _isRunning OrElse _isStopping Then
-                Throw New InvalidOperationException("Un'operazione di invio massivo Ã¨ giÃ  in corso o in fase di arresto.")
+            If Not _coordinator.TryBeginExecution() Then
+                Throw New InvalidOperationException("Un'operazione di invio massivo è già in corso o in fase di arresto.")
             End If
-            _isRunning = True
-            _isStopping = False
             _isPaused = False
             _activeRunTcs = tcs
         End SyncLock
@@ -198,6 +213,13 @@ Public Class BulkSenderEngine
                     success = Await SendWhatsAppMessageAsync(contact, message, webView, token)
                 End If
 
+                If token.IsCancellationRequested Then
+                    wasCancelled = True
+                    contact.Status = AppLocalizations.GetText("bulk_status_interrupted", "Interrotto")
+                    contact.ErrorMessage = AppLocalizations.GetText("bulk_status_cancelled", "Invio interrotto dall'utente.")
+                    Exit For
+                End If
+
                 If success Then
                     contact.Status = "Inviato " & ChrW(&H2714)
                     sentCount += 1
@@ -267,55 +289,57 @@ Public Class BulkSenderEngine
             errorDetail = ex.Message
             Debug.WriteLine($"[BulkSenderEngine] Errore generale: {ex.Message}")
         Finally
+            Dim finalOutcome As BulkSenderOutcome = BulkSenderOutcome.Completed
             SyncLock _syncLock
-                _isRunning = False
-                _isStopping = False
+                Dim isCancelledFinal = wasCancelled OrElse (_cts IsNot Nothing AndAlso _cts.IsCancellationRequested)
+                finalOutcome = _coordinator.DetermineOutcome(sentCount, errorCount, total, isCancelledFinal, errorOccurred)
+                _coordinator.EndExecution()
                 _isPaused = False
                 _activeRunTcs = Nothing
             End SyncLock
             tcs.TrySetResult(True)
 
-            Dim isCancelledFinal = wasCancelled OrElse (_cts IsNot Nothing AndAlso _cts.IsCancellationRequested)
-            If isCancelledFinal Then
-                progressCallback?.Invoke(New BulkSenderProgress With {
-                    .CurrentIndex = sentCount + errorCount,
-                    .TotalCount = total,
-                    .SentCount = sentCount,
-                    .ErrorCount = errorCount,
-                    .StatusMessage = AppLocalizations.GetText("bulk_status_cancelled", "Invio interrotto dall'utente."),
-                    .IsCompleted = False,
-                    .IsCancelled = True,
-                    .IsFailed = False
-                })
-            ElseIf errorOccurred Then
-                progressCallback?.Invoke(New BulkSenderProgress With {
-                    .CurrentIndex = sentCount + errorCount,
-                    .TotalCount = total,
-                    .SentCount = sentCount,
-                    .ErrorCount = errorCount,
-                    .StatusMessage = String.Format(AppLocalizations.GetText("bulk_status_failed", "Errore durante l'invio: {0}"), errorDetail),
-                    .IsCompleted = False,
-                    .IsCancelled = False,
-                    .IsFailed = True
-                })
-            Else
-                progressCallback?.Invoke(New BulkSenderProgress With {
-                    .CurrentIndex = total,
-                    .TotalCount = total,
-                    .SentCount = sentCount,
-                    .ErrorCount = errorCount,
-                    .StatusMessage = AppLocalizations.GetText("bulk_status_completed", "Completato"),
-                    .IsCompleted = True,
-                    .IsCancelled = False,
-                    .IsFailed = False
-                })
-            End If
+            Select Case finalOutcome
+                Case BulkSenderOutcome.Cancelled
+                    progressCallback?.Invoke(New BulkSenderProgress With {
+                        .CurrentIndex = sentCount + errorCount,
+                        .TotalCount = total,
+                        .SentCount = sentCount,
+                        .ErrorCount = errorCount,
+                        .StatusMessage = AppLocalizations.GetText("bulk_status_cancelled", "Invio interrotto dall'utente."),
+                        .IsCompleted = False,
+                        .IsCancelled = True,
+                        .IsFailed = False
+                    })
+                Case BulkSenderOutcome.Failed
+                    progressCallback?.Invoke(New BulkSenderProgress With {
+                        .CurrentIndex = sentCount + errorCount,
+                        .TotalCount = total,
+                        .SentCount = sentCount,
+                        .ErrorCount = errorCount,
+                        .StatusMessage = String.Format(AppLocalizations.GetText("bulk_status_failed", "Errore durante l'invio: {0}"), errorDetail),
+                        .IsCompleted = False,
+                        .IsCancelled = False,
+                        .IsFailed = True
+                    })
+                Case Else
+                    progressCallback?.Invoke(New BulkSenderProgress With {
+                        .CurrentIndex = total,
+                        .TotalCount = total,
+                        .SentCount = sentCount,
+                        .ErrorCount = errorCount,
+                        .StatusMessage = AppLocalizations.GetText("bulk_status_completed", "Completato"),
+                        .IsCompleted = True,
+                        .IsCancelled = False,
+                        .IsFailed = False
+                    })
+            End Select
         End Try
     End Function
 
     ''' <summary>
-    ''' Invia un singolo messaggio su WhatsApp Web navigando a web.whatsapp.com/send e verificando
-    ''' la presenza di bozze pregresse e l'effettiva conferma osservabile del client (TODO #79).
+    ''' Sends a single message on WhatsApp Web by navigating to web.whatsapp.com/send, verifying
+    ''' existing drafts, and observing client delivery confirmation (TASK-0079).
     ''' </summary>
     Private Async Function SendWhatsAppMessageAsync(contact As BulkContactItem, message As String, webView As WebView2, token As CancellationToken) As Task(Of Boolean)
         Try
@@ -340,7 +364,7 @@ Public Class BulkSenderEngine
             Dim sent = False
             Dim actionTriggered = False
             Dim confirmationCycles = 0
-            Const maxConfirmationCycles = 12 ' fino a 6 secondi di attesa per la conferma osservabile
+            Const maxConfirmationCycles = 12 ' up to 6 seconds waiting for client confirmation
 
             While cycle < maxWaitCycles
                 If token.IsCancellationRequested Then Return False
@@ -398,8 +422,8 @@ Public Class BulkSenderEngine
     End Function
 
     ''' <summary>
-    ''' Invia un singolo messaggio su Telegram Web (K o A) risolvendo l'utente per @username o numero di telefono,
-    ''' verificando l'assenza di bozze preesistenti e attendendo la conferma osservabile dell'invio (TODO #79).
+    ''' Sends a single message on Telegram Web (K or A) by resolving the user by @username or phone number,
+    ''' verifying absence of pre-existing drafts, and waiting for observable client delivery confirmation (TASK-0079).
     ''' </summary>
     Private Async Function SendTelegramMessageAsync(contact As BulkContactItem, message As String, webView As WebView2, token As CancellationToken) As Task(Of Boolean)
         Try
@@ -428,7 +452,7 @@ Public Class BulkSenderEngine
             Dim sent = False
             Dim actionTriggered = False
             Dim confirmationCycles = 0
-            Const maxConfirmationCycles = 12 ' fino a 6 secondi di attesa per la conferma osservabile
+            Const maxConfirmationCycles = 12 ' up to 6 seconds waiting for client confirmation
 
             While cycle < maxWaitCycles
                 If token.IsCancellationRequested Then Return False

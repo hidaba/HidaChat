@@ -7,13 +7,6 @@
 
 ## Sicurezza, Sessioni e Affidabilità Core
 
-- [ ] **TASK-0080** [Alta] Stop e riavvio possono sovrapporre due esecuzioni dell’invio massivo
-  - **File**: `BulkSenderWindow.xaml.vb`, circa righe 343–438; `BulkSenderEngine.vb`, metodi `Cancel()` e `RunAsync()`
-  - **Problema / Esigenza**: Il pulsante Stop richiede l’annullamento e riabilita immediatamente Avvio, senza attendere la conclusione dell’esecuzione precedente. Quest’ultima può ancora trovarsi dentro una chiamata asincrona. Inoltre, anche un’esecuzione interrotta passa dal riepilogo “Completato”, che porta la barra al 100%.
-  - **Fix da implementare**: Introdurre uno stato “Arresto in corso” e un `CancelAsync()` che attenda il task attivo. Il motore deve impedire esecuzioni concorrenti indipendentemente dalla UI. Separare gli esiti Completed, Cancelled e Failed.
-  - **Test di accettazione**: Premere Stop durante una chiamata JavaScript e tentare subito un nuovo avvio. Non devono partire due elaborazioni sulla stessa WebView; il riepilogo deve conservare i conteggi reali e indicare l’interruzione.
-  - **Priorità**: P1 (da sistemare prima della prossima release) | **Impatto**: Alto | **Sforzo**: Basso-Medio
-
 - [ ] **TASK-0081** [Alta] Un blocco di tsnetd può impedire indefinitamente la chiusura
   - **File**: `TsnetManager.vb`, circa righe 247–263 e 386–420
   - **Problema / Esigenza**: `SendCommandAsync()` attende il semaforo e una riga da stdout senza timeout. `ShutdownAsync()` chiama questo metodo prima di arrivare a `WaitForExit(2000)`. Di conseguenza, se il daemon resta vivo ma non risponde, il limite di due secondi non viene mai raggiunto. Anche un comando precedente bloccato può trattenere il semaforo e impedire l’invio di shutdown.

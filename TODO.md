@@ -7,13 +7,6 @@
 
 ## Security, Sessions & Core Reliability
 
-- [ ] **TASK-0080** [High] Stop and restart can overlap two bulk sender executions
-  - **Files**: `BulkSenderWindow.xaml.vb`, approx lines 343–438; `BulkSenderEngine.vb`, methods `Cancel()` and `RunAsync()`
-  - **Problem / Need**: Stop button requests cancellation and immediately re-enables Start without waiting for the previous execution to complete. The latter may still be inside an asynchronous call. Furthermore, an interrupted execution passes through the "Completed" summary, advancing the progress bar to 100%.
-  - **Fix to Implement**: Introduce a "Stopping..." state and a `CancelAsync()` method that awaits the active task. The engine must prevent concurrent executions independently of the UI. Separate Completed, Cancelled, and Failed outcomes.
-  - **Acceptance Test**: Press Stop during a JavaScript call and immediately attempt a new start. Two execution runs must not start on the same WebView; the summary must retain actual counts and indicate interruption.
-  - **Priority**: P1 (to be fixed before next release) | **Impact**: High | **Effort**: Low-Medium
-
 - [ ] **TASK-0081** [High] A hang in tsnetd can indefinitely block shutdown
   - **Files**: `TsnetManager.vb`, approx lines 247–263 and 386–420
   - **Problem / Need**: `SendCommandAsync()` awaits semaphore and a line from stdout without a timeout. `ShutdownAsync()` calls this method before reaching `WaitForExit(2000)`. Consequently, if the daemon remains alive but unresponsive, the two-second limit is never reached. A previously hanging command can also hold the semaphore and prevent shutdown dispatch.

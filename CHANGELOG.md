@@ -5,6 +5,22 @@
 
 ---
 
+## [1.5.1-beta] - 2026-11-21
+
+### Pre-release / Beta — Bulk Sender Concurrency Coordination, Safe Interruption, and Lifecycle Hardening
+- **Bulk Sender Concurrency Coordination & Safe Interruption (`BulkSenderEngine.vb`, `BulkSenderPolicy.vb`, `BulkSenderWindow.xaml.vb` — TASK-0080)**:
+  - Integrated `BulkSenderExecutionCoordinator` inside `BulkSenderEngine` ensuring thread-safe, independent prevention of concurrent bulk send operations (`TryBeginExecution`).
+  - Added `CancelAsync()` method to `BulkSenderEngine` that triggers `BeginStop()`, releases pause locks, signals cancellation tokens, and awaits the active background task before releasing execution locks.
+  - Introduced `SetUiStoppingState()` in `BulkSenderWindow.xaml.vb`: disables Start, Pause, and Stop buttons, displaying localized "Stopping in progress..." status until previous execution fully terminates.
+  - Separated execution outcomes into distinct states: `Completed`, `Cancelled`, and `Failed`. Interrupted executions now preserve real counts, avoid advancing the progress bar to 100%, and show dedicated cancellation dialogs with exact unsend counts.
+  - Cancellation during an active message transmission or JavaScript evaluation sets contact status to localized `Interrupted` instead of false `Error`, preventing false increments to `ErrorCount`.
+  - Added safe window closing lifecycle handler (`BulkSenderWindow_Closing`) that prompts for confirmation and gracefully awaits cancellation before closing while sending is active.
+- **Localization & Character Encoding Fixes (`Localization.vb`)**:
+  - Added `bulk_status_interrupted` across all 5 officially supported languages (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+  - Corrected UTF-8 string encoding artifacts in French, Spanish, and German bulk sender UI messages.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`)**:
+  - Added comprehensive regression tests verifying stopping state transitions, concurrent execution prevention during simulated asynchronous JavaScript calls, outcome determination as Cancelled, zero false error increments, and safe restart capability (totaling **708 automated regression assertions with 0 errors**).
+
 ## [1.5.0] - 2026-11-19
 
 ### Stable Release — Discord Integration, Session Hardening, and Resilient Storage Architecture

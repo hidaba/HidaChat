@@ -3,6 +3,20 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 
+## 2026-11-21
+
+- [x] **TASK-0080** [High] Stop and restart can overlap two bulk sender executions
+  - Result:
+    - Encapsulated bulk sending concurrency coordination and outcome determination in `BulkSenderExecutionCoordinator` and integrated it with `BulkSenderEngine.vb`.
+    - Engine now prevents concurrent executions independently of the UI: `RunAsync` verifies `TryBeginExecution()` under lock and rejects concurrent start attempts with an `InvalidOperationException` while running or stopping.
+    - Implemented `CancelAsync()` method that requests cancellation (`BeginStop()`), signals the pause event, cancels the cancellation token source, and awaits completion of the active task with a safety timeout.
+    - Added UI stopping state `SetUiStoppingState()` in `BulkSenderWindow.xaml.vb` that disables Start, Pause, and Stop buttons, displaying localized status "Stopping in progress...".
+    - Separated final execution outcomes into distinct states: `Completed`, `Cancelled`, and `Failed`. Interrupted runs no longer pass through the "Completed" summary and do not falsely set progress bar to 100%.
+    - Cancellation during an active message transmission or JavaScript call marks the contact as `Interrupted` (`bulk_status_interrupted`) instead of `Error`, does not falsely increment `ErrorCount`, and reports exact sent, error, and unsend counts.
+    - Added safe window closing lifecycle handler (`BulkSenderWindow_Closing`) confirming cancellation before closing when bulk sending is active.
+    - Synchronously updated all 5 UI localization dictionaries in `Localization.vb` (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) with `bulk_status_interrupted` and cleaned character encodings.
+  - Verification: Added 13 new regression assertions in `SessionTests.vb` testing stopping state transitions, strict rejection of concurrent execution attempts during pending async JavaScript operations, outcome classification as Cancelled, preservation of sent count, zero false errors, and accurate unsend counts (totaling **708 automated regression assertions with 0 errors**). Clean build with 0 warnings and 0 errors.
+
 ## 2026-11-18
 
 - [x] **TASK-0090** [High] MigrateOrphanProfile deletes or overwrites a valid profile

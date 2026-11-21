@@ -835,6 +835,7 @@ Public Class AppLocalizations
         {"bulk_err_user_not_found", "User or phone number not found on Telegram"},
         {"bulk_status_stopping", "Stopping in progress..."},
         {"bulk_status_cancelled", "Sending cancelled by user."},
+        {"bulk_status_interrupted", "Interrupted"},
         {"bulk_title_cancelled", "Sending Cancelled"},
         {"bulk_status_completed", "Completed"},
         {"bulk_status_failed", "Error during sending: {0}"}
@@ -1061,6 +1062,7 @@ Public Class AppLocalizations
         {"bulk_err_user_not_found", "Utente o numero non trovato su Telegram"},
         {"bulk_status_stopping", "Arresto in corso..."},
         {"bulk_status_cancelled", "Invio interrotto dall'utente."},
+        {"bulk_status_interrupted", "Interrotto"},
         {"bulk_title_cancelled", "Invio Interrotto"},
         {"bulk_status_completed", "Completato"},
         {"bulk_status_failed", "Errore durante l'invio: {0}"}
@@ -1287,6 +1289,7 @@ Public Class AppLocalizations
         {"bulk_err_user_not_found", "Utilisateur ou numéro introuvable sur Telegram"},
         {"bulk_status_stopping", "ArrÃªt en cours..."},
         {"bulk_status_cancelled", "Envoi interrompu par l'utilisateur."},
+        {"bulk_status_interrupted", "Interrompu"},
         {"bulk_title_cancelled", "Envoi Interrompu"},
         {"bulk_status_completed", "TerminÃ©"},
         {"bulk_status_failed", "Erreur pendant l'envoi : {0}"}
@@ -1513,6 +1516,7 @@ Public Class AppLocalizations
         {"bulk_err_user_not_found", "Usuario o número no encontrado en Telegram"},
         {"bulk_status_stopping", "Deteniendo envÃ­o..."},
         {"bulk_status_cancelled", "EnvÃ­o cancelado por el usuario."},
+        {"bulk_status_interrupted", "Interrumpido"},
         {"bulk_title_cancelled", "EnvÃ­o Cancelado"},
         {"bulk_status_completed", "Completado"},
         {"bulk_status_failed", "Error durante el envÃ­o: {0}"}
@@ -1739,6 +1743,7 @@ Public Class AppLocalizations
         {"bulk_err_user_not_found", "Benutzer oder Nummer auf Telegram nicht gefunden"},
         {"bulk_status_stopping", "Wird gestoppt..."},
         {"bulk_status_cancelled", "Versand vom Benutzer abgebrochen."},
+        {"bulk_status_interrupted", "Unterbrochen"},
         {"bulk_title_cancelled", "Versand Abgebrochen"},
         {"bulk_status_completed", "Abgeschlossen"},
         {"bulk_status_failed", "Fehler beim Senden: {0}"}

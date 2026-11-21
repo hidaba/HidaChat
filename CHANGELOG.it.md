@@ -3,6 +3,22 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.1-beta] - 2026-11-21
+
+### Pre-release / Beta — Coordinamento Concorrenza Invio Massivo, Arresto Sicuro e Robustezza del Ciclo di Vita
+- **Coordinamento Concorrenza Invio Massivo e Arresto Sicuro (`BulkSenderEngine.vb`, `BulkSenderPolicy.vb`, `BulkSenderWindow.xaml.vb` — TASK-0080)**:
+  - Integrato `BulkSenderExecutionCoordinator` all'interno di `BulkSenderEngine` garantendo la prevenzione autonoma e thread-safe di esecuzioni concorrenti dell'invio massivo (`TryBeginExecution`).
+  - Aggiunto il metodo `CancelAsync()` a `BulkSenderEngine` che invoca `BeginStop()`, rilascia i blocchi di pausa, attiva i token di cancellazione e attende la conclusione effettiva del task in background prima di consentire nuovi avvii.
+  - Introdotto lo stato UI `SetUiStoppingState()` in `BulkSenderWindow.xaml.vb`: disabilita i pulsanti Avvio, Pausa e Stop, visualizzando lo stato localizzato "Arresto in corso..." fino al completo arresto dell'elaborazione precedente.
+  - Separati nettamente gli esiti di esecuzione in stati distinti: `Completed`, `Cancelled` e `Failed`. Le esecuzioni interrotte conservano i conteggi reali, non avanzano la barra al 100% e mostrano finestre di riepilogo dedicate con il numero esatto di contatti non inviati.
+  - L'annullamento durante la trasmissione di un messaggio o una valutazione JavaScript assegna al contatto lo stato localizzato `Interrotto` anziché un falso `Errore`, impedendo incrementi errati di `ErrorCount`.
+  - Aggiunto il gestore del ciclo di vita della finestra (`BulkSenderWindow_Closing`) che richiede conferma e attende la cancellazione pulita prima della chiusura quando l'invio è in corso.
+- **Localizzazione e Correzione Codifiche (`Localization.vb`)**:
+  - Aggiunta la chiave `bulk_status_interrupted` in tutte le 5 lingue ufficialmente supportate (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
+  - Corretti gli artefatti di codifica UTF-8 nei messaggi dell'invio massivo in francese, spagnolo e tedesco.
+- **Estensione Suite di Regressione Automatizzata (`Tests/SessionTests.vb`)**:
+  - Aggiunti test di regressione completi che verificano le transizioni di arresto, il blocco rigoroso di avvii concorrenti durante chiamate JavaScript asincrone simulate, la classificazione corretta dell'esito come Cancelled, l'assenza di falsi errori e la ripartenza pulita successiva (totale di **708 asserzioni di regressione automatizzate con 0 errori**).
+
 ## [1.5.0] - 2026-11-19
 
 ### Release Stabile — Integrazione Ufficiale Discord, Blindatura delle Sessioni e Architettura di Storage Resiliente
