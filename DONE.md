@@ -3,6 +3,22 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 
+## 2026-11-22
+
+- [x] **TASK-0081** [High] A hang in tsnetd can indefinitely block shutdown
+  - Result:
+    - In `TsnetManager.vb`, enhanced `SendCommandAsync` to accept a cancellable timeout (default 3000ms) covering both semaphore acquisition (`_ioLock.WaitAsync`) and stream I/O (`WriteLineAsync`, `ReadLineAsync`), completely preventing indefinite hangs on unresponsive daemons.
+    - If a command times out or is cancelled, `_ioLock` is safely released in `Finally`, preventing lock starvation and allowing subsequent commands or shutdown to proceed.
+    - Implemented process lifecycle cancellation token source (`_processCts`) that is signalled immediately during `ShutdownAsync()`, cancelling hanging background tasks (e.g. status polling timer, route management) and promptly freeing the command lock.
+    - Redesigned `ShutdownAsync(Optional overallTimeoutMs As Integer = 2000)` with a strict overall deadline independent of the command channel:
+      - Allocates a small fraction (up to 600ms) to attempt cooperative shutdown via `"shutdown"` command without letting a hung channel stall the process.
+      - Closes `StandardInput` (sending EOF to Go daemon scanner loop) to unblock stdin reads.
+      - Awaits process exit up to the remaining overall deadline budget.
+      - If the daemon remains unresponsive past the overall deadline, forcefully terminates it with `proc.Kill(entireProcessTree:=True)`.
+      - Disposes streams, cancels error reading, and cleans up all state without leaving dangling background reads.
+    - Added test seam properties `CustomExecutablePath` and `CustomExecutableArguments` in `TsnetManager.vb` for automated mock daemon testing.
+  - Verification: Added 11 new automated regression assertions in `SessionTests.vb` testing simulated unresponsive daemon (PowerShell sleeping without writing to stdout): verified `SendCommandAsync` times out within budget and returns `Nothing`, verified subsequent commands proceed without semaphore deadlock, verified `ShutdownAsync` terminates within overall limit and kills the unresponsive daemon, and verified `ShutdownAsync` terminates within deadline even when a prior command is actively hanging (totaling **719 automated regression assertions with 0 errors**). Clean compilation with 0 warnings and 0 errors.
+
 ## 2026-11-21
 
 - [x] **TASK-0080** [High] Stop and restart can overlap two bulk sender executions

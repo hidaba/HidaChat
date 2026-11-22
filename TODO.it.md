@@ -7,13 +7,6 @@
 
 ## Sicurezza, Sessioni e Affidabilità Core
 
-- [ ] **TASK-0081** [Alta] Un blocco di tsnetd può impedire indefinitamente la chiusura
-  - **File**: `TsnetManager.vb`, circa righe 247–263 e 386–420
-  - **Problema / Esigenza**: `SendCommandAsync()` attende il semaforo e una riga da stdout senza timeout. `ShutdownAsync()` chiama questo metodo prima di arrivare a `WaitForExit(2000)`. Di conseguenza, se il daemon resta vivo ma non risponde, il limite di due secondi non viene mai raggiunto. Anche un comando precedente bloccato può trattenere il semaforo e impedire l’invio di shutdown.
-  - **Fix da implementare**: Applicare un timeout cancellabile all’intera operazione, compresa l’acquisizione del semaforo. Lo shutdown deve avere una scadenza complessiva indipendente dal canale comandi. Alla scadenza, chiudere il canale e gestire il processo senza lasciare letture pendenti.
-  - **Test di accettazione**: Usare un daemon di prova che non risponde più su stdout. Chiusura e aggiornamento devono terminare o fallire con un errore chiaro entro il limite previsto, non restare appesi.
-  - **Priorità**: P1 | **Impatto**: Alto | **Sforzo**: Medio
-
 - [ ] **TASK-0082** [Media] La verifica dei certificati HTTPS viene disattivata
   - **File**: `tsnetd/main.go`, circa righe 259–269; `SettingsWindow.xaml.vb`, circa righe 320–322
   - **Problema / Esigenza**: Nel transport del proxy viene impostato `InsecureSkipVerify = true`; il test di connessione usa inoltre una callback che accetta sempre il certificato. La verifica HTTPS del servizio viene quindi aggirata nei percorsi interessati. In Go questa impostazione disabilita la normale verifica della catena e del nome del server. La protezione del tunnel Tailscale è distinta dalla verifica dell’identità HTTPS del servizio.

@@ -5,6 +5,22 @@
 
 ---
 
+## [1.5.2-beta] - 2026-11-22
+
+### Pre-release / Beta — Resilient Daemon IPC Timeout, Independent Shutdown Deadline, and Process Lifecycle Hardening
+- **Tsnet Companion Process IPC Timeout & Cancellation (`TsnetManager.vb` — TASK-0081)**:
+  - Applied cancellable timeouts (default 3000ms) to `SendCommandAsync`, spanning both semaphore acquisition (`_ioLock.WaitAsync`) and stream I/O (`WriteLineAsync`, `ReadLineAsync`).
+  - Added safe `Finally` semaphore release upon timeout or cancellation, completely preventing lock starvation and deadlocks on unresponsive daemons.
+  - Introduced process-lifecycle cancellation token source (`_processCts`) to promptly abort in-flight commands when stopping.
+- **Independent Shutdown Overall Deadline & Hang Prevention (`TsnetManager.vb` — TASK-0081)**:
+  - Implemented strict overall timeout budget in `ShutdownAsync(Optional overallTimeoutMs As Integer = 2000)`, completely independent of the command channel.
+  - Preemptively signals `_processCts.Cancel()` to release active locks and abort hanging background polling tasks before dispatching shutdown.
+  - Attempts cooperative shutdown with bounded command budget (up to 600ms); upon timeout or failure, closes `StandardInput` pipe (delivering EOF to daemon scanner loop) and awaits exit.
+  - If daemon remains alive beyond overall deadline, forcefully terminates process tree (`proc.Kill(entireProcessTree:=True)`).
+  - Ensures streams are closed, error reading cancelled, and resources disposed without leaving dangling background reads.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`)**:
+  - Added 11 automated regression assertions verifying command timeout on silent daemon, semaphore release, overall shutdown deadline enforcement, and preemption of active hanging commands during shutdown (totaling **719 automated regression assertions with 0 errors**).
+
 ## [1.5.1-beta] - 2026-11-21
 
 ### Pre-release / Beta — Bulk Sender Concurrency Coordination, Safe Interruption, and Lifecycle Hardening

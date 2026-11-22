@@ -1313,5 +1313,65 @@ Module SessionTests
             Catch
             End Try
         End Try
+
+        ' Test TASK-0081: TsnetManager command timeout and shutdown deadline
+        Dim powershellExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell\v1.0\powershell.exe")
+        If File.Exists(powershellExe) Then
+            Dim tsnet = TsnetManager.Instance
+            tsnet.CustomExecutablePath = powershellExe
+            ' Launch mock daemon that sleeps for 60 seconds without writing to stdout
+            tsnet.CustomExecutableArguments = "-NoProfile -Command ""Start-Sleep -Seconds 60"""
+
+            Dim started = Await tsnet.StartAsync()
+            Check(started, "TsnetManager starts test mock daemon process")
+            Check(tsnet.IsRunning OrElse tsnet.NodeState = "Starting", "TsnetManager node state is active/starting")
+
+            ' Test 1: SendCommandAsync timeout
+            Dim swCmd = Stopwatch.StartNew()
+            Dim cmdResult = Await tsnet.SendCommandAsync("{""cmd"":""status""}", timeoutMs:=600)
+            swCmd.Stop()
+            Check(cmdResult Is Nothing, "SendCommandAsync returns Nothing on unresponsive daemon")
+            Check(swCmd.ElapsedMilliseconds >= 500 AndAlso swCmd.ElapsedMilliseconds < 3000,
+                  $"SendCommandAsync timed out within expected budget (elapsed: {swCmd.ElapsedMilliseconds}ms)")
+
+            ' Test 2: Semaphore release on timeout - subsequent command proceeds without deadlock
+            Dim swCmd2 = Stopwatch.StartNew()
+            Dim cmdResult2 = Await tsnet.SendCommandAsync("{""cmd"":""ping""}", timeoutMs:=400)
+            swCmd2.Stop()
+            Check(cmdResult2 Is Nothing, "Subsequent command proceeds and returns Nothing without deadlock")
+            Check(swCmd2.ElapsedMilliseconds >= 350 AndAlso swCmd2.ElapsedMilliseconds < 2500,
+                  $"Subsequent command timed out without semaphore starvation (elapsed: {swCmd2.ElapsedMilliseconds}ms)")
+
+            ' Test 3: ShutdownAsync with hung daemon terminates within overall deadline
+            Dim swShutdown = Stopwatch.StartNew()
+            Await tsnet.ShutdownAsync(overallTimeoutMs:=1200)
+            swShutdown.Stop()
+            Check(swShutdown.ElapsedMilliseconds < 3500,
+                  $"ShutdownAsync terminates within overall limit (elapsed: {swShutdown.ElapsedMilliseconds}ms)")
+            Check(tsnet.NodeState = "Stopped", "NodeState is Stopped after shutdown")
+            Check(Not tsnet.IsRunning, "IsRunning is False after shutdown")
+
+            ' Test 4: ShutdownAsync when a command is actively hanging during shutdown call
+            tsnet.CustomExecutablePath = powershellExe
+            tsnet.CustomExecutableArguments = "-NoProfile -Command ""Start-Sleep -Seconds 60"""
+            Await tsnet.StartAsync()
+
+            ' Launch a hanging command with large timeout in background
+            Dim hangTask = Task.Run(Async Function()
+                                        Await tsnet.SendCommandAsync("{""cmd"":""hang""}", timeoutMs:=15000)
+                                    End Function)
+            Await Task.Delay(200) ' ensure the command started and acquired lock
+
+            Dim swShutdown2 = Stopwatch.StartNew()
+            Await tsnet.ShutdownAsync(overallTimeoutMs:=1200)
+            swShutdown2.Stop()
+            Check(swShutdown2.ElapsedMilliseconds < 3500,
+                  $"ShutdownAsync overrides active hanging command and completes within deadline (elapsed: {swShutdown2.ElapsedMilliseconds}ms)")
+            Check(tsnet.NodeState = "Stopped", "NodeState is Stopped after preempting hanging command")
+
+            ' Reset custom executable to avoid interfering with production
+            tsnet.CustomExecutablePath = ""
+            tsnet.CustomExecutableArguments = ""
+        End If
     End Function
 End Module

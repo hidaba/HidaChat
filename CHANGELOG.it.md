@@ -3,6 +3,22 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.2-beta] - 2026-11-22
+
+### Pre-release / Beta — Timeout IPC Daemon Resiliente, Scadenza Complessiva di Chiusura Indipendente e Rafforzamento del Ciclo di Vita del Processo
+- **Timeout IPC e Annullamento Processo Companion Tsnet (`TsnetManager.vb` — TASK-0081)**:
+  - Applicato un timeout cancellabile (predefinito a 3000ms) a `SendCommandAsync`, esteso sia all'acquisizione del semaforo (`_ioLock.WaitAsync`) sia all'I/O degli stream (`WriteLineAsync`, `ReadLineAsync`).
+  - Aggiunto il rilascio sicuro del semaforo nel blocco `Finally` in caso di timeout o cancellazione, prevenendo contese del lock e blocchi irreversibili su daemon non responsivi.
+  - Introdotto un CancellationTokenSource di ciclo di vita del processo (`_processCts`) per interrompere tempestivamente i comandi in corso durante l'arresto.
+- **Scadenza Complessiva Indipendente di Shutdown e Prevenzione Blocchi (`TsnetManager.vb` — TASK-0081)**:
+  - Implementato un budget temporale complessivo tassativo in `ShutdownAsync(Optional overallTimeoutMs As Integer = 2000)`, del tutto indipendente dal canale comandi.
+  - Segnala preventivamente `_processCts.Cancel()` per liberare i lock attivi e interrompere i task di polling in background prima di procedere alla chiusura.
+  - Tenta lo shutdown cooperativo con un budget limitato (fino a 600ms); in caso di mancata risposta, chiude la pipe `StandardInput` (inviando EOF al loop di lettura del daemon) e attende l'uscita.
+  - Se il daemon rimane attivo oltre la scadenza complessiva, ne forza l'arresto dell'intero albero di processi (`proc.Kill(entireProcessTree:=True)`).
+  - Garantisce la chiusura degli stream, l'annullamento della lettura degli errori e il rilascio delle risorse senza lasciare letture pendenti in background.
+- **Espansione della Suite di Regressione Automatizzata (`Tests/SessionTests.vb`)**:
+  - Aggiunte 11 asserzioni di regressione automatizzate per verificare il timeout dei comandi su daemon silente, il rilascio del semaforo, il rispetto della scadenza complessiva di arresto e la prelazione di comandi bloccati durante lo shutdown (totale di **719 asserzioni di regressione automatizzate con 0 errori**).
+
 ## [1.5.1-beta] - 2026-11-21
 
 ### Pre-release / Beta — Coordinamento Concorrenza Invio Massivo, Arresto Sicuro e Robustezza del Ciclo di Vita

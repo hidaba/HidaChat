@@ -28,8 +28,15 @@ Public Class TsnetManager
     End Class
 
     Private _process As Process
+    Private _processCts As CancellationTokenSource
     Private ReadOnly _ioLock As New SemaphoreSlim(1, 1)
     Private ReadOnly _routes As New Dictionary(Of String, RouteInfo)(StringComparer.OrdinalIgnoreCase)
+
+    ''' <summary>Custom executable path for testing/simulation (TODO #81).</summary>
+    Public Property CustomExecutablePath As String = ""
+
+    ''' <summary>Custom arguments for the test/simulation executable (TODO #81).</summary>
+    Public Property CustomExecutableArguments As String = ""
 
     Private Shared Function GetOrCreateLocalToken() As String
         Try
@@ -175,27 +182,34 @@ Public Class TsnetManager
             Return True
         End If
 
-        Dim exePath = FindTsnetdExePath()
+        Dim exePath = If(Not String.IsNullOrWhiteSpace(CustomExecutablePath) AndAlso File.Exists(CustomExecutablePath),
+                         CustomExecutablePath,
+                         FindTsnetdExePath())
         If Not File.Exists(exePath) Then
             Debug.WriteLine($"[TsnetManager] tsnetd.exe not found at: {exePath}")
             NodeState = "Stopped"
             Return False
         End If
 
-        Dim stateDir = GetMachineStateDir()
-        Directory.CreateDirectory(stateDir)
+        Dim args = ""
+        If Not String.IsNullOrWhiteSpace(CustomExecutablePath) AndAlso Not String.IsNullOrWhiteSpace(CustomExecutableArguments) Then
+            args = CustomExecutableArguments
+        Else
+            Dim stateDir = GetMachineStateDir()
+            Directory.CreateDirectory(stateDir)
 
-        Dim effectiveAuthKey = authKey
-        If String.IsNullOrWhiteSpace(effectiveAuthKey) AndAlso AuthKeyProvider IsNot Nothing Then
-            Try
-                effectiveAuthKey = AuthKeyProvider.Invoke()
-            Catch
-            End Try
-        End If
+            Dim effectiveAuthKey = authKey
+            If String.IsNullOrWhiteSpace(effectiveAuthKey) AndAlso AuthKeyProvider IsNot Nothing Then
+                Try
+                    effectiveAuthKey = AuthKeyProvider.Invoke()
+                Catch
+                End Try
+            End If
 
-        Dim args = $"-dir ""{stateDir}"" -hostname ""hidachat"""
-        If Not String.IsNullOrWhiteSpace(effectiveAuthKey) Then
-            args &= $" -authkey ""{effectiveAuthKey.Trim()}"""
+            args = $"-dir ""{stateDir}"" -hostname ""hidachat"""
+            If Not String.IsNullOrWhiteSpace(effectiveAuthKey) Then
+                args &= $" -authkey ""{effectiveAuthKey.Trim()}"""
+            End If
         End If
 
         Dim psi As New ProcessStartInfo With {
@@ -212,6 +226,14 @@ Public Class TsnetManager
 
         Try
             _isShuttingDown = False
+            If _processCts IsNot Nothing Then
+                Try
+                    _processCts.Dispose()
+                Catch
+                End Try
+            End If
+            _processCts = New CancellationTokenSource()
+
             _process = New Process With {.StartInfo = psi, .EnableRaisingEvents = True}
             AddHandler _process.Exited, Sub()
                 Debug.WriteLine("[TsnetManager] tsnetd.exe process exited.")
@@ -267,26 +289,71 @@ Public Class TsnetManager
     End Sub
 
     ''' <summary>
-    ''' Invia un comando JSON e legge la riga di risposta.
+    ''' Sends a JSON command and reads the response line within a cancellable timeout covering both semaphore acquisition and I/O (TODO #81).
     ''' </summary>
-    Private Async Function SendCommandAsync(cmdJson As String) As Task(Of String)
-        If _process Is Nothing OrElse _process.HasExited Then
+    Public Async Function SendCommandAsync(cmdJson As String,
+                                          Optional timeoutMs As Integer = 3000,
+                                          Optional cancellationToken As CancellationToken = Nothing,
+                                          Optional ignoreProcessCts As Boolean = False) As Task(Of String)
+        Dim proc = _process
+        If proc Is Nothing OrElse proc.HasExited Then
             Return Nothing
         End If
 
-        Await _ioLock.WaitAsync()
-        Try
-            Await _process.StandardInput.WriteLineAsync(cmdJson)
-            Await _process.StandardInput.FlushAsync()
+        Dim procCts = If(ignoreProcessCts, Nothing, _processCts)
+        Dim hasProcToken = procCts IsNot Nothing
+        Dim hasCallerToken = cancellationToken.CanBeCanceled
 
-            Dim responseLine = Await _process.StandardOutput.ReadLineAsync()
-            Return responseLine
-        Catch ex As Exception
-            Debug.WriteLine($"[TsnetManager] SendCommandAsync error: {ex.Message}")
-            Return Nothing
-        Finally
-            _ioLock.Release()
-        End Try
+        Using linkedCts = If(hasProcToken AndAlso hasCallerToken,
+                             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, procCts.Token),
+                             If(hasProcToken,
+                                CancellationTokenSource.CreateLinkedTokenSource(procCts.Token),
+                                If(hasCallerToken,
+                                   CancellationTokenSource.CreateLinkedTokenSource(cancellationToken),
+                                   New CancellationTokenSource())))
+            If timeoutMs > 0 Then
+                linkedCts.CancelAfter(timeoutMs)
+            End If
+            Dim token = linkedCts.Token
+
+            Dim acquired As Boolean = False
+            Try
+                acquired = Await _ioLock.WaitAsync(timeoutMs, token)
+            Catch ex As OperationCanceledException
+                Debug.WriteLine($"[TsnetManager] SendCommandAsync cancelled/timed out acquiring lock: {ex.Message}")
+                Return Nothing
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] Semaphore wait exception: {ex.Message}")
+                Return Nothing
+            End Try
+
+            If Not acquired Then
+                Debug.WriteLine($"[TsnetManager] SendCommandAsync timed out waiting for semaphore ({timeoutMs}ms).")
+                Return Nothing
+            End If
+
+            Try
+                token.ThrowIfCancellationRequested()
+                proc = _process
+                If proc Is Nothing OrElse proc.HasExited Then
+                    Return Nothing
+                End If
+
+                Await proc.StandardInput.WriteLineAsync(cmdJson.AsMemory(), token)
+                Await proc.StandardInput.FlushAsync(token)
+
+                Dim responseLine = Await proc.StandardOutput.ReadLineAsync(token)
+                Return responseLine
+            Catch ex As OperationCanceledException
+                Debug.WriteLine($"[TsnetManager] SendCommandAsync cancelled/timed out during I/O ({timeoutMs}ms): {ex.Message}")
+                Return Nothing
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] SendCommandAsync I/O error: {ex.Message}")
+                Return Nothing
+            Finally
+                _ioLock.Release()
+            End Try
+        End Using
     End Function
 
     ''' <summary>
@@ -417,10 +484,13 @@ Public Class TsnetManager
     End Function
 
     ''' <summary>
-    ''' Chiude ordinatamente tsnetd e attende fino a 2 secondi prima di forzare il kill.
+    ''' Gracefully shuts down tsnetd with an overall deadline independent of the command channel (TODO #81).
+    ''' Attempts cooperative shutdown; upon timeout or unresponsiveness, closes standard input channel
+    ''' and terminates the process forcibly within the overall deadline without leaving dangling reads.
     ''' </summary>
-    Public Async Function ShutdownAsync() As Task
-        If _process Is Nothing OrElse _process.HasExited Then
+    Public Async Function ShutdownAsync(Optional overallTimeoutMs As Integer = 2000) As Task
+        Dim proc = _process
+        If proc Is Nothing OrElse proc.HasExited Then
             NodeState = "Stopped"
             Return
         End If
@@ -431,31 +501,94 @@ Public Class TsnetManager
             _pollTimer = Nothing
         End If
 
-        Try
-            Dim cmd = JsonSerializer.Serialize(New With {Key .cmd = "shutdown"})
-            Await SendCommandAsync(cmd)
-
-            Dim exited = Await Task.Run(Function() _process.WaitForExit(2000))
-            If Not exited AndAlso Not _process.HasExited Then
-                Debug.WriteLine("[TsnetManager] tsnetd did not exit in 2s, terminating forcibly...")
-                _process.Kill()
-            End If
-        Catch ex As Exception
-            Debug.WriteLine($"[TsnetManager] Shutdown exception: {ex.Message}")
+        Dim sw = Stopwatch.StartNew()
+        Using overallCts As New CancellationTokenSource(overallTimeoutMs)
             Try
-                If Not _process.HasExited Then _process.Kill()
-            Catch
+                ' 1. Abort any pending background commands (polling, routes) to immediately release _ioLock
+                If _processCts IsNot Nothing Then
+                    Try
+                        _processCts.Cancel()
+                    Catch
+                    End Try
+                End If
+
+                ' 2. Reserve a small portion of the overall budget (up to 600ms) to attempt cooperative shutdown
+                Dim commandBudgetMs = Math.Min(600, Math.Max(150, overallTimeoutMs \ 3))
+                Using cmdCts As New CancellationTokenSource(commandBudgetMs)
+                    Using linkedCmdCts = CancellationTokenSource.CreateLinkedTokenSource(overallCts.Token, cmdCts.Token)
+                        Try
+                            Dim cmd = JsonSerializer.Serialize(New With {Key .cmd = "shutdown"})
+                            Await SendCommandAsync(cmd, timeoutMs:=commandBudgetMs, cancellationToken:=linkedCmdCts.Token, ignoreProcessCts:=True)
+                        Catch ex As Exception
+                            Debug.WriteLine($"[TsnetManager] Cooperative shutdown command exception: {ex.Message}")
+                        End Try
+                    End Using
+                End Using
+
+                ' 3. Close standard input channel (send EOF) to unblock the Go daemon's stdin loop
+                Try
+                    If Not proc.HasExited Then
+                        proc.StandardInput.Close()
+                    End If
+                Catch
+                End Try
+
+                ' 4. Wait for the process to exit for the remaining overall budget
+                Dim remainingMs = Math.Max(100, overallTimeoutMs - CInt(sw.ElapsedMilliseconds))
+                Dim exited As Boolean = False
+                Try
+                    exited = Await Task.Run(Function() proc.WaitForExit(remainingMs))
+                Catch
+                End Try
+
+                ' 5. If the daemon did not exit within the overall deadline, terminate it forcibly
+                If Not exited AndAlso Not proc.HasExited Then
+                    Debug.WriteLine($"[TsnetManager] tsnetd did not exit within {overallTimeoutMs}ms overall deadline; terminating forcibly...")
+                    Try
+                        proc.Kill(entireProcessTree:=True)
+                    Catch
+                        Try
+                            proc.Kill()
+                        Catch
+                        End Try
+                    End Try
+
+                    Try
+                        Await Task.Run(Function() proc.WaitForExit(500))
+                    Catch
+                    End Try
+                End If
+
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] Shutdown exception: {ex.Message}")
+                Try
+                    If proc IsNot Nothing AndAlso Not proc.HasExited Then
+                        proc.Kill(entireProcessTree:=True)
+                    End If
+                Catch
+                End Try
+            Finally
+                Try
+                    proc.CancelErrorRead()
+                Catch
+                End Try
+                Try
+                    proc.Dispose()
+                Catch
+                End Try
+                _process = Nothing
+                If _processCts IsNot Nothing Then
+                    _processCts.Dispose()
+                    _processCts = Nothing
+                End If
+                SyncLock _routes
+                    _routes.Clear()
+                End SyncLock
+                NodeState = "Stopped"
+                TailnetIP = ""
+                LoginUrl = ""
             End Try
-        Finally
-            _process.Dispose()
-            _process = Nothing
-            SyncLock _routes
-                _routes.Clear()
-            End SyncLock
-            NodeState = "Stopped"
-            TailnetIP = ""
-            LoginUrl = ""
-        End Try
+        End Using
     End Function
 
     ''' <summary>

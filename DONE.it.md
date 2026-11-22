@@ -3,6 +3,22 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-22
+
+- [x] **TASK-0081** [Alta] Un blocco di tsnetd può impedire indefinitamente la chiusura
+  - Risultato:
+    - In `TsnetManager.vb`, potenziato `SendCommandAsync` per gestire un timeout cancellabile (default 3000ms) che copre sia l'acquisizione del semaforo (`_ioLock.WaitAsync`) sia l'I/O (`WriteLineAsync`, `ReadLineAsync`), prevenendo blocchi indefiniti in caso di daemon non responsivo.
+    - Se un comando va in timeout o viene annullato, `_ioLock` viene rilasciato in sicurezza nel blocco `Finally`, evitando la contesa del lock e consentendo l'esecuzione di comandi successivi o dello shutdown.
+    - Implementato un CancellationTokenSource legato al ciclo di vita del processo (`_processCts`), segnalato immediatamente all'inizio di `ShutdownAsync()`, che annulla tempestivamente i comandi pendenti in background (es. timer di polling, gestione rotte) e libera il lock.
+    - Riprogettato `ShutdownAsync(Optional overallTimeoutMs As Integer = 2000)` con una scadenza complessiva tassativa e indipendente dal canale comandi:
+      - Riserva una frazione del budget (fino a 600ms) per tentare uno shutdown cooperativo con il comando `"shutdown"`, senza che un canale bloccato paralizzi la chiusura.
+      - Chiude `StandardInput` (inviando EOF al loop scanner del daemon Go) per sbloccare le letture su stdin.
+      - Attende l'uscita del processo per il tempo residuo del budget complessivo.
+      - Se il daemon resta attivo oltre la scadenza complessiva, ne forza la terminazione immediata con `proc.Kill(entireProcessTree:=True)`.
+      - Chiude gli stream, cancella la lettura degli errori e pulisce lo stato senza lasciare letture pendenti in background.
+    - Aggiunte le proprietà `CustomExecutablePath` e `CustomExecutableArguments` in `TsnetManager.vb` per consentire test automatizzati con daemon fittizi.
+  - Verifica: Aggiunte 11 nuove asserzioni di regressione automatizzate in `SessionTests.vb` simulando un daemon non responsivo (PowerShell dormiente che non scrive su stdout): verificato che `SendCommandAsync` scada entro il budget restituendo `Nothing`, verificato che comandi successivi procedano senza stallo del semaforo, verificato che `ShutdownAsync` termini entro il limite complessivo forzando l'arresto del daemon e verificato che `ShutdownAsync` rispetti la scadenza anche quando un comando precedente è attivamente bloccato (totale di **719 asserzioni di regressione automatizzate con 0 errori**). Compilazione pulita con 0 avvisi e 0 errori.
+
 ## 2026-11-21
 
 - [x] **TASK-0080** [Alta] Stop e riavvio possono sovrapporre due esecuzioni dell’invio massivo

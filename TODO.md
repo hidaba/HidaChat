@@ -7,13 +7,6 @@
 
 ## Security, Sessions & Core Reliability
 
-- [ ] **TASK-0081** [High] A hang in tsnetd can indefinitely block shutdown
-  - **Files**: `TsnetManager.vb`, approx lines 247–263 and 386–420
-  - **Problem / Need**: `SendCommandAsync()` awaits semaphore and a line from stdout without a timeout. `ShutdownAsync()` calls this method before reaching `WaitForExit(2000)`. Consequently, if the daemon remains alive but unresponsive, the two-second limit is never reached. A previously hanging command can also hold the semaphore and prevent shutdown dispatch.
-  - **Fix to Implement**: Apply a cancellable timeout to the entire operation, including semaphore acquisition. Shutdown must have an overall deadline independent of the command channel. Upon expiration, close the channel and handle the process without leaving dangling reads.
-  - **Acceptance Test**: Use a test daemon that stops responding on stdout. Shutdown and updates must terminate or fail with a clear error within the expected limit, never remaining hung.
-  - **Priority**: P1 | **Impact**: High | **Effort**: Medium
-
 - [ ] **TASK-0082** [Medium] HTTPS certificate verification is disabled
   - **Files**: `tsnetd/main.go`, approx lines 259–269; `SettingsWindow.xaml.vb`, approx lines 320–322
   - **Problem / Need**: The proxy transport sets `InsecureSkipVerify = true`; additionally, the connection test uses a callback that unconditionally accepts any certificate. HTTPS verification of the target service is bypassed in affected paths. In Go, this setting disables standard chain and server name verification. Tailscale tunnel encryption is distinct from validating the HTTPS identity of the service.
