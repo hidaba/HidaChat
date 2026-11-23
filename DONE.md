@@ -1,7 +1,21 @@
-ï»¿# Completed Tasks
+# Completed Tasks
 
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
+
+## 2026-11-23
+
+- [x] **TASK-0091** [High] Version marker written before robocopy, unique temp directory naming, and temporary leftovers cleanup
+  - Result:
+    - Removed premature .app_version writing prior to file copying; writing of .app_version is now strictly delegated to HandleApplyUpdateStartup only upon successful file copy completion.
+    - Standardized .app_version format to "v" & version.TrimStart("v"c) across the entire lifecycle, ensuring complete consistency.
+    - Hardened temporary update directory generation using timestamp and GUID (HidaChat_Update_{sessionId}) to avoid conflicts between concurrent portable instances and multi-user environments.
+    - Updated background cleanup to strictly skip the current session and preserve recent active sessions (< 2 hours old), avoiding race conditions and cross-instance file deletion.
+    - Passed root temporary directory (	empDir) through --apply-update and --cleanup-update command line arguments, guaranteeing the entire extracted folder tree is removed after update relaunch.
+    - Added retry logic with backoff to --cleanup-update to ensure temporary zip files and folders are cleanly deleted even under brief process lock delays.
+    - Added temporary folder and zip cleanup on failure in HandleApplyUpdateStartup, preventing disk bloat when updates fail.
+    - Excluded runner scripts, .bat, .cmd, .ps1, and .tmp files from being copied to the application directory in CopyUpdateFiles.
+  - Verification: Added 28 automated regression assertions in SessionTests.vb testing runner script exclusion, version marker formatting, CLI argument construction with root temp directory, and safe cleanup filtering (totaling **747 automated regression assertions with 0 errors**). Clean compilation with 0 warnings and 0 errors.
 
 ## 2026-11-22
 
@@ -368,7 +382,7 @@
   - **Implemented Features**:
     - Dedicated button `BtnMuteActiveTab` in the title bar with dynamic icon (active speaker `#00a884` when playing or `#8696a0`, struck-through in magenta `#ec4899` when muted) and global shortcut `Ctrl+M`.
     - Dedicated button `BtnCopyLink` in the title bar and global shortcut `Ctrl+Shift+C` to instantly copy the link/URL of the active chat or instance to the clipboard with discreet Toast feedback (`MessagePopup`).
-    - Interactive media indicator `TabMediaButton` integrated on each individual tab: displays `ðŸ”Š` when audio/video is playing or `ðŸ”‡` if account is muted, with ability to mute/unmute audio via a single direct click without leaving the active tab.
+    - Interactive media indicator `TabMediaButton` integrated on each individual tab: displays `??` when audio/video is playing or `??` if account is muted, with ability to mute/unmute audio via a single direct click without leaving the active tab.
     - Dedicated entries in tab context menu (`AccountTab_ContextMenuOpened`): dynamic contextual toggle "Mute/Unmute tab audio" (`account_mute_tab` / `account_unmute_tab`), "Copy chat link / URL" (`account_copy_link`), and targeted cache cleanup (`account_clean_cache`).
     - Full multilingual support across all 5 official dictionaries (`Localization.vb`: EN, IT, FR, ES, DE) and unit regression tests.
   - **Impact**: Medium | **Effort**: Low-Medium
@@ -570,7 +584,7 @@
     - Added methods `TryHibernateAsync()` and `ResumeFromHibernation()` in `AppAccounts.vb` based on native APIs `CoreWebView2.TrySuspendAsync()` and `CoreWebView2.Resume()`, with `LastActiveTime` tracking and `IsHibernated` property.
     - Periodic background timer in `MainWindow.xaml.vb` (`_hibernationTimer`, 60s) checking inactivity of background tabs and suspending them transparently.
     - Instant wake-up (0 ms delay) upon focus shift to the tab in `SwitchToAccountAsync` or by setting `IsActive = True`.
-    - Visual indicator `ðŸ’¤` on hibernated tabs in the horizontal bar of `MainWindow.xaml`.
+    - Visual indicator `??` on hibernated tabs in the horizontal bar of `MainWindow.xaml`.
     - Configuration in Settings (`SettingsWindow.xaml`): toggle switch `ChkEnableTabHibernation` and interval selector `ComboTabHibernationTimeout` (15, 30, 60 min) with persistence in `settings.json` and full multilingual support in all 5 languages (EN, IT, FR, ES, DE).
   - **Impact**: Medium | **Effort**: Medium
 
@@ -699,7 +713,7 @@
 
 - [x] **TASK-0066** [Medium] Maximum accounts limit: synchronization and downgrade policy~~
   - **Files**: `AccountManager.vb` (`MaxAccounts`, `CanAddAccount`, `HasExcessAccounts`, `ExcessAccountsCount`, `AddAccountAsync`, `IDisposable`), `SettingsController.vb` (`MaxAccounts`), `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `MainWindow.xaml`, `MainWindow.xaml.vb`, `Localization.vb`
-  - **Problem**: Originally `AccountManager.MaxAccounts` was hardcoded to 3. The property was made dynamic according to `SettingsController.MaxAccounts` (range 2â€“10) and integrated into `CanAddAccount` and `AddAccountAsync` checks. However, automatic listening to `_settingsController.PropertyChanged` inside `AccountManager` was missing to notify changes to `CanAddAccount` and `MaxAccounts` independently from `SettingsWindow` UI, as was a formal policy when the user sets a limit lower than already configured accounts.
+  - **Problem**: Originally `AccountManager.MaxAccounts` was hardcoded to 3. The property was made dynamic according to `SettingsController.MaxAccounts` (range 2–10) and integrated into `CanAddAccount` and `AddAccountAsync` checks. However, automatic listening to `_settingsController.PropertyChanged` inside `AccountManager` was missing to notify changes to `CanAddAccount` and `MaxAccounts` independently from `SettingsWindow` UI, as was a formal policy when the user sets a limit lower than already configured accounts.
   - **Implemented Fix**:
     - Subscribed to `SettingsController.PropertyChanged` centrally in `AccountManager` constructor to automatically notify changes to `MaxAccounts`, `CanAddAccount`, `HasExcessAccounts`, and `ExcessAccountsCount`; implemented `IDisposable` interface on `AccountManager` to cleanly release listeners;
     - Formal non-destructive downgrade policy: if `MaxAccounts` limit is lowered below configured accounts, existing accounts are completely preserved and remain operational, while adding further accounts is blocked and an explanatory warning banner is displayed in Settings (`BorderDowngradeNotice`);
@@ -710,7 +724,7 @@
 - [x] **TASK-0059** [High] Non-destructive WebView2 profile cleanup~~
   - **Files**: `AccountManager.vb` (`LoadAccountsAsync`, `CleanupUnusedProfilesAsync`, `MigrateOrphanProfile`, `CreateDefaultAccountAsync`, `RemoveAccountAsync`), `AppAccounts.vb` (`SetupWebViewInternalAsync`), `SettingsController.vb` (`IsLoadedFromValidConfig`, `ReadSettingsAsync`)
   - **Problem**:
-    - Irreversible data loss cascade: corrupted/unreadable `settings.json` â†’ fallback default account loaded â†’ file rewritten â†’ on next launch `CleanupUnusedProfilesAsync` permanently deleted on-disk profiles of all other configured accounts (sessions lost, QR codes required again);
+    - Irreversible data loss cascade: corrupted/unreadable `settings.json` ? fallback default account loaded ? file rewritten ? on next launch `CleanupUnusedProfilesAsync` permanently deleted on-disk profiles of all other configured accounts (sessions lost, QR codes required again);
     - `CleanupUnusedProfilesAsync` (via `DeleteDirectoryWithRetryAsync`) executed recursive deletions on the UI thread at application startup for Chromium profiles that can weigh hundreds of MBs;
     - `MigrateOrphanProfileAsync` and `SetupWebViewInternalAsync` directly deleted a valid profile directory `WV2Profile_{id}` to replace it with the orphan one.
   - **Implemented Fix**:
@@ -799,10 +813,10 @@
 
 ## 2026-08-27
 
-- [x] **TASK-0041** [High] Telegram Integration â€” Advanced Features and UI/UX Refinements~~
-  - **Base State**: âœ… Completed in v0.5.0 (Routing to `web.telegram.org/k/`, profile isolation in `data/webview/`, dedicated cyan vector icons, and platform selector in Settings).
-  - **Multi-Platform Polish**: âœ… Completed in v0.5.0 (Dark/Light theme synchronization with `.night` classes and `themeController`, selective hover and batch translation with Telegram DOM selectors, popup click routing to notifying account).
-  - **Advanced Evolution and Polish**: âœ… Completed in v0.7.1-beta:
+- [x] **TASK-0041** [High] Telegram Integration — Advanced Features and UI/UX Refinements~~
+  - **Base State**: ? Completed in v0.5.0 (Routing to `web.telegram.org/k/`, profile isolation in `data/webview/`, dedicated cyan vector icons, and platform selector in Settings).
+  - **Multi-Platform Polish**: ? Completed in v0.5.0 (Dark/Light theme synchronization with `.night` classes and `themeController`, selective hover and batch translation with Telegram DOM selectors, popup click routing to notifying account).
+  - **Advanced Evolution and Polish**: ? Completed in v0.7.1-beta:
     - **Telegram Notification Badge and Unread Counter**: Continuous tracking of unread message count (combined MutationObserver on `<title>` and DOM scan of `.badge.unread`, `.unread-count`, etc. selectors) with a colored numeric badge pill on the account tab and dynamic tray icon.
     - **Telegram Deep Link Handling (`tg://` and `t.me/`)**: Interception in `NavigationStarting` and `NewWindowRequested` of `tg://resolve?domain=...`, `tg://join?invite=...` protocols and `https://t.me/...` web links, automatically translating them into internal Telegram Web K routes (`https://web.telegram.org/k/#@...` / `https://web.telegram.org/k/#?tgaddr=...`).
     - **Global Keyboard Shortcuts**: Added keyboard shortcuts for quick account switching (`Ctrl+1`, `Ctrl+2`, `Ctrl+3`, and NumPad), circular tab cycling (`Ctrl+Tab`, `Ctrl+Shift+Tab`), new account (`Ctrl+T`/`Ctrl+N`), reload (`Ctrl+R`/`F5`), settings (`Ctrl+,`), and bulk sender (`Ctrl+B`).
@@ -818,7 +832,7 @@
     - Automatic column header detection and mapping (*Phone*, *First Name*, *Last Name*, *Company*, *Custom Text*).
     - Normalization, non-numeric character cleanup, and international prefix formatting.
     - Dynamic template editor with placeholders (`{Nome}`, `{Cognome}`, `{Azienda}`, `{Telefono}`, `{Testo}`) and quick insertion buttons.
-    - Dedicated `BulkSenderWindow` with interactive DataGrid, individual or multiple selection, and colored progress status badges per row (`Waiting`, `Sending...`, `Sent âœ”`, `Error âœ–`, `Invalid`).
+    - Dedicated `BulkSenderWindow` with interactive DataGrid, individual or multiple selection, and colored progress status badges per row (`Waiting`, `Sending...`, `Sent ?`, `Error ?`, `Invalid`).
     - Sequential automation engine `BulkSenderEngine` with unregistered number modal error detection (`INVALID_NUMBER`), chat send injection scripts, and adjustable Anti-Spam delay intervals (Jitter Delay) with real-time countdown.
     - Dedicated Excel icon button integrated into title bar (`MainWindow.xaml`) and full multilingual localization in `Localization.vb`.
   - **Impact**: High | **Effort**: Medium
@@ -858,41 +872,41 @@
   - `settings.json` and `translations_cache.json` are now created and saved directly inside the portable `data/` folder. Transparent and automatic migration (`File.Move`) of existing root files to `data/` implemented on first launch, preserving settings and cache.
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0035** [Low] `JsScripts.vb` â€” ~300 lines of translation JS permanently in memory~~
+- [x] **TASK-0035** [Low] `JsScripts.vb` — ~300 lines of translation JS permanently in memory~~
   - JS scripts loaded at startup and never released; copied on every account setup
   - **Optimization**: loaded from embedded resources (`EmbeddedResource`) lazily (`Lazy(Of String)`); persistent translation caching on disk (`data/translations_cache.json`) to prevent repeated downloads from the internet; RAM optimization to keep only the dictionaries of the active language in memory.
   - **Impact**: Low | **Effort**: Medium
   - ---
 
-- [x] **TASK-0034** [Low] `SolidColorBrush` â€” Created on every theme change in MainWindow and SettingsWindow~~
+- [x] **TASK-0034** [Low] `SolidColorBrush` — Created on every theme change in MainWindow and SettingsWindow~~
   - `New SolidColorBrush(...)` called every time theme was applied
   - **Optimization**: cache instances per color
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0009** [Medium] Batch translations â€” Fixed chunking at 50 texts~~
+- [x] **TASK-0009** [Medium] Batch translations — Fixed chunking at 50 texts~~
   - Chunk size hardcoded to 50, does not consider text lengths
   - **Optimization**: adaptive chunking based on total character length (e.g., max 2000 characters per chunk)
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0008** [High] `AccountManager.LoadAccountsAsync()` â€” Creates all WebView2 instances on startup~~
+- [x] **TASK-0008** [High] `AccountManager.LoadAccountsAsync()` — Creates all WebView2 instances on startup~~
   - Creates a WebView2 for EVERY account at load time (~50-100MB per instance)
-  - **Optimization**: lazy initialization â€” create WebView2 only for the active account, others on-demand
+  - **Optimization**: lazy initialization — create WebView2 only for the active account, others on-demand
   - **Impact**: High | **Effort**: High
 
 
 ## 2026-08-15
 
-- [x] **TASK-0033** [Low] Registry `AppsUseLightTheme` â€” Read 3 times without caching~~
+- [x] **TASK-0033** [Low] Registry `AppsUseLightTheme` — Read 3 times without caching~~
   - Same registry key read in `MainWindow.xaml.vb`, `WhatsAppAccount.vb`, `SettingsWindow.xaml.vb`
   - **Optimization**: centralized `SystemThemeHelper` module with registry cache and listener for `SystemEvents.UserPreferenceChanged` event
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0032** [Low] `MessagePopup._activePopups` â€” Static list without WeakReference~~
-  - Retains strong references to all popups â€” memory leak if not closed normally
+- [x] **TASK-0032** [Low] `MessagePopup._activePopups` — Static list without WeakReference~~
+  - Retains strong references to all popups — memory leak if not closed normally
   - **Optimization**: `WeakReference(Of MessagePopup)` with automatic pruning of GC-collected references
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0031** [Low] `UpdateChecker.vb` â€” `batchContent` using string concatenation~~
+- [x] **TASK-0031** [Low] `UpdateChecker.vb` — `batchContent` using string concatenation~~
   - Batch file built with string concatenation across ~35 lines
   - **Optimization**: `StringBuilder` to assemble batch script as a stream
   - **Impact**: Low | **Effort**: Low
@@ -902,96 +916,96 @@
   - **Optimization**: `Directory.EnumerateDirectories` and `FirstOrDefault()` to short-circuit scan on first match
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0029** [Low] `AccountManager.vb` â€” Anonymous type on every save~~
-  - Creates anonymous type instances for each account on every save â€” GC pressure
+- [x] **TASK-0029** [Low] `AccountManager.vb` — Anonymous type on every save~~
+  - Creates anonymous type instances for each account on every save — GC pressure
   - **Optimization**: serialize `WhatsAppAccount` directly (already has `JsonPropertyName`)
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0028** [Low] `WhatsAppAccount.vb` â€” `New Random()` on every call~~
+- [x] **TASK-0028** [Low] `WhatsAppAccount.vb` — `New Random()` on every call~~
   - System clock seed can produce identical sequences if calls are close together
   - **Optimization**: `Random.Shared` (.NET 9) or `Shared` with lock
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0027** [Medium] `AccountManager` and `SettingsController` â€” No dirty tracking~~
+- [x] **TASK-0027** [Medium] `AccountManager` and `SettingsController` — No dirty tracking~~
   - `SaveAccountsAsync()` and `WriteSettingsAsync()` rewrote everything even when nothing changed
   - **Optimization**: `_dirty` flag + writing only on actual modifications
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0026** [Medium] `JsScripts.vb` â€” Multiple `.Replace()` on large templates~~
-  - `GetTranslationJS` calls `.Replace()` 10+ times on a huge template â€” creates a new string each time
+- [x] **TASK-0026** [Medium] `JsScripts.vb` — Multiple `.Replace()` on large templates~~
+  - `GetTranslationJS` calls `.Replace()` 10+ times on a huge template — creates a new string each time
   - **Optimization**: `StringBuilder` with in-place `Replace`
   - **Impact**: Medium | **Effort**: Low
 
 - [x] **TASK-0025** [Medium] `ExecuteScriptAsync` fire-and-forget in `MainWindow.xaml.vb`~~
-  - Tasks returned by `ExecuteScriptAsync` were neither awaited nor caught â€” unobservable exceptions
+  - Tasks returned by `ExecuteScriptAsync` were neither awaited nor caught — unobservable exceptions
   - **Optimization**: capture tasks or use `Async Sub`/`Async Function` with `Await` and error handling (`Try...Catch`)
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0023** [Medium] `MainWindow.xaml.vb` â€” `PropertyChanged` event handlers never removed~~
+- [x] **TASK-0023** [Medium] `MainWindow.xaml.vb` — `PropertyChanged` event handlers never removed~~
   - `_settingsController.PropertyChanged` and `_accountManager.PropertyChanged` registered but never unhooked in `OnClosed`/`OnUnloaded`
   - **Optimization**: add `RemoveHandler` in window closing events
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0022** [Medium] `CancellationTokenSource` in `SettingsController.FlushAfterDebounceAsync` â€” Undisposed~~
-  - Previous CTS was only cancelled (`Cancel()`) but never disposed (`.Dispose()`) â€” retains `WaitHandle` (OS resource)
+- [x] **TASK-0022** [Medium] `CancellationTokenSource` in `SettingsController.FlushAfterDebounceAsync` — Undisposed~~
+  - Previous CTS was only cancelled (`Cancel()`) but never disposed (`.Dispose()`) — retains `WaitHandle` (OS resource)
   - **Optimization**: dispose the old `_flushCts` before replacing it with the new one
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0021** [Medium] `Directory.GetFiles` in `UpdateChecker.vb` â€” Eager enumeration on network share~~
-  - Loads ALL file paths into `String()` array â€” potentially thousands of strings on a UNC path
+- [x] **TASK-0021** [Medium] `Directory.GetFiles` in `UpdateChecker.vb` — Eager enumeration on network share~~
+  - Loads ALL file paths into `String()` array — potentially thousands of strings on a UNC path
   - **Optimization**: `Directory.EnumerateFiles` (lazy streaming)
   - **Impact**: Medium | **Effort**: Low
 
 
 ## 2026-08-05
 
-- [x] **TASK-0020** [Medium] `Localization` â€” `HttpClient` created 3 times (not shared)~~
-  - `New HttpClient()` in each method â€” socket exhaustion under load
+- [x] **TASK-0020** [Medium] `Localization` — `HttpClient` created 3 times (not shared)~~
+  - `New HttpClient()` in each method — socket exhaustion under load
   - **Optimization**: `Shared ReadOnly HttpClient` at class/module level
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0019** [High] `ActiveNotificationIds` â€” HashSet grows without bounds~~
+- [x] **TASK-0019** [High] `ActiveNotificationIds` — HashSet grows without bounds~~
   - Notification IDs added on `NOTIFICATION_RECEIVED` but never removed if `NOTIFICATION_CLOSED` is not received
   - **Optimization**: maximum size limit + periodic cleanup for stale IDs
   - **Impact**: High | **Effort**: Low
 
 - [x] **TASK-0015** [High] Event handlers on `CoreWebView2` never removed~~
   - `PermissionRequested`, `NewWindowRequested`, `WebMessageReceived`, `NavigationCompleted` registered but never removed with `RemoveHandler`
-  - WebView2 holds strong references to the account â€” definite memory leak on removal
+  - WebView2 holds strong references to the account — definite memory leak on removal
   - **Optimization**: saved handler references and called `RemoveHandler` before releasing WebView2
   - **Impact**: High | **Effort**: Low
 
-- [x] **TASK-0013** [High] `WhatsAppAccount` â€” Implement `IDisposable`~~
+- [x] **TASK-0013** [High] `WhatsAppAccount` — Implement `IDisposable`~~
   - WebView2 (COM/GPU) and `ActiveNotificationIds` never disposed when an account is removed
   - **Optimization**: implemented `IDisposable` and called by `AccountManager` upon account removal
   - **Impact**: High | **Effort**: Medium
 
-- [x] **TASK-0012** [Low] Translation cache â€” Full write on every language change~~
+- [x] **TASK-0012** [Low] Translation cache — Full write on every language change~~
   - `SaveCacheFileAsync()` rewrites the entire cache file even for minimal changes
   - **Optimization**: deferred or incremental write
   - **Impact**: Low | **Effort**: Low
   - *Obsolete: UI translations are now hardcoded (EN/IT). Cache is written only during initialization, not on every language change.*
   - ---
 
-- [x] **TASK-0011** [Low] `SwitchToAccountAsync()` â€” Visibility of all WebViews~~
+- [x] **TASK-0011** [Low] `SwitchToAccountAsync()` — Visibility of all WebViews~~
   - Iterates ALL WebViews to set `Visibility = Collapsed` and only one to `Visible`
   - **Optimization**: track the last active account and hide only that one with a preliminary check if account is already active
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0010** [Low] `MessagePopup.RepositionAll()` â€” Iterates all active popups~~
+- [x] **TASK-0010** [Low] `MessagePopup.RepositionAll()` — Iterates all active popups~~
   - Every time a popup is shown/closed, recalculates the position of ALL active popups
   - **Optimization**: track next popup Y position incrementally, stacking upward without repositioning already active popups
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0007** [Medium] OTA Update â€” `ReadVersionFromFileAsync()` on UNC path~~
+- [x] **TASK-0007** [Medium] OTA Update — `ReadVersionFromFileAsync()` on UNC path~~
   - Obsolete in v0.2.0: reading from network UNC path and `ReadVersionFromFileAsync()` have been completely removed. The OTA system operates exclusively via GitHub Releases REST API.
 
-- [x] **TASK-0006** [Medium] WebView2 â€” Script injection on every navigation~~
+- [x] **TASK-0006** [Medium] WebView2 — Script injection on every navigation~~
   - On every `NavigationCompleted`, unnecessarily re-injects CSS theme and translation script on secondary navigations
   - **Optimization**: inject only on initial navigation, use `AddScriptToExecuteOnDocumentCreatedAsync` for permanent scripts
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0005** [Low] `FindVisualChildren()` and `FindVisualChild()` â€” Multiple recursion~~
+- [x] **TASK-0005** [Low] `FindVisualChildren()` and `FindVisualChild()` — Multiple recursion~~
   - Recursive functions called 3-4 times per window that traverse the ENTIRE visual tree
   - **Optimization**: memoization (tree caching) or replacement with declarative bindings/styles
   - **Impact**: Low | **Effort**: Low
@@ -1001,17 +1015,17 @@
   - **Optimization**: use `ObservableCollection` instead of `List(Of WhatsAppAccount)`
   - **Impact**: Medium | **Effort**: Low
 
-- [x] **TASK-0003** [Low] `StyleAccountItems()` â€” Visual tree recursion every time~~
+- [x] **TASK-0003** [Low] `StyleAccountItems()` — Visual tree recursion every time~~
   - Calls `FindVisualChildren(Of Border)` and `FindVisualChildren(Of TextBox)` across the entire `AccountsList`
   - **Optimization**: use WPF styles with DataTriggers instead of code-behind, or use `Loaded` event handler on DataTemplate elements
   - **Impact**: Low | **Effort**: Low
 
-- [x] **TASK-0002** [High] `FetchTranslations()` â€” N serial HTTP requests~~
+- [x] **TASK-0002** [High] `FetchTranslations()` — N serial HTTP requests~~
   - For each language key (30+), makes an individual HTTP request to Google Translate sequentially
   - **Optimization**: group translations into a single batch request, or use `HttpClient` with parallel requests (`Task.WhenAll`)
   - **Impact**: High | **Effort**: Medium
 
-- [x] **TASK-0001** [High] `settings.json` I/O â€” Multiple redundant reads~~
+- [x] **TASK-0001** [High] `settings.json` I/O — Multiple redundant reads~~
   - `SaveSettingAsync()` performs `ReadSettingsAsync()` + `WriteSettingsAsync()` every time a single key changes
   - **Optimization**: accumulate changes in memory and write to disk with debounce (e.g., 500ms) or rewrite only the file without re-reading it
   - **Impact**: High | **Effort**: Low
@@ -1019,17 +1033,17 @@
 
 ## 2026-07-27
 
-- [x] **TASK-0024** [Low] `DispatcherTimer` for chat synchronization â€” Removed~~
+- [x] **TASK-0024** [Low] `DispatcherTimer` for chat synchronization — Removed~~
   - Timer removed in v0.1.0 along with backup synchronization system.
 
-- [x] **TASK-0018** [Medium] `EncryptBytes` / `DecryptBytes` â€” Removal of backup system~~
+- [x] **TASK-0018** [Medium] `EncryptBytes` / `DecryptBytes` — Removal of backup system~~
   - Methods removed in v0.1.0.
 
-- [x] **TASK-0017** [Medium] `SaveMessageBatchAsync` â€” Removal of backup system~~
+- [x] **TASK-0017** [Medium] `SaveMessageBatchAsync` — Removal of backup system~~
   - Method removed in v0.1.0.
 
-- [x] **TASK-0016** [Medium] `CryptoHelper` and backup encryption â€” Removal of backup system~~
+- [x] **TASK-0016** [Medium] `CryptoHelper` and backup encryption — Removal of backup system~~
   - `CryptoHelper` class removed in v0.1.0 along with backup removal.
 
-- [x] **TASK-0014** [Medium] `ChatJsonStorageService` and `ChatSyncBackgroundWorker` â€” Removal of backup system~~
+- [x] **TASK-0014** [Medium] `ChatJsonStorageService` and `ChatSyncBackgroundWorker` — Removal of backup system~~
   - Classes removed in v0.1.0 along with the entire chat sync and disk storage system.

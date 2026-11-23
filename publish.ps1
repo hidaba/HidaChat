@@ -212,7 +212,7 @@ if (-not $SkipGitHub) {
                 }
             }
             if ([string]::IsNullOrWhiteSpace($commitMsg)) {
-                $commitMsg = "Aggiornamenti e miglioramenti alle funzionalità"
+                $commitMsg = "Updates and feature improvements"
             }
             Write-Host "Git commit message: $commitMsg"
             git commit -m $commitMsg

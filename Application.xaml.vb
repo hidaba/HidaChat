@@ -343,7 +343,7 @@ Class Application
     End Sub
 
     ''' <summary>
-    ''' Gestisce la modalitÃ  helper di aggiornamento compilata nativa (.NET/WPF) con eliminazione definitiva di script batch (TODO #87).
+    ''' Handles native compiled (.NET/WPF) updater helper startup mode (TODO #87, TASK-0091).
     ''' </summary>
     Private Sub HandleApplyUpdateStartup(args As String())
         Dim callerPid As Integer = 0
@@ -353,6 +353,7 @@ Class Application
         Dim version = If(args.Length > 4, args(4), "")
         Dim langCode = If(args.Length > 5, args(5), "en")
         Dim tempZipPath = If(args.Length > 6, args(6), "")
+        Dim tempDir = If(args.Length > 7, args(7), sourceDir)
 
         Dim loc = AppLocalizations.CreateForLanguage(langCode)
         Dim dialog As New UpdateProgressDialog(loc, version)
@@ -361,7 +362,7 @@ Class Application
 
         Task.Run(Sub()
             Try
-                ' 1. Attendi che il processo chiamante esca
+                ' 1. Wait for caller process to exit
                 dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_closing"), "Chiusura di HidaChat e preparazione sostituzione file..."))
                 If callerPid > 0 Then
                     Try
@@ -372,29 +373,29 @@ Class Application
                             retries += 1
                         End While
                     Catch ex As ArgumentException
-                        ' Processo giÃ  terminato
+                        ' Process already terminated
                     End Try
                 End If
 
                 Thread.Sleep(500)
 
-                ' 2. Copia dei file aggiornati (preservando rigorosamente la cartella portabile data/)
+                ' 2. Copy updated files (strictly preserving the portable data/ directory)
                 dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_copying"), "Applicazione aggiornamento e sostituzione file..."))
                 CopyUpdateFiles(sourceDir, installDir)
 
-                ' 3. Scrittura del marcatore di versione
+                ' 3. Write version marker strictly after successful file copy (TASK-0091)
                 Dim markerPath = Path.Combine(installDir, ".app_version")
                 Try
                     File.WriteAllText(markerPath, "v" & version.TrimStart("v"c))
                 Catch
                 End Try
 
-                ' 4. Riavvio dell'applicazione aggiornata
+                ' 4. Relaunch updated application and trigger background cleanup (TASK-0091)
                 dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_restarting"), "Aggiornamento completato. Riavvio di HidaChat in corso..."))
                 Thread.Sleep(500)
 
                 Dim targetExe = Path.Combine(installDir, "HidaChat.exe")
-                Dim cleanupArgs = $"--cleanup-update ""{sourceDir}"" ""{tempZipPath}"""
+                Dim cleanupArgs = $"--cleanup-update ""{tempDir}"" ""{tempZipPath}"""
                 Process.Start(New ProcessStartInfo With {
                     .FileName = targetExe,
                     .Arguments = cleanupArgs,
@@ -408,6 +409,21 @@ Class Application
 
             Catch ex As Exception
                 Dim errMsg = ex.Message
+
+                ' Clean up temporary update assets on failure so no leftovers remain (TASK-0091)
+                Try
+                    If Not String.IsNullOrWhiteSpace(tempZipPath) AndAlso File.Exists(tempZipPath) Then
+                        File.Delete(tempZipPath)
+                    End If
+                Catch
+                End Try
+                Try
+                    If Not String.IsNullOrWhiteSpace(tempDir) AndAlso Directory.Exists(tempDir) Then
+                        Directory.Delete(tempDir, True)
+                    End If
+                Catch
+                End Try
+
                 dialog.Dispatcher.Invoke(Sub()
                     dialog.SetIndeterminate(False)
                     dialog.UpdateStatus("Errore durante l'aggiornamento: " & errMsg)
@@ -429,8 +445,8 @@ Class Application
     End Sub
 
     ''' <summary>
-    ''' Copia ricorsivamente i file di aggiornamento dalla cartella estratta a quella di installazione,
-    ''' escludendo tassativamente la cartella 'data/' per garantire la portabilitÃ  al 100% (TODO #87).
+    ''' Recursively copies update files from extracted source directory to installation directory,
+    ''' strictly preserving the 'data/' folder to ensure 100% portability and excluding temporary/runner scripts (TASK-0091).
     ''' </summary>
     Private Shared Sub CopyUpdateFiles(sourceDir As String, installDir As String)
         If Not Directory.Exists(sourceDir) Then
@@ -467,6 +483,15 @@ Class Application
                 Continue For
             End If
 
+            ' Exclude any runner scripts, batch files, or PowerShell scripts from being copied to destination (TASK-0091)
+            Dim fileName = Path.GetFileName(relFile)
+            If fileName.StartsWith("update_", StringComparison.OrdinalIgnoreCase) OrElse
+               fileName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) OrElse
+               fileName.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) OrElse
+               fileName.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+
             Dim targetFilePath = Path.Combine(installDir, relFile)
             Dim targetFileDir = Path.GetDirectoryName(targetFilePath)
             If Not Directory.Exists(targetFileDir) Then
@@ -496,7 +521,7 @@ Class Application
     End Sub
 
     ''' <summary>
-    ''' Bonifica asincrona in background dei file e cartelle temporanee di aggiornamento (TODO #87).
+    ''' Asynchronous background cleanup of temporary update directories and archives (TASK-0091).
     ''' </summary>
     Private Shared Sub HandleCleanupUpdateStartup(args As String())
         Dim cleanupDir = If(args.Length > 1, args(1), "")
@@ -504,11 +529,45 @@ Class Application
         Task.Run(Sub()
             Try
                 Thread.Sleep(2500)
-                If Not String.IsNullOrWhiteSpace(cleanupZip) AndAlso File.Exists(cleanupZip) Then
-                    File.Delete(cleanupZip)
+
+                ' Delete temporary zip archive with retries
+                If Not String.IsNullOrWhiteSpace(cleanupZip) Then
+                    For attempt As Integer = 1 To 5
+                        Try
+                            If File.Exists(cleanupZip) Then File.Delete(cleanupZip)
+                            Exit For
+                        Catch
+                            Thread.Sleep(500)
+                        End Try
+                    Next
                 End If
-                If Not String.IsNullOrWhiteSpace(cleanupDir) AndAlso Directory.Exists(cleanupDir) Then
-                    Directory.Delete(cleanupDir, True)
+
+                ' Delete extracted temporary directory with retries
+                If Not String.IsNullOrWhiteSpace(cleanupDir) Then
+                    For attempt As Integer = 1 To 5
+                        Try
+                            If Directory.Exists(cleanupDir) Then Directory.Delete(cleanupDir, True)
+                            Exit For
+                        Catch
+                            Thread.Sleep(500)
+                        End Try
+                    Next
+
+                    ' If cleanupDir was a subfolder inside a HidaChat_Update_* directory, clean up the parent folder as well
+                    Try
+                        Dim parentDir = Directory.GetParent(cleanupDir)
+                        If parentDir IsNot Nothing AndAlso parentDir.Name.StartsWith("HidaChat_Update", StringComparison.OrdinalIgnoreCase) AndAlso parentDir.Exists Then
+                            For attempt As Integer = 1 To 5
+                                Try
+                                    If parentDir.Exists Then parentDir.Delete(True)
+                                    Exit For
+                                Catch
+                                    Thread.Sleep(500)
+                                End Try
+                            Next
+                        End If
+                    Catch
+                    End Try
                 End If
             Catch
             End Try

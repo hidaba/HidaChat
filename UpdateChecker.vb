@@ -574,19 +574,29 @@ Public Class UpdateChecker
         Dim updateLaunched As Boolean = False
         Dim dialog As UpdateProgressDialog = Nothing
 
-        ' Pulizia asincrona preventiva e non bloccante di eventuali residui di aggiornamenti precedenti
+        ' Asynchronous non-blocking cleanup of stale temporary update leftovers from previous sessions.
+        ' Protect current update session and any recent concurrent sessions (< 2 hours old) (TASK-0091).
         Dim cleanupBgTask = Task.Run(Sub()
             Try
                 Dim tempPath = Path.GetTempPath()
+                Dim cutoff = DateTime.UtcNow.AddHours(-2)
                 For Each dirPath In Directory.EnumerateDirectories(tempPath, "HidaChat_Update*")
                     Try
-                        Directory.Delete(dirPath, True)
+                        If dirPath.Equals(tempDir, StringComparison.OrdinalIgnoreCase) Then Continue For
+                        Dim di As New DirectoryInfo(dirPath)
+                        If di.LastWriteTimeUtc < cutoff AndAlso di.CreationTimeUtc < cutoff Then
+                            Directory.Delete(dirPath, True)
+                        End If
                     Catch
                     End Try
                 Next
                 For Each filePath In Directory.EnumerateFiles(tempPath, "HidaChat_Update*.zip")
                     Try
-                        System.IO.File.Delete(filePath)
+                        If filePath.Equals(tempZipPath, StringComparison.OrdinalIgnoreCase) Then Continue For
+                        Dim fi As New FileInfo(filePath)
+                        If fi.LastWriteTimeUtc < cutoff AndAlso fi.CreationTimeUtc < cutoff Then
+                            File.Delete(filePath)
+                        End If
                     Catch
                     End Try
                 Next
@@ -824,9 +834,9 @@ Public Class UpdateChecker
                 dialog = Nothing
             End If
 
-            ' Avvia il processo updater autonomo passando i parametri necessari
+            ' Launch the autonomous updater process with session parameters including root temporary directory (TASK-0091)
             Dim langCode = If(loc?.CurrentLanguage, "en")
-            Dim updaterArgs = $"--apply-update {Environment.ProcessId} ""{sourceDir}"" ""{installDir}"" ""{latestVersion}"" ""{langCode}"" ""{tempZipPath}"""
+            Dim updaterArgs = $"--apply-update {Environment.ProcessId} ""{sourceDir}"" ""{installDir}"" ""{latestVersion}"" ""{langCode}"" ""{tempZipPath}"" ""{tempDir}"""
             Log($"Starting updater process: {updaterExe} {updaterArgs}")
 
             Process.Start(New ProcessStartInfo With {
@@ -836,7 +846,7 @@ Public Class UpdateChecker
             })
             updateLaunched = True
 
-            ' Il browser e i dati sono giÃ  salvati e chiusi. Termina solo questo processo per consentire la sostituzione.
+            ' Browser and user data are saved and closed. Exit only this caller process to allow binary file replacement.
             Environment.Exit(0)
 
         Catch ex As Exception
@@ -890,14 +900,5 @@ Public Class UpdateChecker
             End If
         End Try
     End Function
-
-    Private Shared Sub WriteLocalVersionMarker(installDir As String, version As String)
-        Try
-            Dim markerPath = Path.Combine(installDir, ".app_version")
-            File.WriteAllText(markerPath, version.Trim())
-        Catch ex As Exception
-            Log($"Failed to write local version marker: {ex.Message}")
-        End Try
-    End Sub
 End Class
 

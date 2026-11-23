@@ -1,4 +1,4 @@
-ï»¿# TODO
+# TODO
 
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](TODO.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](TODO.it.md)
@@ -8,21 +8,21 @@
 ## Security, Sessions & Core Reliability
 
 - [ ] **TASK-0082** [Medium] HTTPS certificate verification is disabled
-  - **Files**: `tsnetd/main.go`, approx lines 259â€“269; `SettingsWindow.xaml.vb`, approx lines 320â€“322
+  - **Files**: `tsnetd/main.go`, approx lines 259–269; `SettingsWindow.xaml.vb`, approx lines 320–322
   - **Problem / Need**: The proxy transport sets `InsecureSkipVerify = true`; additionally, the connection test uses a callback that unconditionally accepts any certificate. HTTPS verification of the target service is bypassed in affected paths. In Go, this setting disables standard chain and server name verification. Tailscale tunnel encryption is distinct from validating the HTTPS identity of the service.
   - **Fix to Implement**: Standard validation as default behavior. For servers with private certificates, allow explicit CA configuration or certificate pinning; avoid silent global bypass.
   - **Acceptance Test**: An expired, untrusted, or hostname-mismatched certificate must produce a TLS error distinct from general reachability issues.
   - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Medium
 
 - [ ] **TASK-0083** [Medium] "Test connection" reports Online even when service is down
-  - **Files**: `SettingsWindow.xaml.vb`, approx lines 295â€“348, `BtnTestConnection_Click()` method
+  - **Files**: `SettingsWindow.xaml.vb`, approx lines 295–348, `BtnTestConnection_Click()` method
   - **Problem / Need**: After `GetAsync()`, code sets `isOnline = True` without checking the HTTP status code. Responses like 401, 403, 500, and 502 can therefore produce a green status indicator. Furthermore, for OpenClaw, this test does not add the Bearer token: the header is only set in the Hermes branch.
   - **Fix to Implement**: Distinguish at least reachability, authentication, and service availability. Use an appropriate platform endpoint and do not consider test successful simply because an HTTP response arrived.
   - **Acceptance Test**: Test responses for 200, 401, 403, 500, 502, and timeout. Bad credentials and unreachable backends must show distinct indicators, both differing from "connection successful".
   - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Low-Medium
 
 - [ ] **TASK-0086** [Medium] Updater cleanup can delete an active update session
-  - **Files**: `UpdateChecker.vb`, approx lines 516â€“545 and subsequent
+  - **Files**: `UpdateChecker.vb`, approx lines 516–545 and subsequent
   - **Problem / Need**: Cleanup is started with fire-and-forget `Task.Run()` and not awaited. It scans for all folders and archives matching update prefixes without distinguishing stale from active sessions. If cleanup runs late, it can interfere with freshly extracted files. Two portable copies in different directories sharing the same `%TEMP%` can also delete each other's temporary files.
   - **Fix to Implement**: Identify genuinely obsolete sessions first, always exclude current session, and protect active sessions with locks. Prevent concurrent updates of the same installation.
   - **Acceptance Test**: Artificially delay cleanup and launch two updates from separate portable copies. Neither session must delete files actively used by the other.
@@ -53,14 +53,14 @@
 ## Bulk Messaging & Translation
 
 - [ ] **TASK-0084** [Medium] CSV parser breaks multiline messages and may pick the wrong separator
-  - **Files**: `ExcelContactService.vb`, approx lines 122â€“131 and 200â€“238
+  - **Files**: `ExcelContactService.vb`, approx lines 122–131 and 200–238
   - **Problem / Need**: The file is read by physical lines, and each line is parsed independently. A quoted field containing a newline is therefore split. Separator autodetection counts commas and semicolons inside quoted text. In isolated tests, a contact with a 2-line message creates an extra row; a comma-separated CSV is parsed as semicolon-delimited when the message contains enough semicolons.
   - **Fix to Implement**: Use a parser that reads complete records while preserving quote state across lines. Detect separators outside quoted fields and allow explicit user selection when ambiguous (RFC 4180 compliant).
   - **Acceptance Test**: Multiline messages, escaped quotes, and punctuation must preserve contact count and message content unchanged.
   - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Low-Medium
 
 - [ ] **TASK-0085** [Medium] Batch translation can misalign translated text to wrong message
-  - **Files**: `Localization.vb`, approx lines 364â€“430, `TranslateBatchAsync()` method
+  - **Files**: `Localization.vb`, approx lines 364–430, `TranslateBatchAsync()` method
   - **Problem / Need**: Messages are joined with a textual separator `###` and subsequently split on the same separator. There is no verification that the returned count of parts matches the input message count. Mismatched associations are then stored in cache (e.g., message containing `###` shifts indices).
   - **Fix to Implement**: Prefer structured responses with item identifiers. While using textual separators, check for collisions and part counts; fall back to individual translations upon mismatch without caching ambiguous results.
   - **Acceptance Test**: Messages containing `###`, altered separators, and HTTP errors must not corrupt the cache.
@@ -70,25 +70,10 @@
 
 ## OTA Updates & Lifecycle
 
-- [ ] **TASK-0091** [High] Version marker written before robocopy, unique temp directory naming, and temporary leftovers cleanup
-  - **File**: `UpdateChecker.vb` (`PerformUpdateFromGitHubAsync`, `WriteLocalVersionMarker` methods), `Application.xaml.vb`
-  - **Problem / Need**:
-    1. `WriteLocalVersionMarker` was invoked by VB code before the file copy completed: if robocopy failed or was aborted, `.app_version` still claimed the new version even though application binaries were not updated. Additionally, the updater already writes the marker upon successful copy, making the preliminary VB call redundant and harmful, with format discrepancies (e.g. `0.7.1` in VB vs `v0.7.1`).
-    2. The update script was generated inside `tempDir`. If the ZIP archive contains `HidaChat.exe` at root, `sourceDir = tempDir`: robocopy then copies the script into the application installation folder.
-    3. The extracted temporary folder `tempDir` (potentially hundreds of MBs) and temporary zip files were not reliably cleaned up after update completion, wasting disk space.
-    4. Using a fixed temporary folder name (`%TEMP%\HidaChat_Update`) causes collisions and file lock conflicts if multiple users or portable instances update simultaneously.
-  - **Fix to Implement**:
-    - Remove `WriteLocalVersionMarker` call from VB flow, delegating marker writing solely to the updater only upon successful copy completion (`%RC% < 8`). Unify version format.
-    - Generate unique session-specific temporary directories (e.g. `HidaChat_Update_{updateSessionId}`) to prevent collisions between concurrent instances or user accounts.
-    - Place temporary runner scripts outside both `tempDir` and `sourceDir` (e.g. directly in `Path.GetTempPath()`), preventing robocopy from copying them into destination.
-    - Ensure complete cleanup of extracted temporary folders (`rd /s /q "<tempDir>"`) and temporary zip files upon completion or failure.
-  - **Acceptance Test**: Run an update procedure: verify that updater scripts are not present in final installation folder, that `tempDir` is completely deleted upon completion, that concurrent updates in separate folders use isolated temporary directories, and that `.app_version` marker is not written if copy fails.
-  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
-
 - [ ] **TASK-0092** [High] Fragile update batch script (OEM/UTF-8 codepage, accented characters, special characters, parentheses, and root USB drive)
   - **File**: `UpdateChecker.vb` (batch generation in `PerformUpdateFromGitHubAsync`)
   - **Problem / Need**:
-    1. The script is written via `File.WriteAllText` in UTF-8, but `cmd.exe` parses files in OEM codepage (e.g. CP437/CP850). If the path contains accented characters (e.g. Italian vowels `Ã¨`, `Ã `, `Ã²` in username or folder path), robocopy reads corrupted paths and fails.
+    1. The script is written via `File.WriteAllText` in UTF-8, but `cmd.exe` parses files in OEM codepage (e.g. CP437/CP850). If the path contains accented characters (e.g. Italian vowels `è`, `à`, `ò` in username or folder path), robocopy reads corrupted paths and fails.
     2. Special characters such as `%` or `!` in the path break `cmd.exe` variable parsing and delayed expansion.
     3. Inside `if (...)` blocks, commands like `echo ... {logFile}` with unquoted/unescaped paths containing closing parentheses `)` (e.g. `HidaChat (1)` or `Program Files (x86)`) prematurely terminate the `if` block, causing syntax errors.
     4. If the application is located at the root of a USB drive (e.g. `E:\HidaChat.exe`, a scenario explicitly supported for portable use), `installDir` resolves to `E:\`. In robocopy, `"E:\"` escapes the trailing double quote (`\"`), corrupting the arguments. Normalization using `installDir.TrimEnd("\""c) & "\."` is required.
@@ -98,7 +83,7 @@
     - Properly escape or remove `echo` with `{logFile}` inside `if` blocks, and escape or avoid `%` / `!` expansion issues in path handling.
     - Wrap all paths in double quotes and normalize drive roots for robocopy with `installDir.TrimEnd("\""c) & "\."`.
     - On robocopy error (`%RC% GEQ 8`), insert a `pause` before exit to allow inspection of the log.
-  - **Acceptance Test**: Perform update with installation paths containing accented characters (`C:\Users\Ã¨_test\HidaChat`), duplicate parentheses (`HidaChat (1)`), `%` symbols, and from USB root (`E:\`). Verify robocopy succeeds without syntax errors.
+  - **Acceptance Test**: Perform update with installation paths containing accented characters (`C:\Users\è_test\HidaChat`), duplicate parentheses (`HidaChat (1)`), `%` symbols, and from USB root (`E:\`). Verify robocopy succeeds without syntax errors.
   - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
 
 - [ ] **TASK-0093** [Medium] SHA-256 verification: false mismatches with multiple files, filename:hash format, and fail-open if checksum is missing
@@ -315,7 +300,7 @@
       - Extract all hardcoded strings into `Localization.vb` across all 5 supported languages (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
     - **Dynamic Theme Compatibility & Sizing**:
       - Ensure seamless theme switching in `ApplyTheme()` across all navigation elements, cards, and input controls for both Dark and Light modes.
-      - Expand window dimensions (e.g. Width ~680â€“720px, Height ~540â€“580px) to provide comfortable breathing room without nested scroll conflicts.
+      - Expand window dimensions (e.g. Width ~680–720px, Height ~540–580px) to provide comfortable breathing room without nested scroll conflicts.
   - **Acceptance Test**: Open Settings in both Dark and Light themes; verify all setting categories are easily navigable via tabs/sidebar, all existing controls persist and function correctly (account CRUD, CSS editing, translation testing, cache optimization, updates check), no hardcoded strings remain, and language switching dynamically updates all setting tabs and labels across all 5 languages.
   - **Priority**: P2 (Medium severity) | **Impact**: High | **Effort**: Medium
 

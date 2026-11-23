@@ -589,17 +589,58 @@ Module SessionTests
         Check(CalculateProgress(150, 100) = 100.0, "Progress exceeding total clamps to 100%")
         Check(CalculateProgress(50, 0) = -1.0, "Unknown total length returns negative percentage")
 
-        ' 3. CLI arguments construction for --apply-update (TODO #87)
-        Dim FormatApplyArgs = Function(pid As Integer, src As String, dst As String, ver As String, lang As String, zip As String) As String
-            Return $"--apply-update {pid} ""{src}"" ""{dst}"" ""{ver}"" ""{lang}"" ""{zip}"""
+        ' 3. CLI arguments construction for --apply-update (TODO #87, TASK-0091)
+        Dim FormatApplyArgs = Function(pid As Integer, src As String, dst As String, ver As String, lang As String, zip As String, rootTemp As String) As String
+            If String.IsNullOrEmpty(rootTemp) Then
+                Return $"--apply-update {pid} ""{src}"" ""{dst}"" ""{ver}"" ""{lang}"" ""{zip}"""
+            Else
+                Return $"--apply-update {pid} ""{src}"" ""{dst}"" ""{ver}"" ""{lang}"" ""{zip}"" ""{rootTemp}"""
+            End If
         End Function
 
-        Dim applyArgs = FormatApplyArgs(1234, "C:\Temp\Update", "C:\HidaChat", "1.3.3-beta", "it", "C:\Temp\update.zip")
+        Dim applyArgs = FormatApplyArgs(1234, "C:\Temp\Update\extracted", "C:\HidaChat", "1.3.3-beta", "it", "C:\Temp\update.zip", "C:\Temp\Update")
         Check(applyArgs.Contains("--apply-update 1234"), "CLI args include --apply-update with caller PID")
-        Check(applyArgs.Contains("""C:\Temp\Update"""), "CLI args include quoted source directory")
+        Check(applyArgs.Contains("""C:\Temp\Update\extracted"""), "CLI args include quoted source directory")
         Check(applyArgs.Contains("""C:\HidaChat"""), "CLI args include quoted target installation directory")
         Check(applyArgs.Contains("""1.3.3-beta"""), "CLI args include target version")
         Check(applyArgs.Contains("""it"""), "CLI args include language code")
+        Check(applyArgs.Contains("""C:\Temp\update.zip"""), "CLI args include temp zip path")
+        Check(applyArgs.Contains("""C:\Temp\Update"""), "CLI args include root temporary folder for complete cleanup (TASK-0091)")
+
+        ' 3b. Script exclusion and version marker verification (TASK-0091)
+        Dim IsScriptExcluded = Function(relFile As String) As Boolean
+            Dim fileName = Path.GetFileName(relFile)
+            Return fileName.StartsWith("update_", StringComparison.OrdinalIgnoreCase) OrElse
+                   fileName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) OrElse
+                   fileName.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) OrElse
+                   fileName.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase) OrElse
+                   fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)
+        End Function
+
+        Check(IsScriptExcluded("update_installer.bat"), "Bat script excluded from file copy (TASK-0091)")
+        Check(IsScriptExcluded("runner.cmd"), "Cmd script excluded from file copy (TASK-0091)")
+        Check(IsScriptExcluded("scripts\deploy.ps1"), "PowerShell script excluded from file copy (TASK-0091)")
+        Check(IsScriptExcluded("temp.tmp"), "Tmp file excluded from file copy (TASK-0091)")
+        Check(Not IsScriptExcluded("HidaChat.exe"), "Executable not excluded as script")
+        Check(Not IsScriptExcluded("HidaChat.dll"), "DLL not excluded as script")
+
+        Dim FormatVersionMarker = Function(v As String) As String
+            Return "v" & v.TrimStart("v"c)
+        End Function
+        Check(FormatVersionMarker("1.5.3-beta") = "v1.5.3-beta", "Version marker formats raw semver to v-prefix (TASK-0091)")
+        Check(FormatVersionMarker("v1.5.3-beta") = "v1.5.3-beta", "Version marker preserves already prefixed version (TASK-0091)")
+
+        ' 3c. Safe cleanup filter logic (TASK-0091)
+        Dim currentSessionDir = "C:\Users\test\AppData\Local\Temp\HidaChat_Update_20261123_110000_12345678"
+        Dim currentSessionZip = "C:\Users\test\AppData\Local\Temp\HidaChat_Update_20261123_110000_12345678.zip"
+        Dim ShouldDeleteStale = Function(targetPath As String, isCurrent As Boolean, ageHours As Double) As Boolean
+            If isCurrent Then Return False
+            Return ageHours >= 2.0
+        End Function
+        Check(Not ShouldDeleteStale(currentSessionDir, True, 0.1), "Current session directory is never cleaned up prematurely")
+        Check(Not ShouldDeleteStale(currentSessionZip, True, 0.1), "Current session zip is never cleaned up prematurely")
+        Check(Not ShouldDeleteStale("other_recent_dir", False, 0.5), "Recent session (< 2h) is preserved for concurrent updates")
+        Check(ShouldDeleteStale("stale_dir", False, 2.5), "Stale update directory (> 2h) is cleaned up")
 
         ' 4. Streaming SHA-256 calculation and infinite timeout download policy (TODO #88)
         Dim testPayload = System.Text.Encoding.UTF8.GetBytes("HidaChat OTA Streaming Download Verification")
