@@ -3,6 +3,22 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.6-beta] - 2026-11-24
+
+### Pre-release / Beta — Generazione script di aggiornamento resiliente, normalizzazione percorsi e irrobustimento robocopy
+- **Normalizzazione percorsi e protezione escape virgolette per unità radice (`UpdateScriptPolicy.vb`, `UpdateChecker.vb`, `Application.xaml.vb` — TASK-0092)**:
+  - Creato `UpdateScriptPolicy` con i metodi `NormalizePathForRobocopy` e `NormalizePathForArgument` per normalizzare le unità radice (es. `E:\`, `E:`) e i percorsi con barra finale verso `\.`.
+  - Risolto il problema di parsing degli argomenti riga di comando di Windows in cui una barra finale tra virgolette (`\"`) interpretava la virgoletta come carattere di escape, corrompendo gli argomenti in caso di esecuzione dalla radice di unità portabili (es. chiavette USB).
+  - Applicata la canonizzazione dei percorsi con `Path.GetFullPath` nelle routine di avvio dell'updater e di sostituzione dei file.
+- **Generazione script batch resiliente e supporto codepage UTF-8 (`UpdateScriptPolicy.vb` — TASK-0092)**:
+  - Inserito `chcp 65001 >nul` negli script generati per garantire il supporto della codepage UTF-8 con caratteri accentati (vocali italiane `è`, `à`, `ò`) nei percorsi o nomi utente.
+  - Protette le assegnazioni di variabili con sintassi `set "VAR=VAL"`, prevenendo problemi con spazi, `%` e `!`.
+  - Bonificati i messaggi di log all'interno dei blocchi `if (...)` per evitare chiusure anticipate causate da parentesi tonde nei nomi di cartella (es. `HidaChat (1)` o `Program Files (x86)`).
+  - Inserita la pausa obbligatoria `pause` in caso di errore robocopy (`%RC% GEQ 8`) prima di `exit /b 1`, consentendo all'utente di visualizzare l'errore e consultare il log prima della chiusura della console.
+  - Implementato il fallback automatico all'updater batch resiliente in `UpdateChecker.vb` in caso di fallimento dell'avvio del processo compilato.
+- **Estensione suite di regressione automatizzata (`Tests/SessionTests.vb` — TASK-0092)**:
+  - Aggiunte 28 asserzioni di regressione che convalidano la normalizzazione dei drive radice, i percorsi con parentesi e accenti, la scrittura di file UTF-8 senza BOM e la gestione della pausa su errore robocopy (raggiungendo **842 asserzioni di regressione con 0 errori**).
+
 ## [1.5.5-beta] - 2026-11-24
 
 ### Pre-release / Beta — Prevenzione selezione accidentale piattaforma, download streaming dedicato e ripristino configurazione account

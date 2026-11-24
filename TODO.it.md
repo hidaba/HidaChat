@@ -70,22 +70,6 @@
 
 ## Aggiornamenti OTA e Ciclo di Vita
 
-- [ ] **TASK-0092** [Alta] Script batch di aggiornamento fragile (codepage OEM/UTF-8, caratteri accentati, caratteri speciali, parentesi e unità root USB)
-  - **File**: `UpdateChecker.vb` (generazione batch in `PerformUpdateFromGitHubAsync`)
-  - **Problema / Esigenza**:
-    1. Lo script viene scritto con `File.WriteAllText` in UTF-8, mentre `cmd.exe` legge i file con codepage OEM (es. CP437/CP850). Se il percorso contiene caratteri accentati (es. vocali italiane `è`, `à`, `ò` nel nome utente o nella cartella), robocopy interpreta male il percorso e fallisce.
-    2. Caratteri speciali come `%` o `!` nel percorso compromettono il parsing delle variabili e la delayed expansion in `cmd.exe`.
-    3. All'interno dei blocchi `if (...)`, i comandi come `echo ... {logFile}` con percorsi non racchiusi tra virgolette o contenenti parentesi tonde chiuse `)` (es. `HidaChat (1)` o `Program Files (x86)`) chiudono anticipatamente il blocco `if`, causando errori di sintassi cmd e l'interruzione dello script.
-    4. Se l'applicazione è alla radice di un drive USB (es. `E:\HidaChat.exe`, scenario esplicitamente supportato per uso portabile), `installDir` risulta essere `E:\`. In robocopy la notazione `"E:\"` viene interpretata come virgoletta escapata (`\"`), rompendo il comando. È necessario normalizzare con `installDir.TrimEnd("\""c) & "\."`.
-    5. In caso di errore robocopy, l'esecuzione di `exit /b 1` senza un comando `pause` fa chiudere istantaneamente la console senza permettere all'utente di leggere l'errore.
-  - **Fix da implementare**:
-    - Inserire `chcp 65001 >nul` all'inizio dello script batch (oppure scrivere il file batch con codepage OEM `Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage)`) per supportare correttamente i caratteri accentati.
-    - Rimuovere o racchiudere tra virgolette doppie ed escapare i percorsi nei comandi `echo` all'interno dei blocchi `if`, gestendo adeguatamente i caratteri speciali `%` e `!`.
-    - Racchiudere sempre tutti i percorsi tra virgolette doppie e normalizzare la destinazione robocopy per unità radice con `installDir.TrimEnd("\""c) & "\."`.
-    - In caso di errore robocopy (`%RC% GEQ 8`), inserire una `pause` prima di uscire per consentire la lettura del log.
-  - **Test di accettazione**: Eseguire un aggiornamento con percorsi contenenti caratteri accentati (`C:\Users\è_test\HidaChat`), parentesi tonde (`HidaChat (1)`), simboli `%` e da radice drive USB (`E:\`). Verificare la corretta esecuzione di robocopy senza errori di sintassi.
-  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
-
 - [ ] **TASK-0093** [Media] Verifica SHA-256: falsi mismatch con file multipli, formato nome: hash e fail-open se manca il checksum
   - **File**: `UpdateChecker.vb` (metodo `ExtractSha256FromText`)
   - **Correlato a**: TASK-0040

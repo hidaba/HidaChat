@@ -5,6 +5,16 @@
 
 ## 2026-11-24
 
+- [x] **TASK-0092** [High] Fragile update batch script (OEM/UTF-8 codepage, accented characters, special characters, parentheses, and root USB drive)
+  - Result:
+    - Created `UpdateScriptPolicy.vb` providing robust path normalization (`NormalizePathForRobocopy` and `NormalizePathForArgument`) that normalizes root USB drives (e.g. `E:\`, `E:`) and paths with trailing backslashes to `\.`, resolving the Windows trailing backslash escape issue (`\"`) in command line argument parsing and robocopy.
+    - Implemented `GenerateUpdateBatchScript` containing `chcp 65001 >nul` for complete UTF-8 codepage support, ensuring directories or usernames with accented characters (e.g. Italian vowels `è`, `à`, `ò`) are handled without path corruption.
+    - Protected variable assignments and batch blocks using `set "VAR=VAL"` syntax and safe logging without unquoted paths in `echo` inside `if (...)` blocks, preventing premature block termination caused by parentheses in directory names (e.g. `HidaChat (1)` or `Program Files (x86)`).
+    - Enforced an explicit `pause` command on robocopy failure (`%RC% GEQ 8`) before `exit /b 1`, preventing the console window from closing prematurely and allowing inspection of the log.
+    - Added automatic fallback to the resilient batch updater in `UpdateChecker.vb` if compiled updater process startup fails.
+    - Updated `Application.xaml.vb` to canonicalize source, target, and temporary directories and safely format relaunch and cleanup arguments.
+  - Verification: Added 28 automated regression assertions in `SessionTests.vb` validating path normalization across USB roots and accented/parenthesized directories, closing parenthesis escaping in echo statements, UTF-8 non-BOM script generation, and robocopy pause handling (totaling **842 automated regression assertions with 0 errors**). Clean compilation with 0 warnings and 0 errors.
+
 - [x] **TASK-0117** [High] Dedicated download client, timeout management, and streaming directly to file
   - Result:
     - Created `UpdateDownloadPolicy.vb` providing `CreateDedicatedDownloadClient` with `Timeout = Timeout.InfiniteTimeSpan` and application ProductInfo User-Agent header.

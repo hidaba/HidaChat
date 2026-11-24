@@ -643,6 +643,59 @@ Module SessionTests
         Check(Not ShouldDeleteStale("other_recent_dir", False, 0.5), "Recent session (< 2h) is preserved for concurrent updates")
         Check(ShouldDeleteStale("stale_dir", False, 2.5), "Stale update directory (> 2h) is cleaned up")
 
+        ' 3d. Resilient batch script generation and path normalization (TASK-0092)
+        ' Test path normalization for robocopy and arguments
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("E:\") = "E:\.", "USB root E:\ is normalized to E:\. (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("E:") = "E:\.", "USB root E: without slash is normalized to E:\. (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("E:/") = "E:\.", "USB root E:/ forward slash is normalized to E:\. (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("C:\Users\è_test\HidaChat\") = "C:\Users\è_test\HidaChat\.", "Path with accents and trailing backslash normalized to \. (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("C:\Users\è_test\HidaChat") = "C:\Users\è_test\HidaChat", "Path with accents without trailing backslash preserved (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("C:\Apps\HidaChat (1)\") = "C:\Apps\HidaChat (1)\.", "Parenthesized path with trailing backslash normalized to \. (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("C:\Apps\HidaChat (1)") = "C:\Apps\HidaChat (1)", "Parenthesized path without trailing backslash preserved (TASK-0092)")
+        Check(UpdateScriptPolicy.NormalizePathForRobocopy("C:\Apps\Test%Dir!Name\") = "C:\Apps\Test%Dir!Name\.", "Special characters % and ! with trailing backslash normalized (TASK-0092)")
+
+        ' Test batch echo escaping
+        Check(UpdateScriptPolicy.EscapeForBatchEcho("C:\Apps\HidaChat (1)\log.txt") = "C:\Apps\HidaChat (1^)\log.txt", "Closing parenthesis escaped for batch echo (TASK-0092)")
+        Check(UpdateScriptPolicy.EscapeForBatchEcho("no_parens") = "no_parens", "String without parentheses unchanged (TASK-0092)")
+
+        ' Test script generation
+        Dim batchScript = UpdateScriptPolicy.GenerateUpdateBatchScript(
+            sourceDir:="C:\Temp\Update_è_123",
+            installDir:="E:\",
+            targetExeName:="HidaChat.exe",
+            latestVersion:="1.5.6-beta",
+            callerPid:=4567,
+            tempDir:="C:\Temp\Update_è_123",
+            tempZipPath:="C:\Temp\Update_è_123.zip",
+            logFilePath:="E:\data\updates.log"
+        )
+        Check(batchScript.Contains("chcp 65001 >nul"), "Batch script includes chcp 65001 for UTF-8 codepage support (TASK-0092)")
+        Check(batchScript.Contains("set ""DST=E:\."""), "Batch script sets DST with normalized USB root E:\. (TASK-0092)")
+        Check(batchScript.Contains("set ""SRC=C:\Temp\Update_è_123"""), "Batch script safely quotes SRC containing accented characters (TASK-0092)")
+        Check(batchScript.Contains("set ""CALLER_PID=4567"""), "Batch script assigns target caller PID (TASK-0092)")
+        Check(batchScript.Contains("robocopy ""%SRC%"" ""%DST%"""), "Batch script executes robocopy with quoted variables (TASK-0092)")
+        Check(batchScript.Contains("if %RC% GEQ 8 ("), "Batch script checks robocopy exit code >= 8 (TASK-0092)")
+        Check(batchScript.Contains("pause"), "Batch script includes pause on robocopy failure before exit (TASK-0092)")
+        Check(batchScript.Contains("exit /b 1"), "Batch script exits with error code 1 on robocopy failure (TASK-0092)")
+        Check(batchScript.Contains("echo v%VER%>""%DST%\.app_version"""), "Batch script writes .app_version only after robocopy check (TASK-0092)")
+        Check(batchScript.Contains("start """" ""%DST%\%EXE%"""), "Batch script relaunches application from normalized destination (TASK-0092)")
+        Check(batchScript.Contains("del ""%~f0"""), "Batch script includes self-deletion (TASK-0092)")
+
+        ' Verify batch script writing with UTF-8 encoding without BOM
+        Dim testBatPath = Path.Combine(Path.GetTempPath(), $"HidaChat_Test_Bat_{Guid.NewGuid():N}.bat")
+        Try
+            UpdateScriptPolicy.WriteUpdateBatchFile(testBatPath, batchScript)
+            Check(File.Exists(testBatPath), "Batch file written to disk successfully (TASK-0092)")
+            Dim readBackBytes = File.ReadAllBytes(testBatPath)
+            ' Check absence of UTF-8 BOM (0xEF, 0xBB, 0xBF)
+            Dim hasBom = readBackBytes.Length >= 3 AndAlso readBackBytes(0) = &HEF AndAlso readBackBytes(1) = &HBB AndAlso readBackBytes(2) = &HBF
+            Check(Not hasBom, "Batch file is written without UTF-8 BOM for cmd.exe compatibility (TASK-0092)")
+            Dim readBackText = File.ReadAllText(testBatPath, System.Text.Encoding.UTF8)
+            Check(readBackText.Contains("C:\Temp\Update_è_123"), "Accented characters preserved in written batch file (TASK-0092)")
+        Finally
+            If File.Exists(testBatPath) Then File.Delete(testBatPath)
+        End Try
+
         ' 4. Streaming SHA-256 calculation and infinite timeout download policy (TODO #88)
         Dim testPayload = System.Text.Encoding.UTF8.GetBytes("HidaChat OTA Streaming Download Verification")
         Dim expectedShaHex = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(testPayload)).ToLowerInvariant()

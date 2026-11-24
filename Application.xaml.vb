@@ -355,6 +355,26 @@ Class Application
         Dim tempZipPath = If(args.Length > 6, args(6), "")
         Dim tempDir = If(args.Length > 7, args(7), sourceDir)
 
+        ' Normalize paths to resolve any trailing "\." or relative tokens back to clean canonical paths (TASK-0092)
+        If Not String.IsNullOrWhiteSpace(sourceDir) Then
+            Try
+                sourceDir = Path.GetFullPath(sourceDir)
+            Catch
+            End Try
+        End If
+        If Not String.IsNullOrWhiteSpace(installDir) Then
+            Try
+                installDir = Path.GetFullPath(installDir)
+            Catch
+            End Try
+        End If
+        If Not String.IsNullOrWhiteSpace(tempDir) Then
+            Try
+                tempDir = Path.GetFullPath(tempDir)
+            Catch
+            End Try
+        End If
+
         Dim loc = AppLocalizations.CreateForLanguage(langCode)
         Dim dialog As New UpdateProgressDialog(loc, version)
         dialog.SetIndeterminate(True)
@@ -395,7 +415,9 @@ Class Application
                 Thread.Sleep(500)
 
                 Dim targetExe = Path.Combine(installDir, "HidaChat.exe")
-                Dim cleanupArgs = $"--cleanup-update ""{tempDir}"" ""{tempZipPath}"""
+                Dim safeTempDir = UpdateScriptPolicy.NormalizePathForArgument(tempDir)
+                Dim safeTempZip = UpdateScriptPolicy.NormalizePathForArgument(tempZipPath)
+                Dim cleanupArgs = $"--cleanup-update ""{safeTempDir}"" ""{safeTempZip}"""
                 Process.Start(New ProcessStartInfo With {
                     .FileName = targetExe,
                     .Arguments = cleanupArgs,

@@ -5,6 +5,22 @@
 
 ---
 
+## [1.5.6-beta] - 2026-11-24
+
+### Pre-release / Beta — Resilient Update Script Generation, Path Normalization, and Robocopy Hardening
+- **Path Normalization & Drive Root Quote Escape Protection (`UpdateScriptPolicy.vb`, `UpdateChecker.vb`, `Application.xaml.vb` — TASK-0092)**:
+  - Created `UpdateScriptPolicy` implementing `NormalizePathForRobocopy` and `NormalizePathForArgument` to normalize drive roots (e.g. `E:\`, `E:`) and paths ending with backslashes to `\.`.
+  - Prevented Windows command-line argument corruption where a trailing backslash inside double quotes (`\"`) escaped the closing quotation mark, breaking argument unpacking when running from the root of portable drives.
+  - Applied path canonicalization via `Path.GetFullPath` across updater initialization and file replacement routines.
+- **Resilient Batch Script Generation & Codepage UTF-8 Support (`UpdateScriptPolicy.vb` — TASK-0092)**:
+  - Added `chcp 65001 >nul` to generated batch scripts, providing native UTF-8 codepage handling for folders and usernames with accented characters (Italian vowels `è`, `à`, `ò`).
+  - Hardened variable assignments using `set "VAR=VAL"` syntax, preventing breakage from spaces, `%`, and `!`.
+  - Sanitized logging and error output inside parenthesized `if (...)` blocks to avoid premature termination when directories contain closing parentheses (e.g. `HidaChat (1)` or `Program Files (x86)`).
+  - Enforced an explicit `pause` command on robocopy failure (`%RC% GEQ 8`) before `exit /b 1`, allowing the user to view the error and review log details before the console exits.
+  - Implemented automatic fallback to the resilient batch updater in `UpdateChecker.vb` if compiled process execution fails.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb` — TASK-0092)**:
+  - Added 28 automated regression assertions verifying drive root normalization, parenthesized path handling, UTF-8 non-BOM file writing, and robocopy error pausing (totaling **842 automated regression assertions with 0 errors**).
+
 ## [1.5.5-beta] - 2026-11-24
 
 ### Pre-release / Beta — Accidental Platform Selection Prevention, Dedicated Streaming Download Policy, and Account Configuration Restoration

@@ -5,6 +5,16 @@
 
 ## 2026-11-24
 
+- [x] **TASK-0092** [Alta] Script batch di aggiornamento fragile (codepage OEM/UTF-8, caratteri accentati, caratteri speciali, parentesi e unità root USB)
+  - Risultato:
+    - Creato `UpdateScriptPolicy.vb` con metodi dedicati di normalizzazione (`NormalizePathForRobocopy` e `NormalizePathForArgument`) per unità radice USB (es. `E:\`, `E:`) e percorsi con barra finale verso `\.`, risolvendo il difetto di escape delle virgolette Windows (`\"`) nel parsing degli argomenti riga di comando e in robocopy.
+    - Implementato `GenerateUpdateBatchScript` con `chcp 65001 >nul` per il pieno supporto della codepage UTF-8, garantendo che cartelle e nomi utente con caratteri accentati (es. vocali italiane `è`, `à`, `ò`) non provochino corruzione dei percorsi.
+    - Protette le assegnazioni delle variabili con sintassi `set "VAR=VAL"` ed eliminati i percorsi non racchiusi da virgolette negli `echo` all'interno dei blocchi `if (...)`, evitando la chiusura anticipata dei blocchi generata da parentesi tonde nei nomi delle cartelle (es. `HidaChat (1)` o `Program Files (x86)`).
+    - Inserito il comando `pause` obbligatorio in caso di errore robocopy (`%RC% GEQ 8`) prima di `exit /b 1`, impedendo la chiusura immediata della finestra di console e consentendo la lettura dell'errore e del log.
+    - Aggiunto il fallback automatico allo script batch resiliente in `UpdateChecker.vb` qualora l'avvio del processo updater compilato fallisca.
+    - Aggiornato `Application.xaml.vb` per canonizzare i percorsi sorgente, destinazione e temporanei e formattare in sicurezza gli argomenti di riavvio e pulizia.
+  - Verifica: Aggiunte 28 asserzioni di regressione automatizzate in `SessionTests.vb` che verificano la normalizzazione dei percorsi per drive USB e cartelle con accenti/parentesi, l'escape delle parentesi tonde negli echo, la scrittura senza BOM UTF-8 e la gestione della pausa su errore robocopy (raggiungendo **842 asserzioni di regressione con 0 errori**). Compilazione completata con 0 avvisi e 0 errori.
+
 - [x] **TASK-0117** [Alta] Client di download dedicato, gestione timeout e streaming progressivo su file
   - Risultato:
     - Creato `UpdateDownloadPolicy.vb` che fornisce `CreateDedicatedDownloadClient` con `Timeout = Timeout.InfiniteTimeSpan` e intestazione User-Agent ProductInfo dell'applicazione.

@@ -70,22 +70,6 @@
 
 ## OTA Updates & Lifecycle
 
-- [ ] **TASK-0092** [High] Fragile update batch script (OEM/UTF-8 codepage, accented characters, special characters, parentheses, and root USB drive)
-  - **File**: `UpdateChecker.vb` (batch generation in `PerformUpdateFromGitHubAsync`)
-  - **Problem / Need**:
-    1. The script is written via `File.WriteAllText` in UTF-8, but `cmd.exe` parses files in OEM codepage (e.g. CP437/CP850). If the path contains accented characters (e.g. Italian vowels `è`, `à`, `ò` in username or folder path), robocopy reads corrupted paths and fails.
-    2. Special characters such as `%` or `!` in the path break `cmd.exe` variable parsing and delayed expansion.
-    3. Inside `if (...)` blocks, commands like `echo ... {logFile}` with unquoted/unescaped paths containing closing parentheses `)` (e.g. `HidaChat (1)` or `Program Files (x86)`) prematurely terminate the `if` block, causing syntax errors.
-    4. If the application is located at the root of a USB drive (e.g. `E:\HidaChat.exe`, a scenario explicitly supported for portable use), `installDir` resolves to `E:\`. In robocopy, `"E:\"` escapes the trailing double quote (`\"`), corrupting the arguments. Normalization using `installDir.TrimEnd("\""c) & "\."` is required.
-    5. On robocopy failure, executing `exit /b 1` without `pause` causes the console to vanish instantly without letting the user see the error.
-  - **Fix to Implement**:
-    - Add `chcp 65001 >nul` at the beginning of the batch script (or write the batch file with OEM encoding `Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage)`) to support accented paths.
-    - Properly escape or remove `echo` with `{logFile}` inside `if` blocks, and escape or avoid `%` / `!` expansion issues in path handling.
-    - Wrap all paths in double quotes and normalize drive roots for robocopy with `installDir.TrimEnd("\""c) & "\."`.
-    - On robocopy error (`%RC% GEQ 8`), insert a `pause` before exit to allow inspection of the log.
-  - **Acceptance Test**: Perform update with installation paths containing accented characters (`C:\Users\è_test\HidaChat`), duplicate parentheses (`HidaChat (1)`), `%` symbols, and from USB root (`E:\`). Verify robocopy succeeds without syntax errors.
-  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
-
 - [ ] **TASK-0093** [Medium] SHA-256 verification: false mismatches with multiple files, filename:hash format, and fail-open if checksum is missing
   - **File**: `UpdateChecker.vb` (`ExtractSha256FromText` method)
   - **Related to**: TASK-0040

@@ -806,17 +806,43 @@ Public Class UpdateChecker
                 dialog = Nothing
             End If
 
-            ' Launch the autonomous updater process with session parameters including root temporary directory (TASK-0091)
+            ' Launch the autonomous updater process with session parameters including root temporary directory (TASK-0091, TASK-0092)
+            Dim safeSourceDir = UpdateScriptPolicy.NormalizePathForArgument(sourceDir)
+            Dim safeInstallDir = UpdateScriptPolicy.NormalizePathForArgument(installDir)
+            Dim safeTempDir = UpdateScriptPolicy.NormalizePathForArgument(tempDir)
+            Dim safeTempZipPath = UpdateScriptPolicy.NormalizePathForArgument(tempZipPath)
             Dim langCode = If(loc?.CurrentLanguage, "en")
-            Dim updaterArgs = $"--apply-update {Environment.ProcessId} ""{sourceDir}"" ""{installDir}"" ""{latestVersion}"" ""{langCode}"" ""{tempZipPath}"" ""{tempDir}"""
+            Dim updaterArgs = $"--apply-update {Environment.ProcessId} ""{safeSourceDir}"" ""{safeInstallDir}"" ""{latestVersion}"" ""{langCode}"" ""{safeTempZipPath}"" ""{safeTempDir}"""
             Log($"Starting updater process: {updaterExe} {updaterArgs}")
 
-            Process.Start(New ProcessStartInfo With {
-                .FileName = updaterExe,
-                .Arguments = updaterArgs,
-                .UseShellExecute = True
-            })
-            updateLaunched = True
+            Try
+                Process.Start(New ProcessStartInfo With {
+                    .FileName = updaterExe,
+                    .Arguments = updaterArgs,
+                    .UseShellExecute = True
+                })
+                updateLaunched = True
+            Catch startEx As Exception
+                Log($"Failed to launch compiled updater process, falling back to resilient batch script: {startEx.Message}")
+                Dim fallbackBatchPath = Path.Combine(Path.GetTempPath(), $"HidaChat_Update_{updateSessionId}.bat")
+                Dim batchContent = UpdateScriptPolicy.GenerateUpdateBatchScript(
+                    sourceDir:=sourceDir,
+                    installDir:=installDir,
+                    targetExeName:="HidaChat.exe",
+                    latestVersion:=latestVersion,
+                    callerPid:=Environment.ProcessId,
+                    tempDir:=tempDir,
+                    tempZipPath:=tempZipPath,
+                    logFilePath:=Path.Combine(installDir, "data", "updates.log")
+                )
+                UpdateScriptPolicy.WriteUpdateBatchFile(fallbackBatchPath, batchContent)
+                Process.Start(New ProcessStartInfo With {
+                    .FileName = "cmd.exe",
+                    .Arguments = $"/c """"{fallbackBatchPath}""""",
+                    .UseShellExecute = True
+                })
+                updateLaunched = True
+            End Try
 
             ' Browser and user data are saved and closed. Exit only this caller process to allow binary file replacement.
             Environment.Exit(0)
