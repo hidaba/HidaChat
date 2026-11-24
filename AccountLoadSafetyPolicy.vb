@@ -100,6 +100,47 @@ Public Class AccountLoadSafetyPolicy
     End Function
 
     ''' <summary>
+    ''' Checks whether a proxy port is valid for a given platform (TASK-0124).
+    ''' A valid port must be in [DefaultPort, DefaultPort + 99] for platforms requiring local proxy,
+    ''' or 0 for platforms that do not require a local proxy.
+    ''' </summary>
+    Public Shared Function IsValidProxyPortForPlatform(platform As ChatPlatform, port As Integer) As Boolean
+        Dim def = PlatformRegistry.Get(platform)
+        If def Is Nothing OrElse Not def.RequiresLocalProxy Then
+            Return port = 0
+        End If
+        Return port >= def.DefaultPort AndAlso port < def.DefaultPort + 100
+    End Function
+
+    ''' <summary>
+    ''' Checks whether a proxy port is valid for a given platform name string (TASK-0124).
+    ''' </summary>
+    Public Shared Function IsValidProxyPortForPlatform(platformStr As String, port As Integer) As Boolean
+        Return IsValidProxyPortForPlatform(PlatformRegistry.FromKey(platformStr), port)
+    End Function
+
+    ''' <summary>
+    ''' Resolves a valid, deterministic proxy port within the platform's default range,
+    ''' avoiding collisions with already assigned ports (TASK-0124).
+    ''' </summary>
+    Public Shared Function ResolveDeterministicPort(platform As ChatPlatform, usedPorts As ISet(Of Integer)) As Integer
+        Dim def = PlatformRegistry.Get(platform)
+        If def Is Nothing OrElse Not def.RequiresLocalProxy Then Return 0
+        Dim targetPort = def.DefaultPort
+        While usedPorts IsNot Nothing AndAlso usedPorts.Contains(targetPort)
+            targetPort += 1
+        End While
+        Return targetPort
+    End Function
+
+    ''' <summary>
+    ''' Resolves a valid, deterministic proxy port within the platform's default range for a platform name string (TASK-0124).
+    ''' </summary>
+    Public Shared Function ResolveDeterministicPort(platformStr As String, usedPorts As ISet(Of Integer)) As Integer
+        Return ResolveDeterministicPort(PlatformRegistry.FromKey(platformStr), usedPorts)
+    End Function
+
+    ''' <summary>
     ''' Evaluates whether an anonymous orphan profile (WV2Profile_) can safely be migrated to an account profile
     ''' without overwriting, replacing, or colliding with an existing valid profile, backup, or snapshot (TASK-0090).
     ''' Returns True ONLY if the orphan directory exists and NO valid target profile, backup, or snapshot exists on disk.

@@ -289,10 +289,11 @@ Public Class TsnetManager
     End Sub
 
     ''' <summary>
-    ''' Sends a JSON command and reads the response line within a cancellable timeout covering both semaphore acquisition and I/O (TODO #81).
+    ''' Sends a JSON command and reads the response line within a cancellable timeout covering both semaphore acquisition and I/O (TODO #81, TASK-0124).
+    ''' Protects against line desynchronization by draining any stale buffered output when previous operations timed out.
     ''' </summary>
     Public Async Function SendCommandAsync(cmdJson As String,
-                                          Optional timeoutMs As Integer = 3000,
+                                          Optional timeoutMs As Integer = 5000,
                                           Optional cancellationToken As CancellationToken = Nothing,
                                           Optional ignoreProcessCts As Boolean = False) As Task(Of String)
         Dim proc = _process
@@ -357,44 +358,112 @@ Public Class TsnetManager
     End Function
 
     ''' <summary>
-    ''' Richiede lo stato del nodo tsnet e aggiorna le proprietà.
+    ''' Updates internal node status and triggers completion callback when status changes to Running (TASK-0124).
     ''' </summary>
-    Public Async Function CheckStatusAsync() As Task
-        Dim cmd = JsonSerializer.Serialize(New With {Key .cmd = "status"})
-        Dim resp = Await SendCommandAsync(cmd)
-        If String.IsNullOrWhiteSpace(resp) Then Return
-
-        Try
-            Using doc As JsonDocument = JsonDocument.Parse(resp)
-                Dim root = doc.RootElement
-                If root.TryGetProperty("nodeState", Nothing) Then
-                    Dim newState = root.GetProperty("nodeState").GetString()
-                    Dim wasRunning = String.Equals(NodeState, "Running", StringComparison.OrdinalIgnoreCase)
-                    NodeState = newState
-                    If Not wasRunning AndAlso String.Equals(newState, "Running", StringComparison.OrdinalIgnoreCase) Then
-                        If OnEnrollmentCompletedAsync IsNot Nothing Then
-                            Try
-                                Await OnEnrollmentCompletedAsync.Invoke()
-                            Catch ex As Exception
-                                Debug.WriteLine($"[TsnetManager] Error in OnEnrollmentCompletedAsync: {ex.Message}")
-                            End Try
-                        End If
-                    End If
-                End If
-                If root.TryGetProperty("tailnetIP", Nothing) Then
-                    TailnetIP = root.GetProperty("tailnetIP").GetString()
-                End If
-                If root.TryGetProperty("loginUrl", Nothing) Then
-                    LoginUrl = root.GetProperty("loginUrl").GetString()
-                End If
-            End Using
-        Catch ex As Exception
-            Debug.WriteLine($"[TsnetManager] Parse status error: {ex.Message}")
-        End Try
+    Private Async Function ApplyStatusUpdateAsync(root As JsonElement) As Task
+        If Not root.TryGetProperty("nodeState", Nothing) Then Return
+        Dim newState = root.GetProperty("nodeState").GetString()
+        Dim wasRunning = String.Equals(NodeState, "Running", StringComparison.OrdinalIgnoreCase)
+        NodeState = newState
+        If Not wasRunning AndAlso String.Equals(newState, "Running", StringComparison.OrdinalIgnoreCase) Then
+            If OnEnrollmentCompletedAsync IsNot Nothing Then
+                Try
+                    Await OnEnrollmentCompletedAsync.Invoke()
+                Catch ex As Exception
+                    Debug.WriteLine($"[TsnetManager] Error in OnEnrollmentCompletedAsync: {ex.Message}")
+                End Try
+            End If
+        End If
+        If root.TryGetProperty("tailnetIP", Nothing) Then
+            TailnetIP = root.GetProperty("tailnetIP").GetString()
+        End If
+        If root.TryGetProperty("loginUrl", Nothing) Then
+            LoginUrl = root.GetProperty("loginUrl").GetString()
+        End If
     End Function
 
     ''' <summary>
-    ''' Registra o aggiorna una rotta di reverse proxy per un account verso un target della tailnet.
+    ''' Stores an interleaved route response received for any account to maintain cache consistency (TASK-0124).
+    ''' </summary>
+    Private Sub ApplyRouteUpdate(root As JsonElement)
+        If Not root.TryGetProperty("accountId", Nothing) Then Return
+        Dim accId = root.GetProperty("accountId").GetString()
+        If String.IsNullOrWhiteSpace(accId) Then Return
+        Dim success As Boolean = False
+        If root.TryGetProperty("success", Nothing) Then
+            success = root.GetProperty("success").GetBoolean()
+        End If
+        If success AndAlso root.TryGetProperty("localPort", Nothing) Then
+            Dim port = root.GetProperty("localPort").GetInt32()
+            SyncLock _routes
+                If _routes.ContainsKey(accId) Then
+                    _routes(accId).LocalPort = port
+                Else
+                    _routes(accId) = New RouteInfo With {.LocalPort = port}
+                End If
+            End SyncLock
+            Debug.WriteLine($"[TsnetManager] Updated route from interleaved response for {accId} -> 127.0.0.1:{port}")
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Requests tsnet node status and updates properties.
+    ''' Loops over incoming lines until a status response is read, while capturing interleaved route responses (TASK-0124).
+    ''' </summary>
+    Public Async Function CheckStatusAsync() As Task
+        Dim proc = _process
+        If proc Is Nothing OrElse proc.HasExited Then Return
+
+        Dim cmd = JsonSerializer.Serialize(New With {Key .cmd = "status"})
+
+        Using linkedCts As New CancellationTokenSource(8000)
+            Dim token = linkedCts.Token
+            Dim acquired As Boolean = False
+            Try
+                acquired = Await _ioLock.WaitAsync(8000, token)
+            Catch ex As OperationCanceledException
+                Return
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] CheckStatusAsync lock wait error: {ex.Message}")
+                Return
+            End Try
+
+            If Not acquired Then Return
+
+            Try
+                proc = _process
+                If proc Is Nothing OrElse proc.HasExited Then Return
+
+                Await proc.StandardInput.WriteLineAsync(cmd.AsMemory(), token)
+                Await proc.StandardInput.FlushAsync(token)
+
+                While Not token.IsCancellationRequested
+                    Dim responseLine = Await proc.StandardOutput.ReadLineAsync(token)
+                    If String.IsNullOrWhiteSpace(responseLine) Then Continue While
+
+                    Using doc = JsonDocument.Parse(responseLine)
+                        Dim root = doc.RootElement
+                        If root.TryGetProperty("nodeState", Nothing) Then
+                            Await ApplyStatusUpdateAsync(root)
+                            Return
+                        ElseIf root.TryGetProperty("accountId", Nothing) Then
+                            ApplyRouteUpdate(root)
+                        End If
+                    End Using
+                End While
+            Catch ex As OperationCanceledException
+                Debug.WriteLine("[TsnetManager] CheckStatusAsync timed out waiting for status response.")
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] CheckStatusAsync error: {ex.Message}")
+            Finally
+                _ioLock.Release()
+            End Try
+        End Using
+    End Function
+
+    ''' <summary>
+    ''' Registers or updates a reverse proxy route for an account targeting a tailnet host.
+    ''' Rigorously correlates and validates the response accountId to prevent cross-account port inversion (TASK-0124).
     ''' </summary>
     Public Async Function EnsureRouteAsync(accountId As String, targetUrl As String, Optional authKey As String = "", Optional forceUpdate As Boolean = False, Optional preferredPort As Integer = 0) As Task(Of Integer)
         If String.IsNullOrWhiteSpace(accountId) OrElse String.IsNullOrWhiteSpace(targetUrl) Then
@@ -428,28 +497,74 @@ Public Class TsnetManager
 
         Dim cmd = JsonSerializer.Serialize(payload)
 
-        Dim resp = Await SendCommandAsync(cmd)
-        If String.IsNullOrWhiteSpace(resp) Then Return 0
+        Using linkedCts As New CancellationTokenSource(10000)
+            Dim token = linkedCts.Token
+            Dim acquired As Boolean = False
+            Try
+                acquired = Await _ioLock.WaitAsync(10000, token)
+            Catch ex As OperationCanceledException
+                Return 0
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] EnsureRouteAsync lock wait error: {ex.Message}")
+                Return 0
+            End Try
 
-        Try
-            Using doc As JsonDocument = JsonDocument.Parse(resp)
-                Dim root = doc.RootElement
-                Dim success = root.GetProperty("success").GetBoolean()
-                If success AndAlso root.TryGetProperty("localPort", Nothing) Then
-                    Dim port = root.GetProperty("localPort").GetInt32()
-                    SyncLock _routes
-                        _routes(accountId) = New RouteInfo With {
-                            .TargetUrl = cleanTarget,
-                            .LocalPort = port
-                        }
-                    End SyncLock
-                    Debug.WriteLine($"[TsnetManager] Registered route for {accountId} -> 127.0.0.1:{port} -> {cleanTarget}")
-                    Return port
-                End If
-            End Using
-        Catch ex As Exception
-            Debug.WriteLine($"[TsnetManager] AddRoute error: {ex.Message}")
-        End Try
+            If Not acquired Then Return 0
+
+            Try
+                Dim proc = _process
+                If proc Is Nothing OrElse proc.HasExited Then Return 0
+
+                Await proc.StandardInput.WriteLineAsync(cmd.AsMemory(), token)
+                Await proc.StandardInput.FlushAsync(token)
+
+                While Not token.IsCancellationRequested
+                    Dim responseLine = Await proc.StandardOutput.ReadLineAsync(token)
+                    If String.IsNullOrWhiteSpace(responseLine) Then Continue While
+
+                    Using doc = JsonDocument.Parse(responseLine)
+                        Dim root = doc.RootElement
+                        If root.TryGetProperty("accountId", Nothing) Then
+                            Dim respAccId = root.GetProperty("accountId").GetString()
+                            If String.Equals(respAccId, accountId, StringComparison.OrdinalIgnoreCase) Then
+                                Dim success As Boolean = False
+                                If root.TryGetProperty("success", Nothing) Then
+                                    success = root.GetProperty("success").GetBoolean()
+                                End If
+                                If success AndAlso root.TryGetProperty("localPort", Nothing) Then
+                                    Dim port = root.GetProperty("localPort").GetInt32()
+                                    SyncLock _routes
+                                        _routes(accountId) = New RouteInfo With {
+                                            .TargetUrl = cleanTarget,
+                                            .LocalPort = port
+                                        }
+                                    End SyncLock
+                                    Debug.WriteLine($"[TsnetManager] Registered route for {accountId} -> 127.0.0.1:{port} -> {cleanTarget}")
+                                    Return port
+                                Else
+                                    Debug.WriteLine($"[TsnetManager] AddRoute failed for {accountId}")
+                                    Return 0
+                                End If
+                            Else
+                                ' Interleaved route response for another account: store it without attributing it to caller
+                                ApplyRouteUpdate(root)
+                            End If
+                        ElseIf root.TryGetProperty("nodeState", Nothing) Then
+                            ' Interleaved status response
+                            Await ApplyStatusUpdateAsync(root)
+                        End If
+                    End Using
+                End While
+            Catch ex As OperationCanceledException
+                Debug.WriteLine($"[TsnetManager] EnsureRouteAsync timed out waiting for route response for {accountId}.")
+                Return 0
+            Catch ex As Exception
+                Debug.WriteLine($"[TsnetManager] EnsureRouteAsync error: {ex.Message}")
+                Return 0
+            Finally
+                _ioLock.Release()
+            End Try
+        End Using
 
         Return 0
     End Function

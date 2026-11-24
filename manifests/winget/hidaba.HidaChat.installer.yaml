@@ -14,6 +14,6 @@ ReleaseDate: 2026-11-19
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/hidaba/HidaChat/releases/download/v1.5.0/HidaChat-v1.5.0.zip
-    InstallerSha256: 7F25FF60D5DDE5F7A5CCD5BA3D2C83826C67770E16ADCF1F374AB0DABB75EA50
+    InstallerSha256: 284594DA2242B420BB5C54641295FF7C5FD84626D8BDC558CD728ED76702AAF3
 ManifestType: installer
 ManifestVersion: 1.28.0

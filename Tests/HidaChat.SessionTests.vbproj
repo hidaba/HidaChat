@@ -22,6 +22,7 @@
     <Compile Include="../CacheCompactionPolicy.vb" Link="CacheCompactionPolicy.vb" />
     <Compile Include="../StartupJunkCleanupPolicy.vb" Link="StartupJunkCleanupPolicy.vb" />
     <Compile Include="../AccountLoadSafetyPolicy.vb" Link="AccountLoadSafetyPolicy.vb" />
+    <Compile Include="../UpdateDownloadPolicy.vb" Link="UpdateDownloadPolicy.vb" />
     <Compile Include="../TsnetManager.vb" Link="TsnetManager.vb" />
     <Compile Include="../AppLogger.vb" Link="AppLogger.vb" />
     <Compile Include="SessionTests.vb" />

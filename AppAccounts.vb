@@ -1492,13 +1492,15 @@ Public Class AppAccounts
         If TailscaleIntegration AndAlso PlatformDefinition.RequiresLocalProxy Then
             Try
                 Dim defaultPort = PlatformDefinition.DefaultPort
-                Dim preferred = If(LocalProxyPort > 0, LocalProxyPort, defaultPort)
+                Dim preferred = If(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(PlatformType, LocalProxyPort), LocalProxyPort, defaultPort)
                 Dim port = Await TsnetManager.Instance.EnsureRouteAsync(Id, ServerUrl, preferredPort:=preferred, forceUpdate:=forceUpdate)
-                If port > 0 Then
+                If AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(PlatformType, port) Then
                     LocalProxyPort = port
                     LocalProxyUrl = $"http://127.0.0.1:{port}"
                     UpdateWebResourceAuthFilter()
                     Return port
+                ElseIf port > 0 Then
+                    AppLogger.LogApp($"[PROXY_PORT_MISMATCH] Account {Id} ({Platform}) received unexpected port {port} outside valid range ({defaultPort}..{defaultPort + 99})")
                 End If
             Catch ex As Exception
                 Debug.WriteLine($"Error establishing tsnet route for account {Id}: {ex.Message}")
@@ -1646,6 +1648,21 @@ Public Class AppAccounts
     Public Sub SetPlatform(newPlatform As ChatPlatform)
         If _platformType <> newPlatform Then
             _platformType = newPlatform
+
+            ' Adjust proxy port if platform requires local proxy or clear it if not (TASK-0124)
+            If PlatformDefinition.RequiresLocalProxy Then
+                Dim basePort = PlatformDefinition.DefaultPort
+                If LocalProxyPort < basePort OrElse LocalProxyPort >= basePort + 100 Then
+                    LocalProxyPort = basePort
+                End If
+                If Not String.IsNullOrEmpty(LocalProxyUrl) Then
+                    LocalProxyUrl = $"http://127.0.0.1:{LocalProxyPort}"
+                End If
+            Else
+                LocalProxyPort = 0
+                LocalProxyUrl = ""
+            End If
+
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(Platform)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformType)))
             RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PlatformDefinition)))

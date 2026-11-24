@@ -330,6 +330,7 @@
                                                       SelectedValuePath="Tag"
                                                       SelectedValue="{Binding Platform, Mode=TwoWay}"
                                                       SelectionChanged="ComboAccountPlatform_SelectionChanged"
+                                                      PreviewMouseWheel="ComboAccountPlatform_PreviewMouseWheel"
                                                       Tag="{Binding Id}"
                                                       Style="{StaticResource AccountPlatformComboBoxStyle}"
                                                       Foreground="#8696a0"

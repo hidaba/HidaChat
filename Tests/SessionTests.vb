@@ -1,6 +1,7 @@
 Imports System
 Imports System.Collections.Generic
 Imports System.IO
+Imports System.Threading
 Imports System.Threading.Tasks
 
 ' Test doubles for the non-I/O dependencies. No real HidaChat profile is opened.
@@ -1414,5 +1415,189 @@ Module SessionTests
             tsnet.CustomExecutablePath = ""
             tsnet.CustomExecutableArguments = ""
         End If
+
+        ' Test TASK-0124: Deterministic proxy port isolation, platform range validation, and auto-healing
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, 18800), "OpenClaw default port 18800 is valid")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, 18850), "OpenClaw offset port 18850 is valid")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, 18899), "OpenClaw maximum port 18899 is valid")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, 18900), "OpenClaw with Hermes port 18900 is strictly rejected")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, 18799), "OpenClaw with port 18799 is rejected")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, 0), "OpenClaw with port 0 is rejected (requires proxy)")
+
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, 18900), "Hermes default port 18900 is valid")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, 18950), "Hermes offset port 18950 is valid")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, 18999), "Hermes maximum port 18999 is valid")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, 18800), "Hermes with OpenClaw port 18800 is strictly rejected")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, 19000), "Hermes with port 19000 is rejected")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, 0), "Hermes with port 0 is rejected (requires proxy)")
+
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.WhatsApp, 0), "WhatsApp with port 0 is valid")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.WhatsApp, 18800), "WhatsApp with non-zero proxy port is invalid")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Telegram, 0), "Telegram with port 0 is valid")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Telegram, 18900), "Telegram with non-zero proxy port is invalid")
+
+        ' String overload checks (TASK-0124)
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform("OpenClaw", 18800), "OpenClaw string overload accepts 18800")
+        Check(Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform("OpenClaw", 18900), "OpenClaw string overload rejects 18900")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform("Hermes", 18900), "Hermes string overload accepts 18900")
+        Check(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform("WhatsApp", 0), "WhatsApp string overload accepts 0")
+
+        ' Test deterministic port resolution and collision avoidance
+        Dim usedTestPorts As New HashSet(Of Integer)()
+        Dim portOc1 = AccountLoadSafetyPolicy.ResolveDeterministicPort(ChatPlatform.OpenClaw, usedTestPorts)
+        Check(portOc1 = 18800, "First OpenClaw account gets 18800")
+        usedTestPorts.Add(portOc1)
+
+        Dim portOc2 = AccountLoadSafetyPolicy.ResolveDeterministicPort(ChatPlatform.OpenClaw, usedTestPorts)
+        Check(portOc2 = 18801, "Second OpenClaw account gets 18801 avoiding collision")
+        usedTestPorts.Add(portOc2)
+
+        Dim portHm1 = AccountLoadSafetyPolicy.ResolveDeterministicPort(ChatPlatform.Hermes, usedTestPorts)
+        Check(portHm1 = 18900, "First Hermes account gets 18900 in its own platform range")
+        usedTestPorts.Add(portHm1)
+
+        Dim portHm2 = AccountLoadSafetyPolicy.ResolveDeterministicPort(ChatPlatform.Hermes, usedTestPorts)
+        Check(portHm2 = 18901, "Second Hermes account gets 18901 avoiding collision")
+
+        ' Simulate auto-healing pass on swapped accounts (OpenClaw=18900, Hermes=18800)
+        Dim swappedOcPort = 18900
+        Dim swappedHmPort = 18800
+        Dim healedPorts As New HashSet(Of Integer)()
+
+        ' Pass 1: detect and reset swapped ports
+        If Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.OpenClaw, swappedOcPort) Then
+            swappedOcPort = 0
+        End If
+        If Not AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(ChatPlatform.Hermes, swappedHmPort) Then
+            swappedHmPort = 0
+        End If
+        Check(swappedOcPort = 0, "Swapped OpenClaw port reset to 0 in pass 1")
+        Check(swappedHmPort = 0, "Swapped Hermes port reset to 0 in pass 1")
+
+        ' Pass 2: assign deterministic ports in correct ranges
+        If swappedOcPort = 0 Then
+            swappedOcPort = AccountLoadSafetyPolicy.ResolveDeterministicPort(ChatPlatform.OpenClaw, healedPorts)
+            healedPorts.Add(swappedOcPort)
+        End If
+        If swappedHmPort = 0 Then
+            swappedHmPort = AccountLoadSafetyPolicy.ResolveDeterministicPort(ChatPlatform.Hermes, healedPorts)
+            healedPorts.Add(swappedHmPort)
+        End If
+        Check(swappedOcPort = 18800, "Auto-healing assigns 18800 to OpenClaw")
+        Check(swappedHmPort = 18900, "Auto-healing assigns 18900 to Hermes")
+        Check(swappedOcPort <> swappedHmPort, "Healed ports do not collide or cross-wire")
+
+        ' Test TASK-0117: Dedicated download client, infinite timeout, and chunked streaming download to file
+        Using dlClient = UpdateDownloadPolicy.CreateDedicatedDownloadClient("1.5.5-beta")
+            Check(dlClient.Timeout = System.Threading.Timeout.InfiniteTimeSpan, "Dedicated download client has infinite timeout")
+            Dim userAgentHeader = dlClient.DefaultRequestHeaders.UserAgent.ToString()
+            Check(userAgentHeader.Contains("HidaChat-App") AndAlso userAgentHeader.Contains("1.5.5-beta"), "Dedicated client includes ProductInfo user agent")
+        End Using
+
+        Check(UpdateDownloadPolicy.DefaultChunkSize = 81920, "Default chunk size is 80 KB (81920 bytes)")
+        Check(UpdateDownloadPolicy.DefaultDownloadTimeout = TimeSpan.FromMinutes(10), "Default download timeout is 10 minutes")
+
+        ' Test streaming directly to disk with chunked reading and live progress reports
+        Dim testPayloadSize = 250000 ' 250 KB spanning multiple 80KB chunks
+        Dim testPayloadBytes(testPayloadSize - 1) As Byte
+        Dim rng As New Random(42)
+        rng.NextBytes(testPayloadBytes)
+
+        Dim tempDownloadFile = Path.Combine(Path.GetTempPath(), $"HidaChat_Test_Dl_{Guid.NewGuid():N}.tmp")
+        Try
+            Dim progressReports As New List(Of UpdateDownloadPolicy.DownloadProgressReport)()
+            Dim testProgress As New Progress(Of UpdateDownloadPolicy.DownloadProgressReport)(Sub(rep)
+                progressReports.Add(rep)
+            End Sub)
+
+            Using srcStream As New MemoryStream(testPayloadBytes)
+                Dim bytesWritten = Await UpdateDownloadPolicy.DownloadStreamToFileAsync(
+                    srcStream,
+                    tempDownloadFile,
+                    testPayloadSize,
+                    testProgress,
+                    CancellationToken.None,
+                    chunkSize:=81920,
+                    throttleMs:=0)
+
+                Check(bytesWritten = testPayloadSize, "Streaming download writes exact byte count to disk")
+            End Using
+
+            Check(File.Exists(tempDownloadFile), "Destination file exists on disk after streaming")
+            Dim downloadedBytes = File.ReadAllBytes(tempDownloadFile)
+            Check(downloadedBytes.Length = testPayloadSize, "Downloaded file length matches payload size")
+
+            Dim bitsEqual As Boolean = True
+            For i As Integer = 0 To testPayloadSize - 1
+                If downloadedBytes(i) <> testPayloadBytes(i) Then
+                    bitsEqual = False
+                    Exit For
+                End If
+            Next
+            Check(bitsEqual, "Downloaded file matches source data bit-for-bit without RAM buffering")
+
+            ' Verify progress reporting
+            Check(progressReports.Count > 0, "Progress reports were triggered during streaming")
+            Dim lastReport = progressReports(progressReports.Count - 1)
+            Check(lastReport.Percentage = 100.0, "Final progress report indicates 100% completion")
+            Check(lastReport.BytesRead = testPayloadSize, "Final progress report reflects total bytes read")
+            Check(Not lastReport.IsIndeterminate, "Progress report is determinate when total size is known")
+            Check(Not String.IsNullOrEmpty(lastReport.FormattedDownloadedMb), "Formatted MB read is populated")
+            Check(Not String.IsNullOrEmpty(lastReport.FormattedTotalMb), "Formatted total MB is populated")
+
+            ' Test streaming with indeterminate total size (totalBytes = -1)
+            Dim tempIndeterminateFile = Path.Combine(Path.GetTempPath(), $"HidaChat_Test_Indet_{Guid.NewGuid():N}.tmp")
+            Try
+                Dim indetReports As New List(Of UpdateDownloadPolicy.DownloadProgressReport)()
+                Dim indetProgress As New Progress(Of UpdateDownloadPolicy.DownloadProgressReport)(Sub(rep)
+                    indetReports.Add(rep)
+                End Sub)
+
+                Using srcStream2 As New MemoryStream(testPayloadBytes)
+                    Await UpdateDownloadPolicy.DownloadStreamToFileAsync(
+                        srcStream2,
+                        tempIndeterminateFile,
+                        -1L,
+                        indetProgress,
+                        CancellationToken.None,
+                        chunkSize:=81920,
+                        throttleMs:=0)
+                End Using
+
+                Check(File.Exists(tempIndeterminateFile), "Indeterminate download file created successfully")
+                Check(indetReports.Count > 0, "Indeterminate progress reports generated")
+                Check(indetReports(0).IsIndeterminate, "Progress report is marked indeterminate when totalBytes = -1")
+            Finally
+                If File.Exists(tempIndeterminateFile) Then File.Delete(tempIndeterminateFile)
+            End Try
+
+            ' Test cancellation and timeout handling
+            Dim tempCancelledFile = Path.Combine(Path.GetTempPath(), $"HidaChat_Test_Cancel_{Guid.NewGuid():N}.tmp")
+            Try
+                Using ctsCancelled As New CancellationTokenSource()
+                    ctsCancelled.Cancel()
+                    Using srcStream3 As New MemoryStream(testPayloadBytes)
+                        Dim threw As Boolean = False
+                        Try
+                            Await UpdateDownloadPolicy.DownloadStreamToFileAsync(
+                                srcStream3,
+                                tempCancelledFile,
+                                testPayloadSize,
+                                Nothing,
+                                ctsCancelled.Token,
+                                chunkSize:=81920)
+                        Catch ex As OperationCanceledException
+                            threw = True
+                        End Try
+                        Check(threw, "Pre-cancelled token throws OperationCanceledException immediately")
+                    End Using
+                End Using
+            Finally
+                If File.Exists(tempCancelledFile) Then File.Delete(tempCancelledFile)
+            End Try
+
+        Finally
+            If File.Exists(tempDownloadFile) Then File.Delete(tempDownloadFile)
+        End Try
     End Function
 End Module

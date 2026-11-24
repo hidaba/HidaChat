@@ -635,6 +635,25 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
+    ''' Prevents accidental platform switching when scrolling with mouse wheel over closed ComboBox (TASK-0125).
+    ''' Forwards the scroll event to the parent container so page scrolling remains smooth.
+    ''' </summary>
+    Private Sub ComboAccountPlatform_PreviewMouseWheel(sender As Object, e As MouseWheelEventArgs)
+        Dim cmb = TryCast(sender, ComboBox)
+        If cmb IsNot Nothing AndAlso Not cmb.IsDropDownOpen Then
+            e.Handled = True
+            Dim parent = TryCast(cmb.Parent, UIElement)
+            If parent IsNot Nothing Then
+                Dim newEvent = New MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) With {
+                    .RoutedEvent = UIElement.MouseWheelEvent,
+                    .Source = sender
+                }
+                parent.RaiseEvent(newEvent)
+            End If
+        End If
+    End Sub
+
+    ''' <summary>
     ''' Gestisce l'aggiunta di un nuovo account dalla finestra delle impostazioni con scelta della piattaforma.
     ''' </summary>
     Private Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)

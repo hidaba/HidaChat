@@ -17,17 +17,13 @@ Imports System.Text.RegularExpressions
 Public Class UpdateChecker
     Private Shared _hasChecked As Boolean = False
     Private Shared ReadOnly _httpClient As New HttpClient()
-    Private Shared ReadOnly _downloadClient As New HttpClient() With {
-        .Timeout = System.Threading.Timeout.InfiniteTimeSpan
-    }
+    Private Shared ReadOnly _downloadClient As HttpClient = UpdateDownloadPolicy.CreateDedicatedDownloadClient(Constants.AppVersion)
     Private Shared ReadOnly _logLock As New Object()
 
     Shared Sub New()
         _httpClient.Timeout = TimeSpan.FromSeconds(15)
         _httpClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("HidaChat-App", Constants.AppVersion))
         _httpClient.DefaultRequestHeaders.Accept.Add(New MediaTypeWithQualityHeaderValue("application/json"))
-
-        _downloadClient.DefaultRequestHeaders.UserAgent.Add(New ProductInfoHeaderValue("HidaChat-App", Constants.AppVersion))
     End Sub
 
     ''' <summary>
@@ -623,52 +619,28 @@ Public Class UpdateChecker
         End If
 
         Try
-            ' 2. Scarica lo ZIP da GitHub tramite streaming su disco con indicatore di progresso in tempo reale (TODO #87)
+            ' 2. Scarica lo ZIP da GitHub tramite streaming su disco con indicatore di progresso in tempo reale (TODO #87, TASK-0117)
             Log($"Downloading update zip (streaming) from: {downloadUrl}")
-            Using cts As New CancellationTokenSource(TimeSpan.FromMinutes(10))
+            Using cts As New CancellationTokenSource(UpdateDownloadPolicy.DefaultDownloadTimeout)
                 Dim ct = cts.Token
-                Using resp = Await _downloadClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct)
-                    resp.EnsureSuccessStatusCode()
+                Dim progress = New Progress(Of UpdateDownloadPolicy.DownloadProgressReport)(Sub(report)
+                    If dialog IsNot Nothing Then
+                        If Not report.IsIndeterminate Then
+                            Dim info = If(loc IsNot Nothing,
+                                loc.Get("update_stage_download_progress", New Dictionary(Of String, String) From {
+                                    {"downloadedMb", report.FormattedDownloadedMb},
+                                    {"totalMb", report.FormattedTotalMb},
+                                    {"percent", Math.Floor(report.Percentage).ToString()}
+                                }),
+                                $"Scaricati {report.FormattedDownloadedMb} MB di {report.FormattedTotalMb} MB ({Math.Floor(report.Percentage)}%)")
+                            dialog.SetProgress(report.Percentage, progressText:=info)
+                        Else
+                            dialog.SetProgress(-1, progressText:=$"{report.FormattedDownloadedMb} MB")
+                        End If
+                    End If
+                End Sub)
 
-                    Dim totalBytes = resp.Content.Headers.ContentLength.GetValueOrDefault(-1L)
-                    Using src = Await resp.Content.ReadAsStreamAsync(ct),
-                          dst = File.Create(tempZipPath)
-
-                        Dim buffer(81919) As Byte
-                        Dim totalRead As Long = 0
-                        Dim lastUiUpdate As DateTime = DateTime.MinValue
-
-                        While True
-                            Dim bytesRead = Await src.ReadAsync(buffer, 0, buffer.Length, ct)
-                            If bytesRead = 0 Then Exit While
-                            Await dst.WriteAsync(buffer, 0, bytesRead, ct)
-                            totalRead += bytesRead
-
-                            Dim now = DateTime.UtcNow
-                            If (now - lastUiUpdate).TotalMilliseconds > 80 OrElse (totalBytes > 0 AndAlso totalRead = totalBytes) Then
-                                lastUiUpdate = now
-                                If dialog IsNot Nothing Then
-                                    If totalBytes > 0 Then
-                                        Dim pct = (CDbl(totalRead) / CDbl(totalBytes)) * 100.0
-                                        Dim mbRead = (totalRead / (1024.0 * 1024.0)).ToString("F1")
-                                        Dim mbTotal = (totalBytes / (1024.0 * 1024.0)).ToString("F1")
-                                        Dim info = If(loc IsNot Nothing,
-                                            loc.Get("update_stage_download_progress", New Dictionary(Of String, String) From {
-                                                {"downloadedMb", mbRead},
-                                                {"totalMb", mbTotal},
-                                                {"percent", Math.Floor(pct).ToString()}
-                                            }),
-                                            $"Scaricati {mbRead} MB di {mbTotal} MB ({Math.Floor(pct)}%)")
-                                        dialog.SetProgress(pct, progressText:=info)
-                                    Else
-                                        Dim mbRead = (totalRead / (1024.0 * 1024.0)).ToString("F1")
-                                        dialog.SetProgress(-1, progressText:=$"{mbRead} MB")
-                                    End If
-                                End If
-                            End If
-                        End While
-                    End Using
-                End Using
+                Await UpdateDownloadPolicy.DownloadFileStreamingAsync(downloadUrl, tempZipPath, _downloadClient, progress, ct)
             End Using
         Catch ex As Exception
             Log($"Download failed or timed out: {ex.Message}")

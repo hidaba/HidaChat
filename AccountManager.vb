@@ -210,20 +210,33 @@ Public Class AccountManager
                         End If
                     Next
 
+                    ' Validate and auto-heal deterministic proxy ports for platforms requiring local proxies (TASK-0124)
                     Dim usedPorts As New HashSet(Of Integer)()
+
+                    ' Pass 1: Retain valid ports that strictly belong to their platform's assigned range [DefaultPort, DefaultPort + 99]
                     For Each acc In accountsData
-                        If acc.LocalProxyPort > 0 Then
-                            usedPorts.Add(acc.LocalProxyPort)
+                        If acc.PlatformDefinition.RequiresLocalProxy Then
+                            Dim basePort = acc.PlatformDefinition.DefaultPort
+                            If AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(acc.PlatformType, acc.LocalProxyPort) AndAlso Not usedPorts.Contains(acc.LocalProxyPort) Then
+                                usedPorts.Add(acc.LocalProxyPort)
+                            ElseIf acc.LocalProxyPort > 0 Then
+                                ' Port was out-of-range, colliding, or swapped (e.g. OpenClaw with Hermes port or vice-versa)
+                                AppLogger.LogApp($"[PORT_HEAL_RESET] Account '{acc.Id}' ({acc.Platform}) had invalid/swapped port {acc.LocalProxyPort}; resetting to platform range {basePort}..{basePort + 99}")
+                                acc.LocalProxyPort = 0
+                                needsSave = True
+                            End If
+                        ElseIf acc.LocalProxyPort > 0 Then
+                            ' Non-proxy platform had an obsolete proxy port assigned
+                            acc.LocalProxyPort = 0
+                            needsSave = True
                         End If
                     Next
 
+                    ' Pass 2: Assign deterministic ports for accounts needing one
                     For Each acc In accountsData
                         If acc.PlatformDefinition.RequiresLocalProxy Then
                             If acc.LocalProxyPort <= 0 Then
-                                Dim targetPort = acc.PlatformDefinition.DefaultPort
-                                While usedPorts.Contains(targetPort)
-                                    targetPort += 1
-                                End While
+                                Dim targetPort = AccountLoadSafetyPolicy.ResolveDeterministicPort(acc.PlatformType, usedPorts)
                                 acc.LocalProxyPort = targetPort
                                 usedPorts.Add(targetPort)
                                 needsSave = True
