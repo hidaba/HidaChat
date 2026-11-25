@@ -244,6 +244,17 @@ Public Class AccountManager
                         End If
                     Next
 
+                    ' Check for expired authentication tokens and auto-clear to prevent login loops (TASK-0126)
+                    For Each acc In accountsData
+                        If Not String.IsNullOrWhiteSpace(acc.AuthToken) Then
+                            If LocalAuthPolicy.IsTokenExpired(acc.AuthToken) Then
+                                AppLogger.LogApp($"[AUTH_TOKEN_AUTO_HEAL] Account '{acc.Id}' ({acc.Name}, {acc.Platform}) had an expired AuthToken; auto-clearing to prevent login loop.")
+                                acc.AuthToken = ""
+                                needsSave = True
+                            End If
+                        End If
+                    Next
+
                     _accounts = New ObservableCollection(Of AppAccounts)(accountsData)
 
                     Debug.WriteLine($"LoadAccounts: caricati {accountsData.Count} account, needsSave={needsSave}")

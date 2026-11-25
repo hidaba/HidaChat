@@ -7,13 +7,6 @@
 
 ## Sicurezza, Sessioni e Affidabilità Core
 
-- [ ] **TASK-0082** [Media] La verifica dei certificati HTTPS viene disattivata
-  - **File**: `tsnetd/main.go`, circa righe 259–269; `SettingsWindow.xaml.vb`, circa righe 320–322
-  - **Problema / Esigenza**: Nel transport del proxy viene impostato `InsecureSkipVerify = true`; il test di connessione usa inoltre una callback che accetta sempre il certificato. La verifica HTTPS del servizio viene quindi aggirata nei percorsi interessati. In Go questa impostazione disabilita la normale verifica della catena e del nome del server. La protezione del tunnel Tailscale è distinta dalla verifica dell’identità HTTPS del servizio.
-  - **Fix da implementare**: Validazione standard come comportamento predefinito. Per server con certificati privati, consentire una CA esplicita o il pinning; evitare un bypass globale e silenzioso.
-  - **Test di accettazione**: Un certificato scaduto, non attendibile o con hostname errato deve produrre un errore TLS distinguibile da un semplice problema di raggiungibilità.
-  - **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Medio
-
 - [ ] **TASK-0083** [Media] “Test connessione” mostra Online anche quando il servizio non funziona
   - **File**: `SettingsWindow.xaml.vb`, circa righe 295–348, metodo `BtnTestConnection_Click()`
   - **Problema / Esigenza**: Dopo `GetAsync()` il codice assegna `isOnline = True` senza controllare lo status HTTP. Anche 401, 403, 500 e 502 possono quindi produrre l’indicazione verde. Per OpenClaw, inoltre, questo test non aggiunge il Bearer token: l’header viene impostato soltanto nel ramo Hermes.

@@ -193,6 +193,53 @@ Public Class AppAccounts
         End Set
     End Property
 
+    Private _allowInsecureTls As Boolean = False
+    ''' <summary>Se True, consente di bypassare la verifica del certificato SSL/TLS per server locali o certificati autofirmati (TASK-0082, False predefinito).</summary>
+    <JsonPropertyName("allowInsecureTls")>
+    Public Property AllowInsecureTls As Boolean
+        Get
+            Return _allowInsecureTls
+        End Get
+        Set(value As Boolean)
+            If _allowInsecureTls <> value Then
+                _allowInsecureTls = value
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(AllowInsecureTls)))
+            End If
+        End Set
+    End Property
+
+    Private _pinnedCertificateHash As String = ""
+    ''' <summary>Impronta SHA-256 (pinning) opzionale del certificato atteso per prevenire intercettazioni (TASK-0082).</summary>
+    <JsonPropertyName("pinnedCertificateHash")>
+    Public Property PinnedCertificateHash As String
+        Get
+            Return If(_pinnedCertificateHash, "")
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, "").Trim()
+            If _pinnedCertificateHash <> cleanVal Then
+                _pinnedCertificateHash = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(PinnedCertificateHash)))
+            End If
+        End Set
+    End Property
+
+    Private _customCaCertificatePath As String = ""
+    ''' <summary>Percorso a un certificato CA radice personalizzato in formato PEM o CRT (TASK-0082).</summary>
+    <JsonPropertyName("customCaCertificatePath")>
+    Public Property CustomCaCertificatePath As String
+        Get
+            Return If(_customCaCertificatePath, "")
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, "").Trim()
+            If _customCaCertificatePath <> cleanVal Then
+                _customCaCertificatePath = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(CustomCaCertificatePath)))
+            End If
+        End Set
+    End Property
+
     Private _localProxyPort As Integer = 0
     ''' <summary>Porta TCP locale fissa riservata al proxy tsnet per preservare l'Origin e l'approvazione del dispositivo.</summary>
     <JsonPropertyName("localProxyPort")>
@@ -249,6 +296,22 @@ Public Class AppAccounts
             If _connectionStatusBrush IsNot value Then
                 _connectionStatusBrush = value
                 RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ConnectionStatusBrush)))
+            End If
+        End Set
+    End Property
+
+    Private _connectionStatusTooltip As String = ""
+    ''' <summary>Dettaglio tecnico o motivo dell'errore di connessione/TLS da mostrare al passaggio del mouse (TASK-0082).</summary>
+    <JsonIgnore>
+    Public Property ConnectionStatusTooltip As String
+        Get
+            Return _connectionStatusTooltip
+        End Get
+        Set(value As String)
+            Dim cleanVal = If(value, "")
+            If _connectionStatusTooltip <> cleanVal Then
+                _connectionStatusTooltip = cleanVal
+                RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(NameOf(ConnectionStatusTooltip)))
             End If
         End Set
     End Property
@@ -1493,7 +1556,7 @@ Public Class AppAccounts
             Try
                 Dim defaultPort = PlatformDefinition.DefaultPort
                 Dim preferred = If(AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(PlatformType, LocalProxyPort), LocalProxyPort, defaultPort)
-                Dim port = Await TsnetManager.Instance.EnsureRouteAsync(Id, ServerUrl, preferredPort:=preferred, forceUpdate:=forceUpdate)
+                Dim port = Await TsnetManager.Instance.EnsureRouteAsync(Id, ServerUrl, preferredPort:=preferred, forceUpdate:=forceUpdate, insecureSkipVerify:=AllowInsecureTls, pinnedCertHash:=PinnedCertificateHash, caCert:=CustomCaCertificatePath)
                 If AccountLoadSafetyPolicy.IsValidProxyPortForPlatform(PlatformType, port) Then
                     LocalProxyPort = port
                     LocalProxyUrl = $"http://127.0.0.1:{port}"
@@ -1565,6 +1628,10 @@ Public Class AppAccounts
         Dim port As Integer = 0
         Dim reqLocalToken As Boolean = False
         Dim reqAuthToken As Boolean = Not String.IsNullOrWhiteSpace(AuthToken)
+        If reqAuthToken AndAlso LocalAuthPolicy.IsTokenExpired(AuthToken) Then
+            AppLogger.LogApp($"[AUTH_TOKEN_EXPIRED] account={Id}, name={Name}; configured AuthToken is expired; suppressing Bearer injection to prevent login loop.")
+            reqAuthToken = False
+        End If
 
         If TailscaleIntegration Then
             If LocalProxyPort <= 0 Then Return
@@ -1610,8 +1677,8 @@ Public Class AppAccounts
                         End If
                     End If
 
-                    ' Aggiungi l'header Bearer token dell'account solo se configurato
-                    If _activeRequiresAuthToken AndAlso Not String.IsNullOrWhiteSpace(AuthToken) Then
+                    ' Aggiungi l'header Bearer token dell'account solo se configurato, non scaduto e non verso endpoint di autenticazione (TASK-0126)
+                    If _activeRequiresAuthToken AndAlso LocalAuthPolicy.ShouldAttachBearerToken(reqArgs.Request.Uri, AuthToken) Then
                         If Not reqArgs.Request.Headers.Contains("Authorization") Then
                             reqArgs.Request.Headers.SetHeader("Authorization", $"Bearer {AuthToken}")
                         End If

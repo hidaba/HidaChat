@@ -3,6 +3,22 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.7-beta] - 2026-11-25
+
+### Pre-release / Beta — Validazione Rigorosa Certificati HTTPS, Certificate Pinning e Discriminazione Errori TLS
+- **Verifica Standard Certificati HTTPS, CA Personalizzate e Pinning (`tsnetd/main.go`, `TlsCertificatePolicy.vb`, `AppAccounts.vb` — TASK-0082)**:
+  - Eliminato il bypass globale silenzioso e incondizionato `InsecureSkipVerify = true` nel reverse proxy companion tsnet, ripristinando la validazione standard dei certificati TLS e del nome host come comportamento predefinito.
+  - Introdotto il supporto per certificati CA radice personalizzati (`cmd.CaCert` / `CustomCaCertificatePath`) e certificate pinning con impronta SHA-256 (`cmd.PinnedCertHash` / `PinnedCertificateHash`) per proteggere le comunicazioni da attacchi MITM.
+  - Aggiunta l'opzione esplicita `AllowInsecureTls` (disabilitata per impostazione predefinita) per consentire il collegamento a server di sviluppo con certificati autofirmati senza bypass globale silenzioso.
+- **Discriminazione Errori TLS e Diagnostica di Connessione (`SettingsWindow.xaml.vb`, `SettingsWindow.xaml`, `TsnetManager.vb`, `TlsCertificatePolicy.vb` — TASK-0082)**:
+  - Rimosso il bypass incondizionato dei certificati in `BtnTestConnection_Click` e in `TsnetManager.vb`, applicando la validazione standard tramite `TlsCertificatePolicy.ValidateCertificate`.
+  - Distinti gli errori di certificato SSL/TLS (certificati scaduti, root non attendibili, hostname errati, mismatch di pinning) dai problemi generali di raggiungibilità, mostrando uno stato localizzato dedicato (`connection_tls_error` / `tailscale_error_tls_failure`) e tooltip tecnici dettagliati invece di notifiche ambigue di irraggiungibilità.
+  - Configurato il proxy companion tsnet per emettere l'header `X-HidaChat-Error-Type: TLS_CERTIFICATE_ERROR` e una pagina diagnostica esplicita non ciclica in caso di fallimento della verifica TLS verso l'upstream.
+- **Localizzazione Multilingua Sincrona (`Localization.vb` — TASK-0082)**:
+  - Aggiornati e sincronizzati i dizionari localizzati (`connection_tls_error`, `tailscale_error_tls_failure`, `openclaw_insecure_tls`) in tutte le 5 lingue ufficiali (inglese, italiano, francese, spagnolo, tedesco).
+- **Espansione della Suite di Regressione Automatica (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0082)**:
+  - Aggiunte 29 asserzioni di regressione automatica che verificano normalizzazione impronte, generazione certificati in-memory, errori di catena standard, discrepanze hostname, corrispondenza/mismatch di certificate pinning e discriminazione errori TLS vs raggiungibilità (per un totale di **871 asserzioni di regressione con 0 errori**).
+
 ## [1.5.6-beta] - 2026-11-24
 
 ### Pre-release / Beta — Generazione script di aggiornamento resiliente, normalizzazione percorsi e irrobustimento robocopy

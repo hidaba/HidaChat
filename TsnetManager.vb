@@ -465,7 +465,7 @@ Public Class TsnetManager
     ''' Registers or updates a reverse proxy route for an account targeting a tailnet host.
     ''' Rigorously correlates and validates the response accountId to prevent cross-account port inversion (TASK-0124).
     ''' </summary>
-    Public Async Function EnsureRouteAsync(accountId As String, targetUrl As String, Optional authKey As String = "", Optional forceUpdate As Boolean = False, Optional preferredPort As Integer = 0) As Task(Of Integer)
+    Public Async Function EnsureRouteAsync(accountId As String, targetUrl As String, Optional authKey As String = "", Optional forceUpdate As Boolean = False, Optional preferredPort As Integer = 0, Optional insecureSkipVerify As Boolean = False, Optional pinnedCertHash As String = "", Optional caCert As String = "") As Task(Of Integer)
         If String.IsNullOrWhiteSpace(accountId) OrElse String.IsNullOrWhiteSpace(targetUrl) Then
             Return 0
         End If
@@ -493,6 +493,15 @@ Public Class TsnetManager
         }
         If preferredPort > 0 Then
             payload("port") = preferredPort
+        End If
+        If insecureSkipVerify Then
+            payload("insecureSkipVerify") = True
+        End If
+        If Not String.IsNullOrWhiteSpace(pinnedCertHash) Then
+            payload("pinnedCertHash") = pinnedCertHash.Trim()
+        End If
+        If Not String.IsNullOrWhiteSpace(caCert) Then
+            payload("caCert") = caCert.Trim()
         End If
 
         Dim cmd = JsonSerializer.Serialize(payload)
@@ -758,25 +767,29 @@ Public Class TsnetManager
             ' Il nodo tsnet locale è Running. Verifichiamo la raggiungibilità dell'endpoint tramite proxy o socket
             If localProxyPort > 0 Then
                 Try
-                    Using handler As New System.Net.Http.SocketsHttpHandler()
-                        handler.SslOptions.RemoteCertificateValidationCallback = Function(m, c, ch, p) True
-                        Using client As New System.Net.Http.HttpClient(handler)
-                            client.Timeout = TimeSpan.FromSeconds(3.5)
-                            If Not String.IsNullOrEmpty(_localToken) Then
-                                client.DefaultRequestHeaders.Add("X-HidaChat-Local-Token", _localToken)
+                    Using client As New System.Net.Http.HttpClient()
+                        client.Timeout = TimeSpan.FromSeconds(3.5)
+                        If Not String.IsNullOrEmpty(_localToken) Then
+                            client.DefaultRequestHeaders.Add("X-HidaChat-Local-Token", _localToken)
+                        End If
+                        Using response = Await client.GetAsync($"http://127.0.0.1:{localProxyPort}/", System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
+                            Dim tlsErr As String = Nothing
+                            If TlsCertificatePolicy.IsTlsProxyResponse(response.Headers, response.StatusCode, tlsErr) Then
+                                result.IsConnected = False
+                                result.StatusKey = "tailscale_error_tls_failure"
+                                Return result
                             End If
-                            Using response = Await client.GetAsync($"http://127.0.0.1:{localProxyPort}/", System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
-                                Dim code = CInt(response.StatusCode)
-                                If code = 502 OrElse code = 504 Then
-                                    result.IsConnected = False
-                                    result.StatusKey = "tailscale_node_unreachable"
-                                    Return result
-                                Else
-                                    result.IsConnected = True
-                                    result.StatusKey = "tailscale_ok"
-                                    Return result
-                                End If
-                            End Using
+
+                            Dim code = CInt(response.StatusCode)
+                            If code = 502 OrElse code = 504 Then
+                                result.IsConnected = False
+                                result.StatusKey = "tailscale_node_unreachable"
+                                Return result
+                            Else
+                                result.IsConnected = True
+                                result.StatusKey = "tailscale_ok"
+                                Return result
+                            End If
                         End Using
                     End Using
                 Catch exHttp As Exception

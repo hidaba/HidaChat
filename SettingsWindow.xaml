@@ -375,9 +375,14 @@
                                                 <CheckBox Content="Usa nodo Tailscale integrato (tsnet portatile)" 
                                                           IsChecked="{Binding TailscaleIntegration, Mode=TwoWay}" 
                                                           Click="ChkAccountTailscale_Click" Tag="{Binding Id}" 
-                                                          Margin="0,2,0,8" Foreground="#e9edef" FontSize="12"/>
+                                                          Margin="0,2,0,4" Foreground="#e9edef" FontSize="12"/> 
+                                                <CheckBox Content="Ignora verifica certificato SSL/TLS (non sicuro)" 
+                                                          IsChecked="{Binding AllowInsecureTls, Mode=TwoWay}" 
+                                                          Click="ChkAccountInsecureTls_Click" Tag="{Binding Id}" 
+                                                          Margin="0,0,0,6" Foreground="#8696a0" FontSize="11" 
+                                                          ToolTip="Abilita solo se il server gateway utilizza certificati privati o autofirmati senza CA attendibile."/> 
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
-                                                    <TextBlock Text="{Binding ConnectionStatusText}" Foreground="{Binding ConnectionStatusBrush}" 
+                                                    <TextBlock Text="{Binding ConnectionStatusText}" ToolTip="{Binding ConnectionStatusTooltip}" Foreground="{Binding ConnectionStatusBrush}" 
                                                                FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                                     <Button Content="Test Connessione" Click="BtnTestConnection_Click" Tag="{Binding Id}"
                                                             Style="{StaticResource ActionButtonStyle}" Height="26" Padding="10,2" FontSize="12"/>

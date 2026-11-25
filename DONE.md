@@ -3,6 +3,20 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 
+## 2026-11-25
+
+- [x] **TASK-0082** [Medium] HTTPS certificate verification is disabled
+  - Result:
+    - Eliminated silent unconditional `InsecureSkipVerify = true` bypass in the embedded tsnet companion reverse proxy, restoring standard TLS certificate and hostname validation as default behavior.
+    - Added support for explicit custom Root CA certificates (`cmd.CaCert` / `CustomCaCertificatePath`) and SHA-256 leaf certificate pinning (`cmd.PinnedCertHash` / `PinnedCertificateHash`) to secure connections against MITM attacks.
+    - Added explicit opt-in setting `AllowInsecureTls` (disabled by default) for testing against self-signed or private development servers without silent global bypass.
+    - Created `TlsCertificatePolicy.vb` implementing standard chain evaluation, error discrimination, and thumbprint calculation.
+    - Removed unconditional certificate bypass callback in `BtnTestConnection_Click` and `TsnetManager.vb`.
+    - Differentiated SSL/TLS certificate errors (expired certificates, untrusted roots, hostname mismatches, pinning failures) from generic reachability issues, surfacing a clear localized error status (`connection_tls_error` / `tailscale_error_tls_failure`) and technical tooltip details instead of ambiguous reachability alerts.
+    - Configured tsnet companion proxy to emit `X-HidaChat-Error-Type: TLS_CERTIFICATE_ERROR` and a dedicated non-looping TLS error diagnostic page when upstream certificate verification fails.
+    - Synchronized localized UI dictionary keys across all 5 officially supported languages (English, Italian, French, Spanish, German).
+  - Verification: Added 29 automated regression assertions in `SessionTests.vb` verifying thumbprint normalization, self-signed certificate generation, standard chain errors, hostname mismatches, certificate pinning matching/mismatch, and TLS vs general reachability discrimination (totaling **871 automated regression assertions with 0 errors**). Clean Release build with 0 warnings and 0 errors.
+
 ## 2026-11-24
 
 - [x] **TASK-0092** [High] Fragile update batch script (OEM/UTF-8 codepage, accented characters, special characters, parentheses, and root USB drive)

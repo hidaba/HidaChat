@@ -7,13 +7,6 @@
 
 ## Security, Sessions & Core Reliability
 
-- [ ] **TASK-0082** [Medium] HTTPS certificate verification is disabled
-  - **Files**: `tsnetd/main.go`, approx lines 259–269; `SettingsWindow.xaml.vb`, approx lines 320–322
-  - **Problem / Need**: The proxy transport sets `InsecureSkipVerify = true`; additionally, the connection test uses a callback that unconditionally accepts any certificate. HTTPS verification of the target service is bypassed in affected paths. In Go, this setting disables standard chain and server name verification. Tailscale tunnel encryption is distinct from validating the HTTPS identity of the service.
-  - **Fix to Implement**: Standard validation as default behavior. For servers with private certificates, allow explicit CA configuration or certificate pinning; avoid silent global bypass.
-  - **Acceptance Test**: An expired, untrusted, or hostname-mismatched certificate must produce a TLS error distinct from general reachability issues.
-  - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Medium
-
 - [ ] **TASK-0083** [Medium] "Test connection" reports Online even when service is down
   - **Files**: `SettingsWindow.xaml.vb`, approx lines 295–348, `BtnTestConnection_Click()` method
   - **Problem / Need**: After `GetAsync()`, code sets `isOnline = True` without checking the HTTP status code. Responses like 401, 403, 500, and 502 can therefore produce a green status indicator. Furthermore, for OpenClaw, this test does not add the Bearer token: the header is only set in the Hermes branch.

@@ -79,7 +79,7 @@ if ($goCmd) {
             Push-Location $tsnetdDir
             try {
                 $env:CGO_ENABLED = "0"
-                & $goCmd.Source build -ldflags="-s -w" -trimpath -o $targetOut .
+                & $goCmd.Source build -ldflags="-s" -trimpath -o $targetOut .
             } finally {
                 Pop-Location
             }
@@ -91,7 +91,8 @@ if ($goCmd) {
 
 # --- Build ---
 Write-Host "Building Release..."
-dotnet build -c Release --nologo $PSScriptRoot 2>&1 | Out-Host
+$projectFile = Join-Path $PSScriptRoot "HidaChat.vbproj"
+dotnet build -c Release --nologo $projectFile 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 # --- Create Staging & Zip Package ---

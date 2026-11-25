@@ -3,6 +3,20 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-25
+
+- [x] **TASK-0082** [Media] La verifica dei certificati HTTPS viene disattivata
+  - Risultato:
+    - Eliminato il bypass globale silenzioso e incondizionato `InsecureSkipVerify = true` nel reverse proxy companion tsnet, ripristinando la validazione standard dei certificati TLS e del nome host come comportamento predefinito.
+    - Introdotto il supporto per certificati CA radice personalizzati (`cmd.CaCert` / `CustomCaCertificatePath`) e certificate pinning con impronta SHA-256 (`cmd.PinnedCertHash` / `PinnedCertificateHash`) per proteggere le comunicazioni da attacchi MITM.
+    - Aggiunta l'opzione esplicita `AllowInsecureTls` (disabilitata per impostazione predefinita) per consentire il collegamento a server di sviluppo con certificati autofirmati senza bypass globale silenzioso.
+    - Creata la policy `TlsCertificatePolicy.vb` per la validazione della catena dei certificati, la discriminazione degli errori e il calcolo delle impronte SHA-256.
+    - Rimosso il bypass incondizionato dei certificati in `BtnTestConnection_Click` e in `TsnetManager.vb`.
+    - Distinti gli errori di certificato SSL/TLS (certificati scaduti, root non attendibili, hostname errati, mismatch di pinning) dai problemi generali di raggiungibilità, mostrando uno stato localizzato dedicato (`connection_tls_error` / `tailscale_error_tls_failure`) e tooltip tecnici dettagliati invece di notifiche ambigue di irraggiungibilità.
+    - Configurato il proxy companion tsnet per emettere l'header `X-HidaChat-Error-Type: TLS_CERTIFICATE_ERROR` e una pagina diagnostica esplicita non ciclica in caso di fallimento della verifica TLS verso l'upstream.
+    - Aggiornati e sincronizzati i dizionari localizzati in tutte le 5 lingue ufficiali (inglese, italiano, francese, spagnolo, tedesco).
+  - Verifica: Aggiunte 29 asserzioni di regressione automatica in `SessionTests.vb` che verificano normalizzazione impronte, generazione certificati in-memory, errori di catena standard, discrepanze hostname, corrispondenza/mismatch di certificate pinning e discriminazione errori TLS vs raggiungibilità (per un totale di **871 asserzioni di regressione con 0 errori**). Compilazione Release completata con 0 avvisi e 0 errori.
+
 ## 2026-11-24
 
 - [x] **TASK-0092** [Alta] Script batch di aggiornamento fragile (codepage OEM/UTF-8, caratteri accentati, caratteri speciali, parentesi e unità root USB)

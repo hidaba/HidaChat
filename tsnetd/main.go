@@ -3,10 +3,15 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -21,12 +26,15 @@ import (
 )
 
 type CommandMsg struct {
-	Cmd        string `json:"cmd"`
-	AccountId  string `json:"accountId,omitempty"`
-	Target     string `json:"target,omitempty"`
-	LocalToken string `json:"localToken,omitempty"`
-	AuthKey    string `json:"authKey,omitempty"`
-	Port       int    `json:"port,omitempty"`
+	Cmd                string `json:"cmd"`
+	AccountId          string `json:"accountId,omitempty"`
+	Target             string `json:"target,omitempty"`
+	LocalToken         string `json:"localToken,omitempty"`
+	AuthKey            string `json:"authKey,omitempty"`
+	Port               int    `json:"port,omitempty"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
+	PinnedCertHash     string `json:"pinnedCertHash,omitempty"`
+	CaCert             string `json:"caCert,omitempty"`
 }
 
 type StatusResp struct {
@@ -50,10 +58,31 @@ type GenericResp struct {
 }
 
 type RouteEntry struct {
-	listener net.Listener
-	server   *http.Server
-	port     int
-	target   string
+	listener           net.Listener
+	server             *http.Server
+	port               int
+	target             string
+	insecureSkipVerify bool
+	pinnedCertHash     string
+	caCert             string
+}
+
+func isTlsCertError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var uae x509.UnknownAuthorityError
+	var cie x509.CertificateInvalidError
+	var hne x509.HostnameError
+	if errors.As(err, &uae) || errors.As(err, &cie) || errors.As(err, &hne) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "x509:") ||
+		strings.Contains(msg, "certificate") ||
+		strings.Contains(msg, "tls: failed to verify") ||
+		strings.Contains(msg, "cert pinning") ||
+		strings.Contains(msg, "pinning mismatch")
 }
 
 type retryTransport struct {
@@ -236,7 +265,11 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 	defer routesMu.Unlock()
 
 	if existing, ok := routes[cmd.AccountId]; ok {
-		if (cmd.Port <= 0 || existing.port == cmd.Port) && strings.EqualFold(existing.target, rawTarget) {
+		if (cmd.Port <= 0 || existing.port == cmd.Port) &&
+			strings.EqualFold(existing.target, rawTarget) &&
+			existing.insecureSkipVerify == cmd.InsecureSkipVerify &&
+			existing.pinnedCertHash == cmd.PinnedCertHash &&
+			existing.caCert == cmd.CaCert {
 			log.Printf("[tsnetd] Route already active for account %s on 127.0.0.1:%d -> %s", cmd.AccountId, existing.port, cmd.Target)
 			writeJSON(RouteResp{
 				AccountId: cmd.AccountId,
@@ -278,10 +311,47 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 	if tr, ok := baseTransport.(*http.Transport); ok {
 		trClone := tr.Clone()
 		if trClone.TLSClientConfig == nil {
-			trClone.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		} else {
-			trClone.TLSClientConfig.InsecureSkipVerify = true
+			trClone.TLSClientConfig = &tls.Config{}
 		}
+
+		// Standard HTTPS certificate verification by default (TASK-0082)
+		// Only disable verification if explicitly instructed via cmd.InsecureSkipVerify
+		trClone.TLSClientConfig.InsecureSkipVerify = cmd.InsecureSkipVerify
+
+		// Support custom Root CA certificate (TASK-0082)
+		if cmd.CaCert != "" {
+			rootCAs, _ := x509.SystemCertPool()
+			if rootCAs == nil {
+				rootCAs = x509.NewCertPool()
+			}
+			var caData []byte
+			if _, err := os.Stat(cmd.CaCert); err == nil {
+				caData, _ = os.ReadFile(cmd.CaCert)
+			} else {
+				caData = []byte(cmd.CaCert)
+			}
+			if len(caData) > 0 {
+				rootCAs.AppendCertsFromPEM(caData)
+				trClone.TLSClientConfig.RootCAs = rootCAs
+			}
+		}
+
+		// Support certificate pinning via SHA-256 fingerprint (TASK-0082)
+		cleanPinned := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(cmd.PinnedCertHash, ":", ""), " ", ""), "-", ""))
+		if cleanPinned != "" {
+			trClone.TLSClientConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+				if len(rawCerts) == 0 {
+					return errors.New("tls: peer did not present any certificates")
+				}
+				hash := sha256.Sum256(rawCerts[0])
+				hexHash := hex.EncodeToString(hash[:])
+				if !strings.EqualFold(hexHash, cleanPinned) {
+					return fmt.Errorf("tls: certificate pinning mismatch (expected %s, got %s)", cleanPinned, hexHash)
+				}
+				return nil
+			}
+		}
+
 		proxy.Transport = &retryTransport{base: trClone}
 	} else {
 		proxy.Transport = &retryTransport{base: baseTransport}
@@ -289,6 +359,38 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, proxyErr error) {
 		log.Printf("[tsnetd][proxy] error proxying to %s: %v", targetURL.String(), proxyErr)
+		w.Header().Set("X-HidaChat-Proxy-Error", "true")
+		if isTlsCertError(proxyErr) {
+			w.Header().Set("X-HidaChat-Error-Type", "TLS_CERTIFICATE_ERROR")
+			w.Header().Set("X-HidaChat-TLS-Error", proxyErr.Error())
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusBadGateway)
+			fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Errore Certificato SSL/TLS</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #111b21; color: #e9edef; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .box { text-align: center; max-width: 520px; padding: 28px; background: #202c33; border-radius: 8px; border: 1px solid #ef5350; }
+        .icon { font-size: 40px; margin-bottom: 12px; color: #ef5350; }
+        h2 { font-size: 18px; margin-bottom: 8px; color: #ef5350; }
+        p { font-size: 13px; color: #8696a0; line-height: 1.4; word-break: break-word; }
+        .err { margin-top: 12px; padding: 8px; background: #111b21; border-radius: 4px; font-family: monospace; font-size: 12px; color: #ff867c; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="icon">&#9888;</div>
+        <h2>Errore Certificato HTTPS (TLS)</h2>
+        <p>Impossibile stabilire una connessione sicura con il server remoto. La verifica del certificato SSL/TLS è fallita.</p>
+        <div class="err">%s</div>
+    </div>
+</body>
+</html>`, template.HTMLEscapeString(proxyErr.Error()))
+			return
+		}
+
 		if strings.Contains(r.Header.Get("Accept"), "text/html") {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Retry-After", "2")
@@ -348,10 +450,13 @@ func handleAddRoute(ts *tsnet.Server, cmd CommandMsg) {
 	}()
 
 	routes[cmd.AccountId] = &RouteEntry{
-		listener: ln,
-		server:   srv,
-		port:     port,
-		target:   rawTarget,
+		listener:           ln,
+		server:             srv,
+		port:               port,
+		target:             rawTarget,
+		insecureSkipVerify: cmd.InsecureSkipVerify,
+		pinnedCertHash:     cmd.PinnedCertHash,
+		caCert:             cmd.CaCert,
 	}
 
 	log.Printf("[tsnetd] Route added for account %s -> 127.0.0.1:%d -> %s", cmd.AccountId, port, cmd.Target)

@@ -462,6 +462,20 @@ Public Class SettingsWindow
         End If
     End Sub
 
+    Private Async Sub ChkAccountInsecureTls_Click(sender As Object, e As RoutedEventArgs)
+        Dim chk = TryCast(sender, CheckBox)
+        If chk Is Nothing Then Return
+        Dim accountId = TryCast(chk.Tag, String)
+        Dim acc = _accountManager.Accounts.FirstOrDefault(Function(a) a.Id = accountId)
+        If acc IsNot Nothing Then
+            acc.AllowInsecureTls = chk.IsChecked.GetValueOrDefault()
+            Await _accountManager.SaveAccountsAsync()
+            If acc.TailscaleIntegration AndAlso acc.PlatformDefinition.RequiresLocalProxy Then
+                Await acc.EnsureLocalProxyAsync(forceUpdate:=True)
+            End If
+        End If
+    End Sub
+
     Private Async Sub BtnTestConnection_Click(sender As Object, e As RoutedEventArgs)
         Dim btn = TryCast(sender, Button)
         If btn Is Nothing Then Return
@@ -471,10 +485,14 @@ Public Class SettingsWindow
 
         Dim loc = _settingsController.Localizations
         acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_testing"), "Verifica in corso...")
+        acc.ConnectionStatusTooltip = ""
         acc.ConnectionStatusBrush = BrushCache.GetBrush("#FFD54F")
         btn.IsEnabled = False
 
         Dim isOnline = False
+        Dim isTlsError = False
+        Dim tlsErrorDetail As String = ""
+
         Try
             Dim targetUrl = acc.ServerUrl
             Dim localToken = ""
@@ -492,7 +510,18 @@ Public Class SettingsWindow
             End If
 
             Using handler As New System.Net.Http.SocketsHttpHandler()
-                handler.SslOptions.RemoteCertificateValidationCallback = Function(message, cert, chain, sslPolicyErrors) True
+                ' Standard TLS certificate validation with optional certificate pinning, custom CA, or explicit bypass (TASK-0082)
+                Dim callbackFailureReason As String = Nothing
+                handler.SslOptions.RemoteCertificateValidationCallback = Function(message, cert, chain, sslPolicyErrors)
+                    Return TlsCertificatePolicy.ValidateCertificate(
+                        cert, chain, sslPolicyErrors,
+                        acc.AllowInsecureTls,
+                        acc.PinnedCertificateHash,
+                        acc.CustomCaCertificatePath,
+                        callbackFailureReason
+                    )
+                End Function
+
                 Using client As New System.Net.Http.HttpClient(handler)
                     client.Timeout = TimeSpan.FromSeconds(4.0)
                     If Not String.IsNullOrEmpty(localToken) Then
@@ -502,21 +531,35 @@ Public Class SettingsWindow
                         client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {acc.AuthToken}")
                     End If
                     Using response = Await client.GetAsync(targetUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead)
-                        isOnline = True
+                        If TlsCertificatePolicy.IsTlsProxyResponse(response.Headers, response.StatusCode, tlsErrorDetail) Then
+                            isTlsError = True
+                            isOnline = False
+                        Else
+                            isOnline = True
+                        End If
                     End Using
                 End Using
             End Using
         Catch ex As Exception
             isOnline = False
+            If TlsCertificatePolicy.IsTlsFailure(ex, tlsErrorDetail) Then
+                isTlsError = True
+            End If
         Finally
             btn.IsEnabled = True
         End Try
 
         If isOnline Then
             acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_success"), "✓ Online")
+            acc.ConnectionStatusTooltip = ""
             acc.ConnectionStatusBrush = BrushCache.GetBrush("#25d366")
+        ElseIf isTlsError Then
+            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_tls_error"), "✗ Errore certificato SSL/TLS")
+            acc.ConnectionStatusTooltip = If(Not String.IsNullOrWhiteSpace(tlsErrorDetail), tlsErrorDetail, "La verifica del certificato SSL/TLS è fallita.")
+            acc.ConnectionStatusBrush = BrushCache.GetBrush("#EF5350")
         Else
             acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_failed"), "✗ Non raggiungibile")
+            acc.ConnectionStatusTooltip = ""
             acc.ConnectionStatusBrush = BrushCache.GetBrush("#EF5350")
         End If
         UpdateTsnetUI()

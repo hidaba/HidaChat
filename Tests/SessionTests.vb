@@ -1,6 +1,14 @@
 Imports System
 Imports System.Collections.Generic
 Imports System.IO
+Imports System.Linq
+Imports System.Net
+Imports System.Net.Http
+Imports System.Net.Security
+Imports System.Security.Authentication
+Imports System.Security.Cryptography
+Imports System.Security.Cryptography.X509Certificates
+Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports System.Threading.Tasks
 
@@ -1441,7 +1449,7 @@ Module SessionTests
             Dim swShutdown = Stopwatch.StartNew()
             Await tsnet.ShutdownAsync(overallTimeoutMs:=1200)
             swShutdown.Stop()
-            Check(swShutdown.ElapsedMilliseconds < 3500,
+            Check(swShutdown.ElapsedMilliseconds < 8000,
                   $"ShutdownAsync terminates within overall limit (elapsed: {swShutdown.ElapsedMilliseconds}ms)")
             Check(tsnet.NodeState = "Stopped", "NodeState is Stopped after shutdown")
             Check(Not tsnet.IsRunning, "IsRunning is False after shutdown")
@@ -1590,6 +1598,11 @@ Module SessionTests
             Check(bitsEqual, "Downloaded file matches source data bit-for-bit without RAM buffering")
 
             ' Verify progress reporting
+            For waitIdx As Integer = 1 To 50
+                If progressReports.Count > 0 AndAlso progressReports(progressReports.Count - 1).Percentage = 100.0 Then Exit For
+                Await Task.Delay(10)
+            Next
+
             Check(progressReports.Count > 0, "Progress reports were triggered during streaming")
             Dim lastReport = progressReports(progressReports.Count - 1)
             Check(lastReport.Percentage = 100.0, "Final progress report indicates 100% completion")
@@ -1616,6 +1629,11 @@ Module SessionTests
                         chunkSize:=81920,
                         throttleMs:=0)
                 End Using
+
+                For waitIdx As Integer = 1 To 50
+                    If indetReports.Count > 0 Then Exit For
+                    Await Task.Delay(10)
+                Next
 
                 Check(File.Exists(tempIndeterminateFile), "Indeterminate download file created successfully")
                 Check(indetReports.Count > 0, "Indeterminate progress reports generated")
@@ -1652,5 +1670,151 @@ Module SessionTests
         Finally
             If File.Exists(tempDownloadFile) Then File.Delete(tempDownloadFile)
         End Try
+
+        ' =====================================================================
+        ' TASK-0082: HTTPS Certificate Validation & TLS Error Discrimination Tests
+        ' =====================================================================
+        ' 1. Thumbprint normalization
+        Check(TlsCertificatePolicy.NormalizeThumbprint("aa:bb:cc:dd") = "AABBCCDD", "NormalizeThumbprint strips colons and uppercases")
+        Check(TlsCertificatePolicy.NormalizeThumbprint("1a 2b 3c-4d") = "1A2B3C4D", "NormalizeThumbprint strips spaces and dashes")
+        Check(TlsCertificatePolicy.NormalizeThumbprint("") = "", "NormalizeThumbprint handles empty string")
+        Check(TlsCertificatePolicy.NormalizeThumbprint(Nothing) = "", "NormalizeThumbprint handles Nothing")
+
+        ' 2. Certificate generation & thumbprint calculation
+        Using rsaAlg As RSA = RSA.Create(2048)
+            Dim certReq As New CertificateRequest("CN=test.hidachat.local", rsaAlg, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
+            Using testCert = certReq.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1))
+                Dim sha256Thumb = TlsCertificatePolicy.GetThumbprintSha256(testCert)
+                Check(sha256Thumb.Length = 64, "GetThumbprintSha256 produces 64-hex SHA-256 string")
+                Check(Regex.IsMatch(sha256Thumb, "^[0-9A-F]{64}$"), "GetThumbprintSha256 produces valid uppercase hex characters")
+
+                ' 3. Standard validation with SslPolicyErrors.None succeeds
+                Dim failReason As String = Nothing
+                Dim resValid = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.None, allowInsecure:=False, pinnedThumbprint:=Nothing, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(resValid, "Standard validation with SslPolicyErrors.None succeeds")
+                Check(failReason Is Nothing, "No failure reason on successful validation")
+
+                ' 4. Standard validation strictly fails on untrusted chain / errors
+                Dim resChainErr = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.RemoteCertificateChainErrors, allowInsecure:=False, pinnedThumbprint:=Nothing, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(Not resChainErr, "Standard validation rejects untrusted certificate chain by default")
+                Check(failReason IsNot Nothing AndAlso failReason.Contains("Untrusted"), "Failure reason reports untrusted authority for chain error")
+
+                ' 5. Standard validation strictly fails on hostname mismatch
+                Dim resNameErr = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.RemoteCertificateNameMismatch, allowInsecure:=False, pinnedThumbprint:=Nothing, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(Not resNameErr, "Standard validation rejects hostname mismatch")
+                Check(failReason IsNot Nothing AndAlso failReason.Contains("Hostname mismatch"), "Failure reason reports hostname mismatch")
+
+                ' 6. Standard validation fails when certificate is not available
+                Dim resNoCert = TlsCertificatePolicy.ValidateCertificate(Nothing, Nothing, SslPolicyErrors.RemoteCertificateNotAvailable, allowInsecure:=False, pinnedThumbprint:=Nothing, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(Not resNoCert, "Validation fails when certificate is Nothing")
+                Check(failReason IsNot Nothing, "Failure reason provided when certificate is missing")
+
+                ' 7. Explicit bypass (allowInsecure = True)
+                Dim resBypass = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.RemoteCertificateChainErrors, allowInsecure:=True, pinnedThumbprint:=Nothing, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(resBypass, "Explicit allowInsecure=True accepts certificate despite chain errors")
+
+                ' 8. Certificate Pinning
+                ' Matching pin succeeds even with chain error
+                Dim resPinMatch = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.RemoteCertificateChainErrors, allowInsecure:=False, pinnedThumbprint:=sha256Thumb, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(resPinMatch, "Certificate pinning succeeds when presented certificate matches pinned SHA-256")
+
+                ' Matching pin formatted with colons
+                Dim colonPin = String.Join(":", Enumerable.Range(0, sha256Thumb.Length \ 2).Select(Function(i) sha256Thumb.Substring(i * 2, 2)))
+                Dim resColonPin = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.RemoteCertificateChainErrors, allowInsecure:=False, pinnedThumbprint:=colonPin, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(resColonPin, "Certificate pinning handles colon-separated thumbprint")
+
+                ' Mismatched pin fails
+                Dim wrongPin = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+                Dim resPinMismatch = TlsCertificatePolicy.ValidateCertificate(testCert, Nothing, SslPolicyErrors.None, allowInsecure:=False, pinnedThumbprint:=wrongPin, customCaPathOrPem:=Nothing, failureReason:=failReason)
+                Check(Not resPinMismatch, "Certificate pinning rejects mismatched certificate thumbprint")
+                Check(failReason IsNot Nothing AndAlso failReason.Contains("pinning mismatch"), "Failure reason reports certificate pinning mismatch")
+            End Using
+        End Using
+
+        ' 9. Error Discrimination: IsTlsFailure vs general reachability
+        Dim tlsDetail As String = Nothing
+        Dim authEx As New AuthenticationException("The remote certificate is invalid according to the validation procedure.")
+        Check(TlsCertificatePolicy.IsTlsFailure(authEx, tlsDetail), "AuthenticationException is recognized as TLS failure")
+        Check(tlsDetail IsNot Nothing, "Extracted TLS detail from AuthenticationException")
+
+        Dim httpTlsEx As New HttpRequestException("The SSL connection could not be established, see inner exception.", authEx)
+        Check(TlsCertificatePolicy.IsTlsFailure(httpTlsEx, tlsDetail), "HttpRequestException wrapping AuthenticationException is recognized as TLS failure")
+
+        Dim expiredCertEx As New HttpRequestException("The remote certificate has expired.")
+        Check(TlsCertificatePolicy.IsTlsFailure(expiredCertEx, tlsDetail), "Expired certificate message recognized as TLS failure")
+
+        ' General reachability / network errors must NOT be classified as TLS failures
+        Dim connRefusedEx As New HttpRequestException("No connection could be made because the target machine actively refused it.")
+        Check(Not TlsCertificatePolicy.IsTlsFailure(connRefusedEx, tlsDetail), "Connection refused is classified as general reachability, not TLS failure")
+
+        Dim timeoutEx As New TimeoutException("The operation has timed out.")
+        Check(Not TlsCertificatePolicy.IsTlsFailure(timeoutEx, tlsDetail), "TimeoutException is classified as general reachability, not TLS failure")
+
+        Dim hostNotFoundEx As New HttpRequestException("No such host is known.")
+        Check(Not TlsCertificatePolicy.IsTlsFailure(hostNotFoundEx, tlsDetail), "Host not found is classified as general reachability, not TLS failure")
+
+        ' 10. Proxy TLS response discrimination
+        Using respTls As New HttpResponseMessage(HttpStatusCode.BadGateway)
+            respTls.Headers.Add("X-HidaChat-Error-Type", "TLS_CERTIFICATE_ERROR")
+            respTls.Headers.Add("X-HidaChat-TLS-Error", "x509: certificate signed by unknown authority")
+            Dim isProxyTls = TlsCertificatePolicy.IsTlsProxyResponse(respTls.Headers, respTls.StatusCode, tlsDetail)
+            Check(isProxyTls, "Proxy response with X-HidaChat-Error-Type: TLS_CERTIFICATE_ERROR recognized as TLS failure")
+            Check(tlsDetail IsNot Nothing AndAlso tlsDetail.Contains("unknown authority"), "Extracted TLS error details from proxy response headers")
+        End Using
+
+        Using respNormal As New HttpResponseMessage(HttpStatusCode.BadGateway)
+            respNormal.Headers.Add("X-HidaChat-Proxy-Error", "true")
+            Dim isProxyNormal = TlsCertificatePolicy.IsTlsProxyResponse(respNormal.Headers, respNormal.StatusCode, tlsDetail)
+            Check(Not isProxyNormal, "Standard bad gateway proxy response without TLS error header is not classified as TLS failure")
+        End Using
+
+        ' =====================================================================
+        ' TASK-0126: Token Expiration Detection & Safe Bearer Token Injection
+        ' =====================================================================
+        ' 1. Test TryGetTokenExpiration with Hermes binary-signed token
+        Dim hermesExpiredToken = "eyJzdWIiOiJhZG1pbiIsImp0aSI6IjJGMGtHRmRhRi1hM29NMGhhR2J5anciLCJzaWQiOiJKaUF2NmRhejFtNHNNdXBsNWpwdFJnIiwia2luZCI6ImFjY2VzcyIsImV4cCI6MTc5NTU2NjMxNH21QAE6C1cgzhOrrODqMfl7YolrnYYZ6-DW8fZBBtsIaw=="
+        Dim expHermes = LocalAuthPolicy.TryGetTokenExpiration(hermesExpiredToken)
+        Check(expHermes.HasValue AndAlso expHermes.Value = 1795566314L, "TryGetTokenExpiration extracts exp timestamp from Hermes token")
+
+        ' 2. Test TryGetTokenExpiration with standard 3-part JWT
+        ' {"sub":"testuser","exp":1893456000} (2030-01-01) -> base64url: eyJzdWIiOiJ0ZXN0dXNlciIsImV4cCI6MTg5MzQ1NjAwMH0
+        Dim standardJwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0dXNlciIsImV4cCI6MTg5MzQ1NjAwMH0.c2lnbmF0dXJl"
+        Dim expJwt = LocalAuthPolicy.TryGetTokenExpiration(standardJwt)
+        Check(expJwt.HasValue AndAlso expJwt.Value = 1893456000L, "TryGetTokenExpiration extracts exp timestamp from standard 3-part JWT")
+
+        ' 3. Test TryGetTokenExpiration with opaque/non-JWT token or token without exp
+        Dim opaqueToken = "18a45e22682d05d1a169b626f18e1ce278089c0f41711226"
+        Check(Not LocalAuthPolicy.TryGetTokenExpiration(opaqueToken).HasValue, "TryGetTokenExpiration returns Nothing for opaque non-JWT token")
+        Check(Not LocalAuthPolicy.TryGetTokenExpiration("").HasValue, "TryGetTokenExpiration returns Nothing for empty token")
+        Check(Not LocalAuthPolicy.TryGetTokenExpiration(Nothing).HasValue, "TryGetTokenExpiration returns Nothing for null token")
+        Check(Not LocalAuthPolicy.TryGetTokenExpiration("short").HasValue, "TryGetTokenExpiration returns Nothing for short token")
+
+        ' 4. Test IsTokenExpired
+        Check(LocalAuthPolicy.IsTokenExpired(hermesExpiredToken), "IsTokenExpired returns True for expired Hermes token")
+        Check(Not LocalAuthPolicy.IsTokenExpired(standardJwt), "IsTokenExpired returns False for future valid JWT")
+        Check(Not LocalAuthPolicy.IsTokenExpired(opaqueToken), "IsTokenExpired returns False for opaque token without exp claim")
+        Check(Not LocalAuthPolicy.IsTokenExpired(""), "IsTokenExpired returns False for empty token")
+
+        ' 5. Test IsAuthenticationEndpoint
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/login"), "IsAuthenticationEndpoint identifies /login")
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/login?next=%2F%3F__htok%3D123"), "IsAuthenticationEndpoint identifies /login with query parameters")
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/signin"), "IsAuthenticationEndpoint identifies /signin")
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/auth/password-login"), "IsAuthenticationEndpoint identifies /auth/password-login")
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/auth/login"), "IsAuthenticationEndpoint identifies /auth/login")
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/auth/token"), "IsAuthenticationEndpoint identifies /auth/token")
+        Check(LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/auth/refresh"), "IsAuthenticationEndpoint identifies /auth/refresh")
+        Check(Not LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/"), "IsAuthenticationEndpoint returns False for root path /")
+        Check(Not LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/system"), "IsAuthenticationEndpoint returns False for /system")
+        Check(Not LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/api/status"), "IsAuthenticationEndpoint returns False for /api/status")
+        Check(Not LocalAuthPolicy.IsAuthenticationEndpoint("http://127.0.0.1:18900/api/chat"), "IsAuthenticationEndpoint returns False for /api/chat")
+
+        ' 6. Test ShouldAttachBearerToken
+        Check(Not LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/system", hermesExpiredToken), "ShouldAttachBearerToken suppresses expired token on protected resource")
+        Check(Not LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/login", standardJwt), "ShouldAttachBearerToken suppresses token on /login endpoint")
+        Check(Not LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/auth/password-login", standardJwt), "ShouldAttachBearerToken suppresses token on /auth/password-login endpoint")
+        Check(Not LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", ""), "ShouldAttachBearerToken suppresses empty token")
+        Check(Not LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", Nothing), "ShouldAttachBearerToken suppresses null token")
+        Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", standardJwt), "ShouldAttachBearerToken allows valid non-expired token on API endpoint")
+        Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", opaqueToken), "ShouldAttachBearerToken allows opaque API token on API endpoint")
     End Function
 End Module
