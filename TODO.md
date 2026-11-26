@@ -41,8 +41,6 @@
   - **Acceptance Test**: Verify attempts to rename an account with empty or duplicate name are ignored, and removing an account with null `_currentAccount` does not throw exceptions.
   - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
 
-
-
 ## Bulk Messaging & Translation
 
 - [ ] **TASK-0084** [Medium] CSV parser breaks multiline messages and may pick the wrong separator
@@ -58,8 +56,6 @@
   - **Fix to Implement**: Prefer structured responses with item identifiers. While using textual separators, check for collisions and part counts; fall back to individual translations upon mismatch without caching ambiguous results.
   - **Acceptance Test**: Messages containing `###`, altered separators, and HTTP errors must not corrupt the cache.
   - **Priority**: P2 (subsequent phase) | **Impact**: Medium | **Effort**: Low-Medium
-
-
 
 ## OTA Updates & Lifecycle
 
@@ -109,17 +105,6 @@
   - **Acceptance Test**: Switch application language to English or French; verify all `UpdateChecker.vb` popups appear in selected language.
   - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
 
-- [ ] **TASK-0118** [High] Target-specific process termination by PID and orderly shutdown of tsnetd.exe child process during update
-  - **Files**: `UpdateChecker.vb`, `TsnetManager.vb`, `MainWindow.xaml.vb`
-  - **Problem / Need**:
-    1. Using image-name process termination (`taskkill /f /im HidaChat.exe /t`) terminates all running instances of HidaChat on the system. In portable usage (e.g. a second instance running from a USB drive or different folder), unrelated instances are terminated after 10 seconds.
-    2. The update script does not wait for `tsnetd.exe` (Tailscale daemon child process): if `tsnetd.exe` remains active, robocopy fails when trying to overwrite its executable binary in the installation folder.
-  - **Fix to Implement**:
-    - Pass the calling process PID (`Environment.ProcessId`) to the updater and wait specifically for that PID and its descendants to exit (`tasklist /fi "PID eq {pid}"` or `Process.GetProcessById`).
-    - In `ForceExitForUpdateAsync`, explicitly await clean shutdown and termination of `tsnetd.exe` (`TsnetManager.ShutdownAsync()`), verifying its process has fully exited before handing off to file copy.
-  - **Acceptance Test**: Run two independent portable copies of HidaChat simultaneously. Trigger update on one copy: verify only the updating instance exits and the second instance continues running undisturbed. Verify `tsnetd.exe` is shut down before robocopy replaces files.
-  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Low-Medium
-
 - [ ] **TASK-0119** [High] Installation directory backup, automatic rollback, and application relaunch on update copy failure
   - **Files**: `UpdateChecker.vb`, `Application.xaml.vb`
   - **Problem / Need**:
@@ -164,8 +149,6 @@
     - If starting updater fails, display an explanatory error dialog to the user, log the failure to `updates.log`, and cleanly terminate or offer application restart.
   - **Acceptance Test**: Simulate `Process.Start` failure (e.g. invalid executable path): verify a modal error dialog appears informing the user rather than leaving the app hung in a silent zombie state.
   - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
-
-
 
 ## UI, UX & Visual Polish
 
@@ -266,8 +249,6 @@
       - Expand window dimensions (e.g. Width ~680–720px, Height ~540–580px) to provide comfortable breathing room without nested scroll conflicts.
   - **Acceptance Test**: Open Settings in both Dark and Light themes; verify all setting categories are easily navigable via tabs/sidebar, all existing controls persist and function correctly (account CRUD, CSS editing, translation testing, cache optimization, updates check), no hardcoded strings remain, and language switching dynamically updates all setting tabs and labels across all 5 languages.
   - **Priority**: P2 (Medium severity) | **Impact**: High | **Effort**: Medium
-
-
 
 ## Platform Integrations
 

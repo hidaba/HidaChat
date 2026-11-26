@@ -41,8 +41,6 @@
   - **Test di accettazione**: Verificare che tentativi di rinominare un account con nome vuoto o duplicato vengano ignorati e che la rimozione di un account con `_currentAccount` nullo non sollevi eccezioni.
   - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
 
-
-
 ## Invio Massivo e Traduzioni
 
 - [ ] **TASK-0084** [Media] Il parser CSV rompe i messaggi multilinea e può scegliere il separatore sbagliato
@@ -58,8 +56,6 @@
   - **Fix da implementare**: Preferire risposte strutturate con un identificatore per elemento. Finché si usa un separatore testuale, controllare collisioni e numero delle parti; in caso di incongruenza ripiegare sulle traduzioni individuali, senza memorizzare risultati ambigui.
   - **Test di accettazione**: Un messaggio contenente `###`, un separatore alterato e un errore HTTP non devono contaminare la cache.
   - **Priorità**: P2 (intervento successivo) | **Impatto**: Medio | **Sforzo**: Basso-Medio
-
-
 
 ## Aggiornamenti OTA e Ciclo di Vita
 
@@ -109,17 +105,6 @@
   - **Test di accettazione**: Cambiare la lingua dell'applicazione in inglese o francese; verificare che tutti i popup di `UpdateChecker.vb` appaiano tradotti nella lingua scelta.
   - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
 
-- [ ] **TASK-0118** [Alta] Terminazione mirata dei processi per PID e attesa chiusura del processo figlio tsnetd.exe durante l'aggiornamento
-  - **File**: `UpdateChecker.vb`, `TsnetManager.vb`, `MainWindow.xaml.vb`
-  - **Problema / Esigenza**:
-    1. L'uso del comando di chiusura per nome immagine (`taskkill /f /im HidaChat.exe /t`) termina indistintamente tutte le istanze di HidaChat in esecuzione sul sistema. Trattandosi di un'applicazione portabile, un'altra copia in esecuzione da una cartella o unità differente (es. pendrive USB) viene terminata dopo 10 secondi.
-    2. Lo script di aggiornamento non attende la chiusura di `tsnetd.exe` (processo demone Tailscale): se `tsnetd.exe` è ancora attivo, la copia robocopy fallisce nel momento in cui tenta di sovrascrivere il suo binario eseguibile.
-  - **Fix da implementare**:
-    - Passare il PID del processo chiamante (`Environment.ProcessId`) all'updater e attendere specificamente l'uscita di quel PID e dei suoi processi figli (`tasklist /fi "PID eq {pid}"` o `Process.GetProcessById`).
-    - In `ForceExitForUpdateAsync`, attendere esplicitamente l'arresto ordinato e la chiusura di `tsnetd.exe` (`TsnetManager.ShutdownAsync()`), verificando che il processo sia terminato prima del passaggio di consegne alla copia dei file.
-  - **Test di accettazione**: Avviare due istanze portabili indipendenti di HidaChat da cartelle diverse. Avviare l'aggiornamento su una sola copia: verificare che solo l'istanza chiamante venga terminata mentre la seconda istanza prosegue normalmente. Verificare che `tsnetd.exe` sia completamente terminato prima che robocopy inizi la sovrascrittura.
-  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Basso-Medio
-
 - [ ] **TASK-0119** [Alta] Backup della cartella di installazione, rollback automatico e rilancio dell'applicazione in caso di fallimento della copia
   - **File**: `UpdateChecker.vb`, `Application.xaml.vb`
   - **Problema / Esigenza**:
@@ -163,8 +148,6 @@
     - In caso di fallimento dell'avvio, mostrare una MessageBox esplicita all'utente con l'errore riscontrato, registrare l'errore nel file di log e consentire il rilancio dell'interfaccia o la chiusura controllata.
   - **Test di accettazione**: Simulare il fallimento di `Process.Start` (es. percorso updater non valido): verificare che venga mostrata una finestra modale di errore all'utente anziché lasciare l'applicazione bloccata silenziosamente in background.
   - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
-
-
 
 ## UI, UX e Rifiniture Visive
 
@@ -265,8 +248,6 @@
       - Ampliare le dimensioni della finestra (es. larghezza ~680–720px, altezza ~540–580px) per offrire una visualizzazione confortevole senza conflitti di scrolling.
   - **Test di accettazione**: Aprire le Impostazioni sia in tema Scuro che in tema Chiaro; verificare che tutte le categorie siano accessibili tramite navigazione intuitiva, che ogni impostazione mantenga lo stato e funzioni correttamente (modifiche account, CSS, test traduzione, pulizia cache, verifica aggiornamenti), che non vi siano stringhe fisse non localizzate e che il cambio lingua aggiorni dinamicamente tutte le etichette e sezioni nelle 5 lingue previste.
   - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
-
-
 
 ## Integrazione Piattaforme
 

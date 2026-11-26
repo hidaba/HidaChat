@@ -3,7 +3,40 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-26
+
+- [x] **TASK-0118** [Alta] Terminazione mirata dei processi per PID e attesa chiusura del processo figlio tsnetd.exe durante l'aggiornamento
+  - Risultato:
+    - Aggiunte le proprietà `IsProcessRunning`, `ProcessId` e il metodo `WaitForProcessExitAsync` in `TsnetManager.vb` per monitorare e garantire l'avvenuta chiusura del processo demone figlio.
+    - Aggiornato `ForceExitForUpdateAsync` in `MainWindow.xaml.vb` per attendere esplicitamente l'arresto ordinato e la chiusura di `tsnetd.exe` (`TsnetManager.Instance.ShutdownAsync(overallTimeoutMs:=3000)` e `WaitForProcessExitAsync(timeoutMs:=2000)`) prima di rilasciare il mutex di istanza singola e cedere il controllo all'updater.
+    - Aggiunta la verifica di uscita in `UpdateChecker.vb` prima del lancio dell'aggiornamento.
+    - Perfezionato `Application.xaml.vb` (`HandleApplyUpdateStartup`): attende specificamente l'uscita del PID chiamante (`Process.GetProcessById(callerPid)`). Se il chiamante non termina entro il timeout, termina esclusivamente quel determinato PID e il relativo albero dei processi figli (`caller.Kill(entireProcessTree:=True)`), evitando l'uso di comandi generici per nome immagine (`taskkill /f /im HidaChat.exe /t`).
+    - Aggiunto il controllo in `Application.xaml.vb` per accertare che qualsiasi istanza residua di `tsnetd.exe` associata alla cartella di installazione sia terminata prima della copia dei file.
+    - Irrobustito lo script batch di fallback in `UpdateScriptPolicy.vb` (`GenerateUpdateBatchScript`): esegue la chiusura mirata per PID (`taskkill /f /pid %CALLER_PID% /t`), preservando intatte le eventuali altre copie portabili in esecuzione da percorsi differenti.
+  - Verifica: Aggiunte 13 asserzioni di regressione in `Tests/SessionTests.vb` a verifica della sintassi di terminazione per PID nello script batch, assenza di terminazioni per nome immagine, comportamento di `IsProcessRunning`, `ProcessId` e `WaitForProcessExitAsync` (per un totale di **919 asserzioni di regressione con 0 errori**). Compilazione del progetto eseguita con successo con 0 avvisi e 0 errori.
+
 ## 2026-11-25
+
+- [x] **TASK-0127** [Alta] Protezione sincronizzazione profili multi-PC contro l'esportazione di staging obsoleti e corruzione sessioni
+  - Risultato:
+    - Diagnosticata la causa della perdita di sessione: un'istanza su `PC-STUDIO` (utente `hidab`) con importazione fallita per file contesi ha mantenuto uno staging locale vuoto e, all'uscita alle 17:28, ha esportato tale profilo non autenticato sul Master di rete (`Y:\`), portando `PC-MIMMO` ad importarlo e a richiedere il codice QR su WhatsApp e il login su Hermes.
+    - Ripristinati i profili autenticati integri per tutti gli account (`1784925628238` WhatsApp, `b63821a1add040ad9ea8f9fd96ba88bb` Hermes, `1788428413731` OpenClaw, `f7b6555d88a84b56bce69f0ba1610c33` Discord) dagli snapshot `.previous` preservati su `PC-MIMMO` e ripubblicati autorevolmente sul Master di rete `Y:\`.
+    - Implementati `MarkStagingStale`, `ClearStagingStale` e `IsStagingStale` in `NetworkProfileSync.vb` con tracciamento in memoria e file marker persistente `.sync_stale` su disco.
+    - Aggiornato `SyncMasterToLocalStagingAsync`: contrassegna lo staging locale come obsoleto/stale quando il refresh dal master fallisce o viene saltato per lock, impedendo all'istanza di esportare dati non sincronizzati.
+    - Irrobustito `SyncLocalStagingToMasterAsync` con due guardie di esportazione:
+      1. Rifiuta l'esportazione (`[EXPORT_REFUSED_STALE_STAGING]`) se lo staging locale è contrassegnato come stale o non allineato al master.
+      2. Rifiuta l'esportazione (`[EXPORT_REFUSED_MASTER_NEWER]`) se il Master di rete è stato aggiornato da un'altra macchina/utente con un timestamp più recente rispetto alla baseline locale.
+  - Verifica: Aggiunte 7 asserzioni di regressione in `Tests/SessionTests.vb` a verifica del tracciamento di staging stale, persistenza del marker file, rilevamento cross-process e pulizia (totale di **906 asserzioni di regressione con 0 errori**). Verificato il riavvio live di `HidaChat` su `Y:\` con navigazione corretta di WhatsApp, Hermes, Telegram, OpenClaw e Discord direttamente alle pagine autenticate senza richieste di login.
+
+- [x] **TASK-0126** [Alta] Risoluzione del loop infinito di login su Hermes Agent causato dall'iniezione di Bearer token scaduto
+  - Risultato:
+    - Implementato `TryGetTokenExpiration` in `LocalAuthPolicy.vb` per l'estrazione sicura del timestamp Unix `exp` sia da JWT standard a 3 parti che da token binari con firma base64url (formato token Hermes).
+    - Implementato `IsTokenExpired` in `LocalAuthPolicy.vb` per il confronto tra il timestamp `exp` del token e l'orario UTC corrente.
+    - Implementati `IsAuthenticationEndpoint` e `ShouldAttachBearerToken` in `LocalAuthPolicy.vb` per bloccare l'iniezione preventiva dell'header `Authorization: Bearer` quando un token è scaduto o quando le richieste sono dirette verso endpoint di autenticazione (`/login`, `/signin`, `/auth/password-login`, `/auth/login`, `/auth/token`, `/auth/refresh`).
+    - Aggiornato `AppAccounts.vb` per disabilitare `_activeRequiresAuthToken` in `UpdateWebResourceAuthFilter` in presenza di un `AuthToken` scaduto e protetta l'iniezione in `_webResourceRequestedHandler` tramite `LocalAuthPolicy.ShouldAttachBearerToken`.
+    - Aggiunto il meccanismo di auto-ripristino in `AccountManager.LoadAccountsAsync` per rilevare e azzerare in sicurezza i token di autenticazione scaduti all'avvio, prevenendo reindirizzamenti continui al login.
+    - Ripulito il token di sessione scaduto sull'account Hermes locale ("Ermanno") in `Y:\HidaChat\data\settings.json`, distribuiti i binari Release aggiornati su `Y:\HidaChat\` e verificato il riavvio corretto dell'applicazione.
+  - Verifica: Aggiunte 28 asserzioni unitarie di regressione in `Tests/SessionTests.vb` a verifica dell'estrazione di scadenza, discriminazione token validi/scaduti, rilevamento endpoint di login e iniezione selettiva degli header (totale di **899 asserzioni automatiche con 0 errori**). Compilazione completa del progetto eseguita con 0 avvisi e 0 errori.
 
 - [x] **TASK-0082** [Media] La verifica dei certificati HTTPS viene disattivata
   - Risultato:

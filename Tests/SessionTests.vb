@@ -365,6 +365,24 @@ Module SessionTests
                 writeMethod.Invoke(Nothing, New Object() {testStaging, "test_acc"})
                 Check((File.GetAttributes(stateFile) And (FileAttributes.Hidden Or FileAttributes.ReadOnly)) = 0, "WriteSyncState strips Hidden/ReadOnly attributes and succeeds")
             End If
+
+            ' Test TASK-0127: NetworkProfileSync stale staging detection & export protection
+            Dim staleAcc = "unit_stale_test"
+            Dim staleDir = Path.Combine(testRoot, "stale_staging")
+            Directory.CreateDirectory(staleDir)
+            Check(Not NetworkProfileSync.IsStagingStale(staleDir, staleAcc), "New staging directory is not marked stale")
+            NetworkProfileSync.MarkStagingStale(staleDir, staleAcc)
+            Check(NetworkProfileSync.IsStagingStale(staleDir, staleAcc), "MarkStagingStale sets stale status in memory and on disk")
+            Check(File.Exists(Path.Combine(staleDir, ".sync_stale")), "MarkStagingStale creates .sync_stale marker file")
+            NetworkProfileSync.ClearStagingStale(staleDir, staleAcc)
+            Check(Not NetworkProfileSync.IsStagingStale(staleDir, staleAcc), "ClearStagingStale clears stale status in memory")
+            Check(Not File.Exists(Path.Combine(staleDir, ".sync_stale")), "ClearStagingStale deletes .sync_stale marker file")
+
+            ' Test file-only stale detection (e.g. across process restarts)
+            File.WriteAllText(Path.Combine(staleDir, ".sync_stale"), "stale")
+            Check(NetworkProfileSync.IsStagingStale(staleDir, "different_acc_id"), "IsStagingStale detects marker file on disk independently of memory")
+            NetworkProfileSync.ClearStagingStale(staleDir, "different_acc_id")
+            Check(Not NetworkProfileSync.IsStagingStale(staleDir, "different_acc_id"), "ClearStagingStale cleans marker file on disk")
             Await TestTranslationProvidersAsync()
             TestBetaChannelResetMigration()
             TestBrowserArgumentsPolicy()
@@ -688,6 +706,12 @@ Module SessionTests
         Check(batchScript.Contains("echo v%VER%>""%DST%\.app_version"""), "Batch script writes .app_version only after robocopy check (TASK-0092)")
         Check(batchScript.Contains("start """" ""%DST%\%EXE%"""), "Batch script relaunches application from normalized destination (TASK-0092)")
         Check(batchScript.Contains("del ""%~f0"""), "Batch script includes self-deletion (TASK-0092)")
+
+        ' Target-specific process termination by PID (TASK-0118)
+        Check(batchScript.Contains("taskkill /f /pid %CALLER_PID% /t"), "Batch script terminates specifically by target caller PID /t (TASK-0118)")
+        Check(Not batchScript.Contains("/im HidaChat.exe"), "Batch script does NOT terminate all instances by image name /im HidaChat.exe (TASK-0118)")
+        Check(Not batchScript.Contains("/im tsnetd.exe"), "Batch script does NOT terminate all tsnetd instances by image name (TASK-0118)")
+        Check(batchScript.Contains(":checktsnet"), "Batch script includes checktsnet label before copyfiles (TASK-0118)")
 
         ' Verify batch script writing with UTF-8 encoding without BOM
         Dim testBatPath = Path.Combine(Path.GetTempPath(), $"HidaChat_Test_Bat_{Guid.NewGuid():N}.bat")
@@ -1428,6 +1452,8 @@ Module SessionTests
             Dim started = Await tsnet.StartAsync()
             Check(started, "TsnetManager starts test mock daemon process")
             Check(tsnet.IsRunning OrElse tsnet.NodeState = "Starting", "TsnetManager node state is active/starting")
+            Check(tsnet.IsProcessRunning, "IsProcessRunning is True when daemon is active (TASK-0118)")
+            Check(tsnet.ProcessId > 0, "ProcessId is positive when daemon is active (TASK-0118)")
 
             ' Test 1: SendCommandAsync timeout
             Dim swCmd = Stopwatch.StartNew()
@@ -1453,6 +1479,10 @@ Module SessionTests
                   $"ShutdownAsync terminates within overall limit (elapsed: {swShutdown.ElapsedMilliseconds}ms)")
             Check(tsnet.NodeState = "Stopped", "NodeState is Stopped after shutdown")
             Check(Not tsnet.IsRunning, "IsRunning is False after shutdown")
+            Check(Not tsnet.IsProcessRunning, "IsProcessRunning is False after shutdown (TASK-0118)")
+            Check(tsnet.ProcessId = 0, "ProcessId is 0 after shutdown (TASK-0118)")
+            Dim waitExited = Await tsnet.WaitForProcessExitAsync(timeoutMs:=1000)
+            Check(waitExited, "WaitForProcessExitAsync returns True after shutdown (TASK-0118)")
 
             ' Test 4: ShutdownAsync when a command is actively hanging during shutdown call
             tsnet.CustomExecutablePath = powershellExe

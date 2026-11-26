@@ -797,6 +797,13 @@ Public Class UpdateChecker
                 Throw New IOException("Update cancelled: the main window is not available for orderly shutdown.")
             End If
 
+            ' Double-check tsnetd child process has completely exited before handing off to updater (TASK-0118)
+            Try
+                Await TsnetManager.Instance.WaitForProcessExitAsync(timeoutMs:=2000)
+            Catch ex As Exception
+                Log($"TsnetManager exit verification warning: {ex.Message}")
+            End Try
+
             ' Chiudi il dialog del processo chiamante prima del passaggio di consegne
             If dialog IsNot Nothing Then
                 Try

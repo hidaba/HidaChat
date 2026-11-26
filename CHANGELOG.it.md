@@ -3,9 +3,40 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.8-beta] - 2026-11-26
+
+### Pre-release / Beta — Terminazione mirata dei processi per PID e chiusura ordinata di tsnetd durante l'aggiornamento
+- **Terminazione mirata dei processi per PID (`Application.xaml.vb`, `UpdateScriptPolicy.vb` — TASK-0118)**:
+  - Eliminata la chiusura indiscriminata per nome immagine (`taskkill /f /im HidaChat.exe /t`) che provocava la terminazione indesiderata di istanze portabili concorrenti di HidaChat in esecuzione sullo stesso sistema.
+  - Implementato il monitoraggio e la chiusura specifica per PID in `Application.xaml.vb` (`HandleApplyUpdateStartup`) e in `UpdateScriptPolicy.vb` (`GenerateUpdateBatchScript`): l'updater attende unicamente il PID dell'istanza chiamante (`callerPid` / `%CALLER_PID%`), e in caso di timeout termina esclusivamente quello specifico albero di processi (`caller.Kill(entireProcessTree:=True)` / `taskkill /f /pid %CALLER_PID% /t`), garantendo la continuità operativa delle altre copie portabili.
+- **Arresto ordinato e verifica chiusura del processo figlio tsnetd (`TsnetManager.vb`, `MainWindow.xaml.vb`, `UpdateChecker.vb`, `Application.xaml.vb` — TASK-0118)**:
+  - Introdotte le proprietà `IsProcessRunning`, `ProcessId` e il metodo `WaitForProcessExitAsync` in `TsnetManager.vb` per il controllo esplicito del ciclo di vita e la terminazione del demone companion Tailscale userspace integrato.
+  - Perfezionato `MainWindow.xaml.vb` (`ForceExitForUpdateAsync`): attende esplicitamente l'arresto cooperativo e la chiusura verificata di `tsnetd.exe` prima di rilasciare il mutex di istanza singola dell'applicazione.
+  - Aggiunta la verifica di uscita in `UpdateChecker.vb` prima del passaggio di consegne al processo di aggiornamento.
+  - Inserito un controllo difensivo in `Application.xaml.vb` (`HandleApplyUpdateStartup`) per verificare che ogni processo residuo `tsnetd.exe` collegato alla cartella di installazione sia terminato prima della sovrascrittura dei file, prevenendo errori di blocco file in uso durante la copia robocopy o `File.Copy`.
+- **Estensione della suite di test di regressione (`Tests/SessionTests.vb` — TASK-0118)**:
+  - Aggiunte 13 asserzioni di regressione automatica che validano la generazione di comandi mirati per PID, l'assenza di terminazioni generiche per nome immagine (`/im HidaChat.exe` / `/im tsnetd.exe`), il rilevamento di processi attivi/terminati, la lettura del PID e il funzionamento di `WaitForProcessExitAsync` (per un totale di **919 asserzioni di regressione con 0 errori**).
+
 ## [1.5.7-beta] - 2026-11-25
 
-### Pre-release / Beta — Validazione Rigorosa Certificati HTTPS, Certificate Pinning e Discriminazione Errori TLS
+### Pre-release / Beta — Validazione Rigorosa Certificati HTTPS, Rilevamento Token Scaduti Hermes, Irrobustimento Sync Multi-PC e Preservazione Sessioni
+- **Sincronizzazione Profili Multi-PC e Protezione Esportazione Staging Obsoleto (`NetworkProfileSync.vb` — TASK-0127)**:
+  - Diagnosticata la causa della perdita di sessione tra macchine in cui un'istanza secondaria (`PC-STUDIO`, utente `hidab`), fallita l'importazione dal master per contesa file, ha mantenuto uno staging locale non autenticato ed esportato all'uscita tale profilo sul Master di rete (`Y:\`), causando la richiesta di QR code per WhatsApp e login per Hermes su `PC-MIMMO`.
+  - Ripristinati integralmente i profili di sessione attivi per WhatsApp, Hermes, OpenClaw e Discord dagli snapshot `.previous` preservati su `PC-MIMMO` e ripubblicati autorevolmente sul Master di rete `Y:\`.
+  - Implementati `MarkStagingStale`, `ClearStagingStale` e `IsStagingStale` in `NetworkProfileSync.vb` con tracciamento in memoria e marker file `.sync_stale` persistente su disco.
+  - Irrobustito `SyncMasterToLocalStagingAsync`: contrassegna lo staging locale come obsoleto/stale quando il refresh dal master fallisce o viene saltato per lock, impedendo all'istanza di esportare dati non sincronizzati.
+  - Introdotti due controlli bloccanti in `SyncLocalStagingToMasterAsync`:
+    1. Rifiuta l'esportazione (`[EXPORT_REFUSED_STALE_STAGING]`) se lo staging locale è marcato come stale o non allineato al master di rete.
+    2. Rifiuta l'esportazione (`[EXPORT_REFUSED_MASTER_NEWER]`) se il timestamp del Master di rete è più recente rispetto alla baseline locale, prevenendo sovrascritture concorrenti.
+- **Rilevamento Scadenza Token e Iniezione Protetta Header Bearer (`LocalAuthPolicy.vb`, `AppAccounts.vb` — TASK-0126)**:
+  - Implementato `TryGetTokenExpiration` in `LocalAuthPolicy.vb` per estrarre il timestamp di scadenza Unix epoch (`exp`) sia da JWT standard a 3 parti sia da token con firma binaria codificati in base64url (formato token di Hermes Agent).
+  - Implementati `IsTokenExpired` e `ShouldAttachBearerToken` in `LocalAuthPolicy.vb`: inibisce l'iniezione dell'header `Authorization: Bearer <AuthToken>` se il token è scaduto o se le richieste sono dirette verso endpoint di autenticazione e login (`/login`, `/signin`, `/auth/password-login`, `/auth/login`, `/auth/token`, `/auth/refresh`).
+  - Aggiornato `AppAccounts.vb` per registrare nei log `[AUTH_TOKEN_EXPIRED]` e disabilitare l'iniezione dell'header Bearer quando viene rilevato un token scaduto in `UpdateWebResourceAuthFilter`, prevenendo l'invalidazione continua con errore 401 Unauthorized e risolvendo il loop ciclico di reindirizzamento al login.
+- **Auto-Ripristino Token Scaduti al Caricamento Account (`AccountManager.vb` — TASK-0126)**:
+  - Introdotta la verifica di auto-ripristino in `AccountManager.LoadAccountsAsync`: analizza i valori `AuthToken` configurati all'avvio e azzera automaticamente i token scaduti con log `[AUTH_TOKEN_AUTO_HEAL]`, consentendo alla persistenza nativa della sessione basata sui cookie del browser di funzionare correttamente.
+- **Configurazione Account e Ripristino Istanza Live (`Y:\HidaChat\data\settings.json` — TASK-0126)**:
+  - Rimosso il token di sessione scaduto dall'account `account_b63821a1add040ad9ea8f9fd96ba88bb` ("Ermanno") in `settings.json` e `.bak`.
+  - Ricompilati e distribuiti i binari Release aggiornati su `Y:\HidaChat\`, verificando il riavvio corretto con instradamento proxy Tailscale attivo.
 - **Verifica Standard Certificati HTTPS, CA Personalizzate e Pinning (`tsnetd/main.go`, `TlsCertificatePolicy.vb`, `AppAccounts.vb` — TASK-0082)**:
   - Eliminato il bypass globale silenzioso e incondizionato `InsecureSkipVerify = true` nel reverse proxy companion tsnet, ripristinando la validazione standard dei certificati TLS e del nome host come comportamento predefinito.
   - Introdotto il supporto per certificati CA radice personalizzati (`cmd.CaCert` / `CustomCaCertificatePath`) e certificate pinning con impronta SHA-256 (`cmd.PinnedCertHash` / `PinnedCertificateHash`) per proteggere le comunicazioni da attacchi MITM.
@@ -16,8 +47,8 @@
   - Configurato il proxy companion tsnet per emettere l'header `X-HidaChat-Error-Type: TLS_CERTIFICATE_ERROR` e una pagina diagnostica esplicita non ciclica in caso di fallimento della verifica TLS verso l'upstream.
 - **Localizzazione Multilingua Sincrona (`Localization.vb` — TASK-0082)**:
   - Aggiornati e sincronizzati i dizionari localizzati (`connection_tls_error`, `tailscale_error_tls_failure`, `openclaw_insecure_tls`) in tutte le 5 lingue ufficiali (inglese, italiano, francese, spagnolo, tedesco).
-- **Espansione della Suite di Regressione Automatica (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0082)**:
-  - Aggiunte 29 asserzioni di regressione automatica che verificano normalizzazione impronte, generazione certificati in-memory, errori di catena standard, discrepanze hostname, corrispondenza/mismatch di certificate pinning e discriminazione errori TLS vs raggiungibilità (per un totale di **871 asserzioni di regressione con 0 errori**).
+- **Espansione della Suite di Regressione Automatica (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0082, TASK-0126, TASK-0127)**:
+  - Aggiunte 64 asserzioni di regressione automatica che verificano normalizzazione impronte, generazione certificati in-memory, errori di catena standard, discrepanze hostname, corrispondenza/mismatch di certificate pinning, discriminazione errori TLS vs raggiungibilità, parsing della scadenza dei token Hermes e JWT standard, immunità dei token opachi, riconoscimento degli endpoint di autenticazione, iniezione condizionale dell'header Bearer, tracciamento staging stale, persistenza marker file e isolamento cross-process (per un totale di **906 asserzioni di regressione con 0 errori**).
 
 ## [1.5.6-beta] - 2026-11-24
 

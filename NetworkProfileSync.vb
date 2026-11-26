@@ -16,6 +16,57 @@ Public Class NetworkProfileSync
     Private Shared ReadOnly _leaseGate As New Object()
     Private Shared ReadOnly _leases As New Dictionary(Of String, FileStream)(StringComparer.OrdinalIgnoreCase)
 
+    Private Shared ReadOnly _staleGate As New Object()
+    Private Shared ReadOnly _staleStagingAccounts As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+    ''' <summary>
+    ''' Marks local staging as stale when master refresh fails or is skipped due to locks (TASK-0127).
+    ''' </summary>
+    Public Shared Sub MarkStagingStale(stagingDir As String, accountId As String)
+        SyncLock _staleGate
+            _staleStagingAccounts.Add(accountId)
+        End SyncLock
+        Try
+            If Directory.Exists(stagingDir) Then
+                Dim marker = Path.Combine(stagingDir, ".sync_stale")
+                File.WriteAllText(marker, DateTime.UtcNow.ToString("o"), Encoding.UTF8)
+            End If
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Clears stale staging status after a successful import or synchronization (TASK-0127).
+    ''' </summary>
+    Public Shared Sub ClearStagingStale(stagingDir As String, accountId As String)
+        SyncLock _staleGate
+            _staleStagingAccounts.Remove(accountId)
+        End SyncLock
+        Try
+            If Directory.Exists(stagingDir) Then
+                Dim marker = Path.Combine(stagingDir, ".sync_stale")
+                If File.Exists(marker) Then File.Delete(marker)
+            End If
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Returns True if local staging is marked stale and must not overwrite master (TASK-0127).
+    ''' </summary>
+    Public Shared Function IsStagingStale(stagingDir As String, accountId As String) As Boolean
+        SyncLock _staleGate
+            If _staleStagingAccounts.Contains(accountId) Then Return True
+        End SyncLock
+        Try
+            If Directory.Exists(stagingDir) AndAlso File.Exists(Path.Combine(stagingDir, ".sync_stale")) Then
+                Return True
+            End If
+        Catch
+        End Try
+        Return False
+    End Function
+
     Private Shared ReadOnly _accountLocks As New System.Collections.Concurrent.ConcurrentDictionary(Of String, System.Threading.SemaphoreSlim)(StringComparer.OrdinalIgnoreCase)
 
     Private Shared Function GetAccountLock(accountId As String) As System.Threading.SemaphoreSlim
@@ -127,28 +178,42 @@ Public Class NetworkProfileSync
 
             If Not ColdProfileCopy.HasData(staging) Then
                 AppLogger.LogSync($"[COLD_IMPORT] account={accountId}; first import into empty local staging.")
-                Return Await ColdProfileCopy.SeedIfEmptyAsync(master, staging)
+                Dim seeded = Await ColdProfileCopy.SeedIfEmptyAsync(master, staging)
+                If seeded Then
+                    ClearStagingStale(staging, accountId)
+                Else
+                    MarkStagingStale(staging, accountId)
+                End If
+                Return seeded
             End If
 
             If ShouldRefreshStagingFromMaster(master, staging, accountId) Then
                 AppLogger.LogSync($"[COLD_IMPORT] account={accountId}; master has newer session data from network. Refreshing local staging.")
                 Dim refreshed = Await ColdProfileCopy.PublishAsync(master, staging)
                 If refreshed Then
-                    Return True
-                ElseIf ColdProfileCopy.HasData(staging) Then
-                    AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; master refresh skipped (profile in use or locked). Retaining existing valid local staging.")
+                    ClearStagingStale(staging, accountId)
                     Return True
                 Else
-                    Return False
+                    MarkStagingStale(staging, accountId)
+                    AppLogger.LogSync($"[STAGING_REFRESH_FAILED] account={accountId}; master refresh failed or was blocked. Local staging marked as STALE to prevent poisoning master on exit.")
+                    If ColdProfileCopy.HasData(staging) Then
+                        AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; master refresh skipped (profile in use or locked). Retaining existing valid local staging.")
+                        Return True
+                    Else
+                        Return False
+                    End If
                 End If
             Else
+                ClearStagingStale(staging, accountId)
                 AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; local staging is up to date with master.")
                 Return True
             End If
         Catch ex As Exception
             AppLogger.LogSync($"[COLD_IMPORT_FAILED] account={accountId}: {ex.Message}")
-            If ColdProfileCopy.HasData(GetLocalStagingProfileDir(accountId)) Then
-                AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; exception during import, but valid local staging exists. Continuing.")
+            Dim stagingDir = GetLocalStagingProfileDir(accountId)
+            MarkStagingStale(stagingDir, accountId)
+            If ColdProfileCopy.HasData(stagingDir) Then
+                AppLogger.LogSync($"[LOCAL_PROFILE_PRESERVED] account={accountId}; exception during import, but valid local staging exists. Marked STALE to prevent export.")
                 Return True
             End If
             Return False
@@ -243,6 +308,22 @@ Public Class NetworkProfileSync
             Dim source = GetLocalStagingProfileDir(accountId)
             Dim master = GetMasterProfileDir(accountId)
             If Not ColdProfileCopy.HasData(source) Then Return False
+
+            ' Guard 1: Do not export if local staging was marked stale (TASK-0127)
+            If IsStagingStale(source, accountId) Then
+                AppLogger.LogSync($"[EXPORT_REFUSED_STALE_STAGING] account={accountId}; export to master aborted because local staging was not successfully refreshed from master.")
+                Return False
+            End If
+
+            ' Guard 2: Do not export if master is newer than local baseline (TASK-0127)
+            Dim masterState = ReadSyncState(master)
+            Dim sourceState = ReadSyncState(source)
+            If masterState IsNot Nothing AndAlso sourceState IsNot Nothing Then
+                If masterState.ExportedUtc > sourceState.ExportedUtc Then
+                    AppLogger.LogSync($"[EXPORT_REFUSED_MASTER_NEWER] account={accountId}; master was updated by {masterState.Machine} ({masterState.User}) at {masterState.ExportedUtc:o}, which is newer than local baseline ({sourceState.ExportedUtc:o}). Export aborted to prevent overwriting session.")
+                    Return False
+                End If
+            End If
 
             ' Controllo differenziale rapido su disco locale: se il profilo non ha subito modifiche
             ' dall'ultimo export, salta l'intera copia di rete

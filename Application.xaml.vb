@@ -382,7 +382,7 @@ Class Application
 
         Task.Run(Sub()
             Try
-                ' 1. Wait for caller process to exit
+                ' 1. Wait for caller process and its descendants to exit (TASK-0118)
                 dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_closing"), "Chiusura di HidaChat e preparazione sostituzione file..."))
                 If callerPid > 0 Then
                     Try
@@ -392,10 +392,55 @@ Class Application
                             Thread.Sleep(250)
                             retries += 1
                         End While
+
+                        ' If caller process is still running after timeout, forcibly terminate specifically that PID and its tree (TASK-0118)
+                        If Not caller.HasExited Then
+                            Try
+                                caller.Kill(entireProcessTree:=True)
+                            Catch
+                                Try
+                                    caller.Kill()
+                                Catch
+                                End Try
+                            End Try
+                            caller.WaitForExit(3000)
+                        End If
                     Catch ex As ArgumentException
                         ' Process already terminated
+                    Catch ex As Exception
+                        ' Caller process could not be queried or already terminated
                     End Try
                 End If
+
+                ' Also ensure any lingering tsnetd.exe belonging to this installation has exited before file copy (TASK-0118)
+                Try
+                    Dim installDirNorm = Path.GetFullPath(installDir).TrimEnd(Path.DirectorySeparatorChar, "/"c)
+                    For Each p In Process.GetProcessesByName("tsnetd")
+                        Try
+                            Dim pPath As String = ""
+                            Try
+                                pPath = p.MainModule?.FileName
+                            Catch
+                            End Try
+                            If Not String.IsNullOrEmpty(pPath) AndAlso
+                               Path.GetFullPath(pPath).StartsWith(installDirNorm, StringComparison.OrdinalIgnoreCase) Then
+                                If Not p.WaitForExit(1000) Then
+                                    Try
+                                        p.Kill(entireProcessTree:=True)
+                                    Catch
+                                        Try
+                                            p.Kill()
+                                        Catch
+                                        End Try
+                                    End Try
+                                    p.WaitForExit(2000)
+                                End If
+                            End If
+                        Catch
+                        End Try
+                    Next
+                Catch
+                End Try
 
                 Thread.Sleep(500)
 

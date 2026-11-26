@@ -450,6 +450,18 @@ Public Class MainWindow
         If Not Await ShutdownAsync(exportProfiles:=True) Then
             Throw New IOException("Update cancelled: WebView2 has not released its profiles. Restart HidaChat manually.")
         End If
+
+        ' Orderly shutdown and explicit exit verification of tsnetd.exe companion child process (TASK-0118)
+        Try
+            Await TsnetManager.Instance.ShutdownAsync(overallTimeoutMs:=3000)
+            Dim tsnetExited = Await TsnetManager.Instance.WaitForProcessExitAsync(timeoutMs:=2000)
+            If Not tsnetExited Then
+                AppLogger.LogApp("[ForceExitForUpdateAsync] Warning: tsnetd child process did not confirm exit.")
+            End If
+        Catch ex As Exception
+            AppLogger.LogApp($"[ForceExitForUpdateAsync] TsnetManager shutdown exception: {ex.Message}")
+        End Try
+
         Application.ReleaseSingleInstanceMutex()
     End Function
 

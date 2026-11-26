@@ -3,7 +3,40 @@
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 
+## 2026-11-26
+
+- [x] **TASK-0118** [High] Target-specific process termination by PID and orderly shutdown of tsnetd.exe child process during update
+  - Result:
+    - Added `IsProcessRunning`, `ProcessId`, and `WaitForProcessExitAsync` to `TsnetManager.vb` to reliably observe and ensure child process termination.
+    - Updated `ForceExitForUpdateAsync` in `MainWindow.xaml.vb` to explicitly await clean shutdown and termination of `tsnetd.exe` (`TsnetManager.Instance.ShutdownAsync(overallTimeoutMs:=3000)` and `WaitForProcessExitAsync(timeoutMs:=2000)`) before releasing single-instance mutex and handing off to updater.
+    - Added exit verification in `UpdateChecker.vb` before spawning the updater process.
+    - Hardened `Application.xaml.vb` (`HandleApplyUpdateStartup`): waits specifically for the caller PID (`Process.GetProcessById(callerPid)`). If the caller does not exit within timeout, terminates specifically that caller PID and its child process tree (`caller.Kill(entireProcessTree:=True)`), completely avoiding indiscriminate termination by executable image name (`taskkill /f /im HidaChat.exe /t`).
+    - Added safety check in `Application.xaml.vb` ensuring any lingering `tsnetd.exe` associated with the installation directory is exited before file copy.
+    - Hardened fallback batch script in `UpdateScriptPolicy.vb` (`GenerateUpdateBatchScript`): terminates specifically by caller PID (`taskkill /f /pid %CALLER_PID% /t`), preserving all unrelated portable instances running from other directories.
+  - Verification: Added 13 automated regression assertions in `Tests/SessionTests.vb` verifying PID-specific termination syntax in batch generation, absence of image-name termination, `IsProcessRunning`, `ProcessId`, and `WaitForProcessExitAsync` behavior (totaling **919 automated regression assertions with 0 errors**). Full project compilation succeeded with 0 warnings and 0 errors.
+
 ## 2026-11-25
+
+- [x] **TASK-0127** [High] Multi-PC profile sync protection against stale staging export and master session poisoning
+  - Result:
+    - Diagnosed cross-machine session clobbering: an instance on `PC-STUDIO` (user `hidab`) with a failed or locked profile import fell back to stale local staging, and upon exiting at 17:28 exported its empty/unauthenticated profile over the network Master (`Y:\`), causing `PC-MIMMO` to import the broken profiles and prompt for WhatsApp QR code and Hermes login.
+    - Restored active, authenticated profiles for all accounts (`1784925628238` WhatsApp, `b63821a1add040ad9ea8f9fd96ba88bb` Hermes, `1788428413731` OpenClaw, `f7b6555d88a84b56bce69f0ba1610c33` Discord) from preserved `.previous` snapshots on `PC-MIMMO` and published them authoritatively to Master on `Y:\`.
+    - Implemented `MarkStagingStale`, `ClearStagingStale`, and `IsStagingStale` in `NetworkProfileSync.vb` with in-memory tracking and persistent `.sync_stale` filesystem markers.
+    - Updated `SyncMasterToLocalStagingAsync`: marks local staging as stale when master refresh fails or is skipped due to locked files, preventing the instance from exporting un-synced data.
+    - Hardened `SyncLocalStagingToMasterAsync` with two export guards:
+      1. Rejects export (`[EXPORT_REFUSED_STALE_STAGING]`) if local staging is marked stale or unrefreshed from master.
+      2. Rejects export (`[EXPORT_REFUSED_MASTER_NEWER]`) if the network Master was exported by another machine/user at a timestamp newer than the local staging baseline.
+  - Verification: Added 7 automated regression assertions in `Tests/SessionTests.vb` verifying stale staging tracking, marker file persistence, cross-process detection, and cleanup (totaling **906 automated regression assertions with 0 errors**). Verified successful live relaunch of `HidaChat` on `Y:\` with WhatsApp, Hermes, Telegram, OpenClaw, and Discord navigating cleanly to their authenticated URLs without prompts.
+
+- [x] **TASK-0126** [High] Fix infinite login loop on Hermes Agent caused by expired Bearer token injection
+  - Result:
+    - Implemented `TryGetTokenExpiration` in `LocalAuthPolicy.vb` supporting extraction of Unix epoch `exp` timestamps from standard 3-part JWTs and binary-signed base64 tokens (Hermes token format).
+    - Implemented `IsTokenExpired` in `LocalAuthPolicy.vb` comparing token `exp` timestamp against current UTC time.
+    - Implemented `IsAuthenticationEndpoint` and `ShouldAttachBearerToken` in `LocalAuthPolicy.vb` to block pre-emptive Bearer header injection when a token is expired or when requests target authentication endpoints (`/login`, `/signin`, `/auth/password-login`, `/auth/login`, `/auth/token`, `/auth/refresh`).
+    - Updated `AppAccounts.vb` to suppress `_activeRequiresAuthToken` in `UpdateWebResourceAuthFilter` if the configured `AuthToken` has expired, and guarded header injection in `_webResourceRequestedHandler` via `LocalAuthPolicy.ShouldAttachBearerToken`.
+    - Added auto-healing logic in `AccountManager.LoadAccountsAsync` to detect and safely clear expired authentication tokens on startup, preventing repetitive login redirects.
+    - Cleared the expired session token on the live Hermes account ("Ermanno") in `Y:\HidaChat\data\settings.json`, deployed updated Release binaries to `Y:\HidaChat\`, and verified clean relaunch.
+  - Verification: Added 28 automated regression unit assertions in `Tests/SessionTests.vb` testing token expiration parsing, past/future token status, authentication endpoint identification, and selective header attachment (totaling **899 automated regression assertions with 0 errors**). Full project compilation succeeded with 0 warnings and 0 errors.
 
 - [x] **TASK-0082** [Medium] HTTPS certificate verification is disabled
   - Result:

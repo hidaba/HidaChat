@@ -82,6 +82,36 @@ Public Class TsnetManager
         End Get
     End Property
 
+    ''' <summary>
+    ''' Returns true if the companion tsnetd process is currently active and has not exited (TASK-0118).
+    ''' </summary>
+    Public ReadOnly Property IsProcessRunning As Boolean
+        Get
+            Dim proc = _process
+            If proc Is Nothing Then Return False
+            Try
+                Return Not proc.HasExited
+            Catch
+                Return False
+            End Try
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Returns the process ID of the companion tsnetd child process, or 0 if not running (TASK-0118).
+    ''' </summary>
+    Public ReadOnly Property ProcessId As Integer
+        Get
+            Dim proc = _process
+            If proc Is Nothing Then Return 0
+            Try
+                If Not proc.HasExited Then Return proc.Id
+            Catch
+            End Try
+            Return 0
+        End Get
+    End Property
+
     Private _nodeState As String = "Stopped"
     Public Property NodeState As String
         Get
@@ -608,7 +638,36 @@ Public Class TsnetManager
     End Function
 
     ''' <summary>
-    ''' Gracefully shuts down tsnetd with an overall deadline independent of the command channel (TODO #81).
+    ''' Waits for the companion tsnetd child process to fully exit, up to timeoutMs (TASK-0118).
+    ''' If the process has not exited within the timeout, it is forcibly terminated.
+    ''' Returns true if the process is confirmed terminated or was not running.
+    ''' </summary>
+    Public Async Function WaitForProcessExitAsync(Optional timeoutMs As Integer = 3000) As Task(Of Boolean)
+        Dim proc = _process
+        If proc Is Nothing Then Return True
+        Try
+            If proc.HasExited Then Return True
+            Dim exited = Await Task.Run(Function() proc.WaitForExit(timeoutMs))
+            If Not exited AndAlso Not proc.HasExited Then
+                Try
+                    proc.Kill(entireProcessTree:=True)
+                Catch
+                    Try
+                        proc.Kill()
+                    Catch
+                    End Try
+                End Try
+                Return Await Task.Run(Function() proc.WaitForExit(1000))
+            End If
+            Return True
+        Catch ex As Exception
+            Debug.WriteLine($"[TsnetManager] WaitForProcessExitAsync exception: {ex.Message}")
+            Return True
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Gracefully shuts down tsnetd with an overall deadline independent of the command channel (TODO #81, TASK-0118).
     ''' Attempts cooperative shutdown; upon timeout or unresponsiveness, closes standard input channel
     ''' and terminates the process forcibly within the overall deadline without leaving dangling reads.
     ''' </summary>
@@ -665,7 +724,7 @@ Public Class TsnetManager
                 Catch
                 End Try
 
-                ' 5. If the daemon did not exit within the overall deadline, terminate it forcibly
+                ' 5. If the daemon did not exit within the overall deadline, terminate it forcibly (TASK-0118)
                 If Not exited AndAlso Not proc.HasExited Then
                     Debug.WriteLine($"[TsnetManager] tsnetd did not exit within {overallTimeoutMs}ms overall deadline; terminating forcibly...")
                     Try
@@ -678,7 +737,7 @@ Public Class TsnetManager
                     End Try
 
                     Try
-                        Await Task.Run(Function() proc.WaitForExit(500))
+                        Await Task.Run(Function() proc.WaitForExit(1000))
                     Catch
                     End Try
                 End If

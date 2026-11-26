@@ -5,9 +5,40 @@
 
 ---
 
+## [1.5.8-beta] - 2026-11-26
+
+### Pre-release / Beta — Target-Specific Process Termination by PID and Orderly tsnetd Shutdown During Update
+- **Target-Specific Process Termination by PID (`Application.xaml.vb`, `UpdateScriptPolicy.vb` — TASK-0118)**:
+  - Eliminated broad image-name termination (`taskkill /f /im HidaChat.exe /t`) that inadvertently closed independent portable instances of HidaChat running simultaneously on the same machine.
+  - Implemented PID-specific tracking and termination in `Application.xaml.vb` (`HandleApplyUpdateStartup`) and `UpdateScriptPolicy.vb` (`GenerateUpdateBatchScript`): the updater monitors only the originating process PID (`callerPid` / `%CALLER_PID%`), and in timeout scenarios terminates strictly that specific process tree (`caller.Kill(entireProcessTree:=True)` / `taskkill /f /pid %CALLER_PID% /t`), ensuring other portable instances continue running undisturbed.
+- **Orderly Shutdown & Exit Verification of tsnetd Child Process (`TsnetManager.vb`, `MainWindow.xaml.vb`, `UpdateChecker.vb`, `Application.xaml.vb` — TASK-0118)**:
+  - Added `IsProcessRunning`, `ProcessId`, and `WaitForProcessExitAsync` in `TsnetManager.vb` for explicit lifecycle monitoring and guaranteed termination of the embedded userspace Tailscale companion daemon.
+  - Hardened `MainWindow.xaml.vb` (`ForceExitForUpdateAsync`): explicitly awaits cooperative shutdown and verified exit of `tsnetd.exe` before releasing the single-instance application mutex.
+  - Added pre-handoff exit verification in `UpdateChecker.vb` before updater execution.
+  - Added a defensive sweep in `Application.xaml.vb` (`HandleApplyUpdateStartup`) ensuring any lingering `tsnetd.exe` process rooted in the destination installation directory is cleanly terminated before file copy, preventing robocopy and `File.Copy` file-in-use overwrite errors.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb` — TASK-0118)**:
+  - Added 13 automated regression assertions verifying PID-specific termination command generation, absence of image-name termination (`/im HidaChat.exe` / `/im tsnetd.exe`), active/inactive process detection, process ID tracking, and `WaitForProcessExitAsync` behavior (totaling **919 automated regression assertions with 0 errors**).
+
 ## [1.5.7-beta] - 2026-11-25
 
-### Pre-release / Beta — Strict HTTPS Certificate Validation, Certificate Pinning, and TLS Error Discrimination
+### Pre-release / Beta — Strict HTTPS Certificate Validation, Hermes Expired Token Auto-Detection, Multi-PC Profile Sync Hardening, and Session Preservation
+- **Multi-PC Profile Synchronization & Stale Staging Export Protection (`NetworkProfileSync.vb` — TASK-0127)**:
+  - Diagnosed cross-machine session clobbering where a secondary machine (`PC-STUDIO`) with locked or failed master import fell back to stale local staging, and upon exiting exported its unauthenticated profile over the network Master (`Y:\`), prompting for WhatsApp QR codes and Hermes login on `PC-MIMMO`.
+  - Restored full authenticated profile sessions for WhatsApp, Hermes, OpenClaw, and Discord from preserved `.previous` snapshots on `PC-MIMMO` and published them authoritatively to Master on `Y:\`.
+  - Implemented `MarkStagingStale`, `ClearStagingStale`, and `IsStagingStale` in `NetworkProfileSync.vb` with in-memory tracking and persistent `.sync_stale` filesystem markers.
+  - Hardened `SyncMasterToLocalStagingAsync`: marks local staging as stale when master refresh fails or is skipped due to locks, preventing un-synced local data from being exported.
+  - Implemented two strict export guards in `SyncLocalStagingToMasterAsync`:
+    1. Rejects export (`[EXPORT_REFUSED_STALE_STAGING]`) if local staging is marked stale or failed to refresh from network master.
+    2. Rejects export (`[EXPORT_REFUSED_MASTER_NEWER]`) if the network Master timestamp is newer than the local staging baseline, preventing concurrency clobbering.
+- **Token Expiration Detection & Safe Bearer Injection (`LocalAuthPolicy.vb`, `AppAccounts.vb` — TASK-0126)**:
+  - Implemented `TryGetTokenExpiration` in `LocalAuthPolicy.vb` to parse Unix epoch expiration (`exp` claim) from both standard 3-part JWTs and base64url-encoded binary-signed tokens (Hermes Agent token format).
+  - Implemented `IsTokenExpired` and `ShouldAttachBearerToken` in `LocalAuthPolicy.vb`: suppresses `Authorization: Bearer <AuthToken>` injection when a token has expired or when requests target authentication and login endpoints (`/login`, `/signin`, `/auth/password-login`, `/auth/login`, `/auth/token`, `/auth/refresh`).
+  - Updated `AppAccounts.vb` to log `[AUTH_TOKEN_EXPIRED]` and disable Bearer header injection when an expired token is detected in `UpdateWebResourceAuthFilter`, preventing continuous 401 Unauthorized invalidation and resolving the infinite login redirect loop.
+- **Expired Token Auto-Healing on Account Load (`AccountManager.vb` — TASK-0126)**:
+  - Added auto-healing verification in `AccountManager.LoadAccountsAsync`: inspects configured `AuthToken` values on startup and auto-clears expired tokens with `[AUTH_TOKEN_AUTO_HEAL]`, allowing native browser cookie session persistence to function unhindered.
+- **Account Configuration & Live Instance Restoration (`Y:\HidaChat\data\settings.json` — TASK-0126)**:
+  - Cleared the expired session token from account `account_b63821a1add040ad9ea8f9fd96ba88bb` ("Ermanno") in `settings.json` and `.bak`.
+  - Recompiled and deployed updated Release binaries to `Y:\HidaChat\`, verifying smooth relaunch with active Tailscale proxy route.
 - **Standard HTTPS Certificate Verification & Custom CA / Pinning (`tsnetd/main.go`, `TlsCertificatePolicy.vb`, `AppAccounts.vb` — TASK-0082)**:
   - Eliminated silent unconditional `InsecureSkipVerify = true` bypass in the embedded tsnet companion reverse proxy, restoring standard TLS certificate and hostname validation as default behavior.
   - Added support for explicit Root CA certificates (`cmd.CaCert` / `CustomCaCertificatePath`) and SHA-256 leaf certificate pinning (`cmd.PinnedCertHash` / `PinnedCertificateHash`) to secure connections against MITM attacks.
@@ -18,8 +49,8 @@
   - Configured tsnet companion proxy to emit `X-HidaChat-Error-Type: TLS_CERTIFICATE_ERROR` and a dedicated non-looping TLS error diagnostic page when upstream certificate verification fails.
 - **Multilingual UI Support & Synchronization (`Localization.vb` — TASK-0082)**:
   - Synchronized localized dictionary keys (`connection_tls_error`, `tailscale_error_tls_failure`, `openclaw_insecure_tls`) across all 5 officially supported languages (English, Italian, French, Spanish, German).
-- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0082)**:
-  - Added 29 automated regression assertions verifying thumbprint normalization, self-signed certificate generation, standard chain errors, hostname mismatches, certificate pinning matching/mismatch, and TLS vs general reachability discrimination (totaling **871 automated regression assertions with 0 errors**).
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0082, TASK-0126, TASK-0127)**:
+  - Added 64 automated regression assertions verifying thumbprint normalization, self-signed certificate generation, standard chain errors, hostname mismatches, certificate pinning matching/mismatch, TLS vs general reachability discrimination, token expiration parsing across Hermes tokens and standard JWTs, opaque token immunity, authentication endpoint recognition, conditional Bearer header attachment, stale staging tracking, marker file persistence, cross-process detection, and cleanup (totaling **906 automated regression assertions with 0 errors**).
 
 ## [1.5.6-beta] - 2026-11-24
 
