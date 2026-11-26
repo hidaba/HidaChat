@@ -5,6 +5,24 @@
 
 ---
 
+## [1.5.9-beta] - 2026-11-26
+
+### Pre-release / Beta — Safety Backup, Automatic Rollback, and Application Relaunch on Update Failure
+- **Safety Binary Backup & Automatic Rollback Policy (`UpdateBackupPolicy.vb` — TASK-0119)**:
+  - Created `UpdateBackupPolicy.vb` with dedicated routines for safety binary backup (`CreateSafetyBackup`), automatic rollback restoration (`RestoreFromSafetyBackup`), and cleanup (`DeleteSafetyBackup`).
+  - Strictly isolates user profile and session storage (`data/`, `.git/`), temporary update files, and batch scripts from backup and rollback, maintaining 100% application portability and preventing user session or credentials loss during updates.
+- **Rollback and Working Version Relaunch in Updater UI (`Application.xaml.vb` — TASK-0119)**:
+  - Hardened `HandleApplyUpdateStartup`: creates a safety backup of existing binaries in `%TEMP_DIR%\backup` before starting file replacement.
+  - On file copy or robocopy failure: restores previous binaries from the safety backup, deletes temporary assets, displays a clear localized alert dialog explaining the failure, and relaunches the previous working version of `HidaChat.exe`.
+  - Ensures version marker `.app_version` is written strictly after file replacement succeeds and is verified.
+- **Hardened Fallback Batch Script Rollback (`UpdateScriptPolicy.vb` — TASK-0119)**:
+  - Configured `%BACKUP_DIR%` and pre-copy robocopy backup of existing binaries excluding `data/` and `.git/`.
+  - Added automatic rollback and execution recovery on failure (`%RC% GEQ 8`): restores previous working binaries from `%BACKUP_DIR%` and automatically relaunches `HidaChat.exe`.
+- **Multilingual UI Synchronization (`Localization.vb` — TASK-0119)**:
+  - Added `update_stage_backup`, `update_stage_rollback`, and `update_rollback_success` across all 5 official language dictionaries (English, Italian, French, Spanish, German).
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0119)**:
+  - Added 19 regression assertions verifying rollback batch script commands, path filtering policies, and end-to-end simulated safety backup, binary corruption, rollback restoration, and data preservation (totaling **975 automated regression assertions with 0 errors**).
+
 ## [1.5.8-beta] - 2026-11-26
 
 ### Pre-release / Beta — Target-Specific Process Termination by PID and Orderly tsnetd Shutdown During Update

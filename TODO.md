@@ -105,19 +105,6 @@
   - **Acceptance Test**: Switch application language to English or French; verify all `UpdateChecker.vb` popups appear in selected language.
   - **Priority**: P3 (Low severity) | **Impact**: Low | **Effort**: Low
 
-- [ ] **TASK-0119** [High] Installation directory backup, automatic rollback, and application relaunch on update copy failure
-  - **Files**: `UpdateChecker.vb`, `Application.xaml.vb`
-  - **Problem / Need**:
-    1. If file replacement (robocopy exit code >= 8 or IO error) fails halfway through, the script exits (`exit /b 1`), leaving the installation in a corrupted state with mixed old and new binaries, without backup or recovery.
-    2. The console window closes immediately, leaving the user with an unbootable app and no visible explanation.
-    3. Premature writing of `.app_version` leaves the version marker claiming the new version despite failed binary copy.
-  - **Fix to Implement**:
-    - Create a temporary safety backup of installation binaries (excluding user data directory `data/`) before starting file copy.
-    - If robocopy or file copy fails: automatically restore original binaries from backup, delete backup, prompt a clear error dialog, and relaunch the previous working version of `HidaChat.exe`.
-    - Ensure `.app_version` marker is written strictly after file copy succeeds and is verified.
-  - **Acceptance Test**: Simulate robocopy failure during update (e.g. lock a target dll): verify updater detects failure, restores old binaries from backup, and relaunches previous working version with an informative error message.
-  - **Priority**: P1 (High severity) | **Impact**: High | **Effort**: Medium
-
 - [ ] **TASK-0120** [Low] Residual Directory.GetFiles and unused Directory.GetDirectories enumeration in tempDir
   - **File**: `UpdateChecker.vb`
   - **Related to**: TASK-0021

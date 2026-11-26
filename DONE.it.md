@@ -5,6 +5,15 @@
 
 ## 2026-11-26
 
+- [x] **TASK-0119** [Alta] Backup della cartella di installazione, rollback automatico e rilancio dell'applicazione in caso di fallimento della copia
+  - Risultato:
+    - Creato `UpdateBackupPolicy.vb` con le funzioni `CreateSafetyBackup`, `RestoreFromSafetyBackup` e `DeleteSafetyBackup` che escludono rigorosamente i dati utente (`data/`, `data/*`, `.git/*`), i file temporanei dell'aggiornamento e gli script batch, preservando il 100% della portabilità applicativa.
+    - Aggiornato `Application.xaml.vb` (`HandleApplyUpdateStartup`): genera un backup di sicurezza dei binari esistenti in `%TEMP_DIR%\backup` prima di avviare la copia dei file. In caso di errore durante la copia o il comando robocopy, ripristina automaticamente i binari originali dal backup di sicurezza, ripulisce i file temporanei, mostra una finestra di dialogo localizzata di rollback avvenuto e rilancia la versione funzionante precedente di `HidaChat.exe`.
+    - Garantito che il marker `.app_version` sia scritto esclusivamente a copia completata con successo e verificata, rimuovendo il backup temporaneo a buon fine.
+    - Irrobustito lo script batch generato in `UpdateScriptPolicy.vb` (`GenerateUpdateBatchScript`): imposta `%BACKUP_DIR%`, crea una copia di sicurezza dei binari tramite robocopy escludendo `data` e `.git` prima della sostituzione e, in caso di errore (`%RC% GEQ 8`), ripristina automaticamente i binari precedenti da `%BACKUP_DIR%` e rilancia `start "" "%DST%\%EXE%"`.
+    - Aggiunte le chiavi localizzate della UI (`update_stage_backup`, `update_stage_rollback`, `update_rollback_success`) in modo sincrono in tutti i 5 dizionari ufficiali (`Localization.vb`).
+  - Verifica: Aggiunte 19 asserzioni di regressione automatica in `Tests/SessionTests.vb` che validano i comandi di rollback e rilancio dello script batch, le policy di esclusione (`IsUserDataPath`, `ShouldExcludeFile`) e un test simulato end-to-end di backup di sicurezza, corruzione binari, rollback e preservazione integrale dei dati utente (per un totale di **975 asserzioni di regressione con 0 errori**). Compilazione del progetto completata con 0 avvisi e 0 errori.
+
 - [x] **TASK-0118** [Alta] Terminazione mirata dei processi per PID e attesa chiusura del processo figlio tsnetd.exe durante l'aggiornamento
   - Risultato:
     - Aggiunte le proprietà `IsProcessRunning`, `ProcessId` e il metodo `WaitForProcessExitAsync` in `TsnetManager.vb` per monitorare e garantire l'avvenuta chiusura del processo demone figlio.

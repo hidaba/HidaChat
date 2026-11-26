@@ -380,6 +380,9 @@ Class Application
         dialog.SetIndeterminate(True)
         dialog.Show()
 
+        Dim backupDir = Path.Combine(tempDir, "backup")
+        Dim backupCreated As Boolean = False
+
         Task.Run(Sub()
             Try
                 ' 1. Wait for caller process and its descendants to exit (TASK-0118)
@@ -444,18 +447,32 @@ Class Application
 
                 Thread.Sleep(500)
 
-                ' 2. Copy updated files (strictly preserving the portable data/ directory)
+                ' 2. Create safety backup of installation binaries before modifying files (TASK-0119)
+                dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_backup"), "Creazione backup di sicurezza dei binari..."))
+                Try
+                    UpdateBackupPolicy.CreateSafetyBackup(installDir, backupDir)
+                    backupCreated = True
+                Catch backupEx As Exception
+                    AppLogger.LogApp($"[HandleApplyUpdateStartup] Backup creation warning: {backupEx.Message}")
+                End Try
+
+                ' 3. Copy updated files (strictly preserving the portable data/ directory)
                 dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_copying"), "Applicazione aggiornamento e sostituzione file..."))
                 CopyUpdateFiles(sourceDir, installDir)
 
-                ' 3. Write version marker strictly after successful file copy (TASK-0091)
+                ' 4. Write version marker strictly after successful file copy (TASK-0091, TASK-0119)
                 Dim markerPath = Path.Combine(installDir, ".app_version")
                 Try
                     File.WriteAllText(markerPath, "v" & version.TrimStart("v"c))
                 Catch
                 End Try
 
-                ' 4. Relaunch updated application and trigger background cleanup (TASK-0091)
+                ' Clean up safety backup after verified successful copy (TASK-0119)
+                If backupCreated Then
+                    UpdateBackupPolicy.DeleteSafetyBackup(backupDir)
+                End If
+
+                ' 5. Relaunch updated application and trigger background cleanup (TASK-0091)
                 dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_restarting"), "Aggiornamento completato. Riavvio di HidaChat in corso..."))
                 Thread.Sleep(500)
 
@@ -477,6 +494,22 @@ Class Application
             Catch ex As Exception
                 Dim errMsg = ex.Message
 
+                ' Automatic rollback from safety backup if file copy failed (TASK-0119)
+                Dim rollbackSucceeded As Boolean = False
+                If backupCreated Then
+                    dialog.Dispatcher.Invoke(Sub()
+                        dialog.UpdateStatus(If(loc IsNot Nothing, loc.Get("update_stage_rollback"), "Ripristino della versione precedente dal backup in corso..."))
+                    End Sub)
+                    Try
+                        UpdateBackupPolicy.RestoreFromSafetyBackup(backupDir, installDir)
+                        rollbackSucceeded = True
+                    Catch rbEx As Exception
+                        AppLogger.LogApp($"[HandleApplyUpdateStartup] Rollback failure: {rbEx.Message}")
+                    Finally
+                        UpdateBackupPolicy.DeleteSafetyBackup(backupDir)
+                    End Try
+                End If
+
                 ' Clean up temporary update assets on failure so no leftovers remain (TASK-0091)
                 Try
                     If Not String.IsNullOrWhiteSpace(tempZipPath) AndAlso File.Exists(tempZipPath) Then
@@ -493,13 +526,37 @@ Class Application
 
                 dialog.Dispatcher.Invoke(Sub()
                     dialog.SetIndeterminate(False)
-                    dialog.UpdateStatus("Errore durante l'aggiornamento: " & errMsg)
+                    Dim alertTitle = If(loc IsNot Nothing, loc.Get("update_install_error_title"), "Errore Aggiornamento")
+                    Dim alertMsg As String
+                    If rollbackSucceeded Then
+                        Dim rollbackFmt = If(loc IsNot Nothing, loc.Get("update_rollback_success"), "Si è verificato un errore durante la sostituzione dei file. La versione precedente di HidaChat è stata ripristinata con successo:" & vbCrLf & vbCrLf & "{error}")
+                        alertMsg = rollbackFmt.Replace("{error}", errMsg)
+                    Else
+                        Dim defaultFmt = If(loc IsNot Nothing, loc.Get("update_install_error"), "Errore durante l'installazione dell'aggiornamento:" & vbCrLf & vbCrLf & "{error}")
+                        alertMsg = defaultFmt.Replace("{error}", errMsg)
+                    End If
+
                     MessageBox.Show(
-                        "Errore durante l'applicazione dell'aggiornamento:" & vbCrLf & vbCrLf & errMsg,
-                        "HidaChat Update Error",
+                        alertMsg,
+                        alertTitle,
                         MessageBoxButton.OK,
                         MessageBoxImage.Error
                     )
+
+                    ' Relaunch previous working version if rollback succeeded (TASK-0119)
+                    If rollbackSucceeded Then
+                        Try
+                            Dim targetExe = Path.Combine(installDir, "HidaChat.exe")
+                            If File.Exists(targetExe) Then
+                                Process.Start(New ProcessStartInfo With {
+                                    .FileName = targetExe,
+                                    .UseShellExecute = True
+                                })
+                            End If
+                        Catch
+                        End Try
+                    End If
+
                     dialog.Close()
                     Environment.Exit(1)
                 End Sub)

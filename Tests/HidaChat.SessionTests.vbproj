@@ -24,6 +24,7 @@
     <Compile Include="../AccountLoadSafetyPolicy.vb" Link="AccountLoadSafetyPolicy.vb" />
     <Compile Include="../UpdateDownloadPolicy.vb" Link="UpdateDownloadPolicy.vb" />
     <Compile Include="../UpdateScriptPolicy.vb" Link="UpdateScriptPolicy.vb" />
+    <Compile Include="../UpdateBackupPolicy.vb" Link="UpdateBackupPolicy.vb" />
     <Compile Include="../TlsCertificatePolicy.vb" Link="TlsCertificatePolicy.vb" />
     <Compile Include="../TsnetManager.vb" Link="TsnetManager.vb" />
     <Compile Include="../AppLogger.vb" Link="AppLogger.vb" />

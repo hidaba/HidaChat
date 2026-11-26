@@ -3,6 +3,24 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG.md)
 
+## [1.5.9-beta] - 2026-11-26
+
+### Pre-release / Beta — Backup di Sicurezza, Rollback Automatico e Rilancio dell'Applicazione su Errore Aggiornamento
+- **Backup di Sicurezza dei Binari e Policy di Rollback Automatico (`UpdateBackupPolicy.vb` — TASK-0119)**:
+  - Creato `UpdateBackupPolicy.vb` con funzioni dedicate per la creazione del backup di sicurezza (`CreateSafetyBackup`), il ripristino automatico di emergenza (`RestoreFromSafetyBackup`) e la pulizia (`DeleteSafetyBackup`).
+  - Esclusione rigorosa di profili utente e sessioni (`data/`, `.git/`), file temporanei dell'aggiornamento e script batch sia dal backup che dal ripristino, preservando il 100% della portabilità applicativa ed evitando perdite di credenziali o sessioni utente durante gli aggiornamenti.
+- **Rollback e Rilancio della Versione Funzionante nella UI Updater (`Application.xaml.vb` — TASK-0119)**:
+  - Perfezionato `HandleApplyUpdateStartup`: crea un backup di sicurezza dei binari esistenti in `%TEMP_DIR%\backup` prima di avviare la sostituzione dei file.
+  - In caso di errore durante la copia o il comando robocopy: ripristina i binari della versione precedente dal backup, rimuove i file temporanei, mostra una finestra di dialogo localizzata di errore e rilancia la versione funzionante di `HidaChat.exe`.
+  - Scrittura del marker di versione `.app_version` vincolata al successo accertato della copia dei file.
+- **Rollback di Emergenza nello Script Batch di Fallback (`UpdateScriptPolicy.vb` — TASK-0119)**:
+  - Configurato `%BACKUP_DIR%` ed esecuzione preventiva del backup robocopy dei binari esistenti con esclusione di `data/` e `.git/`.
+  - Introdotto il rollback automatico e il ripristino operativo in caso di fallimento (`%RC% GEQ 8`): ripristina i file funzionanti precedenti da `%BACKUP_DIR%` e rilancia automaticamente `HidaChat.exe`.
+- **Sincronizzazione Multilingua della UI (`Localization.vb` — TASK-0119)**:
+  - Aggiunte le stringhe `update_stage_backup`, `update_stage_rollback` e `update_rollback_success` in tutti i 5 dizionari ufficiali (inglese, italiano, francese, spagnolo, tedesco).
+- **Estensione della Suite di Regressione Automatica (`Tests/SessionTests.vb`, `Tests/HidaChat.SessionTests.vbproj` — TASK-0119)**:
+  - Aggiunte 19 asserzioni di regressione automatica che validano i comandi batch di rollback, i filtri di esclusione percorsi e un test end-to-end simulato di backup, corruzione file, ripristino e conservazione intatta dei dati utente (per un totale di **975 asserzioni di regressione con 0 errori**).
+
 ## [1.5.8-beta] - 2026-11-26
 
 ### Pre-release / Beta — Terminazione mirata dei processi per PID e chiusura ordinata di tsnetd durante l'aggiornamento

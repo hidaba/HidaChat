@@ -713,6 +713,72 @@ Module SessionTests
         Check(Not batchScript.Contains("/im tsnetd.exe"), "Batch script does NOT terminate all tsnetd instances by image name (TASK-0118)")
         Check(batchScript.Contains(":checktsnet"), "Batch script includes checktsnet label before copyfiles (TASK-0118)")
 
+        ' Safety backup and automatic rollback on robocopy failure (TASK-0119)
+        Check(batchScript.Contains("BACKUP_DIR="), "Batch script configures BACKUP_DIR (TASK-0119)")
+        Check(batchScript.Contains("robocopy ""%DST%"" ""%BACKUP_DIR%"""), "Batch script creates safety backup of binaries before updating (TASK-0119)")
+        Check(batchScript.Contains("robocopy ""%BACKUP_DIR%"" ""%DST%"""), "Batch script restores binaries from backup on failure (TASK-0119)")
+        Check(batchScript.Contains("start """" ""%DST%\%EXE%"""), "Batch script relaunches previous working version on failure (TASK-0119)")
+
+        ' Unit tests for UpdateBackupPolicy (TASK-0119)
+        Check(UpdateBackupPolicy.IsUserDataPath("data"), "IsUserDataPath recognizes 'data' (TASK-0119)")
+        Check(UpdateBackupPolicy.IsUserDataPath("data\webview"), "IsUserDataPath recognizes 'data\webview' (TASK-0119)")
+        Check(UpdateBackupPolicy.IsUserDataPath("data/webview/cookies.db"), "IsUserDataPath recognizes forward-slash data path (TASK-0119)")
+        Check(UpdateBackupPolicy.IsUserDataPath(".git"), "IsUserDataPath recognizes '.git' (TASK-0119)")
+        Check(Not UpdateBackupPolicy.IsUserDataPath("HidaChat.exe"), "IsUserDataPath returns False for application binary (TASK-0119)")
+        Check(Not UpdateBackupPolicy.IsUserDataPath("runtimes\win-x64"), "IsUserDataPath returns False for runtimes (TASK-0119)")
+
+        Check(UpdateBackupPolicy.ShouldExcludeFile("data\settings.json"), "ShouldExcludeFile excludes data files (TASK-0119)")
+        Check(UpdateBackupPolicy.ShouldExcludeFile("updates.log"), "ShouldExcludeFile excludes updates.log (TASK-0119)")
+        Check(UpdateBackupPolicy.ShouldExcludeFile(".update_log.txt"), "ShouldExcludeFile excludes .update_log.txt (TASK-0119)")
+        Check(UpdateBackupPolicy.ShouldExcludeFile("update_temp.bat"), "ShouldExcludeFile excludes batch scripts (TASK-0119)")
+        Check(UpdateBackupPolicy.ShouldExcludeFile("test.tmp"), "ShouldExcludeFile excludes temporary files (TASK-0119)")
+        Check(Not UpdateBackupPolicy.ShouldExcludeFile("HidaChat.exe"), "ShouldExcludeFile keeps main executable (TASK-0119)")
+        Check(Not UpdateBackupPolicy.ShouldExcludeFile("sub\helper.dll"), "ShouldExcludeFile keeps library dll (TASK-0119)")
+
+        ' Simulated end-to-end backup, failure, and rollback (TASK-0119)
+        Dim testInstallDir = Path.Combine(Path.GetTempPath(), $"HidaChat_TestInstall_{Guid.NewGuid():N}")
+        Dim testBackupDir = Path.Combine(Path.GetTempPath(), $"HidaChat_TestBackup_{Guid.NewGuid():N}")
+        Try
+            Directory.CreateDirectory(testInstallDir)
+            File.WriteAllText(Path.Combine(testInstallDir, "HidaChat.exe"), "VERSION-1.0.0-EXE")
+            Directory.CreateDirectory(Path.Combine(testInstallDir, "sub"))
+            File.WriteAllText(Path.Combine(testInstallDir, "sub", "library.dll"), "VERSION-1.0.0-DLL")
+            Directory.CreateDirectory(Path.Combine(testInstallDir, "data", "profiles"))
+            File.WriteAllText(Path.Combine(testInstallDir, "data", "profiles", "session.json"), "USER-SESSION-DATA")
+            File.WriteAllText(Path.Combine(testInstallDir, "updates.log"), "LOG-DATA")
+
+            ' Step 1: Create backup
+            UpdateBackupPolicy.CreateSafetyBackup(testInstallDir, testBackupDir)
+            Check(File.Exists(Path.Combine(testBackupDir, "HidaChat.exe")), "Safety backup contains HidaChat.exe (TASK-0119)")
+            Check(File.ReadAllText(Path.Combine(testBackupDir, "HidaChat.exe")) = "VERSION-1.0.0-EXE", "Backup binary content matches original (TASK-0119)")
+            Check(File.Exists(Path.Combine(testBackupDir, "sub", "library.dll")), "Backup preserves subdirectory structure (TASK-0119)")
+            Check(Not Directory.Exists(Path.Combine(testBackupDir, "data")), "Safety backup strictly excludes 'data/' directory (TASK-0119)")
+            Check(Not File.Exists(Path.Combine(testBackupDir, "updates.log")), "Safety backup excludes log files (TASK-0119)")
+
+            ' Step 2: Simulate broken/partial update corrupting installation
+            File.WriteAllText(Path.Combine(testInstallDir, "HidaChat.exe"), "CORRUPTED-PARTIAL-2.0")
+            File.Delete(Path.Combine(testInstallDir, "sub", "library.dll"))
+
+            ' Step 3: Trigger rollback
+            UpdateBackupPolicy.RestoreFromSafetyBackup(testBackupDir, testInstallDir)
+            Check(File.ReadAllText(Path.Combine(testInstallDir, "HidaChat.exe")) = "VERSION-1.0.0-EXE", "Rollback successfully restored working HidaChat.exe (TASK-0119)")
+            Check(File.Exists(Path.Combine(testInstallDir, "sub", "library.dll")), "Rollback restored deleted library.dll (TASK-0119)")
+            Check(File.ReadAllText(Path.Combine(testInstallDir, "sub", "library.dll")) = "VERSION-1.0.0-DLL", "Restored library content matches original (TASK-0119)")
+            Check(File.Exists(Path.Combine(testInstallDir, "data", "profiles", "session.json")), "User session data intact and undisturbed during rollback (TASK-0119)")
+            Check(File.ReadAllText(Path.Combine(testInstallDir, "data", "profiles", "session.json")) = "USER-SESSION-DATA", "User session content completely unaffected (TASK-0119)")
+
+            ' Step 4: Delete backup
+            UpdateBackupPolicy.DeleteSafetyBackup(testBackupDir)
+            Check(Not Directory.Exists(testBackupDir), "DeleteSafetyBackup cleaned up backup directory (TASK-0119)")
+        Finally
+            If Directory.Exists(testInstallDir) Then
+                Try : Directory.Delete(testInstallDir, True) : Catch : End Try
+            End If
+            If Directory.Exists(testBackupDir) Then
+                Try : Directory.Delete(testBackupDir, True) : Catch : End Try
+            End If
+        End Try
+
         ' Verify batch script writing with UTF-8 encoding without BOM
         Dim testBatPath = Path.Combine(Path.GetTempPath(), $"HidaChat_Test_Bat_{Guid.NewGuid():N}.bat")
         Try

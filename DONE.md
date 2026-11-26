@@ -5,6 +5,15 @@
 
 ## 2026-11-26
 
+- [x] **TASK-0119** [High] Installation directory backup, automatic rollback, and application relaunch on update copy failure
+  - Result:
+    - Created `UpdateBackupPolicy.vb` providing `CreateSafetyBackup`, `RestoreFromSafetyBackup`, and `DeleteSafetyBackup` routines that strictly exclude user data (`data/`, `data/*`, `.git/*`), temporary update assets, and batch scripts, guaranteeing 100% application portability.
+    - Updated `Application.xaml.vb` (`HandleApplyUpdateStartup`): creates a safety backup of existing binaries in `%TEMP_DIR%\backup` before attempting file copy. If file copy or robocopy fails, automatically restores previous binaries from the safety backup, cleans up temporary files, displays a clear localized rollback notification, and relaunches the previous working version of `HidaChat.exe`.
+    - Enforced that `.app_version` marker is written strictly after file copy succeeds and is verified, and cleans up safety backup directory on success.
+    - Hardened updater batch script in `UpdateScriptPolicy.vb` (`GenerateUpdateBatchScript`): sets `%BACKUP_DIR%`, creates safety copy via robocopy excluding `data` and `.git` before file replacement, and on failure (`%RC% GEQ 8`) automatically restores previous binaries from `%BACKUP_DIR%` and relaunches `start "" "%DST%\%EXE%"`.
+    - Added localized UI dictionary keys (`update_stage_backup`, `update_stage_rollback`, `update_rollback_success`) synchronously across all 5 official languages (`Localization.vb`).
+  - Verification: Added 19 automated regression assertions in `Tests/SessionTests.vb` covering batch script rollback and relaunch commands, path exclusion policies (`IsUserDataPath`, `ShouldExcludeFile`), and an end-to-end simulated safety backup, binary corruption, rollback restoration, and data preservation test (totaling **975 automated regression assertions with 0 errors**). Full project compilation succeeded with 0 warnings and 0 errors.
+
 - [x] **TASK-0118** [High] Target-specific process termination by PID and orderly shutdown of tsnetd.exe child process during update
   - Result:
     - Added `IsProcessRunning`, `ProcessId`, and `WaitForProcessExitAsync` to `TsnetManager.vb` to reliably observe and ensure child process termination.

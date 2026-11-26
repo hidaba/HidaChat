@@ -105,19 +105,6 @@
   - **Test di accettazione**: Cambiare la lingua dell'applicazione in inglese o francese; verificare che tutti i popup di `UpdateChecker.vb` appaiano tradotti nella lingua scelta.
   - **Priorità**: P3 (Gravità bassa) | **Impatto**: Basso | **Sforzo**: Basso
 
-- [ ] **TASK-0119** [Alta] Backup della cartella di installazione, rollback automatico e rilancio dell'applicazione in caso di fallimento della copia
-  - **File**: `UpdateChecker.vb`, `Application.xaml.vb`
-  - **Problema / Esigenza**:
-    1. Se la sostituzione dei file (robocopy con codice di uscita >= 8 o errore di I/O) fallisce a metà operazione, lo script esegue `exit /b 1`, lasciando l'installazione in uno stato inconsistente e corrotto con file misti vecchi e nuovi, senza possibilità di ripristino.
-    2. La finestra di console scompare istantaneamente, lasciando l'applicazione chiusa e l'utente senza alcuna indicazione o interfaccia.
-    3. La scrittura anticipata di `.app_version` lascia il marker impostato sulla nuova versione nonostante i binari non siano stati aggiornati.
-  - **Fix da implementare**:
-    - Creare una copia di backup di sicurezza dei binari della cartella di installazione (escludendo la cartella dati `data/`) prima di avviare la sostituzione dei file.
-    - In caso di errore durante la copia robocopy: ripristinare automaticamente i vecchi binari dal backup, eliminare la cartella di backup temporanea, mostrare una finestra di dialogo esplicita di errore e rilanciare la precedente versione funzionante di `HidaChat.exe`.
-    - Garantire che la scrittura del marcatore `.app_version` avvenga solo a copia robocopy completata con successo e verificata.
-  - **Test di accettazione**: Simulare un fallimento di robocopy durante l'aggiornamento (es. bloccando un file dll di destinazione): verificare che l'updater rilevi l'errore, ripristini i vecchi binari dal backup e rilanci la versione precedente mostrando un messaggio di errore chiaro.
-  - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Medio
-
 - [ ] **TASK-0120** [Bassa] Chiamata residua Directory.GetFiles ed enumerazione Directory.GetDirectories non utilizzata in tempDir
   - **File**: `UpdateChecker.vb`
   - **Correlato a**: TASK-0021
