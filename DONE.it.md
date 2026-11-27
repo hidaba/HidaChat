@@ -3,7 +3,90 @@
 [![Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](DONE.it.md)
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](DONE.md)
 
+## 2026-11-27
+
+- [x] **TASK-0133** [Alta] Completamento modernizzazione Fluent Design System su tutte le finestre rimanenti (Fasi 2, 3, 4 e 6)
+  - Risultato:
+    - **Fase 2 (Dialog modali)**: Modernizzati `AboutWindow`, `TranslationPrivacyConsentDialog`, `TailscaleConnectionErrorDialog`, `UpdateProgressDialog`, `ShutdownProgressDialog` e `StorageRecoveryProgressDialog` con `ThemeManager`, `ModernCard`, `ModernButton`, `StatusBadge`, `UseLayoutRounding`, `SnapsToDevicePixels`, scorciatoie `Invio`/`Esc`, titoli XAML predefiniti neutri in inglese e costruttori senza parametri per Visual Studio Designer.
+    - **Fase 3 (`MessagePopup`)**: Modernizzato il popup di notifica desktop con token Fluent di `ThemeManager`, barra laterale d'accento semantica, icona vettoriale di chiusura, arrotondamento High DPI e rimozione di `AllowsTransparency`/`DropShadowEffect`/`Focusable="False"`.
+    - **Fase 4 (`BulkSenderWindow`)**: Migrata la finestra di invio massivo a chrome nativo Fluent, `ModernCard`, `ModernDataGrid`, filtro live con `SearchBox`, `EmptyState`, `ModernTextBox`, `ModernButton` e `DialogManager`, eliminando 84 colori hex hardcoded e il codice Win32 di massimizzazione manuale.
+    - **Fase 6 (`MainWindow`)**: Migrata la finestra principale a `WindowChrome` con accelerazione hardware (rimuovendo `AllowsTransparency` + `DropShadowEffect`), aggiunti `MinWidth="800" MinHeight="560"`, `UseLayoutRounding`/`SnapsToDevicePixels`, collegati barra del titolo, schede account e badge a `ThemeManager` (`{DynamicResource ...}`), rimossi i `Focusable="False"` ed eliminati tutti i 53 colori hex hardcoded preservando la stabilità delle WebView2.
+    - Aggiornata la versione a `1.5.13-beta` in `Constants.vb` e aggiornato `docs/ui/audit-report.md`.
+  - Verifica: Compilato `HidaChat.vbproj` con 0 avvisi e 0 errori; eseguita la suite `Tests/HidaChat.SessionTests.vbproj` (tutte le 1198 asserzioni di regressione superate con 0 errori); verificati `Find-HardcodedUiIssues.ps1` (0 colori UI hardcoded, 0 `DropShadowEffect`, 0 `Focusable="False"` su tutte le 10 finestre applicative) e `Test-UiLayouts.ps1` (12/12 finestre conformi al 100% su DPI, layout e tema dinamico).
+
 ## 2026-11-26
+
+- [x] **TASK-0132** [Alta] Modernizzazione della finestra Impostazioni (SettingsWindow) con Fluent Design System, ThemeManager e controlli UI riutilizzabili
+  - Risultato:
+    - Riprogettati `SettingsWindow.xaml` e `SettingsWindow.xaml.vb` adottando il Fluent Design System centralizzato (`UI/Themes/FluentDark.xaml`, `UI/Themes/ModernControls.xaml`, `ThemeManager`, `DesignTokens`, `IconManager`).
+    - Sostituiti i vecchi pulsanti sidebar, contenitori, caselle di testo, menu a tendina e pulsanti azione con i controlli standardizzati di `HidaChat.UI.Controls`: `NavigationSidebar` (con icone vettoriali SVG 24x24 e badge dinamico del conteggio account), `ModernCard`, `ModernTextBox`, `ModernComboBox`, `ModernButton`, `StatusBadge`, `ToastNotification`, `LoadingOverlay` e `DialogManager`.
+    - Rimossi `AllowsTransparency="True"` e `DropShadowEffect`, abilitati `UseLayoutRounding="True"` e `SnapsToDevicePixels="True"`, eliminati tutti i `Focusable="False"`, aggiunta la chiusura da tastiera con `Esc` e aggiunto un costruttore senza parametri protetto da `DesignerProperties.GetIsInDesignMode` per la compatibilità con Visual Studio Designer.
+    - Eliminate 131 occorrenze di colori hex hardcoded tra `SettingsWindow.xaml` (42 -> 0) e `SettingsWindow.xaml.vb` (91 -> 2 soli colori CSS web nei preset), sostituendo i cicli manuali di `ApplyTheme()` e `StyleAccountItems()` con l'aggiornamento live via `{DynamicResource ...}` tramite `ThemeManager.Instance.RegisterWindow(Me)`.
+    - Aggiunto il selettore personalizzabile del Colore in evidenza (Smeraldo, Blu Fluent, Viola, Ottanio, Rosa) con persistenza 100% portabile tramite `ThemeManager` (`data/ui_theme.json`) e sincronizzata la chiave `accent_color` in tutti e 5 i dizionari di `Localization.vb`.
+    - Aggiornato `docs/ui/audit-report.md` contrassegnando la Fase 5 come completata con le metriche aggiornate.
+  - Verifica: Compilato `HidaChat.vbproj` con 0 avvisi e 0 errori; eseguita la suite `Tests/HidaChat.SessionTests.vbproj` (tutte le 1198 asserzioni di regressione superate con 0 errori); verificati `Find-HardcodedUiIssues.ps1` (0 segnalazioni in `SettingsWindow.xaml`) e `Test-UiLayouts.ps1` (100% superato su `SettingsWindow.xaml`).
+
+- [x] **TASK-0131** [Alta] Correzione leggibilità badge stato Tailscale in tema Chiaro/Scuro e aggiornamento dinamico versione nel pannello Info & Aggiornamenti
+  - Risultato:
+    - Diagnosticate le due cause del badge di stato Tailscale (`tsnet`) illeggibile in tema Chiaro: `ApplyTheme()` sovrascriveva `TxtTsnetStatus.Foreground` con testo scuro (`#111b21`) ad ogni cambio scheda/tema, mentre `UpdateTsnetUI()` applicava sfondi fissi da tema Scuro (`#1b3d2f`, `#3e3215`, `#2a3942`) senza essere richiamato al cambio tema.
+    - Aggiunti `StatusBadgePalette` e `DesignTokens.GetStatusBadgePalette(severity, isDark)` in `UI/Theme/DesignTokens.vb` con combinazioni sfondo/testo/bordo conformi WCAG AA/AAA sia in tema Chiaro che Scuro.
+    - Aggiornati `SettingsWindow.xaml` e `SettingsWindow.xaml.vb` (`UpdateTsnetUI()` e `ApplyTheme()`) per applicare i colori del badge coerenti con il tema, proteggere i colori semantici durante l'aggiornamento del tema e riapplicare lo stile del badge ad ogni cambio tema.
+    - Corretto `TxtAboutAppVersion` in `SettingsWindow.xaml` / `SettingsWindow.xaml.vb` affinché il pannello "Info & Aggiornamenti" mostri dinamicamente `v{Constants.AppVersion}` invece del valore statico `v1.5.10-beta`.
+  - Verifica: Compilato `HidaChat.vbproj` con 0 avvisi e 0 errori; eseguita la suite `Tests/HidaChat.SessionTests.vbproj` includendo 50 nuove asserzioni di contrasto WCAG AA per `StatusBadgePalette` su tutte le severità in tema Chiaro e Scuro (tutte le asserzioni superate con 0 errori).
+
+- [x] **TASK-0130** [Media] Implementazione ambiente di sviluppo grafico moderno VB.NET WPF: Fluent Design System, skill UI, componenti riutilizzabili, UI Showcase, utility PowerShell e documentazione
+  - Risultato:
+    - Completata l'analisi architetturale di HidaChat (`net9.0-windows10.0.19041.0`, VB.NET WPF con uso minimale di WinForms solo per `NotifyIcon`, 10 finestre esistenti, 4 pacchetti NuGet open-source, 0 librerie UI di terze parti).
+    - Create 9 skill grafiche WPF in `.agents/skills/` (`vbnet-modern-ui`, `vbnet-design-system`, `vbnet-wpf-controls`, `vbnet-layout-responsive`, `vbnet-theme-manager`, `vbnet-ux-design`, `vbnet-dashboard`, `vbnet-ui-audit`, `vbnet-ui-performance`) e regole permanenti in `.agents/rules/modern_ui_governance.md` e `AGENTS.md` (Sezione 15).
+    - Implementato il Design System Fluent centralizzato (`UI/Theme/DesignTokens.vb`, `UI/Theme/ThemeManager.vb`, `UI/Themes/FluentLight.xaml`, `UI/Themes/FluentDark.xaml`, `UI/Themes/ModernControls.xaml`) e il registro icone vettoriali (`UI/Icons/IconManager.vb` con 30 geometrie SVG congelate), con persistenza 100% portabile in `data/ui_theme.json`.
+    - Creati 12 controlli WPF riutilizzabili in VB.NET (`ModernButton`, `ModernTextBox`, `ModernComboBox`, `ModernDataGrid`, `ModernCard`, `NavigationSidebar`, `SearchBox`, `StatusBadge`, `ToastNotification`, `LoadingOverlay`, `EmptyState`, `ConfirmDialog`) e `DialogManager`, preservando la compatibilità con Visual Studio Designer senza alterare le schermate esistenti.
+    - Creata la finestra dimostrativa interattiva `UiShowcaseWindow` (`UI/Showcase/UiShowcaseWindow.xaml/.vb`), avviabile tramite `HidaChat.exe --ui-showcase`.
+    - Creati 7 script PowerShell di audit/screenshot/regressione UI in `scripts/ui/` e 8 documenti tecnici in `docs/ui/` compreso `audit-report.md` con piano di modernizzazione progressivo in 7 fasi.
+  - Verifica: Compilato `HidaChat.vbproj` con 0 avvisi e 0 errori; aggiunti test unitari per `DesignTokens` e `IconManager` in `Tests/SessionTests.vb` (tutte le asserzioni superate con 0 errori); eseguiti tutti gli script di audit statico (`Get-UiInventory.ps1`, `Find-HardcodedUiIssues.ps1`, `Test-UiLayouts.ps1`, `Test-UiDependencies.ps1`, `Test-UiBuildAndRegression.ps1`).
+
+- [x] **TASK-0129** [Alta] Risoluzione contrasto visivo, card scure in tema chiaro e illeggibilità combobox nelle Impostazioni
+  - Risultato:
+    - Diagnosticata la causa della perdita di leggibilità e contrasto nella finestra `SettingsWindow`:
+      1. Le card avevano sfondo scuro fisso (`#1f2c34`) e bordo scuro fisso (`#26343d`) nello stile `CardBorderStyle` in XAML.
+      2. In `SettingsWindow.xaml.vb`, `ApplyTheme()` utilizzava `FindVisualChildren(Of Border)(ContentAreaGrid)`. Poiché i pannelli inattivi hanno `Visibility="Collapsed"`, WPF non genera l'albero visuale per gli elementi compressi; di conseguenza, le card dei pannelli non selezionati all'avvio (come Traduzioni, Rete, CSS, Spazio, Info) rimanevano nere/scure anche in tema Chiaro con testo nero sovrapposto.
+      3. I ComboBox (come `ComboTranslationProvider` e `ComboAccountPlatform`) non erano vincolati a risorse cromatiche dinamiche, rendendo i menu a tendina illeggibili con testo chiaro su sfondo grigio chiaro.
+      4. Le caselle di testo di configurazione avevano stili fissi con testo bianco `#ffffff` e sfondo nero `#111b21`.
+    - Introdotte 22 risorse pennello cromatiche dinamiche (`WindowBgBrush`, `TitleBarBgBrush`, `TitleBarFgBrush`, `SidebarBgBrush`, `SidebarBorderBrush`, `ContentAreaBgBrush`, `CardBgBrush`, `CardBorderBrush`, `TextPrimaryBrush`, `TextSecondaryBrush`, `AccentGreenBrush`, `ComboBoxBgBrush`, `ComboBoxFgBrush`, `ComboBoxBorderBrush`, `InputBgBrush`, `InputFgBrush`, `InputBorderBrush`, `ActionButtonBgBrush`, `ActionButtonFgBrush`, `ActionButtonHoverBgBrush`, `NavBtnHoverBgBrush`, `CardDividerBrush`, `BadgeBgBrush`) in `SettingsWindow.xaml`.
+    - Riconfigurati `SettingsBorder`, `TitleBar`, `SidebarBorder`, `ContentAreaGrid`, intestazioni di categoria, sottotitoli, separatori di card, badge e schede account per legarsi a `{DynamicResource ...}`.
+    - Creato lo stile `InputTextBoxStyle` per uniformare le caselle di testo sia in tema Chiaro (sfondo `#ffffff`, testo `#111b21`, bordo `#d1d7db`) che in tema Scuro (sfondo `#111b21`, testo `#ffffff`, bordo `#2a3942`).
+    - Aggiornato `ApplyTheme()` per assegnare i pennelli della palette direttamente a `Me.Resources`, propagando istantaneamente i colori a tutti i controlli sia visibili che compressi, e applicando stili espliciti a tutti gli 8 ComboBox e alle caselle di testo di configurazione.
+    - Aggiornato `SetActiveNavTab()` per invocare `ApplyTheme()` ad ogni cambio scheda assicurando una resa perfetta e coerente.
+    - Aggiornato `UpdateNavButtonStyles()` per il tema Chiaro (pulsante attivo: sfondo `#d9fdd3`, testo `#008069`; pulsante inattivo: sfondo trasparente, testo `#54656f`).
+    - Incrementata la versione applicativa a `1.5.12-beta` in `Constants.vb`.
+  - Verifica: Eseguita la suite di test in `Tests/SessionTests.vb` a verifica del bump versione e dell'integrità delle stringhe localizzate in tutte e 5 le lingue, superando tutte le **1094 asserzioni di regressione con 0 errori**. Soluzione compilata con 0 avvisi e 0 errori e distribuita nell'installazione locale `Y:\HidaChat`.
+
+- [x] **TASK-0123** [Media] Restyling moderno e riorganizzazione strutturata della finestra Impostazioni (SettingsWindow)
+  - Risultato:
+    - Sostituito l'elenco a scorrimento verticale monolitico e disorganizzato da 520x580 con una moderna interfaccia categorizzata a 2 colonne (750x620) composta da una sidebar di navigazione laterale e 7 pannelli dedicati organizzati a card.
+    - Pannelli categorizzati:
+      1. **Generale**: Selezione tema (Sistema, Chiaro, Scuro), menu a tendina lingua, attivazione notifiche popup, modalità/durata Non Disturbare (DND), correttore ortografico nativo e lingua dizionario.
+      2. **Account**: Schede spaziose di gestione multi-account con selettore piattaforma (WhatsApp, Telegram, Discord, OpenClaw, Hermes Agent), nomi modificabili, URL server, token di autenticazione, switch Tailscale, bypass verifica TLS, test di connessione, cancellazione account, selettore account massimi e banner di avviso downgrade.
+      3. **Traduzioni**: Controlli visivi (pulsante traduzione hover, traduzione intera pagina, pulsante traduci tutti i messaggi nella barra del titolo), selezione fornitore (Google, LibreTranslate, Ollama, OpenAI compatibile), pannelli di configurazione dedicati, consenso privacy e pulsante di test connessione con stato in tempo reale.
+      4. **Rete & Tailscale**: Sezione nodo Tailscale integrato (tsnet) con inserimento AuthKey, stato del nodo e opzione di staging locale per dischi di rete (SMB/UNC) con suggerimenti esplicativi.
+      5. **Aspetto & CSS**: Editor CSS personalizzato con font monospace, pulsanti di preset (OLED Pure Dark, Layout Compatto, Tipografia Moderna, Svuota) e pulsante di applicazione immediata.
+      6. **Spazio & Prestazioni**: Timeout di ibernazione schede inattive, limite cache disco Chromium, compattazione a caldo dello spazio ("Ottimizza Spazio") e pulizia intelligente della cache ("Pulisci Cache").
+      7. **Info & Aggiornamenti**: Informazioni sulla versione applicativa, scelta canale aggiornamenti (Beta/Stabile), pulsante "Controlla ora" (riposizionato da DevTools), link alle release note e debugger DevTools per Edge.
+    - Aggiunte 20 nuove chiavi di localizzazione sincronizzate su tutti i 5 dizionari linguistici (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`) in `Localization.vb`, eliminando tutte le stringhe fisse nel markup.
+    - Aggiornati i metodi `ApplyTheme()` e `StyleAccountItems()` in `SettingsWindow.xaml.vb` con pieno supporto cromatico per pulsanti sidebar, contenitori card, intestazioni e campi sia in tema Scuro che in tema Chiaro.
+    - Incrementata la versione applicativa a `1.5.11-beta` in `Constants.vb`.
+  - Verifica: Aggiunte asserzioni di regressione in `Tests/SessionTests.vb` a verifica di `Constants.AppVersion = "1.5.11-beta"` e del corretto popolamento non vuoto e tradotto di tutte le 7 chiavi categoria, 7 sottotitoli e 6 chiavi rete/tailscale in tutte e 5 le lingue (EN, IT, FR, ES, DE), raggiungendo un totale di **1094 asserzioni di regressione con 0 errori**. Compilazione del progetto completata con 0 avvisi e 0 errori.
+
+- [x] **TASK-0128** [Alta] Risoluzione errore Google Translate HTTP 429 tramite failover multi-endpoint, intestazioni browser e pacing delle richieste
+  - Risultato:
+    - Diagnosticata la causa dell'errore Google Translate HTTP 429 (Too Many Requests): l'invio non controllato di raffiche di richieste GET non autenticate verso `translate.googleapis.com` (`client=gtx`) senza intestazioni standard da browser provocava il blocco per rate-limiting da parte di Google, facendo fallire con HTTP 429 sia la traduzione dei messaggi sia il pulsante "Testa Connessione" nelle Impostazioni.
+    - Implementata la rotazione con failover automatico multi-endpoint in `GoogleTranslationProvider` (`TranslationProvider.vb`) su 5 endpoint pubblici alternativi di Google (`translate.googleapis.com` single gtx, `clients5.google.com` dict-chrome-ex, `translate.google.com` single at, `clients5.google.com` single gtx e `translate.googleapis.com` dict-chrome-ex).
+    - Configurate intestazioni standard da estensione Chromium/Chrome (`User-Agent: Mozilla/5.0 ... Chrome/131.0.0.0`, `Accept: */*`, `Accept-Language: it-IT,...`) su `HttpClient` in `GoogleTranslationProvider`.
+    - Aggiunto `TryParseGoogleResponse` in `GoogleTranslationProvider` per supportare in modo flessibile tutti i formati di risposta JSON di Google Translate: array a 3 livelli (`translate_a/single?dt=t`), array a 2 livelli con coppie chiave-valore (`translate_a/t?client=dict-chrome-ex`) e array lineari a 1 livello.
+    - Introdotto il pacing delle richieste (100ms tra elementi nei fallback batch e 150ms tra blocchi batch in `TranslationProvider.vb` e `Localization.vb`) con retry e backoff esponenziale di 500ms in caso di HTTP 429.
+    - Aggiornato `SettingsWindow.xaml.vb` (`BtnTestTranslationProvider_Click`) per mostrare un messaggio chiaro e localizzato in caso di errore HTTP 429, guidando l'utente ad attendere qualche minuto o a selezionare un provider locale.
+    - Aggiunta la chiave di localizzazione `translation_rate_limit_hint` in tutte e 5 le lingue supportate (EN, IT, FR, ES, DE) in `Localization.vb`.
+    - Incrementata la versione applicativa a `1.5.10-beta` in `Constants.vb`.
+  - Verifica: Aggiunte 18 asserzioni di regressione automatica in `Tests/SessionTests.vb` a verifica del parsing JSON (a 3, 2 e 1 livello), rigetto JSON non validi, failover multi-endpoint su HTTP 429, superamento trasparente del test di connessione e segnalazione corretta di 429 persistente (per un totale di **993 asserzioni di regressione con 0 errori**). Compilazione del progetto completata con 0 avvisi e 0 errori.
 
 - [x] **TASK-0119** [Alta] Backup della cartella di installazione, rollback automatico e rilancio dell'applicazione in caso di fallimento della copia
   - Risultato:

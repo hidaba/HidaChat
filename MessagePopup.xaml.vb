@@ -1,10 +1,12 @@
+Imports System.ComponentModel
 Imports System.Runtime.InteropServices
 Imports System.Windows.Interop
 Imports System.Windows.Threading
+Imports HidaChat.UI.Theme
 
 ''' <summary>
-''' Finestra di popup personalizzata (notifica Toast in stile overlay) che compare in basso a destra 
-''' allo schermo al ricevimento di un nuovo messaggio.
+''' Fluent Design desktop toast notification popup appearing in the bottom-right corner
+''' of the active work area when a new message arrives.
 ''' </summary>
 Public Class MessagePopup
     Private ReadOnly _accountId As String
@@ -21,9 +23,19 @@ Public Class MessagePopup
     Private Shared Function SetWindowPos(hWnd As IntPtr, hWndInsertAfter As IntPtr, X As Integer, Y As Integer, cx As Integer, cy As Integer, uFlags As UInteger) As Boolean
     End Function
 
+    ''' <summary>
+    ''' Parameterless constructor preserved for Visual Studio XAML Designer compatibility.
+    ''' </summary>
+    Public Sub New()
+        InitializeComponent()
+    End Sub
+
     Public Sub New(accountId As String, title As String, body As String, Optional platform As String = "WhatsApp")
         InitializeComponent()
         _accountId = accountId
+        If Not DesignerProperties.GetIsInDesignMode(Me) Then
+            ThemeManager.Instance.RegisterWindow(Me)
+        End If
         NameText.Text = title
         MessageText.Text = body
         InitialsText.Text = GetInitials(title)
@@ -39,7 +51,7 @@ Public Class MessagePopup
     End Sub
 
     ''' <summary>
-    ''' Estrae le iniziali del mittente (es. "Mario Rossi" -> "MR") per l'avatar circolare della notifica.
+    ''' Extracts sender initials (e.g. "Mario Rossi" -> "MR") for the circular avatar badge.
     ''' </summary>
     Private Shared Function GetInitials(name As String) As String
         If String.IsNullOrWhiteSpace(name) Then Return "?"
@@ -50,7 +62,7 @@ Public Class MessagePopup
     End Function
 
     ''' <summary>
-    ''' Restituisce tutti i popup attualmente attivi e caricati, ripulendo automaticamente i riferimenti deboli non più validi.
+    ''' Returns all currently loaded popups while pruning dead WeakReferences.
     ''' </summary>
     Private Shared Function GetActivePopups() As List(Of MessagePopup)
         Dim active As New List(Of MessagePopup)()
@@ -67,6 +79,8 @@ Public Class MessagePopup
     End Function
 
     Private Sub MessagePopup_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        If DesignerProperties.GetIsInDesignMode(Me) Then Return
+
         _activePopups.Add(New WeakReference(Of MessagePopup)(Me))
         PositionNewPopup()
 
@@ -95,7 +109,7 @@ Public Class MessagePopup
     End Sub
 
     ''' <summary>
-    ''' Calcola in modo incrementale la posizione dello schermo per il nuovo popup (in basso a destra, impilato verso l'alto).
+    ''' Stacks the new popup in the bottom-right corner of the primary work area.
     ''' </summary>
     Private Sub PositionNewPopup()
         Dim workArea = SystemParameters.WorkArea
@@ -116,24 +130,7 @@ Public Class MessagePopup
     End Sub
 
     ''' <summary>
-    ''' Ricalcola e riposiziona verticalmente tutti i popup attivi sulla schermata incolonnandoli in basso a destra.
-    ''' </summary>
-    Private Shared Sub RepositionAll()
-        Dim active = GetActivePopups()
-        If active.Count = 0 Then Return
-
-        Dim workArea = SystemParameters.WorkArea
-        Dim y = workArea.Bottom - 16
-        For i As Integer = 0 To active.Count - 1
-            Dim popup = active(i)
-            popup.Left = workArea.Right - popup.Width - 16
-            popup.Top = y - popup.Height
-            y -= popup.Height + 8
-        Next
-    End Sub
-
-    ''' <summary>
-    ''' Al click sul popup, ripristina la finestra principale e seleziona l'account associato alla notifica.
+    ''' Restores MainWindow and activates the account associated with this notification on click.
     ''' </summary>
     Private Async Sub PopupGrid_MouseDown(sender As Object, e As MouseButtonEventArgs)
         _closeTimer?.Stop()
@@ -169,6 +166,7 @@ Public Class MessagePopup
     End Sub
 
     Protected Overrides Sub OnClosed(e As EventArgs)
+        ThemeManager.Instance.UnregisterWindow(Me)
         RemoveFromActive()
         _closeTimer?.Stop()
         MyBase.OnClosed(e)

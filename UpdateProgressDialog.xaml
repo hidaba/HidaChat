@@ -1,24 +1,33 @@
 <Window x:Class="UpdateProgressDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="HidaChat"
+        Title="HidaChat — Update"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
         Topmost="True"
         ShowInTaskbar="True"
         ResizeMode="NoResize"
-        Width="460" Height="190">
-    <Border Background="#111b21"
-            BorderBrush="#00a884"
-            BorderThickness="1.5"
-            CornerRadius="12"
-            Padding="22">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="25" ShadowDepth="0" Opacity="0.6" Color="#000000"/>
-        </Border.Effect>
+        Width="460"
+        Height="186"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource SurfaceBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
 
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/FluentDark.xaml"/>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/ModernControls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource AccentBrush}"
+            BorderThickness="1.5"
+            Padding="24">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -26,27 +35,37 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Titolo e Header con icona di aggiornamento/download -->
+            <!-- Header with download icon -->
             <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="36" Height="36" CornerRadius="18" Background="#1f2c34" Margin="0,0,14,0" VerticalAlignment="Center">
-                    <Path Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,7V13H8L12,17L16,13H13V7H11Z"
-                          Fill="#00a884" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Border Width="38"
+                        Height="38"
+                        CornerRadius="10"
+                        Background="{DynamicResource AccentSubtleBrush}"
+                        Margin="0,0,14,0"
+                        VerticalAlignment="Center">
+                    <Path Data="M19,9H15V3H9V9H5L12,16L19,9ZM5,18V20H19V18H5Z"
+                          Fill="{DynamicResource AccentBrush}"
+                          Width="18"
+                          Height="18"
+                          Stretch="Uniform"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="TxtTitle"
                                Text="HidaChat"
-                               Foreground="#e9edef"
-                               FontSize="14"
-                               FontWeight="Bold"/>
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
                     <TextBlock x:Name="TxtHeader"
-                               Text="Aggiornamento in corso..."
-                               Foreground="#8696a0"
-                               FontSize="12"
+                               Text="Updating HidaChat..."
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontSize="12.5"
                                Margin="0,2,0,0"/>
                 </StackPanel>
             </StackPanel>
 
-            <!-- Barra di avanzamento stile WhatsApp (supporta determinata e indeterminata) -->
+            <!-- Progress bar -->
             <Grid Grid.Row="1" VerticalAlignment="Center" Margin="0,14,0,10">
                 <ProgressBar x:Name="ProgressBarStatus"
                              IsIndeterminate="False"
@@ -54,18 +73,12 @@
                              Maximum="100"
                              Value="0"
                              Height="6"
-                             Foreground="#00a884"
-                             Background="#202c33"
-                             BorderThickness="0">
-                    <ProgressBar.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="3"/>
-                        </Style>
-                    </ProgressBar.Resources>
-                </ProgressBar>
+                             Foreground="{DynamicResource AccentBrush}"
+                             Background="{DynamicResource SurfaceElevatedBrush}"
+                             BorderThickness="0"/>
             </Grid>
 
-            <!-- Dettaglio fase corrente e info progresso (MB / percentuale) -->
+            <!-- Stage detail & transfer progress -->
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -74,9 +87,9 @@
 
                 <TextBlock Grid.Column="0"
                            x:Name="TxtDetail"
-                           Text="Preparazione aggiornamento..."
-                           Foreground="#00a884"
-                           FontSize="11.5"
+                           Text="Preparing update..."
+                           Foreground="{DynamicResource AccentBrush}"
+                           FontSize="12"
                            FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis"
                            HorizontalAlignment="Left"
@@ -85,11 +98,11 @@
                 <TextBlock Grid.Column="1"
                            x:Name="TxtProgressInfo"
                            Text=""
-                           Foreground="#8696a0"
-                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           FontSize="11.5"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"
-                           Margin="8,0,0,0"/>
+                           Margin="10,0,0,0"/>
             </Grid>
         </Grid>
     </Border>

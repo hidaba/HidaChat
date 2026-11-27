@@ -3,176 +3,55 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:HidaChat"
+        xmlns:ui="clr-namespace:HidaChat.UI.Controls"
         mc:Ignorable="d"
-        Title="Invio Massivo da Excel / CSV - HidaChat" 
-        Height="750" 
-        Width="1020"
+        Title="Bulk Sender — HidaChat"
+        Height="760"
+        Width="1040"
         MinHeight="600"
         MinWidth="880"
-        WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
         ShowInTaskbar="False"
-        WindowStartupLocation="CenterOwner">
-
-    <Window.Effect>
-        <DropShadowEffect BlurRadius="15" Color="#000" Opacity="0.5" ShadowDepth="0"/>
-    </Window.Effect>
+        WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
 
     <Window.Resources>
         <ResourceDictionary>
-            <Style x:Key="WindowHeaderBtnStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#2a3942"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/FluentDark.xaml"/>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/ModernControls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#00a884"/>
-                <Setter Property="Foreground" Value="#111b21"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Padding" Value="16,8"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#02906f"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Background" Value="#2a3942"/>
-                                    <Setter Property="Foreground" Value="#8696a0"/>
-                                    <Setter Property="Opacity" Value="0.6"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#202c33"/>
-                <Setter Property="Foreground" Value="#e9edef"/>
+            <Style x:Key="TagChipButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontSize" Value="12"/>
-                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="FontSize" Value="11.5"/>
+                <Setter Property="Padding" Value="9,4"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="BorderBrush" Value="#2a3942"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}"/>
+                <Setter Property="Margin" Value="0,0,6,6"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <Border x:Name="ChipBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#2a3942"/>
+                                    <Setter TargetName="ChipBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                 </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.5"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="TagButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#182229"/>
-                <Setter Property="Foreground" Value="#00a884"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontSize" Value="11"/>
-                <Setter Property="Padding" Value="8,4"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="BorderBrush" Value="#2a3942"/>
-                <Setter Property="Margin" Value="0,0,6,0"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#202c33"/>
-                                    <Setter Property="BorderBrush" Value="#00a884"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="WarningButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#f59e0b"/>
-                <Setter Property="Foreground" Value="#111b21"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Padding" Value="14,8"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#d97706"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.5"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="DangerButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#ea4335"/>
-                <Setter Property="Foreground" Value="#ffffff"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Padding" Value="14,8"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#c5221f"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.5"/>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="ChipBorder" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -182,300 +61,360 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border x:Name="DialogBorder" CornerRadius="10" BorderThickness="1" BorderBrush="#2f3e46" Background="#111b21">
-        <Grid>
-            <Grid.RowDefinitions>
-                <!-- Titlebar -->
-                <RowDefinition Height="45"/>
-                <!-- Main Content -->
-                <RowDefinition Height="*"/>
-                <!-- Bottom Action / Status Bar -->
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <!-- Custom Header -->
-            <Grid Grid.Row="0" x:Name="HeaderBar" Background="#202c33" MouseLeftButtonDown="Header_MouseLeftButtonDown" MouseMove="Header_MouseMove">
+        <!-- Top Context Bar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="20,12">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
-                    <Path x:Name="HeaderPlatformIcon"
-                          Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.4,11H10.2L12,14.4L13.8,11H15.6L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z" 
-                          Fill="#00a884" Width="18" Height="18" Stretch="Fill" Margin="0,0,10,0"/>
-                    <TextBlock x:Name="HeaderTitleText" Text="Invio Massivo Personalizzato da Excel / CSV" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                </StackPanel>
-
-                <!-- Window Control Buttons (Minimize, Maximize/Restore, Close) -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <!-- Minimize Button -->
-                    <Button Click="BtnMinimize_Click" Width="28" Height="28" Margin="0,0,4,0" ToolTip="Riduci a icona" Style="{StaticResource WindowHeaderBtnStyle}">
-                        <TextBlock Text="—" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
-                    </Button>
-
-                    <!-- Maximize / Restore Button -->
-                    <Button x:Name="BtnMaximize" Click="BtnMaximize_Click" Width="28" Height="28" Margin="0,0,4,0" ToolTip="Schermo intero / Ripristina" Style="{StaticResource WindowHeaderBtnStyle}">
-                        <Path x:Name="MaximizeIcon" Data="M1,1 L11,1 L11,11 L1,11 Z M2,2 L2,10 L10,10 L10,2 Z" 
-                              Fill="#8696a0" Width="12" Height="12" Stretch="Fill"/>
-                    </Button>
-
-                    <!-- Close Button -->
-                    <Button Click="BtnClose_Click" Width="28" Height="28" ToolTip="Chiudi" Style="{StaticResource WindowHeaderBtnStyle}">
-                        <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
-                    </Button>
-                </StackPanel>
-            </Grid>
-
-            <!-- Content Area -->
-            <Grid Grid.Row="1" Margin="15,10,15,10">
-                <Grid.RowDefinitions>
-                    <!-- Row 0: File Loader & Template -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- Row 1: Delay & Anti-spam options -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- Row 2: Contacts DataGrid -->
-                    <RowDefinition Height="*"/>
-                    <!-- Row 3: Selected contact detailed preview inspector -->
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <!-- Row 0: File & Message Template -->
-                <Grid Grid.Row="0" Margin="0,0,0,10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="320"/>
-                        <ColumnDefinition Width="15"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Left: File Selector & Stats -->
-                    <Border Grid.Column="0" Background="#202c33" CornerRadius="8" Padding="12" BorderThickness="1" BorderBrush="#2a3942">
-                        <StackPanel>
-                            <TextBlock Text="1. Sorgente Dati" Foreground="#00a884" FontWeight="Bold" FontSize="12" Margin="0,0,0,8"/>
-                            <Button x:Name="BtnLoadFile" Content="📂 Seleziona File (.xlsx, .xls, .csv)" Click="BtnLoadFile_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
-                            <TextBlock x:Name="TxtFileName" Text="Nessun file caricato" Foreground="#8696a0" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
-                            
-                            <Separator Background="#2a3942" Margin="0,4,0,8"/>
-                            
-                            <!-- Stats summary -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Totale Contatti:" Foreground="#8696a0" FontSize="11"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtTotalCount" Text="0" Foreground="#e9edef" FontWeight="Bold" FontSize="11"/>
-
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Selezionati:" Foreground="#8696a0" FontSize="11" Margin="0,4,0,0"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtSelectedCount" Text="0" Foreground="#00a884" FontWeight="Bold" FontSize="11" Margin="0,4,0,0"/>
-                            </Grid>
-                        </StackPanel>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="34"
+                            Height="34"
+                            CornerRadius="8"
+                            Background="{DynamicResource AppBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderSubtleBrush}"
+                            BorderThickness="1"
+                            Margin="0,0,12,0">
+                        <Path x:Name="HeaderPlatformIcon"
+                              Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2Z"
+                              Fill="{DynamicResource AccentBrush}"
+                              Width="18"
+                              Height="18"
+                              Stretch="Uniform"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
                     </Border>
+                    <TextBlock x:Name="HeaderTitleText"
+                               Text="Bulk Sender — Excel / CSV"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
 
-                    <!-- Right: Message Template -->
-                    <Border Grid.Column="2" Background="#202c33" CornerRadius="8" Padding="12" BorderThickness="1" BorderBrush="#2a3942">
+                <ui:SearchBox x:Name="TxtContactSearch"
+                              Grid.Column="1"
+                              Width="250"
+                              Placeholder="Filter contacts..."
+                              SearchChanged="TxtContactSearch_SearchChanged"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Workspace -->
+        <Grid Grid.Row="1" Margin="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Row 0: Data Source & Message Template -->
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="320"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: File Selector & Stats -->
+                <ui:ModernCard Grid.Column="0" Header="1. Sorgente Dati" Padding="14">
+                    <StackPanel>
+                        <ui:ModernButton x:Name="BtnLoadFile"
+                                         Content="Seleziona File (.xlsx, .xls, .csv)"
+                                         Variant="Primary"
+                                         IconKey="Upload"
+                                         HorizontalAlignment="Stretch"
+                                         Margin="0,0,0,8"
+                                         Click="BtnLoadFile_Click"/>
+                        <TextBlock x:Name="TxtFileName"
+                                   Text="Nessun file caricato"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontSize="12"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,10"/>
+
+                        <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,0,0,10"/>
+
                         <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="2. Modello Messaggio (usa {Testo} per inviare il testo da file, o componi con i tag)" Foreground="#00a884" FontWeight="Bold" FontSize="12" Margin="0,0,0,6"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Totale Contatti:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtTotalCount" Text="0" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="12.5"/>
 
-                            <!-- Tag insertion buttons -->
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
-                                <Button Content="+ {Testo}" Tag="{}{Testo}" Click="BtnInsertTag_Click" ToolTip="Testo personalizzato presente nel file Excel/CSV" Style="{StaticResource TagButtonStyle}"/>
-                                <Button Content="+ {Nome}" Tag="{}{Nome}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
-                                <Button Content="+ {Cognome}" Tag="{}{Cognome}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
-                                <Button Content="+ {Azienda}" Tag="{}{Azienda}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
-                                <Button Content="+ {Telefono}" Tag="{}{Telefono}" Click="BtnInsertTag_Click" Style="{StaticResource TagButtonStyle}"/>
-                                <Button Content="+ {Username}" Tag="{}{Username}" Click="BtnInsertTag_Click" ToolTip="Username Telegram (@utente)" Style="{StaticResource TagButtonStyle}"/>
-                            </StackPanel>
-
-                            <TextBox Grid.Row="2" x:Name="TxtTemplate" Height="65" VerticalScrollBarVisibility="Auto" 
-                                     TextWrapping="Wrap" AcceptsReturn="True" 
-                                     Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" Padding="6" FontSize="12"
-                                     TextChanged="TxtTemplate_TextChanged"
-                                     Text="{}{Testo}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Selezionati:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,6,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtSelectedCount" Text="0" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12.5" Margin="0,6,0,0"/>
                         </Grid>
-                    </Border>
-                </Grid>
+                    </StackPanel>
+                </ui:ModernCard>
 
-                <!-- Row 1: Delay Anti-spam Options -->
-                <Border Grid.Row="1" Background="#202c33" CornerRadius="8" Padding="10,8" BorderThickness="1" BorderBrush="#2a3942" Margin="0,0,0,10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="20"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0" Text="⏱ Intervallo tra invii (Min sec, min 30s):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="1" x:Name="TxtMinDelay" Text="30" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center" LostFocus="TxtDelay_LostFocus"/>
-
-                        <TextBlock Grid.Column="3" Text="Intervallo (Max sec, min 30s):" Foreground="#8696a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="4" x:Name="TxtMaxDelay" Text="45" Width="45" Height="24" Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" HorizontalContentAlignment="Center" VerticalAlignment="Center" LostFocus="TxtDelay_LostFocus"/>
-
-                        <TextBlock Grid.Column="5" Text="🛡️ Protezione Anti-Spam: intervallo casuale (minimo 30s) per proteggere l'account dai blocchi." Foreground="#8696a0" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right"/>
-                    </Grid>
-                </Border>
-
-                <!-- Row 2: Contacts DataGrid -->
-                <Border Grid.Row="2" Background="#202c33" CornerRadius="8" Padding="1" BorderThickness="1" BorderBrush="#2a3942" Margin="0,0,0,8">
-                    <DataGrid x:Name="GridContacts" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                              Background="#111b21" Foreground="#e9edef" RowBackground="#111b21" AlternatingRowBackground="#182229"
-                              BorderThickness="0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#222e35"
-                              HeadersVisibility="Column" SelectionMode="Single"
-                              SelectionChanged="GridContacts_SelectionChanged"
-                              ScrollViewer.CanContentScroll="True">
-                        <DataGrid.Resources>
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#202c33"/>
-                                <Setter Property="Foreground" Value="#8696a0"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="FontSize" Value="12"/>
-                                <Setter Property="Padding" Value="8,6"/>
-                                <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                                <Setter Property="BorderBrush" Value="#2a3942"/>
-                            </Style>
-                            <Style TargetType="DataGridCell">
-                                <Setter Property="Padding" Value="6,4"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="DataGridCell">
-                                            <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
-                                                <ContentPresenter VerticalAlignment="Center"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </DataGrid.Resources>
-
-                        <DataGrid.Columns>
-                            <!-- Checkbox Select -->
-                            <DataGridTemplateColumn Width="45">
-                                <DataGridTemplateColumn.Header>
-                                    <CheckBox Click="ChkSelectAllHeader_Click" IsChecked="True" HorizontalAlignment="Center"/>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                  Click="ContactCheckbox_Click" HorizontalAlignment="Center"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!-- Phone -->
-                            <DataGridTextColumn Header="Telefono" Binding="{Binding Phone}" Width="120" IsReadOnly="True"/>
-
-                            <!-- Username (Telegram) -->
-                            <DataGridTextColumn Header="Username" Binding="{Binding FormattedUsername}" Width="110" IsReadOnly="True"/>
-
-                            <!-- Name -->
-                            <DataGridTextColumn Header="Nome" Binding="{Binding FirstName}" Width="90" IsReadOnly="True"/>
-
-                            <!-- Last Name -->
-                            <DataGridTextColumn Header="Cognome" Binding="{Binding LastName}" Width="100" IsReadOnly="True"/>
-
-                            <!-- Company -->
-                            <DataGridTextColumn Header="Azienda" Binding="{Binding Company}" Width="115" IsReadOnly="True"/>
-
-                            <!-- Custom Text from File -->
-                            <DataGridTemplateColumn Header="Testo da File" Width="160">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding CustomText}" TextTrimming="CharacterEllipsis" 
-                                                   ToolTip="{Binding CustomText}" Foreground="#8696a0" FontSize="11"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!-- Formatted Preview to Send -->
-                            <DataGridTemplateColumn Header="Anteprima Messaggio da Inviare" Width="*">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding PreviewMessage}" TextTrimming="CharacterEllipsis" 
-                                                   ToolTip="{Binding PreviewMessage}" Foreground="#e9edef" FontWeight="SemiBold" FontSize="11"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!-- Status -->
-                            <DataGridTemplateColumn Header="Stato" Width="105">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Border CornerRadius="10" Padding="6,2" HorizontalAlignment="Center"
-                                                Background="{Binding StatusBrush}">
-                                            <TextBlock Text="{Binding Status}" Foreground="#111b21" FontWeight="Bold" FontSize="10"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Border>
-
-                <!-- Row 3: Full Message Inspector for Selected Contact -->
-                <Border Grid.Row="3" Background="#202c33" CornerRadius="8" Padding="10,8" BorderThickness="1" BorderBrush="#2a3942">
+                <!-- Right: Message Template -->
+                <ui:ModernCard Grid.Column="2" Header="2. Modello Messaggio" Subtitle="Usa {Testo} per inviare il testo dal file oppure componi con i tag dinamici" Padding="14">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="🔍 Anteprima Completa Contatto Selezionato:" Foreground="#00a884" FontWeight="Bold" FontSize="11" Margin="0,0,8,0"/>
-                            <TextBlock x:Name="TxtSelectedContactLabel" Text="Nessun contatto selezionato nella tabella" Foreground="#8696a0" FontSize="11" FontStyle="Italic"/>
-                        </StackPanel>
+                        <WrapPanel Grid.Row="0" Margin="0,0,0,4">
+                            <Button Content="+ {Testo}" Tag="{}{Testo}" Click="BtnInsertTag_Click" ToolTip="Testo personalizzato presente nel file Excel/CSV" Style="{StaticResource TagChipButtonStyle}"/>
+                            <Button Content="+ {Nome}" Tag="{}{Nome}" Click="BtnInsertTag_Click" Style="{StaticResource TagChipButtonStyle}"/>
+                            <Button Content="+ {Cognome}" Tag="{}{Cognome}" Click="BtnInsertTag_Click" Style="{StaticResource TagChipButtonStyle}"/>
+                            <Button Content="+ {Azienda}" Tag="{}{Azienda}" Click="BtnInsertTag_Click" Style="{StaticResource TagChipButtonStyle}"/>
+                            <Button Content="+ {Telefono}" Tag="{}{Telefono}" Click="BtnInsertTag_Click" Style="{StaticResource TagChipButtonStyle}"/>
+                            <Button Content="+ {Username}" Tag="{}{Username}" Click="BtnInsertTag_Click" ToolTip="Username Telegram (@utente)" Style="{StaticResource TagChipButtonStyle}"/>
+                        </WrapPanel>
 
-                        <TextBox Grid.Row="1" x:Name="TxtSelectedMessagePreview" Height="65" VerticalScrollBarVisibility="Auto" 
-                                 TextWrapping="Wrap" IsReadOnly="True"
-                                 Background="#111b21" Foreground="#e9edef" BorderBrush="#2a3942" Padding="6" FontSize="11"/>
+                        <Border Grid.Row="1"
+                                CornerRadius="6"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource BorderStrongBrush}"
+                                Background="{DynamicResource AppBackgroundBrush}">
+                            <TextBox x:Name="TxtTemplate"
+                                     Height="68"
+                                     VerticalScrollBarVisibility="Auto"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     Background="Transparent"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     CaretBrush="{DynamicResource AccentBrush}"
+                                     BorderThickness="0"
+                                     Padding="10,7"
+                                     FontSize="13"
+                                     TextChanged="TxtTemplate_TextChanged"
+                                     Text="{}{Testo}"/>
+                        </Border>
                     </Grid>
-                </Border>
+                </ui:ModernCard>
             </Grid>
 
-            <!-- Bottom Status & Actions -->
-            <Border Grid.Row="2" Background="#202c33" BorderThickness="0,1,0,0" BorderBrush="#2a3942" Padding="15,10">
+            <!-- Row 1: Delay & Anti-Spam Options -->
+            <ui:ModernCard Grid.Row="1" Padding="14,10" Margin="0,0,0,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left: Select all shortcuts -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="Tutti" Click="BtnSelectAll_Click" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"/>
-                        <Button Content="Nessuno" Click="BtnDeselectAll_Click" Style="{StaticResource SecondaryButtonStyle}"/>
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="Intervallo Min (sec, min 30s):" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ui:ModernTextBox Grid.Column="1" x:Name="TxtMinDelay" Text="30" Width="56" MinHeight="32" Padding="6,4" HorizontalContentAlignment="Center" VerticalAlignment="Center" LostFocus="TxtDelay_LostFocus"/>
 
-                    <!-- Center: Progress Bar and Status message -->
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0">
-                        <ProgressBar x:Name="ProgressBarSending" Height="8" Minimum="0" Maximum="100" Value="0" 
-                                     Background="#111b21" Foreground="#00a884" BorderThickness="0" Margin="0,0,0,4"/>
-                        <TextBlock x:Name="TxtStatus" Text="Carica un file Excel o CSV per iniziare." Foreground="#8696a0" FontSize="11" HorizontalAlignment="Center"/>
-                    </StackPanel>
+                    <TextBlock Grid.Column="3" Text="Max (sec, min 30s):" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ui:ModernTextBox Grid.Column="4" x:Name="TxtMaxDelay" Text="45" Width="56" MinHeight="32" Padding="6,4" HorizontalContentAlignment="Center" VerticalAlignment="Center" LostFocus="TxtDelay_LostFocus"/>
 
-                    <!-- Right: Execution buttons -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button x:Name="BtnStart" Content="▶ Avvia Invio" Click="BtnStart_Click" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,0"/>
-                        <Button x:Name="BtnPause" Content="⏸ Pausa" Click="BtnPause_Click" IsEnabled="False" Style="{StaticResource WarningButtonStyle}" Margin="0,0,8,0"/>
-                        <Button x:Name="BtnStop" Content="⏹ Interrompi" Click="BtnStop_Click" IsEnabled="False" Style="{StaticResource DangerButtonStyle}"/>
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Path Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1ZM10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"
+                              Fill="{DynamicResource AccentBrush}"
+                              Width="14"
+                              Height="14"
+                              Stretch="Uniform"
+                              VerticalAlignment="Center"
+                              Margin="0,0,6,0"/>
+                        <TextBlock Text="Protezione Anti-Spam: intervallo casuale (minimo 30s)."
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                 </Grid>
-            </Border>
+            </ui:ModernCard>
+
+            <!-- Row 2: Virtualized Contacts ModernDataGrid & EmptyState -->
+            <Grid Grid.Row="2" Margin="0,0,0,12">
+                <Border CornerRadius="8"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        ClipToBounds="True">
+                    <ui:ModernDataGrid x:Name="GridContacts"
+                                       AutoGenerateColumns="False"
+                                       CanUserAddRows="False"
+                                       CanUserDeleteRows="False"
+                                       BorderThickness="0"
+                                       SelectionMode="Single"
+                                       SelectionChanged="GridContacts_SelectionChanged">
+                        <DataGrid.Columns>
+                            <!-- Checkbox Select -->
+                            <DataGridTemplateColumn Width="46">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox Click="ChkSelectAllHeader_Click" IsChecked="True" HorizontalAlignment="Center"/>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Click="ContactCheckbox_Click"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Telefono" Binding="{Binding Phone}" Width="120" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Username" Binding="{Binding FormattedUsername}" Width="110" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Nome" Binding="{Binding FirstName}" Width="90" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Cognome" Binding="{Binding LastName}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Azienda" Binding="{Binding Company}" Width="115" IsReadOnly="True"/>
+
+                            <DataGridTemplateColumn Header="Testo da File" Width="155">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding CustomText}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding CustomText}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   FontSize="12"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Anteprima Messaggio da Inviare" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding PreviewMessage}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding PreviewMessage}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Stato" Width="105">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="10"
+                                                Padding="8,2"
+                                                HorizontalAlignment="Center"
+                                                Background="{Binding StatusBrush}">
+                                            <TextBlock Text="{Binding Status}"
+                                                       Foreground="{DynamicResource AccentForegroundBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="11"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </ui:ModernDataGrid>
+                </Border>
+
+                <ui:EmptyState x:Name="EmptyContactsState"
+                               IconKey="Upload"
+                               Title="Nessun contatto caricato"
+                               Description="Carica un file Excel (.xlsx, .xls) o CSV per visualizzare e personalizzare i messaggi da inviare."
+                               ActionText="Seleziona File"
+                               ActionClicked="BtnLoadFile_Click"
+                               Visibility="Visible"/>
+            </Grid>
+
+            <!-- Row 3: Selected Contact Full Message Inspector -->
+            <ui:ModernCard Grid.Row="3" Padding="14,10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Anteprima Contatto Selezionato:"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock x:Name="TxtSelectedContactLabel"
+                                   Text="Nessun contatto selezionato nella tabella"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontSize="12"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            CornerRadius="6"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource BorderSubtleBrush}"
+                            Background="{DynamicResource AppBackgroundBrush}">
+                        <TextBox x:Name="TxtSelectedMessagePreview"
+                                 Height="60"
+                                 VerticalScrollBarVisibility="Auto"
+                                 TextWrapping="Wrap"
+                                 IsReadOnly="True"
+                                 Background="Transparent"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                 BorderThickness="0"
+                                 Padding="10,6"
+                                 FontSize="12.5"/>
+                    </Border>
+                </Grid>
+            </ui:ModernCard>
         </Grid>
-    </Border>
+
+        <!-- Bottom Action & Progress Footer -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:ModernButton Content="Tutti" Variant="Secondary" Margin="0,0,8,0" Click="BtnSelectAll_Click"/>
+                    <ui:ModernButton Content="Nessuno" Variant="Ghost" Click="BtnDeselectAll_Click"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0">
+                    <ProgressBar x:Name="ProgressBarSending"
+                                 Height="6"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="0"
+                                 Background="{DynamicResource SurfaceElevatedBrush}"
+                                 Foreground="{DynamicResource AccentBrush}"
+                                 BorderThickness="0"
+                                 Margin="0,0,0,5"/>
+                    <TextBlock x:Name="TxtStatus"
+                               Text="Carica un file Excel o CSV per iniziare."
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontSize="12"
+                               HorizontalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:ModernButton x:Name="BtnStart" Content="Avvia Invio" Variant="Primary" IconKey="Send" Margin="0,0,8,0" Click="BtnStart_Click"/>
+                    <ui:ModernButton x:Name="BtnPause" Content="Pausa" Variant="Secondary" IsEnabled="False" Margin="0,0,8,0" Click="BtnPause_Click"/>
+                    <ui:ModernButton x:Name="BtnStop" Content="Interrompi" Variant="Danger" IconKey="Close" IsEnabled="False" Click="BtnStop_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
 </Window>

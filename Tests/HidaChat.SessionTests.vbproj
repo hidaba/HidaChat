@@ -28,6 +28,10 @@
     <Compile Include="../TlsCertificatePolicy.vb" Link="TlsCertificatePolicy.vb" />
     <Compile Include="../TsnetManager.vb" Link="TsnetManager.vb" />
     <Compile Include="../AppLogger.vb" Link="AppLogger.vb" />
+    <Compile Include="../Constants.vb" Link="Constants.vb" />
+    <Compile Include="../Localization.vb" Link="Localization.vb" />
+    <Compile Include="../UI/Theme/DesignTokens.vb" Link="DesignTokens.vb" />
+    <Compile Include="../UI/Icons/IconManager.vb" Link="IconManager.vb" />
     <Compile Include="SessionTests.vb" />
   </ItemGroup>
 </Project>

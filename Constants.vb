@@ -1,27 +1,25 @@
 Imports System.IO
 
 ''' <summary>
-''' Contiene le costanti globali dell'applicazione, informazioni sulla versione e parametri di configurazione per gli aggiornamenti.
+''' Contains application global constants, version information, and OTA update configuration.
 ''' </summary>
 Public Module Constants
-    ''' <summary>Versione corrente dell'applicazione.</summary>
-    Public Const AppVersion As String = "1.5.9-beta"
+    ''' <summary>Current application version.</summary>
+    Public Const AppVersion As String = "1.5.13-beta"
 
-    ''' <summary>Autore principale dell'applicazione.</summary>
+    ''' <summary>Main application author.</summary>
     Public Const AppAuthor As String = "Massimo Balestrieri (hidaba)"
 
-    ''' <summary>Data di rilascio della versione corrente.</summary>
-    Public Const AppReleaseDate As String = "2026-11-26"
+    ''' <summary>Release date for current version.</summary>
+    Public Const AppReleaseDate As String = "2026-11-27"
 
-
-
-    ''' <summary>Licenza software dell'applicazione.</summary>
+    ''' <summary>Application software license.</summary>
     Public Const AppLicense As String = "Apache-2.0 License"
 
-    ''' <summary>URL del repository GitHub ufficiale.</summary>
+    ''' <summary>Official GitHub repository URL.</summary>
     Public Const AppGitHubUrl As String = "https://github.com/hidaba/HidaChat"
 
-    ' Configurazione repository GitHub per il sistema di aggiornamento OTA
+    ' GitHub repository configuration for OTA update checker
     Public Const GitHubOwner As String = "hidaba"
     Public Const GitHubRepo As String = "HidaChat"
     Public Const GitHubReleasesApiUrl As String = "https://api.github.com/repos/hidaba/HidaChat/releases?per_page=100"

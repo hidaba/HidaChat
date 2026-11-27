@@ -113,6 +113,15 @@ Class Application
             HandleCleanupUpdateStartup(args)
         End If
 
+        ' Launch the standalone Fluent Design UI Showcase when requested via CLI flag
+        If args IsNot Nothing AndAlso args.Length >= 1 AndAlso args(0).Equals("--ui-showcase", StringComparison.OrdinalIgnoreCase) Then
+            Me.ShutdownMode = ShutdownMode.OnMainWindowClose
+            Dim showcase As New UI.Showcase.UiShowcaseWindow()
+            Me.MainWindow = showcase
+            showcase.Show()
+            Return
+        End If
+
         ' Registrazione listener globali per eccezioni non gestite (TODO #63)
         AddHandler Me.DispatcherUnhandledException, AddressOf OnDispatcherUnhandledException
         AddHandler TaskScheduler.UnobservedTaskException, AddressOf OnUnobservedTaskException

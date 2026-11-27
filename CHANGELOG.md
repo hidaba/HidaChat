@@ -5,6 +5,86 @@
 
 ---
 
+## [1.5.13-beta] - 2026-11-27
+
+### Pre-release / Beta — Full Fluent Design System Modernization Across All Windows (Phases 2, 3, 4 & 6)
+- **Modal Dialogs Modernization (`AboutWindow`, `TranslationPrivacyConsentDialog`, `TailscaleConnectionErrorDialog`, `UpdateProgressDialog`, `ShutdownProgressDialog`, `StorageRecoveryProgressDialog` — TASK-0133)**:
+  - **Changed** all 6 modal and progress dialogs to adopt `ThemeManager`, `{DynamicResource ...}` semantic tokens, `ModernCard`, `ModernButton`, `StatusBadge`, `UseLayoutRounding`, `SnapsToDevicePixels`, `Enter`/`Escape` keyboard shortcuts, neutral English XAML defaults, and parameterless constructors for Visual Studio Designer.
+  - **Removed** `AllowsTransparency` + `DropShadowEffect` and all hardcoded hex colors across all modal dialogs.
+- **Desktop Toast Notification Modernization (`MessagePopup.xaml`, `MessagePopup.xaml.vb` — TASK-0133)**:
+  - **Changed** `MessagePopup` to use `ThemeManager` Light/Dark tokens, a semantic accent indicator bar, vector close icon, and High DPI layout rounding without layered transparency overhead.
+- **Bulk Sender Modernization (`BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb` — TASK-0133)**:
+  - **Changed** `BulkSenderWindow` to native Fluent window chrome with `ModernCard`, `ModernDataGrid`, `ModernTextBox`, `ModernButton`, `EmptyState`, and `DialogManager`, removing 84 hardcoded hex colors and custom Win32 maximize boilerplate.
+  - **Added** live `SearchBox` contact filtering in `BulkSenderWindow` across phone, username, name, and company columns.
+- **MainWindow Fluent & WindowChrome Migration (`MainWindow.xaml`, `MainWindow.xaml.vb` — TASK-0133)**:
+  - **Changed** `MainWindow` to hardware-accelerated `WindowChrome` (removing `AllowsTransparency` + `DropShadowEffect`) with `MinWidth="800" MinHeight="560"`, `UseLayoutRounding`, `SnapsToDevicePixels`, and full `ThemeManager` `{DynamicResource ...}` bindings across titlebar, account tabs, badges, and status indicators while preserving WebView2 stability.
+  - **Improved** keyboard accessibility by removing all `Focusable="False"` attributes across the entire application and verified 12/12 windows pass `Test-UiLayouts.ps1` and `Find-HardcodedUiIssues.ps1`.
+
+## [1.5.12-beta] - 2026-11-26
+
+### Pre-release / Beta — SettingsWindow High-Contrast Overhaul, Dynamic Palette System & ComboBox Legibility
+- **Dynamic Theme Resource Architecture (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb` — TASK-0129)**:
+  - Eliminated hardcoded dark backgrounds (`#1f2c34`) and dark borders (`#26343d`) across all 7 settings category panels by introducing 22 dynamic theme brush resources (`WindowBgBrush`, `CardBgBrush`, `CardBorderBrush`, `TextPrimaryBrush`, `TextSecondaryBrush`, `ComboBoxBgBrush`, `ComboBoxFgBrush`, `InputBgBrush`, `InputFgBrush`, etc.).
+  - Resolved WPF visual tree limitation where collapsed panels were ignored by `FindVisualChildren`, ensuring all panels (General, Accounts, Translation, Network, CSS, Storage, About) automatically receive crisp white cards (`#ffffff`) with subtle borders (`#e2e8f0`) in Light Mode and deep slate cards (`#1f2c34`) in Dark Mode.
+  - Bound `SettingsBorder`, `TitleBar`, `SidebarBorder`, `ContentAreaGrid`, category headers, subtitles, card dividers, and badges to dynamic resources.
+- **High-Contrast ComboBox & Input Styling (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb` — TASK-0129)**:
+  - Refactored `CustomComboBoxStyle` and `AccountPlatformComboBoxStyle` with dynamic brush bindings for background, foreground, border, and items, eliminating white-on-gray and dark-on-dark dropdown text.
+  - Created `InputTextBoxStyle` providing crisp, readable inputs in both Light (`#ffffff` bg, `#111b21` fg) and Dark (`#111b21` bg, `#ffffff` fg) modes across LibreTranslate, Ollama, OpenAI, tsnet, and account settings.
+  - Refactored sidebar navigation button styling for Light Mode (active: soft green `#d9fdd3` bg with `#008069` text; inactive: `#54656f` text).
+- **Automated Regression Suite Verification (`Tests/SessionTests.vb` — TASK-0129)**:
+  - Validated version bump to `1.5.12-beta` with all 1094 regression assertions passing with 0 errors.
+- **Modern VB.NET WPF Fluent Design System, Skills, Reusable Controls, UI Showcase & Audit Tooling (`UI/`, `.agents/skills/`, `scripts/ui/`, `docs/ui/` — TASK-0130)**:
+  - **Added** 9 specialized WPF UI skills in `.agents/skills/` (`vbnet-modern-ui`, `vbnet-design-system`, `vbnet-wpf-controls`, `vbnet-layout-responsive`, `vbnet-theme-manager`, `vbnet-ux-design`, `vbnet-dashboard`, `vbnet-ui-audit`, `vbnet-ui-performance`) plus persistent governance rules in `.agents/rules/modern_ui_governance.md` and `AGENTS.md` (Section 15).
+  - **Added** centralized Fluent Design System in `UI/Theme/` (`DesignTokens.vb`, `ThemeManager.vb`), `UI/Themes/` (`FluentLight.xaml`, `FluentDark.xaml`, `ModernControls.xaml`), and `UI/Icons/IconManager.vb` (30 cached frozen 24x24 vector SVG paths), supporting Light, Dark, and System themes, customizable accents, WCAG 2.1 contrast calculation, and 100% portable persistence (`data/ui_theme.json`).
+  - **Added** 12 reusable VB.NET WPF controls in `UI/Controls/` (`ModernButton`, `ModernTextBox`, `ModernComboBox`, `ModernDataGrid`, `ModernCard`, `NavigationSidebar`, `SearchBox`, `StatusBadge`, `ToastNotification`, `LoadingOverlay`, `EmptyState`, `ConfirmDialog`) and `DialogManager`.
+  - **Added** standalone interactive UI Showcase window (`UI/Showcase/UiShowcaseWindow.xaml/.vb`), launchable via `HidaChat.exe --ui-showcase` without modifying existing application windows.
+  - **Added** 7 PowerShell UI audit and verification scripts in `scripts/ui/` (`Get-UiInventory.ps1`, `Find-HardcodedUiIssues.ps1`, `Test-UiDependencies.ps1`, `Test-UiLayouts.ps1`, `Capture-UiScreenshot.ps1`, `Compare-UiScreenshots.ps1`, `Test-UiBuildAndRegression.ps1`) and 8 technical guides in `docs/ui/` including the full audit report and progressive modernization roadmap.
+  - **Added** automated unit assertions in `Tests/SessionTests.vb` validating `DesignTokens` Light/Dark palettes, WCAG AA/AAA contrast ratios, hex color validation, and all 30 `IconManager` vector paths.
+- **Tailscale Status Badge Contrast & About Panel Version Sync (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `UI/Theme/DesignTokens.vb` — TASK-0131)**:
+  - **Fixed** unreadable dark-on-dark Tailscale (`tsnet`) status badge in Light Mode by introducing `DesignTokens.GetStatusBadgePalette` with WCAG AA-compliant Light and Dark palettes for all node states (`Running`, `NeedsLogin`, `Starting`, `Inactive`) and preventing `ApplyTheme()` from overwriting `TxtTsnetStatus.Foreground`.
+  - **Fixed** stale hardcoded version `v1.5.10-beta` in the Settings "About & Updates" panel (`TxtAboutAppVersion`), dynamically binding it to `Constants.AppVersion` alongside `TxtSidebarVersion`.
+  - **Added** automated WCAG AA contrast assertions in `Tests/SessionTests.vb` covering all `StatusBadgePalette` severities in both Light and Dark modes.
+- **Fluent Design System Modernization of SettingsWindow (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`, `docs/ui/audit-report.md` — TASK-0132)**:
+  - **Changed** `SettingsWindow` to use the centralized Fluent Design System (`ThemeManager`, `FluentDark.xaml`, `ModernControls.xaml`) and reusable `HidaChat.UI.Controls` (`NavigationSidebar` with vector SVG icons, `ModernCard`, `ModernTextBox`, `ModernComboBox`, `ModernButton`, `StatusBadge`, `ToastNotification`, `LoadingOverlay`, and `DialogManager`).
+  - **Added** customizable Accent Color preset selector (HidaChat Emerald, Fluent Blue, Violet, Teal, Rose) persisted portably in `data/ui_theme.json`, with `accent_color` localized across all 5 languages (`en`, `it`, `fr`, `es`, `de`).
+  - **Improved** High DPI rendering, accessibility, and performance by removing `AllowsTransparency` + `DropShadowEffect`, enabling `UseLayoutRounding` and `SnapsToDevicePixels`, removing `Focusable="False"` gaps, adding `Escape` keyboard support, preserving Visual Studio Designer compatibility, and eliminating 131 hardcoded hex colors across `SettingsWindow.xaml` and `SettingsWindow.xaml.vb`.
+
+## [1.5.11-beta] - 2026-11-26
+
+### Pre-release / Beta — Modern Categorized SettingsWindow Restyling & Multi-Language Navigation
+- **Categorized 2-Column Navigation Architecture (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb` — TASK-0123)**:
+  - Redesigned the Settings window from a monolithic 520x580 vertical scroll list into an intuitive 2-column layout (750x620) with a dedicated left navigation sidebar (195px) and 7 categorized card panels.
+  - Organized into 7 distinct categories: General, Accounts, Translation, Network & Tailscale, Appearance & CSS, Storage & Performance, and About & Updates.
+  - Sidebar buttons dynamically highlight active tabs and adapt backgrounds and fonts based on theme.
+  - Relocated "Check Now" update button to the About & Updates panel.
+- **Card-Based UI Containers & Dynamic Theming (`SettingsWindow.xaml`, `SettingsWindow.xaml.vb` — TASK-0123)**:
+  - Formatted each settings category into rounded card containers with subtle borders and clear subtitles.
+  - Enhanced `ApplyTheme()` and `StyleAccountItems()` to support seamless Dark Theme (`#1f2c34`, `#111b21`, `#182229`) and Light Theme (`#ffffff`, `#f7f9fa`, `#f0f2f5`) transitions across sidebar, cards, and input controls.
+- **Full Localization Synchronization (`Localization.vb` — TASK-0123)**:
+  - Added 20 new localized keys across all 5 official language dictionaries (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`), eliminating hardcoded Italian strings in XAML.
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb` — TASK-0123)**:
+  - Added automated assertions validating `Constants.AppVersion = "1.5.11-beta"` and checking that all category, subtitle, and network keys exist and are properly localized in all 5 languages, reaching **1094 automated regression assertions with 0 errors**.
+
+## [1.5.10-beta] - 2026-11-26
+
+### Pre-release / Beta — Google Translate HTTP 429 Resolution with Multi-Endpoint Failover, Browser Headers, and Request Pacing
+- **Multi-Endpoint Candidate Rotation & Transparent Failover (`TranslationProvider.vb` — TASK-0128)**:
+  - Addressed HTTP 429 (Too Many Requests) rate limiting on Google Translate by registering a pool of 5 public Google endpoints (`translate.googleapis.com` single gtx, `clients5.google.com` dict-chrome-ex, `translate.google.com` single at, `clients5.google.com` single gtx, and `translate.googleapis.com` dict-chrome-ex).
+  - Implemented automatic endpoint rotation in `GoogleTranslationProvider`: on receiving HTTP 429 or transient connection errors, requests immediately fail over to the next candidate endpoint without failing the operation.
+  - Added in-memory tracking of the last active healthy endpoint so subsequent translations bypass rate-limited endpoints.
+  - Added a 500ms exponential backoff retry if all endpoints encounter rate limiting.
+- **Universal Multi-Format Google JSON Parser (`TranslationProvider.vb` — TASK-0128)**:
+  - Implemented `GoogleTranslationProvider.TryParseGoogleResponse` supporting 3-level array structures (`translate_a/single?dt=t`), 2-level paired arrays (`translate_a/t?client=dict-chrome-ex`), and 1-level flat string arrays.
+- **Realistic Browser Request Headers (`TranslationProvider.vb` — TASK-0128)**:
+  - Configured standard Chromium/Chrome extension headers (`User-Agent`, `Accept`, `Accept-Language`) on `HttpClient` to prevent automated bot flagging by Google edge infrastructure.
+- **Rate Pacing on Batch and Fallback Iterations (`TranslationProvider.vb`, `Localization.vb` — TASK-0128)**:
+  - Added pacing delays (100ms between individual requests in fallback loops, 150ms between batch chunks) preventing bursts of concurrent requests from triggering IP-level rate limits.
+- **Actionable UI Feedback for Rate Limits (`SettingsWindow.xaml.vb`, `Localization.vb` — TASK-0128)**:
+  - Enhanced "Test Connection" status reporting in `SettingsWindow.xaml.vb` to append a localized hint when HTTP 429 is encountered, advising the user to wait or switch to a local provider.
+  - Added `translation_rate_limit_hint` across all 5 official language dictionaries (English, Italian, French, Spanish, German).
+- **Automated Regression Suite Expansion (`Tests/SessionTests.vb` — TASK-0128)**:
+  - Added 18 automated regression assertions testing universal JSON parsing across all Google formats, invalid JSON rejection, simulated HTTP 429 multi-endpoint failover, and persistent rate limit error reporting (totaling **993 automated regression assertions with 0 errors**).
+
 ## [1.5.9-beta] - 2026-11-26
 
 ### Pre-release / Beta — Safety Backup, Automatic Rollback, and Application Relaunch on Update Failure

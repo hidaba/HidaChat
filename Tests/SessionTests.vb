@@ -17,6 +17,28 @@ Public Class AppAccounts
     Public Shared Property SharedDataDirectory As String
 End Class
 
+Public Class MockTranslationFailoverHandler
+    Inherits HttpMessageHandler
+
+    Public Property CallCount As Integer = 0
+    Public Property SimulatedUrls As New List(Of String)()
+    Public Property Force429Count As Integer = 1
+
+    Protected Overrides Function SendAsync(request As HttpRequestMessage, cancellationToken As CancellationToken) As Task(Of HttpResponseMessage)
+        CallCount += 1
+        SimulatedUrls.Add(request.RequestUri.ToString())
+        If CallCount <= Force429Count Then
+            Dim resp429 As New HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            resp429.Content = New StringContent("Too Many Requests")
+            Return Task.FromResult(resp429)
+        Else
+            Dim resp200 As New HttpResponseMessage(HttpStatusCode.OK)
+            resp200.Content = New StringContent("[[""Hola"",""en""]]")
+            Return Task.FromResult(resp200)
+        End If
+    End Function
+End Class
+
 Module SessionTests
     Private _checks As Integer
 
@@ -471,6 +493,58 @@ Module SessionTests
             Dim testConnRes = Await deadLibre.TestConnectionAsync(testCts.Token)
             Check(Not testConnRes.Success, "TestConnection on unreachable host returns Success = False")
             Check(Not String.IsNullOrEmpty(testConnRes.Message), "TestConnection provides descriptive failure message")
+        End Using
+
+        ' 7. Google Translate JSON Response Parser (TASK-0128)
+        Dim parsedText As String = Nothing
+        Dim json3Level = "[[[""Ciao mondo"",""Hello world"",null,null,10]],null,""en""]"
+        Check(GoogleTranslationProvider.TryParseGoogleResponse(json3Level, parsedText) AndAlso parsedText = "Ciao mondo", "TryParseGoogleResponse parses 3-level single?dt=t format")
+
+        Dim json3Multi = "[[[""Ciao "",""Hello "",null,null,10],[""mondo"",""world"",null,null,10]],null,""en""]"
+        Check(GoogleTranslationProvider.TryParseGoogleResponse(json3Multi, parsedText) AndAlso parsedText = "Ciao mondo", "TryParseGoogleResponse parses 3-level multi-segment format")
+
+        Dim json2Level = "[[""Ciao mondo"",""en""]]"
+        Check(GoogleTranslationProvider.TryParseGoogleResponse(json2Level, parsedText) AndAlso parsedText = "Ciao mondo", "TryParseGoogleResponse parses 2-level dict-chrome-ex format")
+
+        Dim json2Multi = "[[""Ciao "",""en""],[""mondo"",""en""]]"
+        Check(GoogleTranslationProvider.TryParseGoogleResponse(json2Multi, parsedText) AndAlso parsedText = "Ciao mondo", "TryParseGoogleResponse parses 2-level multi-pair format")
+
+        Dim json1Level = "[""Ciao mondo"",""en""]"
+        Check(GoogleTranslationProvider.TryParseGoogleResponse(json1Level, parsedText) AndAlso parsedText = "Ciao mondo", "TryParseGoogleResponse parses 1-level flat string format")
+
+        Check(Not GoogleTranslationProvider.TryParseGoogleResponse("{not: json}", parsedText), "TryParseGoogleResponse rejects invalid JSON")
+        Check(Not GoogleTranslationProvider.TryParseGoogleResponse("[]", parsedText), "TryParseGoogleResponse rejects empty array")
+        Check(Not GoogleTranslationProvider.TryParseGoogleResponse("", parsedText), "TryParseGoogleResponse rejects empty string")
+        Check(Not GoogleTranslationProvider.TryParseGoogleResponse(Nothing, parsedText), "TryParseGoogleResponse rejects null string")
+
+        ' 8. Google Translate Multi-Endpoint Failover on HTTP 429 (TASK-0128)
+        Dim mockFailover1 As New MockTranslationFailoverHandler With {.Force429Count = 1}
+        Using clientFailover1 As New HttpClient(mockFailover1)
+            Dim providerFailover1 As New GoogleTranslationProvider(clientFailover1)
+            Dim resFailover1 = Await providerFailover1.TranslateSingleAsync("Hello", "es", Threading.CancellationToken.None)
+            Check(resFailover1.Success, "Google provider succeeds via failover when first endpoint returns HTTP 429")
+            Check(resFailover1.TranslatedText = "Hola", "Google provider returns translated text from failover endpoint")
+            Check(mockFailover1.CallCount = 2, "Google provider tried next endpoint upon receiving HTTP 429")
+            Check(mockFailover1.SimulatedUrls(0).Contains("translate.googleapis.com"), "Google provider first tried translate.googleapis.com")
+            Check(mockFailover1.SimulatedUrls(1).Contains("clients5.google.com"), "Google provider rotated to clients5.google.com")
+
+            ' Test connection also succeeds seamlessly on 429 failover
+            mockFailover1.CallCount = 0
+            mockFailover1.Force429Count = 1
+            Using testCts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(5))
+                Dim testConnRes = Await providerFailover1.TestConnectionAsync(testCts.Token)
+                Check(testConnRes.Success, "TestConnection succeeds via failover when primary endpoint returns HTTP 429")
+                Check(testConnRes.Message = "Hola", "TestConnection contains translation from healthy failover endpoint")
+            End Using
+        End Using
+
+        ' 9. Google Translate All Endpoints Rate-Limited (TASK-0128)
+        Dim mockFailoverAll As New MockTranslationFailoverHandler With {.Force429Count = 99}
+        Using clientFailoverAll As New HttpClient(mockFailoverAll)
+            Dim providerFailoverAll As New GoogleTranslationProvider(clientFailoverAll)
+            Dim resFailoverAll = Await providerFailoverAll.TranslateSingleAsync("Hello", "es", Threading.CancellationToken.None)
+            Check(Not resFailoverAll.Success, "Google provider returns failure when all endpoints are rate-limited")
+            Check(resFailoverAll.ErrorMessage.Contains("429"), "Google provider returns 429 error message when rate limit is persistent")
         End Using
     End Function
 
@@ -1912,5 +1986,106 @@ Module SessionTests
         Check(Not LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", Nothing), "ShouldAttachBearerToken suppresses null token")
         Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", standardJwt), "ShouldAttachBearerToken allows valid non-expired token on API endpoint")
         Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", opaqueToken), "ShouldAttachBearerToken allows opaque API token on API endpoint")
+
+        ' =====================================================================
+        ' TASK-0129: SettingsWindow High-Contrast Styling & Dynamic Themes
+        ' =====================================================================
+        Check(Constants.AppVersion = "1.5.13-beta", "Constants.AppVersion bumped to 1.5.13-beta")
+
+        Dim supportedLangs = {"en", "it", "fr", "es", "de"}
+        Dim categoryKeys = {
+            "settings_cat_general", "settings_cat_accounts", "settings_cat_translation",
+            "settings_cat_network", "settings_cat_css", "settings_cat_storage", "settings_cat_about"
+        }
+        Dim subtitleKeys = {
+            "settings_sub_general", "settings_sub_accounts", "settings_sub_translation",
+            "settings_sub_network", "settings_sub_css", "settings_sub_storage", "settings_sub_about"
+        }
+        Dim networkKeys = {
+            "tsnet_section_title", "tsnet_section_desc", "tsnet_authkey_label",
+            "tsnet_authkey_tooltip", "account_use_tailscale", "account_insecure_tls"
+        }
+
+        For Each lang In supportedLangs
+            Dim locObj = AppLocalizations.CreateForLanguage(lang)
+            For Each catKey In categoryKeys
+                Dim val = locObj.Get(catKey)
+                Check(Not String.IsNullOrWhiteSpace(val) AndAlso val <> catKey, $"Category key '{catKey}' localized in '{lang}': '{val}'")
+            Next
+            For Each subKey In subtitleKeys
+                Dim val = locObj.Get(subKey)
+                Check(Not String.IsNullOrWhiteSpace(val) AndAlso val <> subKey, $"Subtitle key '{subKey}' localized in '{lang}': '{val}'")
+            Next
+            For Each netKey In networkKeys
+                Dim val = locObj.Get(netKey)
+                Check(Not String.IsNullOrWhiteSpace(val) AndAlso val <> netKey, $"Network key '{netKey}' localized in '{lang}': '{val}'")
+            Next
+        Next
+
+        ' =====================================================================
+        ' TASK-0130: Modern Fluent Design System (DesignTokens & IconManager)
+        ' =====================================================================
+        Dim lightPalette = UI.Theme.DesignTokens.GetPalette(isDark:=False)
+        Dim darkPalette = UI.Theme.DesignTokens.GetPalette(isDark:=True)
+
+        Check(Not lightPalette.IsDark, "Light palette has IsDark = False")
+        Check(darkPalette.IsDark, "Dark palette has IsDark = True")
+        Check(lightPalette.AppBackground = "#F8FAFC", "Light palette AppBackground matches Fluent token #F8FAFC")
+        Check(lightPalette.Surface = "#FFFFFF", "Light palette Surface matches Fluent token #FFFFFF")
+        Check(lightPalette.TextPrimary = "#0F172A", "Light palette TextPrimary matches Fluent token #0F172A")
+        Check(darkPalette.AppBackground = "#0F172A", "Dark palette AppBackground matches Fluent token #0F172A")
+        Check(darkPalette.Surface = "#1E293B", "Dark palette Surface matches Fluent token #1E293B")
+        Check(darkPalette.TextPrimary = "#F1F5F9", "Dark palette TextPrimary matches Fluent token #F1F5F9")
+        Check(lightPalette.Accent = "#2563EB", "Default light accent is Fluent Blue #2563EB")
+
+        ' Verify WCAG 2.1 contrast ratios meet AA/AAA standards
+        Dim lightBodyContrast = UI.Theme.DesignTokens.GetContrastRatio(lightPalette.TextPrimary, lightPalette.Surface)
+        Dim darkBodyContrast = UI.Theme.DesignTokens.GetContrastRatio(darkPalette.TextPrimary, darkPalette.Surface)
+        Dim lightSecondaryContrast = UI.Theme.DesignTokens.GetContrastRatio(lightPalette.TextSecondary, lightPalette.Surface)
+        Dim darkSecondaryContrast = UI.Theme.DesignTokens.GetContrastRatio(darkPalette.TextSecondary, darkPalette.Surface)
+        Check(lightBodyContrast >= 7.0, $"Light primary text contrast meets WCAG AAA ({lightBodyContrast}:1)")
+        Check(darkBodyContrast >= 7.0, $"Dark primary text contrast meets WCAG AAA ({darkBodyContrast}:1)")
+        Check(lightSecondaryContrast >= 4.5, $"Light secondary text contrast meets WCAG AA ({lightSecondaryContrast}:1)")
+        Check(darkSecondaryContrast >= 4.5, $"Dark secondary text contrast meets WCAG AA ({darkSecondaryContrast}:1)")
+
+        ' Verify hex validation, normalization, and accessible foreground selection
+        Check(UI.Theme.DesignTokens.IsValidHexColor("#2563EB"), "IsValidHexColor accepts valid 6-digit hex")
+        Check(Not UI.Theme.DesignTokens.IsValidHexColor("not-a-color"), "IsValidHexColor rejects invalid string")
+        Check(UI.Theme.DesignTokens.NormalizeAccentHex("invalid") = UI.Theme.DesignTokens.DefaultAccentHex, "NormalizeAccentHex falls back to DefaultAccentHex")
+        Check(UI.Theme.DesignTokens.GetAccessibleForegroundHex("#2563EB") = "#FFFFFF", "Fluent Blue accent uses white foreground")
+        Check(UI.Theme.DesignTokens.GetAccessibleForegroundHex("#F8FAFC") = "#0F172A", "Light background uses dark slate foreground")
+
+        ' Verify IconManager registry completeness
+        Dim allIcons = UI.Icons.IconManager.GetAllIconKeys()
+        Check(allIcons.Count >= 30, $"IconManager registers at least 30 vector icons (count: {allIcons.Count})")
+        For Each iconKey In allIcons
+            Dim pathData = UI.Icons.IconManager.GetPathData(iconKey)
+            Check(Not String.IsNullOrWhiteSpace(pathData), $"IconManager has non-empty SVG path for {iconKey}")
+        Next
+
+        ' =====================================================================
+        ' TASK-0131: Theme-Aware Tailscale Status Badge Contrast (Light & Dark)
+        ' =====================================================================
+        Dim badgeSeverities = {"running", "warning", "info", "neutral", "error"}
+        For Each sev In badgeSeverities
+            For Each darkMode In {False, True}
+                Dim bp = UI.Theme.DesignTokens.GetStatusBadgePalette(sev, darkMode)
+                Check(bp IsNot Nothing, $"StatusBadgePalette for '{sev}' (dark={darkMode}) is not Nothing")
+                Check(UI.Theme.DesignTokens.IsValidHexColor(bp.BackgroundHex), $"StatusBadgePalette '{sev}' (dark={darkMode}) valid background {bp.BackgroundHex}")
+                Check(UI.Theme.DesignTokens.IsValidHexColor(bp.ForegroundHex), $"StatusBadgePalette '{sev}' (dark={darkMode}) valid foreground {bp.ForegroundHex}")
+                Check(UI.Theme.DesignTokens.IsValidHexColor(bp.BorderHex), $"StatusBadgePalette '{sev}' (dark={darkMode}) valid border {bp.BorderHex}")
+                Dim ratio = UI.Theme.DesignTokens.GetContrastRatio(bp.ForegroundHex, bp.BackgroundHex)
+                Check(ratio >= 4.5, $"StatusBadgePalette '{sev}' (dark={darkMode}) meets WCAG AA contrast ({ratio}:1)")
+            Next
+        Next
+
+        ' =====================================================================
+        ' TASK-0132: SettingsWindow Fluent Design System Modernization
+        ' =====================================================================
+        For Each lang In supportedLangs
+            Dim locObj = AppLocalizations.CreateForLanguage(lang)
+            Dim accentVal = locObj.Get("accent_color")
+            Check(Not String.IsNullOrWhiteSpace(accentVal) AndAlso accentVal <> "accent_color", $"Key 'accent_color' localized in '{lang}': '{accentVal}'")
+        Next
     End Function
 End Module

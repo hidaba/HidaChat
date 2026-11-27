@@ -1,21 +1,29 @@
 Imports System.ComponentModel
 Imports System.Threading
+Imports System.Windows.Input
 Imports System.Windows.Media
 Imports System.Windows.Threading
+Imports HidaChat.UI.Controls
+Imports HidaChat.UI.Icons
+Imports HidaChat.UI.Theme
 
 ''' <summary>
-
-''' Finestra di dialogo WPF per la gestione delle impostazioni utente (tema, lingua, notifiche, opzioni di traduzione e lista account).
+''' Modern Fluent Design WPF dialog window for managing HidaChat settings
+''' (theme, accent, language, notifications, accounts, translation, network, CSS, storage, and updates).
 ''' </summary>
 Public Class SettingsWindow
     Private ReadOnly _settingsController As SettingsController
     Private ReadOnly _accountManager As AccountManager
     Private _isInitializing As Boolean = True
+    Private _isUpdatingSidebar As Boolean = False
+    Private _activeNavTab As String = "General"
 
-    Private _cachedCheckBoxes As List(Of CheckBox) = Nothing
-    Private _cachedTextBlocks As List(Of TextBlock) = Nothing
-    Private _cachedAccountBorders As List(Of Border) = Nothing
-    Private _cachedAccountTextBoxes As List(Of TextBox) = Nothing
+    ''' <summary>
+    ''' Parameterless constructor preserved for Visual Studio XAML Designer compatibility.
+    ''' </summary>
+    Public Sub New()
+        InitializeComponent()
+    End Sub
 
     Public Sub New(settingsController As SettingsController, accountManager As AccountManager)
         InitializeComponent()
@@ -24,19 +32,30 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Inizializzazione della finestra all'apertura: imposta i valori dei menu a tendina, 
-    ''' stato delle checkbox, elenco degli account e localizzazione della UI.
+    ''' Initializes controls, registers with ThemeManager, binds accounts, and applies localization on load.
     ''' </summary>
     Private Sub SettingsWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        If DesignerProperties.GetIsInDesignMode(Me) Then Return
+
         Try
-            ' 1. Imposta gli elementi del dropdown Lingua
+            ' Register with centralized Fluent ThemeManager and synchronize with SettingsController
+            ThemeManager.Instance.RegisterWindow(Me)
+            SyncThemeManagerFromSettings(persist:=False)
+            InitializeAccentSwatches()
+
+            If _settingsController Is Nothing Then
+                _isInitializing = False
+                Return
+            End If
+
+            ' 1. Populate Language dropdown items
             ComboLanguage.ItemsSource = _settingsController.SupportedLanguages
             Dim currentLang = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = _settingsController.Language)
             If currentLang IsNot Nothing Then
                 ComboLanguage.SelectedItem = currentLang
             End If
 
-            ' 2. Seleziona la modalità del Tema
+            ' 2. Select Theme mode
             For Each item As ComboBoxItem In ComboTheme.Items
                 If item.Content.ToString() = _settingsController.Theme Then
                     ComboTheme.SelectedItem = item
@@ -44,14 +63,14 @@ Public Class SettingsWindow
                 End If
             Next
 
-            ' 3. Imposta lo stato delle Checkbox
+            ' 3. Set CheckBox states
             ChkTranslateMessageButton.IsChecked = _settingsController.TranslateMessageButton
             ChkFullPageTranslation.IsChecked = _settingsController.FullPageTranslation
             ChkShowTranslateAllButton.IsChecked = _settingsController.ShowTranslateAllMessagesButton
             ChkShowMessagePopup.IsChecked = _settingsController.ShowMessagePopup
             ChkTranslationPrivacyConsent.IsChecked = _settingsController.TranslationPrivacyConsent
 
-            ' 3b. Imposta provider di traduzione e campi di configurazione (TODO #69)
+            ' 3b. Set translation provider and configuration fields
             Dim targetProvider = If(String.IsNullOrWhiteSpace(_settingsController.TranslationProvider), "google", _settingsController.TranslationProvider.ToLowerInvariant())
             For Each item As ComboBoxItem In ComboTranslationProvider.Items
                 If item.Tag IsNot Nothing AndAlso item.Tag.ToString().ToLowerInvariant() = targetProvider Then
@@ -71,15 +90,15 @@ Public Class SettingsWindow
             TxtOpenAiModel.Text = _settingsController.TranslationOpenAiModel
             TxtOpenAiApiKey.Text = _settingsController.TranslationOpenAiApiKey
             UpdateTranslationPanelsVisibility()
-            
-            ' 4. Imposta lo stato della Checkbox Canale Beta
+
+            ' 4. Set Beta Channel CheckBox state
             ChkUseBetaChannel.IsChecked = _settingsController.UseBetaChannel
 
-            ' 4b. Imposta lo stato e il testo del CSS personalizzato (TODO #43)
+            ' 4b. Set Custom CSS state and text
             ChkEnableCustomCss.IsChecked = _settingsController.EnableCustomCss
             TxtCustomCss.Text = If(_settingsController.CustomCss, String.Empty)
 
-            ' 4c. Imposta lo stato del Correttore Ortografico (TODO #44)
+            ' 4c. Set Spellchecker state and language
             ChkEnableSpellcheck.IsChecked = _settingsController.EnableSpellcheck
             Dim targetSpellLang = If(String.IsNullOrWhiteSpace(_settingsController.SpellcheckLanguage), "auto", _settingsController.SpellcheckLanguage.ToLowerInvariant())
             For Each item As ComboBoxItem In ComboSpellcheckLanguage.Items
@@ -92,7 +111,7 @@ Public Class SettingsWindow
                 ComboSpellcheckLanguage.SelectedIndex = 0
             End If
 
-            ' 4d. Imposta lo stato della Modalità Non Disturbare (TODO #47)
+            ' 4d. Set Do Not Disturb mode state
             Dim targetDndMode = If(_settingsController.IsDndActive, _settingsController.DndDurationMode.ToLowerInvariant(), "off")
             For Each item As ComboBoxItem In ComboDndMode.Items
                 If item.Tag IsNot Nothing AndAlso item.Tag.ToString().ToLowerInvariant() = targetDndMode Then
@@ -104,7 +123,7 @@ Public Class SettingsWindow
                 ComboDndMode.SelectedIndex = 0
             End If
 
-            ' 4e. Imposta il valore selezionato per MaxAccounts
+            ' 4e. Set MaxAccounts selected value
             Dim currentMax = _settingsController.MaxAccounts.ToString()
             For Each item As ComboBoxItem In ComboMaxAccounts.Items
                 If item.Tag IsNot Nothing AndAlso item.Tag.ToString() = currentMax Then
@@ -116,10 +135,10 @@ Public Class SettingsWindow
                 ComboMaxAccounts.SelectedIndex = 1
             End If
 
-            ' 4f. Imposta lo stato della Checkbox Staging Drive di Rete (TODO #73)
+            ' 4f. Set Network Drive Staging CheckBox state
             ChkEnableNetworkStaging.IsChecked = _settingsController.EnableNetworkProfileStaging
 
-            ' 4g. Imposta lo stato di Ibernazione Schede (TODO #50)
+            ' 4g. Set Tab Hibernation state and timeout
             ChkEnableTabHibernation.IsChecked = _settingsController.EnableTabHibernation
             Dim currentHibTimeout = _settingsController.TabHibernationMinutes.ToString()
             For Each item As ComboBoxItem In ComboTabHibernationTimeout.Items
@@ -132,7 +151,7 @@ Public Class SettingsWindow
                 ComboTabHibernationTimeout.SelectedIndex = 1
             End If
 
-            ' 4h. Imposta il limite della cache disco Chromium (TODO #71)
+            ' 4h. Set Chromium disk cache limit
             Dim currentCacheLimit = _settingsController.DiskCacheLimitMb.ToString()
             For Each item As ComboBoxItem In ComboDiskCacheLimit.Items
                 If item.Tag IsNot Nothing AndAlso item.Tag.ToString() = currentCacheLimit Then
@@ -144,14 +163,13 @@ Public Class SettingsWindow
                 ComboDiskCacheLimit.SelectedIndex = 0
             End If
 
-            ' 5. Collega l'elenco degli account
+            ' 5. Bind accounts list when AccountManager is available
+            If _accountManager IsNot Nothing Then
+                AccountsList.ItemsSource = _accountManager.Accounts
+                AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
+            End If
 
-            AccountsList.ItemsSource = _accountManager.Accounts
-
-            ' 6. Applica il tema cromatico corrente
-            ApplyTheme()
-
-            ' 7. Applica le stringhe tradotte all'interfaccia utente
+            ' 6. Apply localized strings and build navigation sidebar
             RefreshLocalization()
 
             If TxtTsnetAuthKey IsNot Nothing Then
@@ -159,50 +177,93 @@ Public Class SettingsWindow
             End If
             UpdateTsnetUI()
             AddHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
-            If _accountManager IsNot Nothing Then
-                AddHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
-            End If
 
             _isInitializing = False
+            SetActiveNavTab("General")
 
         Catch ex As Exception
-            MessageBox.Show(
-                "Errore nel caricamento delle impostazioni:" & vbCrLf & vbCrLf &
-                ex.ToString(),
-                "Errore",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
+            DialogManager.ShowError(
+                Me,
+                "Settings Error",
+                "Failed to load settings:" & vbCrLf & vbCrLf & ex.Message
             )
             Me.Close()
         End Try
     End Sub
 
     Private Sub SettingsWindow_Closed(sender As Object, e As EventArgs) Handles Me.Closed
+        ThemeManager.Instance.UnregisterWindow(Me)
         RemoveHandler TsnetManager.Instance.PropertyChanged, AddressOf OnTsnetPropertyChanged
         If _accountManager IsNot Nothing Then
             RemoveHandler _accountManager.PropertyChanged, AddressOf OnAccountManagerPropertyChanged
         End If
     End Sub
 
+    Private Sub SettingsWindow_PreviewKeyDown(sender As Object, e As KeyEventArgs)
+        If e.Key = Key.Escape Then
+            ' Let open ComboBox dropdowns consume Escape before closing the settings window
+            Dim focusedCombo = TryCast(Keyboard.FocusedElement, ComboBox)
+            If focusedCombo IsNot Nothing AndAlso focusedCombo.IsDropDownOpen Then Return
+            If TypeOf Keyboard.FocusedElement Is ComboBoxItem Then Return
+
+            e.Handled = True
+            Me.Close()
+        End If
+    End Sub
+
+    Private Sub InitializeAccentSwatches()
+        ConfigureAccentSwatch(BtnAccentEmerald, DesignTokens.BrandEmeraldAccentHex)
+        ConfigureAccentSwatch(BtnAccentBlue, DesignTokens.DefaultAccentHex)
+        ConfigureAccentSwatch(BtnAccentViolet, DesignTokens.AccentVioletHex)
+        ConfigureAccentSwatch(BtnAccentTeal, DesignTokens.AccentTealHex)
+        ConfigureAccentSwatch(BtnAccentRose, DesignTokens.AccentRoseHex)
+    End Sub
+
+    Private Shared Sub ConfigureAccentSwatch(btn As Button, hexColor As String)
+        If btn Is Nothing Then Return
+        btn.Tag = hexColor
+        btn.Background = BrushCache.GetBrush(hexColor)
+    End Sub
+
+    Private Sub BtnAccentSwatch_Click(sender As Object, e As RoutedEventArgs)
+        Dim btn = TryCast(sender, Button)
+        Dim hex = TryCast(btn?.Tag, String)
+        If String.IsNullOrWhiteSpace(hex) Then Return
+
+        ThemeManager.Instance.SetAccentColor(hex, persist:=True)
+        If SettingsToast IsNot Nothing AndAlso btn?.ToolTip IsNot Nothing Then
+            SettingsToast.Show(btn.ToolTip.ToString(), SemanticSeverity.Success, durationMs:=2200)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Synchronizes the centralized ThemeManager mode with SettingsController.Theme.
+    ''' </summary>
+    Private Sub SyncThemeManagerFromSettings(persist As Boolean)
+        Dim mode = AppThemeMode.System
+        If _settingsController IsNot Nothing Then
+            Select Case _settingsController.Theme
+                Case "Dark"
+                    mode = AppThemeMode.Dark
+                Case "Light"
+                    mode = AppThemeMode.Light
+                Case Else
+                    mode = AppThemeMode.System
+            End Select
+        End If
+        ThemeManager.Instance.SetTheme(mode, persist:=persist)
+    End Sub
+
     Private Sub OnAccountManagerPropertyChanged(sender As Object, e As PropertyChangedEventArgs)
-        If String.IsNullOrEmpty(e?.PropertyName) OrElse 
-           e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse 
-           e.PropertyName = NameOf(AccountManager.MaxAccounts) OrElse 
-           e.PropertyName = NameOf(AccountManager.HasExcessAccounts) OrElse 
-           e.PropertyName = NameOf(AccountManager.ExcessAccountsCount) OrElse 
+        If String.IsNullOrEmpty(e?.PropertyName) OrElse
+           e.PropertyName = NameOf(AccountManager.CanAddAccount) OrElse
+           e.PropertyName = NameOf(AccountManager.MaxAccounts) OrElse
+           e.PropertyName = NameOf(AccountManager.HasExcessAccounts) OrElse
+           e.PropertyName = NameOf(AccountManager.ExcessAccountsCount) OrElse
            e.PropertyName = NameOf(AccountManager.Accounts) Then
             UpdateAccountsUIState()
+            RebuildSidebarItems()
         End If
-    End Sub
-
-    Private Sub TitleBar_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
-        If e.ChangedButton = MouseButton.Left Then
-            Me.DragMove()
-        End If
-    End Sub
-
-    Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs)
-        Me.Close()
     End Sub
 
     Private Sub BtnAbout_Click(sender As Object, e As RoutedEventArgs)
@@ -211,21 +272,108 @@ Public Class SettingsWindow
         aboutWin.ShowDialog()
     End Sub
 
+    Private Sub Sidebar_NavigationSelected(sender As Object, e As NavigationSelectionChangedEventArgs)
+        If _isUpdatingSidebar OrElse e?.SelectedItem Is Nothing Then Return
+        SetActiveNavTab(e.SelectedItem.Key)
+    End Sub
+
     ''' <summary>
-    ''' Gestisce il cambio di selezione del tema dal menu a tendina.
+    ''' Activates the specified category panel, collapses all others, and updates header context and sidebar selection.
+    ''' </summary>
+    Public Sub SetActiveNavTab(tabName As String)
+        If String.IsNullOrWhiteSpace(tabName) Then tabName = "General"
+        _activeNavTab = tabName
+
+        If PanelGeneral IsNot Nothing Then PanelGeneral.Visibility = If(String.Equals(tabName, "General", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+        If PanelAccounts IsNot Nothing Then PanelAccounts.Visibility = If(String.Equals(tabName, "Accounts", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+        If PanelTranslation IsNot Nothing Then PanelTranslation.Visibility = If(String.Equals(tabName, "Translation", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+        If PanelNetwork IsNot Nothing Then PanelNetwork.Visibility = If(String.Equals(tabName, "Network", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+        If PanelCss IsNot Nothing Then PanelCss.Visibility = If(String.Equals(tabName, "Css", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+        If PanelStorage IsNot Nothing Then PanelStorage.Visibility = If(String.Equals(tabName, "Storage", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+        If PanelAbout IsNot Nothing Then PanelAbout.Visibility = If(String.Equals(tabName, "About", StringComparison.OrdinalIgnoreCase), Visibility.Visible, Visibility.Collapsed)
+
+        If Sidebar IsNot Nothing Then
+            _isUpdatingSidebar = True
+            Sidebar.SelectByKey(tabName)
+            _isUpdatingSidebar = False
+        End If
+
+        UpdatePageHeaderForActiveTab()
+        If String.Equals(tabName, "Accounts", StringComparison.OrdinalIgnoreCase) Then
+            LocalizeAccountItemControls()
+        End If
+    End Sub
+
+    Private Sub UpdatePageHeaderForActiveTab()
+        Dim loc = _settingsController?.Localizations
+        If loc Is Nothing OrElse TxtPageTitle Is Nothing OrElse TxtPageSubtitle Is Nothing Then Return
+
+        Select Case _activeNavTab.ToLowerInvariant()
+            Case "accounts"
+                TxtPageTitle.Text = loc.Get("settings_cat_accounts")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_accounts")
+            Case "translation"
+                TxtPageTitle.Text = loc.Get("settings_cat_translation")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_translation")
+            Case "network"
+                TxtPageTitle.Text = loc.Get("settings_cat_network")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_network")
+            Case "css"
+                TxtPageTitle.Text = loc.Get("settings_cat_css")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_css")
+            Case "storage"
+                TxtPageTitle.Text = loc.Get("settings_cat_storage")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_storage")
+            Case "about"
+                TxtPageTitle.Text = loc.Get("settings_cat_about")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_about")
+            Case Else
+                TxtPageTitle.Text = loc.Get("settings_cat_general")
+                TxtPageSubtitle.Text = loc.Get("settings_sub_general")
+        End Select
+    End Sub
+
+    Private Sub RebuildSidebarItems()
+        If Sidebar Is Nothing OrElse _settingsController?.Localizations Is Nothing Then Return
+        Dim loc = _settingsController.Localizations
+        Dim accountBadge = If(_accountManager IsNot Nothing,
+                              $"{_accountManager.Accounts.Count}/{_accountManager.MaxAccounts}",
+                              String.Empty)
+
+        Dim items As New List(Of NavigationItem) From {
+            New NavigationItem With {.Key = "General", .Title = loc.Get("settings_cat_general"), .IconKey = IconKey.Settings},
+            New NavigationItem With {.Key = "Accounts", .Title = loc.Get("settings_cat_accounts"), .IconKey = IconKey.Users, .BadgeText = accountBadge},
+            New NavigationItem With {.Key = "Translation", .Title = loc.Get("settings_cat_translation"), .IconKey = IconKey.Sparkles},
+            New NavigationItem With {.Key = "Network", .Title = loc.Get("settings_cat_network"), .IconKey = IconKey.Shield},
+            New NavigationItem With {.Key = "Css", .Title = loc.Get("settings_cat_css"), .IconKey = IconKey.Palette},
+            New NavigationItem With {.Key = "Storage", .Title = loc.Get("settings_cat_storage"), .IconKey = IconKey.Dashboard},
+            New NavigationItem With {.Key = "About", .Title = loc.Get("settings_cat_about"), .IconKey = IconKey.Info}
+        }
+
+        _isUpdatingSidebar = True
+        Sidebar.HeaderTitle = "HidaChat"
+        Sidebar.HeaderSubtitle = loc.Get("settings")
+        Sidebar.ItemsSource = items
+        Sidebar.SelectByKey(_activeNavTab)
+        _isUpdatingSidebar = False
+    End Sub
+
+    ''' <summary>
+    ''' Handles theme dropdown selection changes and updates both SettingsController and ThemeManager live.
     ''' </summary>
     Private Async Sub ComboTheme_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
-        Dim selectedItem = CType(ComboTheme.SelectedItem, ComboBoxItem)
+        Dim selectedItem = TryCast(ComboTheme.SelectedItem, ComboBoxItem)
         If selectedItem IsNot Nothing Then
             Dim themeStr = selectedItem.Content.ToString()
             Await _settingsController.SaveThemeAsync(themeStr)
-            ApplyTheme()
+            SyncThemeManagerFromSettings(persist:=True)
+            UpdateTsnetUI()
         End If
     End Sub
 
     ''' <summary>
-    ''' Gestisce il cambio di lingua selezionata dal menu a tendina e notifica i controlli WebView.
+    ''' Handles interface language changes and notifies active WebView2 instances.
     ''' </summary>
     Private Async Sub ComboLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
@@ -236,25 +384,27 @@ Public Class SettingsWindow
 
             RefreshLocalization()
 
-            ' Notifica alle WebView2 attive l'aggiornamento della lingua
-            Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = langCode)
-            If langItem IsNot Nothing Then
-                Dim translatedLangName = langItem.Name
-                Dim tooltipLabel = _settingsController.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
+            ' Notify active WebView2 instances of the language update
+            If _accountManager IsNot Nothing Then
+                Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = langCode)
+                If langItem IsNot Nothing Then
+                    Dim translatedLangName = langItem.Name
+                    Dim tooltipLabel = _settingsController.Localizations.Get("translate_to_lang", New Dictionary(Of String, String) From {{"lang", translatedLangName}})
 
-                For Each acc In _accountManager.Accounts
-                    Await acc.UpdateWebviewLanguageAsync(langCode, translatedLangName, tooltipLabel, _settingsController.TranslateMessageButton)
-                Next
+                    For Each acc In _accountManager.Accounts
+                        Await acc.UpdateWebviewLanguageAsync(langCode, translatedLangName, tooltipLabel, _settingsController.TranslateMessageButton)
+                    Next
+                End If
             End If
         End If
     End Sub
 
     ''' <summary>
-    ''' Gestisce l'abilitazione o disabilitazione delle opzioni dalle varie CheckBox della finestra.
+    ''' Handles CheckBox option changes across translation and notification settings.
     ''' </summary>
     Private Async Sub ChkSetting_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
-        
+
         Dim chk = CType(sender, CheckBox)
         Select Case chk.Name
             Case "ChkTranslateMessageButton"
@@ -275,8 +425,8 @@ Public Class SettingsWindow
                 TranslationCacheService.Instance.PrivacyConsentAccepted = chk.IsChecked.Value
         End Select
 
-        ' Notifica le WebView2 sui cambiamenti del pulsante hover
-        If chk.Name = "ChkTranslateMessageButton" Then
+        ' Notify WebView2 instances when hover translate button visibility changes
+        If chk.Name = "ChkTranslateMessageButton" AndAlso _accountManager IsNot Nothing Then
             Dim langItem = _settingsController.SupportedLanguages.FirstOrDefault(Function(l) l.Code = _settingsController.Language)
             If langItem IsNot Nothing Then
                 Dim langName = langItem.Name
@@ -291,11 +441,11 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Gestisce il cambio del fornitore di traduzione selezionato (TODO #69).
+    ''' Handles translation provider dropdown selection changes.
     ''' </summary>
     Private Async Sub ComboTranslationProvider_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
-        Dim item = CType(ComboTranslationProvider.SelectedItem, ComboBoxItem)
+        Dim item = TryCast(ComboTranslationProvider.SelectedItem, ComboBoxItem)
         If item IsNot Nothing AndAlso item.Tag IsNot Nothing Then
             Dim providerId = item.Tag.ToString().ToLowerInvariant()
             _settingsController.TranslationProvider = providerId
@@ -321,7 +471,7 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Salva le modifiche ai parametri di configurazione dei provider self-hosted/locali (TODO #69).
+    ''' Persists configuration fields for self-hosted or custom translation providers.
     ''' </summary>
     Private Async Sub TranslationConfig_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
@@ -357,18 +507,19 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Esegue il test di connettività verso il fornitore di traduzione attualmente configurato (TODO #69).
+    ''' Runs a connectivity test against the currently configured translation provider.
     ''' </summary>
     Private Async Sub BtnTestTranslationProvider_Click(sender As Object, e As RoutedEventArgs)
         If BtnTestTranslationProvider Is Nothing OrElse TxtTranslationTestStatus Is Nothing Then Return
-        
+
         Dim loc = _settingsController.Localizations
+        Dim palette = ThemeManager.Instance.CurrentPalette
         BtnTestTranslationProvider.IsEnabled = False
-        TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&H86, &H96, &HA0))
+        TxtTranslationTestStatus.Foreground = BrushCache.GetBrush(palette.TextSecondary)
         TxtTranslationTestStatus.Text = loc.Get("connection_testing")
 
         Try
-            ' Assicura che i campi attuali siano applicati prima del test
+            ' Ensure current input fields are persisted before running the test
             TranslationConfig_Changed(Nothing, Nothing)
             Dim provider = TranslationCacheService.Instance.ActiveProvider
             If provider Is Nothing Then
@@ -378,21 +529,28 @@ Public Class SettingsWindow
             Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(8))
                 Dim testRes = Await provider.TestConnectionAsync(cts.Token)
                 If testRes.Success Then
-                    TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&H0, &HA8, &H84))
+                    TxtTranslationTestStatus.Foreground = BrushCache.GetBrush(palette.Success)
                     Dim args As New Dictionary(Of String, String) From {
                         {"latency", testRes.LatencyMs.ToString()}
                     }
                     TxtTranslationTestStatus.Text = loc.Get("translation_test_success", args)
                 Else
-                    TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&HEA, &H0, &H38))
+                    TxtTranslationTestStatus.Foreground = BrushCache.GetBrush(palette.ErrorColor)
+                    Dim errMsg = If(Not String.IsNullOrEmpty(testRes.Message), testRes.Message, "Unreachable")
                     Dim args As New Dictionary(Of String, String) From {
-                        {"error", If(Not String.IsNullOrEmpty(testRes.Message), testRes.Message, "Unreachable")}
+                        {"error", errMsg}
                     }
-                    TxtTranslationTestStatus.Text = loc.Get("translation_test_failure", args)
+                    Dim baseFailure = loc.Get("translation_test_failure", args)
+                    If errMsg.Contains("429") Then
+                        Dim hint = loc.Get("translation_rate_limit_hint")
+                        TxtTranslationTestStatus.Text = $"{baseFailure} - {hint}"
+                    Else
+                        TxtTranslationTestStatus.Text = baseFailure
+                    End If
                 End If
             End Using
         Catch ex As Exception
-            TxtTranslationTestStatus.Foreground = New SolidColorBrush(Color.FromRgb(&HEA, &H0, &H38))
+            TxtTranslationTestStatus.Foreground = BrushCache.GetBrush(palette.ErrorColor)
             Dim args As New Dictionary(Of String, String) From {
                 {"error", ex.Message}
             }
@@ -403,16 +561,18 @@ Public Class SettingsWindow
     End Sub
 
     Private Async Sub TxtAccountName_LostFocus(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim txt = CType(sender, TextBox)
-        Dim acc = CType(txt.DataContext, AppAccounts)
+        Dim acc = TryCast(txt.DataContext, AppAccounts)
         If acc IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(txt.Text) Then
             Await _accountManager.UpdateAccountNameAsync(acc.Id, txt.Text.Trim())
         End If
     End Sub
 
     Private Async Sub TxtServerUrl_LostFocus(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim txt = CType(sender, TextBox)
-        Dim acc = CType(txt.DataContext, AppAccounts)
+        Dim acc = TryCast(txt.DataContext, AppAccounts)
         If acc IsNot Nothing Then
             Dim defaultUrl = acc.PlatformDefinition.DefaultUrl
             Dim newUrl = If(String.IsNullOrWhiteSpace(txt.Text), defaultUrl, txt.Text.Trim())
@@ -430,8 +590,9 @@ Public Class SettingsWindow
     End Sub
 
     Private Async Sub TxtAuthToken_LostFocus(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim txt = CType(sender, TextBox)
-        Dim acc = CType(txt.DataContext, AppAccounts)
+        Dim acc = TryCast(txt.DataContext, AppAccounts)
         If acc IsNot Nothing Then
             Dim newToken = If(txt.Text, "").Trim()
             If acc.AuthToken <> newToken Then
@@ -442,6 +603,7 @@ Public Class SettingsWindow
     End Sub
 
     Private Async Sub ChkAccountTailscale_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim chk = TryCast(sender, CheckBox)
         If chk Is Nothing Then Return
         Dim accountId = TryCast(chk.Tag, String)
@@ -463,6 +625,7 @@ Public Class SettingsWindow
     End Sub
 
     Private Async Sub ChkAccountInsecureTls_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim chk = TryCast(sender, CheckBox)
         If chk Is Nothing Then Return
         Dim accountId = TryCast(chk.Tag, String)
@@ -477,6 +640,7 @@ Public Class SettingsWindow
     End Sub
 
     Private Async Sub BtnTestConnection_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim btn = TryCast(sender, Button)
         If btn Is Nothing Then Return
         Dim accountId = TryCast(btn.Tag, String)
@@ -484,9 +648,10 @@ Public Class SettingsWindow
         If acc Is Nothing Then Return
 
         Dim loc = _settingsController.Localizations
-        acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_testing"), "Verifica in corso...")
+        Dim palette = ThemeManager.Instance.CurrentPalette
+        acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_testing"), "Testing...")
         acc.ConnectionStatusTooltip = ""
-        acc.ConnectionStatusBrush = BrushCache.GetBrush("#FFD54F")
+        acc.ConnectionStatusBrush = BrushCache.GetBrush(palette.Warning)
         btn.IsEnabled = False
 
         Dim isOnline = False
@@ -550,17 +715,17 @@ Public Class SettingsWindow
         End Try
 
         If isOnline Then
-            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_success"), "✓ Online")
+            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_success"), "Online")
             acc.ConnectionStatusTooltip = ""
-            acc.ConnectionStatusBrush = BrushCache.GetBrush("#25d366")
+            acc.ConnectionStatusBrush = BrushCache.GetBrush(palette.Success)
         ElseIf isTlsError Then
-            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_tls_error"), "✗ Errore certificato SSL/TLS")
-            acc.ConnectionStatusTooltip = If(Not String.IsNullOrWhiteSpace(tlsErrorDetail), tlsErrorDetail, "La verifica del certificato SSL/TLS è fallita.")
-            acc.ConnectionStatusBrush = BrushCache.GetBrush("#EF5350")
+            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_tls_error"), "SSL/TLS certificate error")
+            acc.ConnectionStatusTooltip = If(Not String.IsNullOrWhiteSpace(tlsErrorDetail), tlsErrorDetail, "SSL/TLS certificate verification failed.")
+            acc.ConnectionStatusBrush = BrushCache.GetBrush(palette.ErrorColor)
         Else
-            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_failed"), "✗ Non raggiungibile")
+            acc.ConnectionStatusText = If(loc IsNot Nothing, loc.Get("connection_failed"), "Unreachable")
             acc.ConnectionStatusTooltip = ""
-            acc.ConnectionStatusBrush = BrushCache.GetBrush("#EF5350")
+            acc.ConnectionStatusBrush = BrushCache.GetBrush(palette.ErrorColor)
         End If
         UpdateTsnetUI()
     End Sub
@@ -569,30 +734,30 @@ Public Class SettingsWindow
         Dispatcher.Invoke(Sub() UpdateTsnetUI())
     End Sub
 
+    ''' <summary>
+    ''' Updates the embedded Tailscale (tsnet) StatusBadge text, semantic severity, and login button visibility.
+    ''' </summary>
     Private Sub UpdateTsnetUI()
-        If TxtTsnetStatus Is Nothing Then Return
+        If BadgeTsnetStatus Is Nothing Then Return
         Dim ts = TsnetManager.Instance
+
         Select Case ts.NodeState
             Case "Running"
-                TxtTsnetStatus.Text = If(Not String.IsNullOrEmpty(ts.TailnetIP), $"Online ({ts.TailnetIP})", "Online")
-                BadgeTsnetStatus.Background = BrushCache.GetBrush("#1b3d2f")
-                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#25d366")
-                BtnTsnetLogin.Visibility = Visibility.Collapsed
+                BadgeTsnetStatus.Text = If(Not String.IsNullOrEmpty(ts.TailnetIP), $"Online ({ts.TailnetIP})", "Online")
+                BadgeTsnetStatus.Severity = SemanticSeverity.Success
+                If BtnTsnetLogin IsNot Nothing Then BtnTsnetLogin.Visibility = Visibility.Collapsed
             Case "NeedsLogin"
-                TxtTsnetStatus.Text = "Richiede Login"
-                BadgeTsnetStatus.Background = BrushCache.GetBrush("#3e3215")
-                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#FFD54F")
-                BtnTsnetLogin.Visibility = Visibility.Visible
+                BadgeTsnetStatus.Text = "Richiede Login"
+                BadgeTsnetStatus.Severity = SemanticSeverity.Warning
+                If BtnTsnetLogin IsNot Nothing Then BtnTsnetLogin.Visibility = Visibility.Visible
             Case "Starting"
-                TxtTsnetStatus.Text = "Avvio..."
-                BadgeTsnetStatus.Background = BrushCache.GetBrush("#2a3942")
-                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#8696a0")
-                BtnTsnetLogin.Visibility = Visibility.Collapsed
+                BadgeTsnetStatus.Text = "Avvio..."
+                BadgeTsnetStatus.Severity = SemanticSeverity.Info
+                If BtnTsnetLogin IsNot Nothing Then BtnTsnetLogin.Visibility = Visibility.Collapsed
             Case Else
-                TxtTsnetStatus.Text = "Non attivo"
-                BadgeTsnetStatus.Background = BrushCache.GetBrush("#2a3942")
-                TxtTsnetStatus.Foreground = BrushCache.GetBrush("#8696a0")
-                BtnTsnetLogin.Visibility = Visibility.Collapsed
+                BadgeTsnetStatus.Text = "Non attivo"
+                BadgeTsnetStatus.Severity = SemanticSeverity.Neutral
+                If BtnTsnetLogin IsNot Nothing Then BtnTsnetLogin.Visibility = Visibility.Collapsed
         End Select
     End Sub
 
@@ -612,9 +777,10 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Gestisce l'evento di eliminazione di un account previa conferma dell'utente.
+    ''' Deletes an account after an explicit destructive confirmation dialog.
     ''' </summary>
     Private Async Sub BtnDeleteAccount_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Dim btn = CType(sender, Button)
         Dim accountId = TryCast(btn.Tag, String)
         If String.IsNullOrEmpty(accountId) Then Return
@@ -625,39 +791,40 @@ Public Class SettingsWindow
         Dim loc = _settingsController.Localizations
 
         If _accountManager.Accounts.Count <= 1 Then
-            MessageBox.Show(
-                loc.Get("delete_account_last"),
+            DialogManager.ShowWarning(
+                Me,
                 loc.Get("delete_account_title"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
+                loc.Get("delete_account_last")
             )
             Return
         End If
 
         Dim confirmMsg = loc.Get("delete_account_confirm", New Dictionary(Of String, String) From {{"name", acc.Name}})
-        Dim result = MessageBox.Show(
-            confirmMsg,
-            loc.Get("delete_account_title"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question
+        Dim confirmed = DialogManager.ShowConfirm(
+            owner:=Me,
+            title:=loc.Get("delete_account_title"),
+            message:=confirmMsg,
+            confirmText:=loc.Get("delete"),
+            cancelText:=loc.Get("cancel"),
+            isDestructive:=True,
+            iconKey:=IconKey.Trash
         )
-        
-        If result = MessageBoxResult.Yes Then
+
+        If confirmed Then
             Await _accountManager.RemoveAccountAsync(accountId)
-            _cachedAccountBorders = Nothing
-            _cachedAccountTextBoxes = Nothing
-            ' Aggiorna la lista nella UI
             AccountsList.ItemsSource = Nothing
             AccountsList.ItemsSource = _accountManager.Accounts
             UpdateAccountsUIState()
+            RebuildSidebarItems()
+            LocalizeAccountItemControls()
         End If
     End Sub
 
     ''' <summary>
-    ''' Gestisce il cambio di piattaforma (WhatsApp / Telegram / OpenClaw) di un account dall'elenco nelle impostazioni.
+    ''' Handles platform switching (WhatsApp / Telegram / Discord / OpenClaw / Hermes) for an account.
     ''' </summary>
     Private Async Sub ComboAccountPlatform_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
-        If _isInitializing Then Return
+        If _isInitializing OrElse _accountManager Is Nothing Then Return
         Dim cmb = TryCast(sender, ComboBox)
         If cmb Is Nothing Then Return
 
@@ -697,18 +864,27 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Gestisce l'aggiunta di un nuovo account dalla finestra delle impostazioni con scelta della piattaforma.
+    ''' Opens the platform selection menu to add a new account from Settings.
     ''' </summary>
     Private Sub BtnAddAccountSettings_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         If Not _accountManager.CanAddAccount Then
             Dim loc = _settingsController.Localizations
             If _accountManager.HasExcessAccounts Then
-                MessageBox.Show(loc.Get("accounts_downgrade_blocked", New Dictionary(Of String, String) From {
-                    {"count", _accountManager.Accounts.Count.ToString()},
-                    {"max", _accountManager.MaxAccounts.ToString()}
-                }), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Warning)
+                DialogManager.ShowWarning(
+                    Me,
+                    loc.Get("manage_accounts"),
+                    loc.Get("accounts_downgrade_blocked", New Dictionary(Of String, String) From {
+                        {"count", _accountManager.Accounts.Count.ToString()},
+                        {"max", _accountManager.MaxAccounts.ToString()}
+                    })
+                )
             Else
-                MessageBox.Show(loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}}), loc.Get("manage_accounts"), MessageBoxButton.OK, MessageBoxImage.Information)
+                DialogManager.ShowInfo(
+                    Me,
+                    loc.Get("manage_accounts"),
+                    loc.Get("max_accounts_reached", New Dictionary(Of String, String) From {{"max", _accountManager.MaxAccounts.ToString()}})
+                )
             End If
             Return
         End If
@@ -716,30 +892,27 @@ Public Class SettingsWindow
         Dim locStrings = _settingsController.Localizations
         Dim menu As New ContextMenu()
 
-        Dim itemWhatsApp As New MenuItem With {
-            .Header = locStrings.Get("add_whatsapp_account")
-        }
+        Dim itemWhatsApp As New MenuItem With {.Header = locStrings.Get("add_whatsapp_account")}
         AddHandler itemWhatsApp.Click, Async Sub()
             Await AddAccountSettingsWithPlatformAsync(ChatPlatform.WhatsApp)
         End Sub
 
-        Dim itemTelegram As New MenuItem With {
-            .Header = locStrings.Get("add_telegram_account")
-        }
+        Dim itemTelegram As New MenuItem With {.Header = locStrings.Get("add_telegram_account")}
         AddHandler itemTelegram.Click, Async Sub()
             Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Telegram)
         End Sub
 
-        Dim itemOpenClaw As New MenuItem With {
-            .Header = locStrings.Get("add_openclaw_account")
-        }
+        Dim itemOpenClaw As New MenuItem With {.Header = locStrings.Get("add_openclaw_account")}
         AddHandler itemOpenClaw.Click, Async Sub()
             Await AddAccountSettingsWithPlatformAsync(ChatPlatform.OpenClaw)
         End Sub
 
-        Dim itemHermes As New MenuItem With {
-            .Header = locStrings.Get("add_hermes_account")
-        }
+        Dim itemDiscord As New MenuItem With {.Header = locStrings.Get("add_discord_account")}
+        AddHandler itemDiscord.Click, Async Sub()
+            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Discord)
+        End Sub
+
+        Dim itemHermes As New MenuItem With {.Header = locStrings.Get("add_hermes_account")}
         AddHandler itemHermes.Click, Async Sub()
             Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Hermes)
         End Sub
@@ -747,13 +920,6 @@ Public Class SettingsWindow
         menu.Items.Add(itemWhatsApp)
         menu.Items.Add(itemTelegram)
         menu.Items.Add(itemOpenClaw)
-        Dim itemDiscord As New MenuItem With {
-            .Header = locStrings.Get("add_discord_account")
-        }
-        AddHandler itemDiscord.Click, Async Sub()
-            Await AddAccountSettingsWithPlatformAsync(ChatPlatform.Discord)
-        End Sub
-
         menu.Items.Add(itemDiscord)
         menu.Items.Add(itemHermes)
         menu.PlacementTarget = BtnAddAccountSettings
@@ -768,19 +934,21 @@ Public Class SettingsWindow
             If Integer.TryParse(item.Tag.ToString(), maxVal) Then
                 Await _settingsController.SaveMaxAccountsAsync(maxVal)
                 UpdateAccountsUIState()
+                RebuildSidebarItems()
             End If
         End If
     End Sub
 
     Private Async Function AddAccountSettingsWithPlatformAsync(platform As ChatPlatform) As Task
+        If _accountManager Is Nothing Then Return
         Dim success = Await _accountManager.AddAccountAsync(platformType:=platform)
         If success Then
-            _cachedAccountBorders = Nothing
-            _cachedAccountTextBoxes = Nothing
             AccountsList.ItemsSource = Nothing
             AccountsList.ItemsSource = _accountManager.Accounts
+            LocalizeAccountItemControls()
         End If
         UpdateAccountsUIState()
+        RebuildSidebarItems()
     End Function
 
     Private Async Function AddAccountSettingsWithPlatformAsync(platformStr As String) As Task
@@ -788,15 +956,23 @@ Public Class SettingsWindow
     End Function
 
     ''' <summary>
-    ''' Aggiorna lo stato del conteggio account, banner di downgrade e pulsante aggiungi nelle impostazioni.
+    ''' Updates account count badge, downgrade notice banner, and Add Account button state.
     ''' </summary>
     Private Sub UpdateAccountsUIState()
+        If _settingsController Is Nothing Then Return
         Dim loc = _settingsController.Localizations
-        If TxtAccountsCount IsNot Nothing Then
-            TxtAccountsCount.Text = loc.Get("accounts_count_info", New Dictionary(Of String, String) From {
+
+        If _accountManager Is Nothing Then
+            If BtnAddAccountSettings IsNot Nothing Then BtnAddAccountSettings.IsEnabled = False
+            Return
+        End If
+
+        If BadgeAccountsCount IsNot Nothing Then
+            BadgeAccountsCount.Text = loc.Get("accounts_count_info", New Dictionary(Of String, String) From {
                 {"count", _accountManager.Accounts.Count.ToString()},
                 {"max", _accountManager.MaxAccounts.ToString()}
             })
+            BadgeAccountsCount.Severity = If(_accountManager.HasExcessAccounts, SemanticSeverity.Warning, SemanticSeverity.Info)
         End If
         If BtnAddAccountSettings IsNot Nothing Then
             BtnAddAccountSettings.IsEnabled = _accountManager.CanAddAccount
@@ -816,17 +992,17 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Apre la finestra degli Strumenti di Sviluppo (DevTools) di Edge per la WebView2 dell'account attivo.
+    ''' Opens Edge DevTools for the currently active account's WebView2 instance.
     ''' </summary>
     Private Sub BtnDevTools_Click(sender As Object, e As RoutedEventArgs)
-        Dim activeAcc = _accountManager.CurrentAccount
+        Dim activeAcc = _accountManager?.CurrentAccount
         If activeAcc IsNot Nothing AndAlso activeAcc.WebView IsNot Nothing AndAlso activeAcc.WebView.CoreWebView2 IsNot Nothing Then
             activeAcc.WebView.CoreWebView2.OpenDevToolsWindow()
         End If
     End Sub
 
     ''' <summary>
-    ''' Avvia la verifica manuale della presenza di aggiornamenti.
+    ''' Triggers a manual check for updates on GitHub Releases.
     ''' </summary>
     Private Async Sub BtnCheckUpdates_Click(sender As Object, e As RoutedEventArgs)
         Await UpdateChecker.CheckForUpdatesAsync(_settingsController, _accountManager, force:=True)
@@ -847,7 +1023,7 @@ Public Class SettingsWindow
         Await _settingsController.SaveSettingAsync("enableNetworkProfileStaging", enabled)
     End Sub
 
-    ' --- Gestori eventi Ibernazione Schede (TODO #50) ---
+    ' --- Tab Hibernation handlers ---
     Private Async Sub ChkEnableTabHibernation_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
         Dim enabled = ChkEnableTabHibernation.IsChecked.GetValueOrDefault(True)
@@ -870,7 +1046,7 @@ Public Class SettingsWindow
         Await _settingsController.SaveTabHibernationSettingsAsync(enabled, timeoutMin)
     End Sub
 
-    ' --- Gestori eventi Cache Disco e Pulizia Intelligente (TODO #71 & #72) ---
+    ' --- Disk Cache & Smart Cleanup handlers ---
     Private Async Sub ComboDiskCacheLimit_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
         Dim selectedItem = TryCast(ComboDiskCacheLimit.SelectedItem, ComboBoxItem)
@@ -882,66 +1058,100 @@ Public Class SettingsWindow
     End Sub
 
     Private Async Sub BtnOptimizeStorage_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Try
             Dim loc = _settingsController.Localizations
             BtnOptimizeStorage.IsEnabled = False
+            If SettingsLoading IsNot Nothing Then
+                SettingsLoading.Message = If(loc IsNot Nothing, loc.Get("optimize_storage_btn"), "Optimizing storage...")
+                SettingsLoading.IsLoading = True
+            End If
 
             Dim compactedCount = Await _accountManager.CompactAllWebViewsProfileAsync()
 
-            Dim okTitle = If(loc IsNot Nothing, loc.Get("optimize_storage_success_title"), "Spazio Ottimizzato")
-            Dim okMsg = If(loc IsNot Nothing, loc.Get("optimize_storage_success_msg"), "Compattazione a caldo completata con successo! Cache HTTP e Service Worker compattati preservando le credenziali di accesso.")
-            MessageBox.Show(okMsg, okTitle, MessageBoxButton.OK, MessageBoxImage.Information)
+            Dim okTitle = If(loc IsNot Nothing, loc.Get("optimize_storage_success_title"), "Storage Optimized")
+            Dim okMsg = If(loc IsNot Nothing, loc.Get("optimize_storage_success_msg"), "Live cache compaction completed while preserving account sessions.")
+            If SettingsToast IsNot Nothing Then
+                SettingsToast.Show(okMsg, SemanticSeverity.Success, title:=okTitle, durationMs:=4500)
+            End If
         Catch ex As Exception
             Debug.WriteLine($"BtnOptimizeStorage_Click error: {ex.Message}")
+            If SettingsToast IsNot Nothing Then
+                SettingsToast.Show(ex.Message, SemanticSeverity.Error)
+            End If
         Finally
+            If SettingsLoading IsNot Nothing Then SettingsLoading.IsLoading = False
             BtnOptimizeStorage.IsEnabled = True
         End Try
     End Sub
 
     Private Async Sub BtnSmartCleanCache_Click(sender As Object, e As RoutedEventArgs)
+        If _accountManager Is Nothing Then Return
         Try
             Dim loc = _settingsController.Localizations
-            Dim confirmTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_title"), "Pulizia Cache")
-            Dim confirmMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_msg"), "Vuoi eseguire la pulizia dei file temporanei e della cache browser per tutti gli account? Le sessioni di accesso e le credenziali verranno preservate.")
-            If MessageBox.Show(confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question) <> MessageBoxResult.Yes Then
-                Return
-            End If
+            Dim confirmTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_title"), "Clean Cache")
+            Dim confirmMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_confirm_msg"), "Clean temporary files and browser cache for all accounts? Active login sessions will be preserved.")
+
+            Dim confirmed = DialogManager.ShowConfirm(
+                owner:=Me,
+                title:=confirmTitle,
+                message:=confirmMsg,
+                confirmText:=If(loc IsNot Nothing, loc.Get("smart_clean_cache_btn"), "Clean Cache"),
+                cancelText:=If(loc IsNot Nothing, loc.Get("cancel"), "Cancel"),
+                isDestructive:=False,
+                iconKey:=IconKey.Trash
+            )
+            If Not confirmed Then Return
 
             BtnSmartCleanCache.IsEnabled = False
+            If SettingsLoading IsNot Nothing Then
+                SettingsLoading.Message = If(loc IsNot Nothing, loc.Get("smart_clean_cache_btn"), "Cleaning cache...")
+                SettingsLoading.IsLoading = True
+            End If
+
             Await _accountManager.SmartCleanCachePreservingLoginAsync()
 
-            Dim okTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_title"), "Pulizia Completata")
-            Dim okMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_msg"), "Pulizia cache completata con successo! Le sessioni degli account sono state preservate.")
-            MessageBox.Show(okMsg, okTitle, MessageBoxButton.OK, MessageBoxImage.Information)
+            Dim okTitle = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_title"), "Cleanup Complete")
+            Dim okMsg = If(loc IsNot Nothing, loc.Get("smart_clean_cache_success_msg"), "Cache cleanup completed while preserving account sessions.")
+            If SettingsToast IsNot Nothing Then
+                SettingsToast.Show(okMsg, SemanticSeverity.Success, title:=okTitle, durationMs:=4500)
+            End If
         Catch ex As Exception
             Debug.WriteLine($"BtnSmartCleanCache_Click error: {ex.Message}")
+            If SettingsToast IsNot Nothing Then
+                SettingsToast.Show(ex.Message, SemanticSeverity.Error)
+            End If
         Finally
+            If SettingsLoading IsNot Nothing Then SettingsLoading.IsLoading = False
             BtnSmartCleanCache.IsEnabled = True
         End Try
     End Sub
 
-
-    ' --- Gestori eventi Custom CSS (TODO #43) ---
+    ' --- Custom CSS handlers ---
     Private Async Sub ChkEnableCustomCss_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
         Dim enabled = ChkEnableCustomCss.IsChecked.GetValueOrDefault(False)
         Await _settingsController.SaveCustomCssAsync(enabled, TxtCustomCss.Text)
-        For Each acc In _accountManager.Accounts
-            Await acc.ApplyCustomCssAsync(_settingsController.CustomCss, enabled)
-        Next
+        If _accountManager IsNot Nothing Then
+            For Each acc In _accountManager.Accounts
+                Await acc.ApplyCustomCssAsync(_settingsController.CustomCss, enabled)
+            Next
+        End If
     End Sub
 
     Private Async Sub BtnApplyCustomCss_Click(sender As Object, e As RoutedEventArgs)
         Dim enabled = ChkEnableCustomCss.IsChecked.GetValueOrDefault(False)
         Dim css = TxtCustomCss.Text
         Await _settingsController.SaveCustomCssAsync(enabled, css)
-        For Each acc In _accountManager.Accounts
-            Await acc.ApplyCustomCssAsync(css, enabled)
-        Next
+        If _accountManager IsNot Nothing Then
+            For Each acc In _accountManager.Accounts
+                Await acc.ApplyCustomCssAsync(css, enabled)
+            Next
+        End If
         Dim loc = _settingsController.Localizations
-        BtnApplyCustomCss.Content = "✔ " & loc.Get("css_applied")
-        Await Task.Delay(1500)
-        BtnApplyCustomCss.Content = loc.Get("apply_css")
+        If SettingsToast IsNot Nothing Then
+            SettingsToast.Show(loc.Get("css_applied"), SemanticSeverity.Success, durationMs:=2500)
+        End If
     End Sub
 
     Private Sub BtnPresetOled_Click(sender As Object, e As RoutedEventArgs)
@@ -978,7 +1188,7 @@ Public Class SettingsWindow
         TxtCustomCss.Text = ""
     End Sub
 
-    ' --- Gestori eventi Correttore Ortografico (TODO #44) ---
+    ' --- Spellchecker handlers ---
     Private Async Sub ChkEnableSpellcheck_Changed(sender As Object, e As RoutedEventArgs)
         If _isInitializing Then Return
         Dim enabled = ChkEnableSpellcheck.IsChecked.GetValueOrDefault(True)
@@ -995,7 +1205,7 @@ Public Class SettingsWindow
         Await _settingsController.SaveSpellcheckSettingsAsync(enabled, spellLang)
     End Sub
 
-    ' --- Gestore Modalità Non Disturbare nelle Impostazioni (TODO #47) ---
+    ' --- Do Not Disturb handlers ---
     Private Async Sub ComboDndMode_SelectionChanged(sender As Object, e As SelectionChangedEventArgs)
         If _isInitializing Then Return
         Dim selectedItem = TryCast(ComboDndMode.SelectedItem, ComboBoxItem)
@@ -1015,49 +1225,55 @@ Public Class SettingsWindow
     End Sub
 
     ''' <summary>
-    ''' Aggiorna tutti i testi delle etichette della finestra in base alle traduzioni correnti.
+    ''' Applies all localized strings across cards, labels, sidebar navigation, and buttons.
     ''' </summary>
     Private Sub RefreshLocalization()
         Dim loc = _settingsController.Localizations
-        TitleText.Text = loc.Get("settings")
-        SectionTheme.Text = loc.Get("theme")
+        Me.Title = loc.Get("settings")
+
+        If BtnAbout IsNot Nothing Then BtnAbout.Content = loc.Get("about")
+        If BtnOpenAboutDialog IsNot Nothing Then BtnOpenAboutDialog.Content = loc.Get("about")
+
+        RebuildSidebarItems()
+        UpdatePageHeaderForActiveTab()
+
+        If TxtSidebarVersion IsNot Nothing Then
+            TxtSidebarVersion.Text = $"HidaChat v{Constants.AppVersion}"
+        End If
+        If BadgeAboutVersion IsNot Nothing Then
+            BadgeAboutVersion.Text = $"v{Constants.AppVersion}"
+        End If
+
+        CardTheme.Header = loc.Get("theme")
         LabelAppTheme.Text = loc.Get("match_cohesive")
-        SectionLanguage.Text = loc.Get("language")
+        If LabelAccentColor IsNot Nothing Then LabelAccentColor.Text = loc.Get("accent_color")
+        CardLanguage.Header = loc.Get("language")
         LabelSelectLanguage.Text = loc.Get("language")
+
         ChkTranslateMessageButton.Content = loc.Get("translate_message_button")
         ChkFullPageTranslation.Content = loc.Get("full_page_translation")
         ChkShowTranslateAllButton.Content = loc.Get("show_translate_all_messages_button")
         If ChkTranslationPrivacyConsent IsNot Nothing Then
             ChkTranslationPrivacyConsent.Content = loc.Get("translation_privacy_consent_checkbox")
         End If
+        If CardTranslationProvider IsNot Nothing Then
+            CardTranslationProvider.Header = loc.Get("translation_provider")
+        End If
         If LabelTranslationProvider IsNot Nothing Then
             LabelTranslationProvider.Text = loc.Get("translation_provider")
         End If
-        If LabelLibreTranslateUrl IsNot Nothing Then
-            LabelLibreTranslateUrl.Text = loc.Get("translation_url")
-        End If
-        If LabelLibreTranslateApiKey IsNot Nothing Then
-            LabelLibreTranslateApiKey.Text = loc.Get("translation_api_key")
-        End If
-        If LabelOllamaUrl IsNot Nothing Then
-            LabelOllamaUrl.Text = loc.Get("translation_url")
-        End If
-        If LabelOllamaModel IsNot Nothing Then
-            LabelOllamaModel.Text = loc.Get("translation_model")
-        End If
-        If LabelOpenAiUrl IsNot Nothing Then
-            LabelOpenAiUrl.Text = loc.Get("translation_url")
-        End If
-        If LabelOpenAiModel IsNot Nothing Then
-            LabelOpenAiModel.Text = loc.Get("translation_model")
-        End If
-        If LabelOpenAiApiKey IsNot Nothing Then
-            LabelOpenAiApiKey.Text = loc.Get("translation_api_key")
-        End If
+        If TxtLibreTranslateUrl IsNot Nothing Then TxtLibreTranslateUrl.Label = loc.Get("translation_url")
+        If TxtLibreTranslateApiKey IsNot Nothing Then TxtLibreTranslateApiKey.Label = loc.Get("translation_api_key")
+        If TxtOllamaUrl IsNot Nothing Then TxtOllamaUrl.Label = loc.Get("translation_url")
+        If TxtOllamaModel IsNot Nothing Then TxtOllamaModel.Label = loc.Get("translation_model")
+        If TxtOpenAiUrl IsNot Nothing Then TxtOpenAiUrl.Label = loc.Get("translation_url")
+        If TxtOpenAiModel IsNot Nothing Then TxtOpenAiModel.Label = loc.Get("translation_model")
+        If TxtOpenAiApiKey IsNot Nothing Then TxtOpenAiApiKey.Label = loc.Get("translation_api_key")
         If BtnTestTranslationProvider IsNot Nothing Then
             BtnTestTranslationProvider.Content = loc.Get("translation_test_btn")
         End If
-        SectionNotifications.Text = loc.Get("notifications")
+
+        CardNotifications.Header = loc.Get("notifications")
         ChkShowMessagePopup.Content = loc.Get("show_message_popup")
         LabelDndMode.Text = loc.Get("dnd_mode")
         CbiDndOff.Content = loc.Get("dnd_off")
@@ -1067,203 +1283,85 @@ Public Class SettingsWindow
         CbiDnd8h.Content = loc.Get("dnd_8h")
         CbiDndIndefinite.Content = loc.Get("dnd_indefinite")
         UpdateDndSettingsText()
+
         SectionAccounts.Text = loc.Get("manage_accounts")
         If LabelMaxAccounts IsNot Nothing Then
             LabelMaxAccounts.Text = loc.Get("max_accounts")
         End If
-        SectionCustomCss.Text = loc.Get("custom_css")
+
+        CardCustomCss.Header = loc.Get("custom_css")
         ChkEnableCustomCss.Content = loc.Get("enable_custom_css")
         BtnApplyCustomCss.Content = loc.Get("apply_css")
         BtnPresetOled.Content = loc.Get("css_preset_oled")
         BtnPresetCompact.Content = loc.Get("css_preset_compact")
         BtnPresetFont.Content = loc.Get("css_preset_font")
         BtnPresetReset.Content = loc.Get("css_preset_reset")
+
         SectionSpellcheck.Text = loc.Get("spellchecker")
         ChkEnableSpellcheck.Content = loc.Get("enable_spellchecker")
         LabelSpellcheckLanguage.Text = loc.Get("spellchecker_language")
         CbiSpellAuto.Content = loc.Get("spellchecker_lang_auto")
         TxtSpellcheckHint.Text = loc.Get("spellchecker_restart_hint")
-        If SectionNetworkStaging IsNot Nothing Then
-            SectionNetworkStaging.Text = loc.Get("network_drive_section")
-        End If
-        If ChkEnableNetworkStaging IsNot Nothing Then
-            ChkEnableNetworkStaging.Content = loc.Get("enable_network_profile_staging")
-        End If
-        If TxtNetworkStagingHint IsNot Nothing Then
-            TxtNetworkStagingHint.Text = loc.Get("enable_network_profile_staging_hint")
-        End If
-        If SectionHibernation IsNot Nothing Then
-            SectionHibernation.Text = loc.Get("tab_hibernation_section")
-        End If
-        If ChkEnableTabHibernation IsNot Nothing Then
-            ChkEnableTabHibernation.Content = loc.Get("enable_tab_hibernation")
-        End If
-        If LabelTabHibernationTimeout IsNot Nothing Then
-            LabelTabHibernationTimeout.Text = loc.Get("tab_hibernation_timeout")
-        End If
-        If TxtTabHibernationHint IsNot Nothing Then
-            TxtTabHibernationHint.Text = loc.Get("enable_tab_hibernation_hint")
-        End If
-        If SectionCache IsNot Nothing Then
-            SectionCache.Text = loc.Get("cache_section")
-        End If
-        If LabelDiskCacheLimit IsNot Nothing Then
-            LabelDiskCacheLimit.Text = loc.Get("disk_cache_limit")
-        End If
-        If TxtDiskCacheLimitHint IsNot Nothing Then
-            TxtDiskCacheLimitHint.Text = loc.Get("disk_cache_limit_hint")
-        End If
-        If BtnOptimizeStorage IsNot Nothing Then
-            BtnOptimizeStorage.Content = loc.Get("optimize_storage_btn")
-        End If
-        If TxtOptimizeStorageHint IsNot Nothing Then
-            TxtOptimizeStorageHint.Text = loc.Get("optimize_storage_hint")
-        End If
-        If BtnSmartCleanCache IsNot Nothing Then
-            BtnSmartCleanCache.Content = loc.Get("smart_clean_cache_btn")
-        End If
-        If TxtSmartCleanCacheHint IsNot Nothing Then
-            TxtSmartCleanCacheHint.Text = loc.Get("smart_clean_cache_hint")
-        End If
-        SectionUpdates.Text = loc.Get("updates")
 
+        If CardTsnet IsNot Nothing Then CardTsnet.Header = loc.Get("tsnet_section_title")
+        If TxtTsnetDescription IsNot Nothing Then TxtTsnetDescription.Text = loc.Get("tsnet_section_desc")
+        If TxtTsnetAuthKey IsNot Nothing Then
+            TxtTsnetAuthKey.Label = loc.Get("tsnet_authkey_label")
+            TxtTsnetAuthKey.ToolTip = loc.Get("tsnet_authkey_tooltip")
+        End If
+
+        If CardNetworkStaging IsNot Nothing Then CardNetworkStaging.Header = loc.Get("network_drive_section")
+        If ChkEnableNetworkStaging IsNot Nothing Then ChkEnableNetworkStaging.Content = loc.Get("enable_network_profile_staging")
+        If TxtNetworkStagingHint IsNot Nothing Then TxtNetworkStagingHint.Text = loc.Get("enable_network_profile_staging_hint")
+
+        If CardHibernation IsNot Nothing Then CardHibernation.Header = loc.Get("tab_hibernation_section")
+        If ChkEnableTabHibernation IsNot Nothing Then ChkEnableTabHibernation.Content = loc.Get("enable_tab_hibernation")
+        If LabelTabHibernationTimeout IsNot Nothing Then LabelTabHibernationTimeout.Text = loc.Get("tab_hibernation_timeout")
+        If TxtTabHibernationHint IsNot Nothing Then TxtTabHibernationHint.Text = loc.Get("enable_tab_hibernation_hint")
+
+        If CardCache IsNot Nothing Then CardCache.Header = loc.Get("cache_section")
+        If LabelDiskCacheLimit IsNot Nothing Then LabelDiskCacheLimit.Text = loc.Get("disk_cache_limit")
+        If TxtDiskCacheLimitHint IsNot Nothing Then TxtDiskCacheLimitHint.Text = loc.Get("disk_cache_limit_hint")
+        If BtnOptimizeStorage IsNot Nothing Then BtnOptimizeStorage.Content = loc.Get("optimize_storage_btn")
+        If TxtOptimizeStorageHint IsNot Nothing Then TxtOptimizeStorageHint.Text = loc.Get("optimize_storage_hint")
+        If BtnSmartCleanCache IsNot Nothing Then BtnSmartCleanCache.Content = loc.Get("smart_clean_cache_btn")
+        If TxtSmartCleanCacheHint IsNot Nothing Then TxtSmartCleanCacheHint.Text = loc.Get("smart_clean_cache_hint")
+
+        CardUpdates.Header = loc.Get("updates")
         ChkUseBetaChannel.Content = loc.Get("use_beta_channel")
-        SectionDevTools.Text = loc.Get("devtools")
+        CardDevTools.Header = loc.Get("devtools")
         BtnDebugTab.Content = loc.Get("debug_active_tab")
         BtnCheckUpdates.Content = loc.Get("check_now")
+
         UpdateAccountsUIState()
-    End Sub
-
-    Private Function GetCachedLogicalChildren(Of T As DependencyObject)(ByRef cache As List(Of T)) As List(Of T)
-        If cache Is Nothing Then
-            cache = FindLogicalChildren(Of T)(Me)
-        End If
-        Return cache
-    End Function
-
-    ''' <summary>
-    ''' Applica i colori del tema chiaro o scuro ai controlli e contenitori della finestra.
-    ''' </summary>
-    Private Sub ApplyTheme()
-        Dim isDark = _settingsController.IsDarkThemeEffective
-
-
-        Dim fgColor = If(isDark, "#aebac1", "#111b21")
-        Dim fgBrush = BrushCache.GetBrush(fgColor)
-
-        SettingsBorder.Background = BrushCache.GetBrush(If(isDark, "#1f2c34", "#ffffff"))
-        TitleBar.Background = BrushCache.GetBrush(If(isDark, "#202c33", "#e9edef"))
-        ComboLanguage.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-        ComboLanguage.Foreground = fgBrush
-        ComboTheme.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-        ComboTheme.Foreground = fgBrush
-        If ComboSpellcheckLanguage IsNot Nothing Then
-            ComboSpellcheckLanguage.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-            ComboSpellcheckLanguage.Foreground = fgBrush
-        End If
-        If ComboDndMode IsNot Nothing Then
-            ComboDndMode.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-            ComboDndMode.Foreground = fgBrush
-        End If
-        If ComboMaxAccounts IsNot Nothing Then
-            ComboMaxAccounts.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-            ComboMaxAccounts.Foreground = fgBrush
-        End If
-        If ComboTabHibernationTimeout IsNot Nothing Then
-            ComboTabHibernationTimeout.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-            ComboTabHibernationTimeout.Foreground = fgBrush
-        End If
-        If ComboDiskCacheLimit IsNot Nothing Then
-            ComboDiskCacheLimit.Background = BrushCache.GetBrush(If(isDark, "#2a3942", "#ffffff"))
-            ComboDiskCacheLimit.Foreground = fgBrush
-        End If
-
-        For Each chk In GetCachedLogicalChildren(_cachedCheckBoxes)
-            chk.Foreground = fgBrush
-        Next
-        For Each txt In GetCachedLogicalChildren(_cachedTextBlocks)
-            If txt.Style Is Nothing Then
-                txt.Foreground = fgBrush
-            End If
-        Next
-
-        If CustomCssBorder IsNot Nothing Then
-            CustomCssBorder.Background = BrushCache.GetBrush(If(isDark, "#111b21", "#f0f2f5"))
-            CustomCssBorder.BorderBrush = BrushCache.GetBrush(If(isDark, "#00a884", "#00a884"))
-        End If
-        If TxtCustomCss IsNot Nothing Then
-            TxtCustomCss.Foreground = BrushCache.GetBrush(If(isDark, "#25d366", "#008069"))
-        End If
-
-        If BorderDowngradeNotice IsNot Nothing Then
-            BorderDowngradeNotice.Background = BrushCache.GetBrush(If(isDark, "#33ffb300", "#fff8e1"))
-            BorderDowngradeNotice.BorderBrush = BrushCache.GetBrush(If(isDark, "#ffb300", "#ffa000"))
-        End If
-        If TxtDowngradeNotice IsNot Nothing Then
-            TxtDowngradeNotice.Foreground = BrushCache.GetBrush(If(isDark, "#ffe082", "#b78103"))
-        End If
-
-        StyleAccountItems(isDark)
+        LocalizeAccountItemControls()
     End Sub
 
     ''' <summary>
-    ''' Applica lo stile cromatico agli elementi della lista degli account.
+    ''' Localizes template-generated buttons and checkboxes inside AccountsList without altering DynamicResource theme brushes.
     ''' </summary>
-    Private Sub StyleAccountItems(isDark As Boolean)
+    Private Sub LocalizeAccountItemControls()
+        Dim loc = _settingsController?.Localizations
+        If loc Is Nothing OrElse AccountsList Is Nothing Then Return
+
         Dispatcher.BeginInvoke(New Action(Sub()
-            If _cachedAccountBorders Is Nothing Then
-                _cachedAccountBorders = FindVisualChildren(Of Border)(AccountsList)
-                _cachedAccountTextBoxes = FindVisualChildren(Of TextBox)(AccountsList)
-            End If
-
-            Dim bgColor = If(isDark, "#1f2c34", "#f0f2f5")
-            Dim borderColor = If(isDark, "#222e35", "#d1d7db")
-            Dim tbBg = If(isDark, "#2a3942", "#ffffff")
-            Dim tbFg = If(isDark, "#ffffff", "#111b21")
-
-            For Each border In _cachedAccountBorders
-                border.Background = BrushCache.GetBrush(bgColor)
-                border.BorderBrush = BrushCache.GetBrush(borderColor)
-            Next
-            For Each txt As TextBox In _cachedAccountTextBoxes
-                txt.Background = BrushCache.GetBrush(tbBg)
-                txt.Foreground = BrushCache.GetBrush(tbFg)
-                txt.BorderBrush = BrushCache.GetBrush("#00a884")
-            Next
-
-            Dim comboFg = If(isDark, "#8696a0", "#54656f")
-            Dim comboBg = If(isDark, "#2a3942", "#ffffff")
-            Dim delBg = If(isDark, "#2a3942", "#ffffff")
-
-            For Each cmb In FindVisualChildren(Of ComboBox)(AccountsList)
-                cmb.Foreground = BrushCache.GetBrush(comboFg)
-                cmb.Background = BrushCache.GetBrush(comboBg)
-            Next
-
             For Each btn In FindVisualChildren(Of Button)(AccountsList)
-                If btn.Content?.ToString() = "Delete" Then
-                    btn.Foreground = BrushCache.GetBrush("#ea0038")
-                    btn.Background = BrushCache.GetBrush(delBg)
+                If btn.Name = "BtnDeleteAccount" Then
+                    btn.Content = loc.Get("delete")
+                ElseIf btn.Name = "BtnTestAccountConnection" Then
+                    btn.Content = loc.Get("test_connection")
+                End If
+            Next
+
+            For Each chk In FindVisualChildren(Of CheckBox)(AccountsList)
+                If chk.Name = "ChkAccountTailscale" Then
+                    chk.Content = loc.Get("account_use_tailscale")
+                ElseIf chk.Name = "ChkAccountInsecureTls" Then
+                    chk.Content = loc.Get("account_insecure_tls")
                 End If
             Next
         End Sub), DispatcherPriority.Background)
     End Sub
-
-    Private Shared Function FindLogicalChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
-        Dim list As New List(Of T)()
-        If depObj IsNot Nothing Then
-            For Each child In LogicalTreeHelper.GetChildren(depObj)
-                If TypeOf child Is DependencyObject Then
-                    Dim depChild = CType(child, DependencyObject)
-                    If TypeOf depChild Is T Then
-                        list.Add(CType(depChild, T))
-                    End If
-                    list.AddRange(FindLogicalChildren(Of T)(depChild))
-                End If
-            Next
-        End If
-        Return list
-    End Function
 
     Private Shared Function FindVisualChildren(Of T As DependencyObject)(depObj As DependencyObject) As List(Of T)
         Dim list As New List(Of T)()
@@ -1279,4 +1377,3 @@ Public Class SettingsWindow
         Return list
     End Function
 End Class
-

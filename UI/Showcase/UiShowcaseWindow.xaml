@@ -1,0 +1,359 @@
+<Window x:Class="UI.Showcase.UiShowcaseWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="clr-namespace:HidaChat.UI.Controls"
+        mc:Ignorable="d"
+        Title="HidaChat UI Showcase — Fluent Design System"
+        Width="1120"
+        Height="740"
+        MinWidth="820"
+        MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/FluentDark.xaml"/>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/ModernControls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Navigation Sidebar -->
+        <ui:NavigationSidebar x:Name="Sidebar"
+                              Grid.Column="0"
+                              HeaderTitle="HidaChat UI"
+                              HeaderSubtitle="Fluent Design System"
+                              NavigationSelected="Sidebar_NavigationSelected"/>
+
+        <!-- Main Workspace -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top Toolbar with Theme & Accent Selector -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="20,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtPageTitle"
+                                   Text="Overview &amp; Dashboard"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="TxtPageSubtitle"
+                                   Text="Reference implementation for all modern VB.NET WPF components"
+                                   FontSize="12.5"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Accent Color Presets -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <Button Width="22" Height="22" Margin="2" ToolTip="Fluent Blue (#2563EB)" Click="BtnAccentBlue_Click" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Ellipse Fill="#2563EB" Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="1.5"/>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button Width="22" Height="22" Margin="2" ToolTip="HidaChat Emerald (#00A884)" Click="BtnAccentEmerald_Click" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Ellipse Fill="#00A884" Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="1.5"/>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button Width="22" Height="22" Margin="2" ToolTip="Violet (#7C3AED)" Click="BtnAccentViolet_Click" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Ellipse Fill="#7C3AED" Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="1.5"/>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button Width="22" Height="22" Margin="2" ToolTip="Rose (#E11D48)" Click="BtnAccentRose_Click" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Ellipse Fill="#E11D48" Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="1.5"/>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Theme Mode Buttons -->
+                        <ui:ModernButton x:Name="BtnThemeLight" Content="Light" IconKey="Sun" Variant="Secondary" Margin="0,0,6,0" Click="BtnThemeLight_Click"/>
+                        <ui:ModernButton x:Name="BtnThemeDark" Content="Dark" IconKey="Moon" Variant="Secondary" Margin="0,0,6,0" Click="BtnThemeDark_Click"/>
+                        <ui:ModernButton x:Name="BtnThemeSystem" Content="System" IconKey="Monitor" Variant="Ghost" Click="BtnThemeSystem_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Scrollable Content Host -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="24,20">
+                <Grid>
+                    <!-- SECTION 1: Overview & Dashboard -->
+                    <StackPanel x:Name="SectionOverview" Visibility="Visible">
+                        <!-- KPI Row -->
+                        <UniformGrid Columns="4" Margin="0,0,0,16">
+                            <ui:ModernCard Margin="0,0,12,0">
+                                <StackPanel>
+                                    <TextBlock Text="Active Accounts" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    <TextBlock Text="5" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,4,0,8"/>
+                                    <ui:StatusBadge Text="All Connected" Severity="Success"/>
+                                </StackPanel>
+                            </ui:ModernCard>
+                            <ui:ModernCard Margin="0,0,12,0">
+                                <StackPanel>
+                                    <TextBlock Text="Messages Today" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    <TextBlock Text="1,284" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,4,0,8"/>
+                                    <ui:StatusBadge Text="+14.2% vs avg" Severity="Info"/>
+                                </StackPanel>
+                            </ui:ModernCard>
+                            <ui:ModernCard Margin="0,0,12,0">
+                                <StackPanel>
+                                    <TextBlock Text="Translations" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    <TextBlock Text="342" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,4,0,8"/>
+                                    <ui:StatusBadge Text="5 Endpoints OK" Severity="Success"/>
+                                </StackPanel>
+                            </ui:ModernCard>
+                            <ui:ModernCard>
+                                <StackPanel>
+                                    <TextBlock Text="WCAG Contrast" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    <TextBlock x:Name="TxtContrastMetric" Text="13.8 : 1" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,4,0,8"/>
+                                    <ui:StatusBadge Text="AAA Verified" Severity="Success"/>
+                                </StackPanel>
+                            </ui:ModernCard>
+                        </UniformGrid>
+
+                        <!-- Lightweight Fluent Bar Chart Card -->
+                        <ui:ModernCard Header="Weekly Throughput" Subtitle="Native vector bar visualization — zero external charting bloat" Margin="0,0,0,16">
+                            <ItemsControl x:Name="ChartItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Rows="1" Height="150"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="8,0">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Border Grid.Row="0"
+                                                    VerticalAlignment="Bottom"
+                                                    Height="{Binding BarHeight}"
+                                                    Background="{DynamicResource AccentBrush}"
+                                                    CornerRadius="6,6,0,0"
+                                                    ToolTip="{Binding TooltipText}"/>
+                                            <TextBlock Grid.Row="1"
+                                                       Text="{Binding Label}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,6,0,0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ui:ModernCard>
+
+                        <!-- Quick Typography & Palette Preview -->
+                        <ui:ModernCard Header="Typography &amp; Surface Tokens" Subtitle="Segoe UI scale with semantic Fluent Design tokens">
+                            <StackPanel>
+                                <TextBlock Text="Display Title (22 pt Bold)" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                                <TextBlock Text="Section Title (18 pt SemiBold)" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                                <TextBlock Text="Body text (14 px / 10.5 pt Regular) — High readability on both Light and Dark surfaces." FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBlock Text="Caption &amp; metadata (12 px) — Secondary hints, timestamps, and status details." FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                        </ui:ModernCard>
+                    </StackPanel>
+
+                    <!-- SECTION 2: Buttons & Inputs -->
+                    <StackPanel x:Name="SectionControls" Visibility="Collapsed">
+                        <ui:ModernCard Header="Buttons &amp; Variants" Subtitle="Primary, Secondary, Ghost, Danger, Icon, and Disabled states" Margin="0,0,0,16">
+                            <WrapPanel>
+                                <ui:ModernButton Content="Primary Action" Variant="Primary" IconKey="Check" Margin="0,0,8,8" Click="BtnSampleToastSuccess_Click"/>
+                                <ui:ModernButton Content="Secondary Action" Variant="Secondary" IconKey="Settings" Margin="0,0,8,8" Click="BtnSampleToastInfo_Click"/>
+                                <ui:ModernButton Content="Ghost Action" Variant="Ghost" IconKey="Refresh" Margin="0,0,8,8" Click="BtnSampleToastWarning_Click"/>
+                                <ui:ModernButton Content="Delete Item" Variant="Danger" IconKey="Trash" Margin="0,0,8,8" Click="BtnConfirmDestructive_Click"/>
+                                <ui:ModernButton Content="Disabled" Variant="Primary" IsEnabled="False" Margin="0,0,8,8"/>
+                            </WrapPanel>
+                        </ui:ModernCard>
+
+                        <ui:ModernCard Header="Form Inputs &amp; Validation" Subtitle="ModernTextBox with placeholder and inline error validation, ModernComboBox, and StatusBadges" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <ui:ModernTextBox x:Name="TxtSampleName"
+                                                      Label="Display Name"
+                                                      Placeholder="Enter workspace name..."
+                                                      Margin="0,0,0,12"/>
+                                    <ui:ModernTextBox x:Name="TxtSampleEmail"
+                                                      Label="Endpoint URL (Validation Demo)"
+                                                      Placeholder="https://example.ts.net"
+                                                      ErrorMessage="Please enter a valid HTTPS URL."
+                                                      Margin="0,0,0,12"/>
+                                    <ui:ModernButton Content="Validate Fields" Variant="Primary" HorizontalAlignment="Left" Click="BtnValidateInputs_Click"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Translation Provider" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                                    <ui:ModernComboBox x:Name="CmbSampleProvider" Margin="0,0,0,16">
+                                        <ComboBoxItem Content="Google Translate (Multi-Endpoint)" IsSelected="True"/>
+                                        <ComboBoxItem Content="LibreTranslate (Self-Hosted)"/>
+                                        <ComboBoxItem Content="Ollama (Local LLM)"/>
+                                        <ComboBoxItem Content="OpenAI-Compatible API"/>
+                                    </ui:ModernComboBox>
+                                    <TextBlock Text="Semantic Status Badges" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                                    <WrapPanel>
+                                        <ui:StatusBadge Text="Neutral" Severity="Neutral" Margin="0,0,8,8"/>
+                                        <ui:StatusBadge Text="Info" Severity="Info" Margin="0,0,8,8"/>
+                                        <ui:StatusBadge Text="Success" Severity="Success" Margin="0,0,8,8"/>
+                                        <ui:StatusBadge Text="Warning" Severity="Warning" Margin="0,0,8,8"/>
+                                        <ui:StatusBadge Text="Error" Severity="Error" Margin="0,0,8,8"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Grid>
+                        </ui:ModernCard>
+                    </StackPanel>
+
+                    <!-- SECTION 3: Data Table & Search -->
+                    <StackPanel x:Name="SectionTable" Visibility="Collapsed">
+                        <ui:ModernCard Header="Accounts &amp; Endpoints" Subtitle="ModernDataGrid with sorting, virtualization, and instant SearchBox filtering">
+                            <ui:ModernCard.HeaderAction>
+                                <ui:SearchBox x:Name="TableSearchBox" Width="260" Placeholder="Filter by name or platform..." SearchChanged="TableSearchBox_SearchChanged"/>
+                            </ui:ModernCard.HeaderAction>
+                            <StackPanel>
+                                <ui:ModernDataGrid x:Name="ShowcaseGrid" Height="320" Margin="0,0,0,12">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Account Name" Binding="{Binding Name}" Width="1.5*"/>
+                                        <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="*"/>
+                                        <DataGridTextColumn Header="Endpoint" Binding="{Binding Endpoint}" Width="1.8*"/>
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
+                                        <DataGridTextColumn Header="Latency" Binding="{Binding Latency}" Width="0.8*"/>
+                                    </DataGrid.Columns>
+                                </ui:ModernDataGrid>
+                                <ui:EmptyState x:Name="TableEmptyState"
+                                               Visibility="Collapsed"
+                                               IconKey="Search"
+                                               Title="No matching accounts"
+                                               Description="Try adjusting your search filter or reset to view all accounts."
+                                               ActionText="Clear Search"
+                                               ActionClicked="TableEmptyState_ActionClicked"/>
+                            </StackPanel>
+                        </ui:ModernCard>
+                    </StackPanel>
+
+                    <!-- SECTION 4: Icons Gallery -->
+                    <StackPanel x:Name="SectionIcons" Visibility="Collapsed">
+                        <ui:ModernCard Header="Vector Icon Library (IconManager)" Subtitle="Resolution-independent 24x24 SVG path geometries cached as frozen WPF Geometries">
+                            <ItemsControl x:Name="IconGallery">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="110"
+                                                Height="84"
+                                                Margin="0,0,10,10"
+                                                CornerRadius="8"
+                                                Background="{DynamicResource AppBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                Padding="8">
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Path Data="{Binding Geometry}"
+                                                      Fill="{DynamicResource TextPrimaryBrush}"
+                                                      Width="22"
+                                                      Height="22"
+                                                      Stretch="Uniform"
+                                                      HorizontalAlignment="Center"
+                                                      Margin="0,0,0,8"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="11.5"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ui:ModernCard>
+                    </StackPanel>
+
+                    <!-- SECTION 5: Feedback, Dialogs & States -->
+                    <StackPanel x:Name="SectionFeedback" Visibility="Collapsed">
+                        <ui:ModernCard Header="Toast Notifications" Subtitle="Non-intrusive floating notifications with semantic icons and auto-dismiss" Margin="0,0,0,16">
+                            <WrapPanel>
+                                <ui:ModernButton Content="Show Info" Variant="Secondary" IconKey="Info" Margin="0,0,8,8" Click="BtnSampleToastInfo_Click"/>
+                                <ui:ModernButton Content="Show Success" Variant="Primary" IconKey="Check" Margin="0,0,8,8" Click="BtnSampleToastSuccess_Click"/>
+                                <ui:ModernButton Content="Show Warning" Variant="Secondary" IconKey="Warning" Margin="0,0,8,8" Click="BtnSampleToastWarning_Click"/>
+                                <ui:ModernButton Content="Show Error" Variant="Danger" IconKey="Error" Margin="0,0,8,8" Click="BtnSampleToastError_Click"/>
+                            </WrapPanel>
+                        </ui:ModernCard>
+
+                        <ui:ModernCard Header="Modal Dialogs &amp; Loading Overlay" Subtitle="Themed ConfirmDialog (Enter/Escape) and asynchronous LoadingOverlay" Margin="0,0,0,16">
+                            <WrapPanel>
+                                <ui:ModernButton Content="Standard Confirm" Variant="Secondary" Margin="0,0,8,8" Click="BtnConfirmStandard_Click"/>
+                                <ui:ModernButton Content="Destructive Confirm" Variant="Danger" IconKey="Trash" Margin="0,0,8,8" Click="BtnConfirmDestructive_Click"/>
+                                <ui:ModernButton Content="Simulate Async Loading (1.5s)" Variant="Primary" IconKey="Refresh" Margin="0,0,8,8" Click="BtnSimulateLoading_Click"/>
+                            </WrapPanel>
+                        </ui:ModernCard>
+
+                        <ui:EmptyState IconKey="Sparkles"
+                                       Title="Empty State Component"
+                                       Description="Use EmptyState whenever a list, inbox, or search query has no items to display."
+                                       ActionText="Trigger Action"
+                                       ActionClicked="BtnSampleToastInfo_Click"/>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- Floating Toast Host (Bottom-Right) -->
+            <ui:ToastNotification x:Name="ShowcaseToast"
+                                  Grid.Row="1"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom"
+                                  Margin="24"/>
+
+            <!-- Full-Workspace Loading Overlay -->
+            <ui:LoadingOverlay x:Name="ShowcaseLoading"
+                               Grid.Row="0"
+                               Grid.RowSpan="2"
+                               Message="Processing asynchronous operation..."/>
+        </Grid>
+    </Grid>
+</Window>

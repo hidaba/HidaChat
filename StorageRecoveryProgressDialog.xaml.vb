@@ -1,19 +1,29 @@
+Imports System.ComponentModel
 Imports System.Windows
 Imports System.Windows.Threading
+Imports HidaChat.UI.Theme
 
 ''' <summary>
-''' Finestra grafica modale con ProgressBar che mostra l'avanzamento durante la fase di verifica
-''' e ripristino dell'integrità dello storage IndexedDB/ServiceWorker corrotto (TODO #76).
+''' Fluent Design modal progress dialog showing real-time status while verifying
+''' and recovering corrupted IndexedDB/ServiceWorker local storage.
 ''' </summary>
 Public Class StorageRecoveryProgressDialog
 
     Public Sub New(Optional loc As AppLocalizations = Nothing, Optional accountName As String = "", Optional platform As String = "")
         InitializeComponent()
+        If Not DesignerProperties.GetIsInDesignMode(Me) Then
+            ThemeManager.Instance.RegisterWindow(Me)
+        End If
         ApplyLocalization(loc, accountName, platform)
     End Sub
 
+    Protected Overrides Sub OnClosed(e As EventArgs)
+        ThemeManager.Instance.UnregisterWindow(Me)
+        MyBase.OnClosed(e)
+    End Sub
+
     ''' <summary>
-    ''' Applica le etichette localizzate nelle 5 lingue supportate.
+    ''' Applies localized labels across the 5 supported languages.
     ''' </summary>
     Public Sub ApplyLocalization(loc As AppLocalizations, Optional accountName As String = "", Optional platform As String = "")
         Dim effectiveName = If(Not String.IsNullOrWhiteSpace(accountName), accountName, "Account")
@@ -28,14 +38,14 @@ Public Class StorageRecoveryProgressDialog
             }
             TxtDetail.Text = loc.Get("storage_recovery_stage_checking", args)
         Else
-            TxtTitle.Text = "HidaChat — Ripristino Storage"
-            TxtHeader.Text = $"Ripristino storage locale in corso ({effectiveName})..."
-            TxtDetail.Text = $"Verifica integrità storage per {effectiveName}..."
+            TxtTitle.Text = "HidaChat — Storage Recovery"
+            TxtHeader.Text = $"Recovering local storage ({effectiveName})..."
+            TxtDetail.Text = $"Checking storage integrity for {effectiveName}..."
         End If
     End Sub
 
     ''' <summary>
-    ''' Aggiorna il testo descrittivo dello step di ripristino corrente in modo thread-safe.
+    ''' Updates the current recovery stage text in a thread-safe manner.
     ''' </summary>
     Public Sub UpdateStatus(statusText As String)
         If String.IsNullOrWhiteSpace(statusText) Then Return
@@ -46,7 +56,6 @@ Public Class StorageRecoveryProgressDialog
         End If
 
         TxtDetail.Text = statusText
-        ' Forza il refresh immediato del rendering UI
         Dispatcher.Invoke(DispatcherPriority.Render, Sub()
                                                      End Sub)
     End Sub

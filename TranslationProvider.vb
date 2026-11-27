@@ -98,6 +98,9 @@ Imports System.Threading.Tasks
     ''' <summary>
     ''' Provider di traduzione predefinito basato su endpoint pubblico Google Translate.
     ''' </summary>
+    ''' <summary>
+    ''' Default translation provider based on public Google Translate endpoints with multi-endpoint failover and rate pacing (TASK-0128).
+    ''' </summary>
     Public Class GoogleTranslationProvider
         Implements ITranslationProvider
 
@@ -108,10 +111,43 @@ Imports System.Threading.Tasks
             End Get
         End Property
 
+        ' Candidate public endpoints for Google Translate failover rotation (TASK-0128)
+        Private Shared ReadOnly EndpointTemplates As String() = {
+            "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={0}&dt=t&q={1}",
+            "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl={0}&q={1}",
+            "https://translate.google.com/translate_a/single?client=at&sl=auto&tl={0}&dt=t&q={1}",
+            "https://clients5.google.com/translate_a/single?client=gtx&sl=auto&tl={0}&dt=t&q={1}",
+            "https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&sl=auto&tl={0}&dt=t&q={1}"
+        }
+
+        Private ReadOnly _endpointLock As New Object()
+        Private _activeEndpointIndex As Integer = 0
         Private ReadOnly _httpClient As HttpClient
 
+        Private Shared Function CreateDefaultHttpClient() As HttpClient
+            Dim client As New HttpClient()
+            client.Timeout = TimeSpan.FromSeconds(10)
+            Try
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                client.DefaultRequestHeaders.Accept.ParseAdd("*/*")
+                client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7")
+            Catch
+            End Try
+            Return client
+        End Function
+
         Public Sub New(Optional httpClient As HttpClient = Nothing)
-            _httpClient = If(httpClient, New HttpClient())
+            If httpClient IsNot Nothing Then
+                _httpClient = httpClient
+                Try
+                    If Not _httpClient.DefaultRequestHeaders.UserAgent.Any() Then
+                        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                    End If
+                Catch
+                End Try
+            Else
+                _httpClient = CreateDefaultHttpClient()
+            End If
         End Sub
 
         Public ReadOnly Property Id As String Implements ITranslationProvider.Id
@@ -132,42 +168,141 @@ Imports System.Threading.Tasks
             End Get
         End Property
 
+        ''' <summary>
+        ''' Parses arbitrary Google Translate JSON response formats (3-level single?dt=t, 2-level dict-chrome-ex, or flat string arrays).
+        ''' </summary>
+        Public Shared Function TryParseGoogleResponse(jsonString As String, ByRef translatedText As String) As Boolean
+            translatedText = Nothing
+            If String.IsNullOrWhiteSpace(jsonString) Then Return False
+
+            Try
+                Using doc As JsonDocument = JsonDocument.Parse(jsonString)
+                    Dim root = doc.RootElement
+                    If root.ValueKind <> JsonValueKind.Array OrElse root.GetArrayLength() = 0 Then
+                        Return False
+                    End If
+
+                    Dim first = root(0)
+
+                    ' Format 1: translate_a/single?dt=t where root(0) is an array of segment arrays [[[ "part1", "orig1", ... ]]]
+                    If first.ValueKind = JsonValueKind.Array Then
+                        If first.GetArrayLength() > 0 AndAlso first(0).ValueKind = JsonValueKind.Array Then
+                            Dim sb As New StringBuilder()
+                            For Each part In first.EnumerateArray()
+                                If part.ValueKind = JsonValueKind.Array AndAlso part.GetArrayLength() > 0 Then
+                                    If part(0).ValueKind = JsonValueKind.String Then
+                                        sb.Append(part(0).GetString())
+                                    End If
+                                End If
+                            Next
+                            If sb.Length > 0 Then
+                                translatedText = sb.ToString()
+                                Return True
+                            End If
+                        ' Format 2: translate_a/t?client=dict-chrome-ex where root is an array of pairs [["part1", "lang"], ["part2", "lang"]]
+                        ElseIf first.GetArrayLength() > 0 AndAlso first(0).ValueKind = JsonValueKind.String Then
+                            Dim sb As New StringBuilder()
+                            For Each item In root.EnumerateArray()
+                                If item.ValueKind = JsonValueKind.Array AndAlso item.GetArrayLength() > 0 Then
+                                    If item(0).ValueKind = JsonValueKind.String Then
+                                        sb.Append(item(0).GetString())
+                                    End If
+                                End If
+                            Next
+                            If sb.Length > 0 Then
+                                translatedText = sb.ToString()
+                                Return True
+                            End If
+                        End If
+                    ' Format 3: Flat array of strings ["translatedText", "lang"]
+                    ElseIf first.ValueKind = JsonValueKind.String Then
+                        translatedText = first.GetString()
+                        Return True
+                    End If
+                End Using
+            Catch
+                Return False
+            End Try
+
+            Return False
+        End Function
+
         Public Async Function TranslateSingleAsync(text As String, targetLang As String, cancellationToken As CancellationToken) As Task(Of TranslationResult) Implements ITranslationProvider.TranslateSingleAsync
             If String.IsNullOrEmpty(text) Then Return TranslationResult.Succeeded(text)
 
-            Try
-                Dim encodedText = Uri.EscapeDataString(text)
-                Dim url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={Uri.EscapeDataString(targetLang)}&dt=t&q={encodedText}"
+            Dim encodedText = Uri.EscapeDataString(text)
+            Dim encodedLang = Uri.EscapeDataString(targetLang)
+            Dim totalEndpoints = EndpointTemplates.Length
+            Dim startIndex As Integer
+            SyncLock _endpointLock
+                startIndex = _activeEndpointIndex
+            End SyncLock
 
-                Using req As New HttpRequestMessage(HttpMethod.Get, url)
-                    Using response = Await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                        If Not response.IsSuccessStatusCode Then
-                            Return TranslationResult.Failed($"Google Translate HTTP {(CInt(response.StatusCode))}", text)
-                        End If
+            Dim lastError As String = "No endpoints attempted"
+            Dim encountered429 As Boolean = False
 
-                        Dim jsonString = Await response.Content.ReadAsStringAsync(cancellationToken)
-                        Using doc As JsonDocument = JsonDocument.Parse(jsonString)
-                            Dim root = doc.RootElement
-                            If root.ValueKind = JsonValueKind.Array AndAlso root.GetArrayLength() > 0 Then
-                                Dim firstArray = root(0)
-                                If firstArray.ValueKind = JsonValueKind.Array Then
-                                    Dim sb As New StringBuilder()
-                                    For Each part In firstArray.EnumerateArray()
-                                        If part.ValueKind = JsonValueKind.Array AndAlso part.GetArrayLength() > 0 Then
-                                            sb.Append(part(0).GetString())
-                                        End If
-                                    Next
-                                    Return TranslationResult.Succeeded(sb.ToString())
+            ' Try each candidate endpoint starting from the currently active one (TASK-0128)
+            For attempt As Integer = 0 To totalEndpoints - 1
+                Dim currentIndex = (startIndex + attempt) Mod totalEndpoints
+                Dim url = String.Format(EndpointTemplates(currentIndex), encodedLang, encodedText)
+
+                Try
+                    Using req As New HttpRequestMessage(HttpMethod.Get, url)
+                        Using response = Await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                            If response.IsSuccessStatusCode Then
+                                Dim jsonString = Await response.Content.ReadAsStringAsync(cancellationToken)
+                                Dim parsedTranslation As String = Nothing
+                                If TryParseGoogleResponse(jsonString, parsedTranslation) Then
+                                    SyncLock _endpointLock
+                                        _activeEndpointIndex = currentIndex
+                                    End SyncLock
+                                    Return TranslationResult.Succeeded(parsedTranslation)
+                                Else
+                                    lastError = "Unrecognized Google Translate response format"
+                                End If
+                            ElseIf response.StatusCode = Net.HttpStatusCode.TooManyRequests Then
+                                encountered429 = True
+                                lastError = "Google Translate HTTP 429 (Rate limit reached)"
+                                ' Failover immediately to alternate endpoint upon receiving 429
+                            Else
+                                lastError = $"Google Translate HTTP {CInt(response.StatusCode)}"
+                            End If
+                        End Using
+                    End Using
+                Catch ex As OperationCanceledException
+                    Throw
+                Catch ex As Exception
+                    lastError = $"Google Translate error ({currentIndex}): {ex.Message}"
+                End Try
+            Next
+
+            ' If all endpoints were rate-limited with 429, apply exponential backoff and retry once on alternate endpoint
+            If encountered429 Then
+                Try
+                    Await Task.Delay(500, cancellationToken)
+                    Dim fallbackIndex = (startIndex + 1) Mod totalEndpoints
+                    Dim retryUrl = String.Format(EndpointTemplates(fallbackIndex), encodedLang, encodedText)
+                    Using req As New HttpRequestMessage(HttpMethod.Get, retryUrl)
+                        Using response = Await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                            If response.IsSuccessStatusCode Then
+                                Dim jsonString = Await response.Content.ReadAsStringAsync(cancellationToken)
+                                Dim parsedTranslation As String = Nothing
+                                If TryParseGoogleResponse(jsonString, parsedTranslation) Then
+                                    SyncLock _endpointLock
+                                        _activeEndpointIndex = fallbackIndex
+                                    End SyncLock
+                                    Return TranslationResult.Succeeded(parsedTranslation)
                                 End If
                             End If
                         End Using
                     End Using
-                End Using
-            Catch ex As Exception
-                Return TranslationResult.Failed($"Google Translate error: {ex.Message}", text)
-            End Try
+                Catch ex As OperationCanceledException
+                    Throw
+                Catch
+                End Try
+            End If
 
-            Return TranslationResult.Failed("Formato risposta Google Translate non riconosciuto", text)
+            Return TranslationResult.Failed(lastError, text)
         End Function
 
         Public Async Function TranslateBatchAsync(texts As List(Of String), targetLang As String, cancellationToken As CancellationToken) As Task(Of TranslationBatchResult) Implements ITranslationProvider.TranslateBatchAsync
@@ -178,7 +313,7 @@ Imports System.Threading.Tasks
             Const separator As String = vbLf & "###" & vbLf
             Dim results As New List(Of String)(New String(texts.Count - 1) {})
 
-            ' Suddivisione in chunk per evitare URL superiori a ~1800 caratteri (errore HTTP 414)
+            ' Chunk splitting to avoid URL lengths exceeding ~1800 characters (HTTP 414)
             Dim currentBatch As New List(Of String)()
             Dim currentBatchIndices As New List(Of Integer)()
             Dim currentLength As Integer = 0
@@ -191,6 +326,8 @@ Imports System.Threading.Tasks
                     currentBatch.Clear()
                     currentBatchIndices.Clear()
                     currentLength = 0
+                    ' Rate pacing between consecutive batch chunks (TASK-0128)
+                    Await Task.Delay(150, cancellationToken)
                 End If
                 currentBatch.Add(item)
                 currentBatchIndices.Add(i)
@@ -205,7 +342,7 @@ Imports System.Threading.Tasks
         End Function
 
         ''' <summary>
-        ''' Rileva se uno dei testi da tradurre contiene la stringa separatrice (TODO #85).
+        ''' Detects whether any of the texts to translate contains the separator string (TODO #85).
         ''' </summary>
         Public Shared Function HasSeparatorCollision(texts As IEnumerable(Of String), separator As String) As Boolean
             If texts Is Nothing OrElse String.IsNullOrEmpty(separator) Then Return False
@@ -214,7 +351,7 @@ Imports System.Threading.Tasks
         End Function
 
         Private Async Function TranslateBatchChunkAsync(batchTexts As List(Of String), batchIndices As List(Of Integer), allResults As List(Of String), targetLang As String, separator As String, cancellationToken As CancellationToken) As Task
-            ' Controllo collisione separatore: se anche un solo testo contiene "###", non unire con ### per evitare sfasamento degli indici (TODO #85)
+            ' Separator collision check: if any text contains "###", do not join with ### to avoid index shift (TODO #85)
             Dim hasCollision = HasSeparatorCollision(batchTexts, separator)
             If Not hasCollision Then
                 Dim combined = String.Join(separator, batchTexts)
@@ -230,8 +367,11 @@ Imports System.Threading.Tasks
                 End If
             End If
 
-            ' Fallback sicuro: se vi Ã¨ collisione, split fallito o incongruente nel numero di parti, traduce i singoli elementi del chunk
+            ' Safe atomic fallback: translate individual elements with pacing delay to avoid burst rate limiting (TASK-0128)
             For j As Integer = 0 To batchIndices.Count - 1
+                If j > 0 Then
+                    Await Task.Delay(100, cancellationToken)
+                End If
                 Dim singleRes = Await TranslateSingleAsync(batchTexts(j), targetLang, cancellationToken)
                 allResults(batchIndices(j)) = If(singleRes.Success, singleRes.TranslatedText, batchTexts(j))
             Next

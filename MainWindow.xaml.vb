@@ -6,24 +6,27 @@ Imports System.Windows.Interop
 Imports System.Windows.Media.Effects
 Imports Microsoft.Web.WebView2.Wpf
 Imports Microsoft.Toolkit.Uwp.Notifications
+Imports HidaChat.UI.Theme
 
 ''' <summary>
-''' Finestra principale dell'applicazione WPF. Gestisce l'interfaccia a schede degli account WhatsApp,
-''' l'icona nella tray di sistema Windows, l'applicazione dei temi e le notifiche Toast.
+''' Main WPF application window managing multi-account WebView2 tabs, Windows tray icon,
+''' centralized Fluent theming, and desktop notifications.
 ''' </summary>
 Public Class MainWindow
     Private ReadOnly _settingsController As New SettingsController()
     Private _accountManager As AccountManager
     Private _trayIcon As System.Windows.Forms.NotifyIcon
     Private _allowExit As Boolean = False
-    Private _defaultShadowEffect As Effect
     Private _dndTimer As System.Windows.Threading.DispatcherTimer
     Private _hibernationTimer As System.Windows.Threading.DispatcherTimer
     Private ReadOnly _recreationTasks As New Dictionary(Of String, Task)(StringComparer.OrdinalIgnoreCase)
 
     Public Sub New()
         InitializeComponent()
-        _defaultShadowEffect = Me.Effect
+        If Not DesignerProperties.GetIsInDesignMode(Me) Then
+            ThemeManager.Instance.RegisterWindow(Me)
+            AddHandler Me.Closed, Sub() ThemeManager.Instance.UnregisterWindow(Me)
+        End If
         VersionText.Text = "v" & Constants.AppVersion
         _accountManager = New AccountManager(_settingsController)
     End Sub
@@ -549,18 +552,14 @@ Public Class MainWindow
         If Me.WindowState = WindowState.Maximized Then
             MaximizeIcon.Data = Geometry.Parse("M4,1 L11,1 L11,8 L9,8 L9,2 L4,2 Z M1,4 L8,4 L8,11 L1,11 Z")
             BtnMaximize.ToolTip = "Ripristina"
-            RootBorder.CornerRadius = New CornerRadius(0)
             RootBorder.BorderThickness = New Thickness(0)
-            Me.Effect = Nothing
             If ResizeGrip IsNot Nothing Then
                 ResizeGrip.Visibility = Visibility.Collapsed
             End If
         Else
             MaximizeIcon.Data = Geometry.Parse("M1,1 L11,1 L11,11 L1,11 Z M2,2 L2,10 L10,10 L10,2 Z")
             BtnMaximize.ToolTip = "Ingrandisci"
-            RootBorder.CornerRadius = New CornerRadius(12)
             RootBorder.BorderThickness = New Thickness(1)
-            Me.Effect = _defaultShadowEffect
             If ResizeGrip IsNot Nothing Then
                 ResizeGrip.Visibility = Visibility.Visible
             End If
@@ -1177,10 +1176,11 @@ Public Class MainWindow
     Private Sub UpdateMuteActiveTabState()
         Dim curAcc = _accountManager?.CurrentAccount
         Dim loc = _settingsController?.Localizations
+        Dim palette = ThemeManager.Instance.CurrentPalette
         If curAcc Is Nothing OrElse curAcc.WebView?.CoreWebView2 Is Nothing Then
             If MuteActiveTabIcon IsNot Nothing Then
                 MuteActiveTabIcon.Data = Geometry.Parse("M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16.02C15.48,15.28 16.5,13.76 16.5,12M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.01,19.86 21,16.28 21,12C21,7.72 18.01,4.14 14,3.23Z")
-                MuteActiveTabIcon.Fill = BrushCache.GetBrush("#8696a0")
+                MuteActiveTabIcon.Fill = BrushCache.GetBrush(palette.TextSecondary)
             End If
             If BtnMuteActiveTab IsNot Nothing Then
                 BtnMuteActiveTab.ToolTip = If(loc IsNot Nothing, loc.Get("mute_active_tab_tooltip"), "Disattiva/Attiva audio (Ctrl+M)")
@@ -1194,7 +1194,7 @@ Public Class MainWindow
         If curAcc.IsMuted Then
             If MuteActiveTabIcon IsNot Nothing Then
                 MuteActiveTabIcon.Data = Geometry.Parse("M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.45 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L4.27,3M19,12C19,12.82 18.85,13.61 18.59,14.34L20.12,15.87C20.68,14.7 21,13.39 21,12C21,7.72 18.01,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M14,7.97V9.75L16.44,12.19C16.48,12.13 16.5,12.07 16.5,12C16.5,10.23 15.48,8.71 14,7.97Z")
-                MuteActiveTabIcon.Fill = BrushCache.GetBrush("#ec4899")
+                MuteActiveTabIcon.Fill = BrushCache.GetBrush(palette.ErrorColor)
             End If
             If BtnMuteActiveTab IsNot Nothing Then
                 BtnMuteActiveTab.ToolTip = If(loc IsNot Nothing, loc.Get("account_unmute_tab"), "Attiva audio scheda") & " (Ctrl+M)"
@@ -1202,7 +1202,7 @@ Public Class MainWindow
         Else
             If MuteActiveTabIcon IsNot Nothing Then
                 MuteActiveTabIcon.Data = Geometry.Parse("M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16.02C15.48,15.28 16.5,13.76 16.5,12M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.01,19.86 21,16.28 21,12C21,7.72 18.01,4.14 14,3.23Z")
-                MuteActiveTabIcon.Fill = If(curAcc.IsPlayingAudio, BrushCache.GetBrush("#00a884"), BrushCache.GetBrush("#8696a0"))
+                MuteActiveTabIcon.Fill = If(curAcc.IsPlayingAudio, BrushCache.GetBrush(palette.Accent), BrushCache.GetBrush(palette.TextSecondary))
             End If
             If BtnMuteActiveTab IsNot Nothing Then
                 BtnMuteActiveTab.ToolTip = If(loc IsNot Nothing, loc.Get("account_mute_tab"), "Disattiva audio scheda") & " (Ctrl+M)"
@@ -1504,7 +1504,8 @@ Public Class MainWindow
                 status = _settingsController.Localizations.Get("contact_online")
             End If
             Dim def = current.PlatformDefinition
-            OnlineIndicatorBorder.Background = BrushCache.GetBrush(If(def.Platform = ChatPlatform.Discord, "#1e1f29", If(def.Platform = ChatPlatform.Telegram, "#152d3d", "#1b3d2f")))
+            Dim palette = ThemeManager.Instance.CurrentPalette
+            OnlineIndicatorBorder.Background = BrushCache.GetBrush(If(def.Platform = ChatPlatform.Telegram, palette.InfoSubtle, palette.SuccessSubtle))
             OnlineDot.Fill = def.ThemeBrush
             OnlineStatusText.Foreground = def.ThemeBrush
             OnlineIndicatorBorder.Visibility = Visibility.Visible
@@ -1526,34 +1527,31 @@ Public Class MainWindow
     End Function
 
     ''' <summary>
-    ''' Applica lo stile cromatico (Scuro/Chiaro/Sistema) all'interfaccia WPF e sincronizza il tema nelle WebView2.
+    ''' Applies the active Fluent theme (Light/Dark/System) via ThemeManager and synchronizes WebView2 instances.
     ''' </summary>
     Private Async Function ApplyWpfThemeAsync() As Task
+        Dim mode = AppThemeMode.System
+        Select Case _settingsController.Theme
+            Case "Dark"
+                mode = AppThemeMode.Dark
+            Case "Light"
+                mode = AppThemeMode.Light
+        End Select
+        ThemeManager.Instance.SetTheme(mode, persist:=False)
 
         Dim isDark = _settingsController.IsDarkThemeEffective
+        Dim bgColor = If(isDark, System.Drawing.Color.FromArgb(15, 23, 42), System.Drawing.Color.FromArgb(248, 250, 252))
 
-
-        If isDark Then
-            RootBorder.Background = BrushCache.GetBrush("#111b21")
-            RootBorder.BorderBrush = BrushCache.GetBrush("#2f3e46")
-            TitleBar.Background = BrushCache.GetBrush("#202c33")
-            TitleText.Foreground = BrushCache.GetBrush("#e9edef")
-        Else
-            RootBorder.Background = BrushCache.GetBrush("#f0f2f5")
-            RootBorder.BorderBrush = BrushCache.GetBrush("#d1d7db")
-            TitleBar.Background = BrushCache.GetBrush("#e9edef")
-            TitleText.Foreground = BrushCache.GetBrush("#111b21")
-        End If
-
-        Dim bgColor = If(isDark, System.Drawing.Color.FromArgb(17, 27, 33), System.Drawing.Color.FromArgb(240, 242, 245))
-
-        ' Aggiorna il tema all'interno delle singole WebView2 (WhatsApp / Telegram)
+        ' Update theme inside each WebView2 instance (WhatsApp / Telegram / Discord)
         For Each acc In _accountManager.Accounts
             If acc.WebView IsNot Nothing Then
                 acc.WebView.DefaultBackgroundColor = bgColor
             End If
             Await acc.ApplyThemeAsync(isDark)
         Next
+
+        UpdateMuteActiveTabState()
+        UpdateDndState()
     End Function
 
     ''' <summary>
@@ -1642,12 +1640,13 @@ Public Class MainWindow
         Dim isDnd = _settingsController.IsDndActive
         Dim loc = _settingsController.Localizations
         
+        Dim palette = ThemeManager.Instance.CurrentPalette
         If isDnd Then
-            DndIcon.Fill = BrushCache.GetBrush("#ec4899")
+            DndIcon.Fill = BrushCache.GetBrush(palette.ErrorColor)
             DndActiveDot.Visibility = Visibility.Visible
             BtnDnd.ToolTip = _settingsController.GetDndStatusText(loc)
         Else
-            DndIcon.Fill = BrushCache.GetBrush("#8696a0")
+            DndIcon.Fill = BrushCache.GetBrush(palette.TextSecondary)
             DndActiveDot.Visibility = Visibility.Collapsed
             BtnDnd.ToolTip = If(loc IsNot Nothing, loc.Get("dnd_mode"), "Do Not Disturb")
         End If

@@ -3,152 +3,83 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:HidaChat"
+        xmlns:ui="clr-namespace:HidaChat.UI.Controls"
         mc:Ignorable="d"
-        Title="Settings" 
-        Height="580" 
-        Width="520"
-        WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        Title="Settings"
+        Width="860"
+        Height="660"
+        MinWidth="720"
+        MinHeight="560"
         ShowInTaskbar="False"
-        WindowStartupLocation="CenterOwner">
-
-    <Window.Effect>
-        <DropShadowEffect BlurRadius="10" Color="#000" Opacity="0.4" ShadowDepth="0"/>
-    </Window.Effect>
+        WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        PreviewKeyDown="SettingsWindow_PreviewKeyDown">
 
     <Window.Resources>
         <ResourceDictionary>
-            <Style x:Key="SettingsCloseBtnStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#2a3942"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/FluentDark.xaml"/>
+                <ResourceDictionary Source="/HidaChat;component/UI/Themes/ModernControls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Fluent CheckBox style bound to semantic theme tokens -->
+            <Style x:Key="SettingsCheckBoxStyle" TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                <Setter Property="FontFamily" Value="Segoe UI"/>
+                <Setter Property="FontSize" Value="13.5"/>
+                <Setter Property="Margin" Value="0,6"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Cursor" Value="Hand"/>
             </Style>
 
-            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#00a884"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Margin" Value="0,10,0,8"/>
+            <Style x:Key="SettingsRowLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                <Setter Property="FontSize" Value="13.5"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
             </Style>
 
-            <Style x:Key="CustomCheckBoxStyle" TargetType="CheckBox">
-                <Setter Property="Foreground" Value="#aebac1"/>
-                <Setter Property="Margin" Value="0,4"/>
-                <Setter Property="FontSize" Value="13"/>
-            </Style>
-
-            <Style x:Key="CustomComboBoxStyle" TargetType="ComboBox">
-                <Setter Property="Background" Value="#2a3942"/>
-                <Setter Property="Foreground" Value="#e9edef"/>
-                <Setter Property="BorderBrush" Value="#222e35"/>
-                <Setter Property="Padding" Value="6,4"/>
-                <Setter Property="ItemContainerStyle">
-                    <Setter.Value>
-                        <Style TargetType="ComboBoxItem">
-                            <Setter Property="Background" Value="#2a3942"/>
-                            <Setter Property="Foreground" Value="#e9edef"/>
-                            <Setter Property="BorderThickness" Value="0"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#00a884"/>
-                                    <Setter Property="Foreground" Value="#ffffff"/>
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#374955"/>
-                                    <Setter Property="Foreground" Value="#ffffff"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="ActionButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#2a3942"/>
-                <Setter Property="Foreground" Value="#e9edef"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Padding" Value="12,8"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#3d525f"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="AccountPlatformComboBoxStyle" TargetType="ComboBox">
-                <Setter Property="Background" Value="#2a3942"/>
-                <Setter Property="Foreground" Value="#8696a0"/>
-                <Setter Property="BorderBrush" Value="#222e35"/>
-                <Setter Property="Padding" Value="6,4"/>
+            <Style x:Key="SettingsHintTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                 <Setter Property="FontSize" Value="12"/>
-                <Setter Property="ItemContainerStyle">
-                    <Setter.Value>
-                        <Style TargetType="ComboBoxItem">
-                            <Setter Property="Background" Value="#2a3942"/>
-                            <Setter Property="Foreground" Value="#8696a0"/>
-                            <Setter Property="BorderThickness" Value="0"/>
-                            <Setter Property="Padding" Value="6,4"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#00a884"/>
-                                    <Setter Property="Foreground" Value="#ffffff"/>
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#374955"/>
-                                    <Setter Property="Foreground" Value="#e9edef"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Setter.Value>
-                </Setter>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="Margin" Value="0,6,0,0"/>
             </Style>
 
-            <Style x:Key="DeleteBtnStyle" TargetType="Button">
-                <Setter Property="Background" Value="#2a3942"/>
-                <Setter Property="Foreground" Value="#ea0038"/>
-                <Setter Property="BorderBrush" Value="#3d2026"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Padding" Value="12,6"/>
-                <Setter Property="Focusable" Value="False"/>
+            <Style x:Key="SettingsDividerStyle" TargetType="Border">
+                <Setter Property="Height" Value="1"/>
+                <Setter Property="Background" Value="{DynamicResource BorderSubtleBrush}"/>
+                <Setter Property="Margin" Value="0,12"/>
+            </Style>
+
+            <Style x:Key="AccentSwatchButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="24"/>
+                <Setter Property="Height" Value="24"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+                <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border x:Name="SwatchRing"
+                                    CornerRadius="12"
+                                    Padding="2"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Background="Transparent">
+                                <Ellipse Fill="{TemplateBinding Background}"
+                                         Stroke="{DynamicResource BorderStrongBrush}"
+                                         StrokeThickness="1"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#381e24"/>
-                                    <Setter Property="BorderBrush" Value="#ea0038"/>
-                                    <Setter Property="Foreground" Value="#ff4d4d"/>
+                                    <Setter TargetName="SwatchRing" Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="SwatchRing" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -158,435 +89,969 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border x:Name="SettingsBorder" CornerRadius="12" BorderThickness="1" BorderBrush="#2f3e46" Background="#1f2c34">
-        <Grid>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="225"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Fluent Navigation Sidebar + Version Footer -->
+        <Grid Grid.Column="0" Background="{DynamicResource SurfaceBrush}">
             <Grid.RowDefinitions>
-                <!-- Titlebar -->
-                <RowDefinition Height="45"/>
-                <!-- Settings Scrollable Content -->
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <ui:NavigationSidebar x:Name="Sidebar"
+                                  Grid.Row="0"
+                                  HeaderTitle="HidaChat"
+                                  HeaderSubtitle="Settings"
+                                  NavigationSelected="Sidebar_NavigationSelected"/>
+
+            <Border Grid.Row="1"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="0,1,1,0"
+                    Padding="16,10">
+                <TextBlock x:Name="TxtSidebarVersion"
+                           Text="HidaChat"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="11.5"
+                           HorizontalAlignment="Left"
+                           TextTrimming="CharacterEllipsis"/>
+            </Border>
+        </Grid>
+
+        <!-- Right Main Content Area -->
+        <Grid Grid.Column="1" Background="{DynamicResource AppBackgroundBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Draggable Titlebar -->
-            <Grid Grid.Row="0" x:Name="TitleBar" Background="#202c33" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <TextBlock x:Name="TitleText" Text="Settings" Foreground="#e9edef" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="20,0,0,0"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,10,0">
-                    <Button x:Name="BtnAbout" Click="BtnAbout_Click" Width="28" Height="28" Margin="0,0,5,0" ToolTip="About" Style="{StaticResource SettingsCloseBtnStyle}">
-                        <TextBlock Text="ⓘ" Foreground="#8696a0" FontSize="14" FontWeight="Bold"/>
-                    </Button>
-                    <Button Click="BtnClose_Click" Width="28" Height="28" Style="{StaticResource SettingsCloseBtnStyle}">
-                        <TextBlock Text="✕" Foreground="#8696a0" FontSize="12" FontWeight="Bold"/>
-                    </Button>
-                </StackPanel>
-            </Grid>
+            <!-- Top Context Header Bar -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-            <!-- Scrollable Settings Page -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="10">
-                <StackPanel Margin="10,0,10,15">
-                    
-                    <!-- THEME SECTION -->
-                    <TextBlock x:Name="SectionTheme" Text="Theme" Style="{StaticResource SectionHeaderStyle}"/>
-                    <Grid Margin="0,5,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabelAppTheme" Text="App Theme Color" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboTheme" Grid.Column="1" Width="120" SelectionChanged="ComboTheme_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBoxItem Content="System"/>
-                            <ComboBoxItem Content="Light"/>
-                            <ComboBoxItem Content="Dark"/>
-                        </ComboBox>
-                    </Grid>
-
-                    <!-- LANGUAGE SECTION -->
-                    <TextBlock x:Name="SectionLanguage" Text="Language &amp; Translation" Style="{StaticResource SectionHeaderStyle}"/>
-                    <Grid Margin="0,5,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabelSelectLanguage" Text="Select Language" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboLanguage" Grid.Column="1" Width="150" DisplayMemberPath="Name" SelectionChanged="ComboLanguage_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}"/>
-                    </Grid>
-
-                    <CheckBox x:Name="ChkTranslateMessageButton" Content="Translate message button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,10,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkFullPageTranslation" Content="Translate entire page" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <CheckBox x:Name="ChkShowTranslateAllButton" Content="Title bar translate all messages button" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-
-                    <!-- TRANSLATION PROVIDER & PRIVACY SECTION (TODO #69) -->
-                    <CheckBox x:Name="ChkTranslationPrivacyConsent" Content="I consent to sending message text to the selected translation provider" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,8,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
-
-                    <Grid Margin="0,4,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabelTranslationProvider" Text="Translation Provider" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboTranslationProvider" Grid.Column="1" Width="220" SelectionChanged="ComboTranslationProvider_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBoxItem x:Name="CbiProviderGoogle" Content="Google Translate (Cloud)" Tag="google"/>
-                            <ComboBoxItem x:Name="CbiProviderLibreTranslate" Content="LibreTranslate (Self-Hosted)" Tag="libretranslate"/>
-                            <ComboBoxItem x:Name="CbiProviderOllama" Content="Ollama (Local LLM)" Tag="ollama"/>
-                            <ComboBoxItem x:Name="CbiProviderOpenAi" Content="OpenAI-Compatible (Custom Endpoint)" Tag="openai"/>
-                        </ComboBox>
-                    </Grid>
-
-                    <!-- LibreTranslate Config Panel -->
-                    <StackPanel x:Name="PanelLibreTranslate" Visibility="Collapsed" Margin="0,0,0,8">
-                        <TextBlock x:Name="LabelLibreTranslateUrl" Text="Endpoint URL:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtLibreTranslateUrl" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
-                        <TextBlock x:Name="LabelLibreTranslateApiKey" Text="API Key (optional):" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtLibreTranslateApiKey" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock x:Name="TxtPageTitle"
+                                   Text="General"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="TxtPageSubtitle"
+                                   Text="Theme, language, notifications, and spellchecker"
+                                   FontSize="12.5"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,2,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
 
-                    <!-- Ollama Config Panel -->
-                    <StackPanel x:Name="PanelOllama" Visibility="Collapsed" Margin="0,0,0,8">
-                        <TextBlock x:Name="LabelOllamaUrl" Text="Endpoint URL:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtOllamaUrl" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
-                        <TextBlock x:Name="LabelOllamaModel" Text="Model Name:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtOllamaModel" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
-                    </StackPanel>
+                    <ui:ModernButton x:Name="BtnAbout"
+                                     Grid.Column="1"
+                                     Variant="Ghost"
+                                     IconKey="Info"
+                                     Content="About"
+                                     Click="BtnAbout_Click"
+                                     AutomationProperties.Name="About HidaChat"
+                                     VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
-                    <!-- OpenAI Config Panel -->
-                    <StackPanel x:Name="PanelOpenAi" Visibility="Collapsed" Margin="0,0,0,8">
-                        <TextBlock x:Name="LabelOpenAiUrl" Text="Endpoint URL:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtOpenAiUrl" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
-                        <TextBlock x:Name="LabelOpenAiModel" Text="Model Name:" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtOpenAiModel" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
-                        <TextBlock x:Name="LabelOpenAiApiKey" Text="API Key (optional):" Foreground="#8696a0" FontSize="11" Margin="0,0,0,2"/>
-                        <TextBox x:Name="TxtOpenAiApiKey" Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942" Padding="6,4" FontSize="12" LostFocus="TranslationConfig_Changed" Margin="0,0,0,6"/>
-                    </StackPanel>
+            <!-- Categorized Content Panels Host -->
+            <Grid Grid.Row="1">
 
-                    <!-- Test Provider Button & Status Indicator -->
-                    <Grid x:Name="RowTranslationTest" Margin="0,2,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="BtnTestTranslationProvider" Content="Test Connection" Click="BtnTestTranslationProvider_Click" Style="{StaticResource ActionButtonStyle}" Height="28" Padding="12,2" FontSize="12"/>
-                        <TextBlock x:Name="TxtTranslationTestStatus" Grid.Column="1" Text="" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
-                    </Grid>
+                <!-- ========================================== -->
+                <!-- PANEL 1: GENERAL                           -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelGeneral"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Visible">
+                    <StackPanel>
+                        <!-- Card 1: Theme & Accent -->
+                        <ui:ModernCard x:Name="CardTheme" Header="Theme" Margin="0,0,0,16">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelAppTheme"
+                                               Text="App Theme Color"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <ui:ModernComboBox x:Name="ComboTheme"
+                                                       Grid.Column="1"
+                                                       Width="160"
+                                                       SelectionChanged="ComboTheme_SelectionChanged">
+                                        <ComboBoxItem Content="System"/>
+                                        <ComboBoxItem Content="Light"/>
+                                        <ComboBoxItem Content="Dark"/>
+                                    </ui:ModernComboBox>
+                                </Grid>
 
-                    <!-- NOTIFICATIONS & FOCUS SECTION (TODO #47) -->
-                    <TextBlock x:Name="SectionNotifications" Text="Notifications &amp; Focus" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkShowMessagePopup" Content="Show message popup" Checked="ChkSetting_Changed" Unchecked="ChkSetting_Changed" Margin="0,5,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    
-                    <Grid Margin="0,0,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock x:Name="LabelDndMode" Text="Do Not Disturb" Foreground="#e9edef" FontSize="13" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="TxtDndStatus" Text="Silence all notifications and audio" Foreground="#8696a0" FontSize="11"/>
-                        </StackPanel>
-                        <ComboBox x:Name="ComboDndMode" Grid.Column="1" Width="160" SelectionChanged="ComboDndMode_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBoxItem x:Name="CbiDndOff" Content="Disattivata" Tag="off"/>
-                            <ComboBoxItem x:Name="CbiDnd30m" Content="30 minuti" Tag="30m"/>
-                            <ComboBoxItem x:Name="CbiDnd1h" Content="1 ora" Tag="1h"/>
-                            <ComboBoxItem x:Name="CbiDnd2h" Content="2 ore" Tag="2h"/>
-                            <ComboBoxItem x:Name="CbiDnd8h" Content="8 ore" Tag="8h"/>
-                            <ComboBoxItem x:Name="CbiDndIndefinite" Content="Indefinito" Tag="indefinite"/>
-                        </ComboBox>
-                    </Grid>
+                                <Border Style="{StaticResource SettingsDividerStyle}"/>
 
-                    <!-- ACCOUNTS MANAGEMENT SECTION -->
-                    <Grid Margin="0,10,0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="SectionAccounts" Text="Manage Accounts" Style="{StaticResource SectionHeaderStyle}" Margin="0"/>
-                        <TextBlock x:Name="TxtAccountsCount" Grid.Column="1" Text="" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center"/>
-                    </Grid>
-                    
-                    <ItemsControl x:Name="AccountsList" Margin="0,5,0,10">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border BorderThickness="0,0,0,1" BorderBrush="#222e35" Padding="0,8">
-                                    <StackPanel>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="110"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <!-- Platform Icon Preview -->
-                                            <Path Grid.Column="0" Data="{Binding PlatformIconData}" 
-                                                  Fill="{Binding PlatformColorBrush}" 
-                                                  Width="16" Height="16" Stretch="Uniform" 
-                                                  VerticalAlignment="Center" Margin="0,0,10,0"/>
-
-                                            <!-- Editable Account Name TextBox -->
-                                            <TextBox Grid.Column="1" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                     LostFocus="TxtAccountName_LostFocus"
-                                                     Foreground="#ffffff" Background="#2a3942" BorderBrush="#00a884" 
-                                                     Padding="8,6" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
-
-                                            <!-- Platform Selector ComboBox -->
-                                            <ComboBox Grid.Column="2" 
-                                                      SelectedValuePath="Tag"
-                                                      SelectedValue="{Binding Platform, Mode=TwoWay}"
-                                                      SelectionChanged="ComboAccountPlatform_SelectionChanged"
-                                                      PreviewMouseWheel="ComboAccountPlatform_PreviewMouseWheel"
-                                                      Tag="{Binding Id}"
-                                                      Style="{StaticResource AccountPlatformComboBoxStyle}"
-                                                      Foreground="#8696a0"
-                                                      VerticalAlignment="Center" Margin="0,0,10,0">
-                                                <ComboBoxItem Content="WhatsApp" Tag="WhatsApp" Foreground="#8696a0"/>
-                                                <ComboBoxItem Content="Telegram" Tag="Telegram" Foreground="#8696a0"/>
-                                                <ComboBoxItem Content="Discord" Tag="Discord" Foreground="#8696a0"/>
-                                                <ComboBoxItem Content="OpenClaw" Tag="OpenClaw" Foreground="#8696a0"/>
-                                                <ComboBoxItem Content="Hermes Agent" Tag="Hermes" Foreground="#8696a0"/>
-                                            </ComboBox>
-
-                                            <!-- Delete Account Button -->
-                                            <Button Grid.Column="3" Content="Delete" Click="BtnDeleteAccount_Click" Tag="{Binding Id}" Style="{StaticResource DeleteBtnStyle}"/>
-                                        </Grid>
-
-                                        <!-- AI Gateway & Tailscale Panel (OpenClaw / Hermes Agent) -->
-                                        <Border Visibility="{Binding AgentSettingsVisibility}" 
-                                                Background="#1f2c34" CornerRadius="6" Padding="10,8" Margin="26,6,0,2">
-                                            <StackPanel>
-                                                <Grid Margin="0,0,0,6">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="Server URL / Tailscale:" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="140"/>
-                                                    <TextBox Grid.Column="1" Text="{Binding ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             LostFocus="TxtServerUrl_LostFocus"
-                                                             Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
-                                                             Padding="6,4" FontSize="12" ToolTip="{Binding ServerUrlTooltip}"/>
-                                                </Grid>
-                                                <Grid Margin="0,0,0,6">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding AuthTokenLabel}" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="140"/>
-                                                    <TextBox Grid.Column="1" Text="{Binding AuthToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             LostFocus="TxtAuthToken_LostFocus"
-                                                             Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
-                                                             Padding="6,4" FontSize="12" ToolTip="{Binding AuthTokenTooltip}"/>
-                                                </Grid>
-                                                <CheckBox Content="Usa nodo Tailscale integrato (tsnet portatile)" 
-                                                          IsChecked="{Binding TailscaleIntegration, Mode=TwoWay}" 
-                                                          Click="ChkAccountTailscale_Click" Tag="{Binding Id}" 
-                                                          Margin="0,2,0,4" Foreground="#e9edef" FontSize="12"/> 
-                                                <CheckBox Content="Ignora verifica certificato SSL/TLS (non sicuro)" 
-                                                          IsChecked="{Binding AllowInsecureTls, Mode=TwoWay}" 
-                                                          Click="ChkAccountInsecureTls_Click" Tag="{Binding Id}" 
-                                                          Margin="0,0,0,6" Foreground="#8696a0" FontSize="11" 
-                                                          ToolTip="Abilita solo se il server gateway utilizza certificati privati o autofirmati senza CA attendibile."/> 
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
-                                                    <TextBlock Text="{Binding ConnectionStatusText}" ToolTip="{Binding ConnectionStatusTooltip}" Foreground="{Binding ConnectionStatusBrush}" 
-                                                               FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                                    <Button Content="Test Connessione" Click="BtnTestConnection_Click" Tag="{Binding Id}"
-                                                            Style="{StaticResource ActionButtonStyle}" Height="26" Padding="10,2" FontSize="12"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Border>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelAccentColor"
+                                               Text="Accent Color"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <StackPanel x:Name="AccentSwatchesPanel"
+                                                Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <Button x:Name="BtnAccentEmerald" Style="{StaticResource AccentSwatchButtonStyle}" Click="BtnAccentSwatch_Click" ToolTip="HidaChat Emerald" AutomationProperties.Name="HidaChat Emerald Accent"/>
+                                        <Button x:Name="BtnAccentBlue" Style="{StaticResource AccentSwatchButtonStyle}" Click="BtnAccentSwatch_Click" ToolTip="Fluent Blue" AutomationProperties.Name="Fluent Blue Accent"/>
+                                        <Button x:Name="BtnAccentViolet" Style="{StaticResource AccentSwatchButtonStyle}" Click="BtnAccentSwatch_Click" ToolTip="Violet" AutomationProperties.Name="Violet Accent"/>
+                                        <Button x:Name="BtnAccentTeal" Style="{StaticResource AccentSwatchButtonStyle}" Click="BtnAccentSwatch_Click" ToolTip="Teal" AutomationProperties.Name="Teal Accent"/>
+                                        <Button x:Name="BtnAccentRose" Style="{StaticResource AccentSwatchButtonStyle}" Margin="0" Click="BtnAccentSwatch_Click" ToolTip="Rose" AutomationProperties.Name="Rose Accent"/>
                                     </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                </Grid>
+                            </StackPanel>
+                        </ui:ModernCard>
 
-                    <!-- Downgrade Notice Banner -->
-                    <Border x:Name="BorderDowngradeNotice" Background="#33ffb300" BorderBrush="#ffb300" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⚠️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock x:Name="TxtDowngradeNotice" TextWrapping="Wrap" Foreground="#ffe082" FontSize="12" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                        <!-- Card 2: Language & Spellchecker -->
+                        <ui:ModernCard x:Name="CardLanguage" Header="Language &amp; Input" Margin="0,0,0,16">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelSelectLanguage"
+                                               Text="Interface Language"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <ui:ModernComboBox x:Name="ComboLanguage"
+                                                       Grid.Column="1"
+                                                       Width="190"
+                                                       DisplayMemberPath="Name"
+                                                       SelectionChanged="ComboLanguage_SelectionChanged"/>
+                                </Grid>
 
-                    <Grid Margin="0,0,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="BtnAddAccountSettings" Content="Add account" Click="BtnAddAccountSettings_Click" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Left"/>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="LabelMaxAccounts" Text="Max accounts:" Foreground="#aebac1" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
-                            <ComboBox x:Name="ComboMaxAccounts" Width="75" SelectionChanged="ComboMaxAccounts_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                                <ComboBoxItem Content="2" Tag="2"/>
-                                <ComboBoxItem Content="3" Tag="3"/>
-                                <ComboBoxItem Content="4" Tag="4"/>
-                                <ComboBoxItem Content="5" Tag="5"/>
-                                <ComboBoxItem Content="6" Tag="6"/>
-                                <ComboBoxItem Content="7" Tag="7"/>
-                                <ComboBoxItem Content="8" Tag="8"/>
-                                <ComboBoxItem Content="9" Tag="9"/>
-                                <ComboBoxItem Content="10" Tag="10"/>
-                            </ComboBox>
-                        </StackPanel>
-                    </Grid>
+                                <Border Style="{StaticResource SettingsDividerStyle}"/>
 
-                    <!-- TAILSCALE EMBEDDED (tsnet) SECTION -->
-                    <Border Background="#202c33" CornerRadius="8" Padding="12,10" Margin="0,0,0,15">
-                        <StackPanel>
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Tailscale Integrato (tsnet)" FontWeight="SemiBold" FontSize="14" Foreground="#e9edef" Margin="0,0,10,0"/>
-                                    <Border x:Name="BadgeTsnetStatus" CornerRadius="4" Padding="6,2" Background="#2a3942" VerticalAlignment="Center">
-                                        <TextBlock x:Name="TxtTsnetStatus" Text="Non attivo" Foreground="#8696a0" FontSize="11" FontWeight="Bold"/>
-                                    </Border>
-                                </StackPanel>
-                                <Button x:Name="BtnTsnetLogin" Grid.Column="1" Content="Accedi a Tailscale" Click="BtnTsnetLogin_Click" 
-                                        Style="{StaticResource ActionButtonStyle}" Height="26" Padding="10,2" FontSize="12" Visibility="Collapsed"/>
-                            </Grid>
+                                <TextBlock x:Name="SectionSpellcheck"
+                                           Text="Spellchecker"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,0,0,6"/>
 
-                            <TextBlock Text="Consente di raggiungere host sulla tua Tailnet privata (*.ts.net o 100.x.y.z) in modalità 100% portatile senza installare Tailscale sulla macchina." 
-                                       Foreground="#8696a0" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ChkEnableSpellcheck"
+                                          Content="Enable native spellchecker in chat inputs"
+                                          Checked="ChkEnableSpellcheck_Changed"
+                                          Unchecked="ChkEnableSpellcheck_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
 
-                            <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="AuthKey (opzionale):" Foreground="#8696a0" FontSize="12" VerticalAlignment="Center" Width="130"/>
-                                <TextBox x:Name="TxtTsnetAuthKey" Grid.Column="1" LostFocus="TxtTsnetAuthKey_LostFocus"
-                                         Foreground="#ffffff" Background="#111b21" BorderBrush="#2a3942"
-                                         Padding="6,4" FontSize="12" ToolTip="Chiave tskey-auth-... per registrazione automatica del nodo senza login browser"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelSpellcheckLanguage"
+                                               Text="Dictionary language"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <ui:ModernComboBox x:Name="ComboSpellcheckLanguage"
+                                                       Grid.Column="1"
+                                                       Width="210"
+                                                       SelectionChanged="ComboSpellcheckLanguage_SelectionChanged">
+                                        <ComboBoxItem x:Name="CbiSpellAuto" Content="Automatic (app language)" Tag="auto"/>
+                                        <ComboBoxItem Content="English (en-US)" Tag="en"/>
+                                        <ComboBoxItem Content="Italiano (it-IT)" Tag="it"/>
+                                        <ComboBoxItem Content="Français (fr-FR)" Tag="fr"/>
+                                        <ComboBoxItem Content="Español (es-ES)" Tag="es"/>
+                                        <ComboBoxItem Content="Deutsch (de-DE)" Tag="de"/>
+                                    </ui:ModernComboBox>
+                                </Grid>
 
-                    <!-- CUSTOM CSS SECTION (TODO #43) -->
-                    <TextBlock x:Name="SectionCustomCss" Text="Custom CSS" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkEnableCustomCss" Content="Enable custom CSS rules" Checked="ChkEnableCustomCss_Changed" Unchecked="ChkEnableCustomCss_Changed" Margin="0,5,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    
-                    <Border x:Name="CustomCssBorder" CornerRadius="6" BorderThickness="1" BorderBrush="#00a884" Background="#111b21" Margin="0,0,0,8">
-                        <TextBox x:Name="TxtCustomCss" 
-                                 Height="110" 
-                                 AcceptsReturn="True" 
-                                 AcceptsTab="True" 
-                                 TextWrapping="Wrap" 
-                                 VerticalScrollBarVisibility="Auto" 
-                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace" 
-                                 FontSize="12" 
-                                 Foreground="#25d366" 
-                                 Background="Transparent" 
-                                 BorderThickness="0" 
-                                 Padding="8"/>
-                    </Border>
+                                <TextBlock x:Name="TxtSpellcheckHint"
+                                           Text="Changes will apply when reloading tabs or restarting HidaChat."
+                                           Style="{StaticResource SettingsHintTextStyle}"/>
+                            </StackPanel>
+                        </ui:ModernCard>
 
-                    <!-- Presets and Apply Action Bar -->
-                    <Grid Margin="0,0,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnPresetOled" Content="OLED" Click="BtnPresetOled_Click" Style="{StaticResource ActionButtonStyle}" Padding="8,4" FontSize="11" Margin="0,0,5,0"/>
-                            <Button x:Name="BtnPresetCompact" Content="Compatto" Click="BtnPresetCompact_Click" Style="{StaticResource ActionButtonStyle}" Padding="8,4" FontSize="11" Margin="0,0,5,0"/>
-                            <Button x:Name="BtnPresetFont" Content="Font" Click="BtnPresetFont_Click" Style="{StaticResource ActionButtonStyle}" Padding="8,4" FontSize="11" Margin="0,0,5,0"/>
-                            <Button x:Name="BtnPresetReset" Content="Svuota" Click="BtnPresetReset_Click" Style="{StaticResource ActionButtonStyle}" Padding="8,4" FontSize="11"/>
-                        </StackPanel>
-                        <Button Grid.Column="1" x:Name="BtnApplyCustomCss" Content="Applica CSS" Click="BtnApplyCustomCss_Click" Style="{StaticResource ActionButtonStyle}" Background="#00a884" Foreground="#ffffff" FontWeight="Bold" Padding="14,6"/>
-                    </Grid>
+                        <!-- Card 3: Notifications & Focus -->
+                        <ui:ModernCard x:Name="CardNotifications" Header="Notifications &amp; Focus">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkShowMessagePopup"
+                                          Content="Show message popup"
+                                          Checked="ChkSetting_Changed"
+                                          Unchecked="ChkSetting_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
 
-                    <!-- SPELLCHECKER SECTION (TODO #44) -->
-                    <TextBlock x:Name="SectionSpellcheck" Text="Spellchecker" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkEnableSpellcheck" Content="Enable native spellchecker in chat inputs" Checked="ChkEnableSpellcheck_Changed" Unchecked="ChkEnableSpellcheck_Changed" Margin="0,5,0,8" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <Grid Margin="0,0,0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabelSpellcheckLanguage" Text="Dictionary language" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboSpellcheckLanguage" Grid.Column="1" Width="180" SelectionChanged="ComboSpellcheckLanguage_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBoxItem x:Name="CbiSpellAuto" Content="Automatic (app language)" Tag="auto"/>
-                            <ComboBoxItem Content="English (en-US)" Tag="en"/>
-                            <ComboBoxItem Content="Italiano (it-IT)" Tag="it"/>
-                            <ComboBoxItem Content="Français (fr-FR)" Tag="fr"/>
-                            <ComboBoxItem Content="Español (es-ES)" Tag="es"/>
-                            <ComboBoxItem Content="Deutsch (de-DE)" Tag="de"/>
-                        </ComboBox>
-                    </Grid>
-                    <TextBlock x:Name="TxtSpellcheckHint" Text="Changes will apply when reloading tabs or restarting HidaChat." Foreground="#8696a0" FontSize="11" FontStyle="Italic" Margin="0,0,0,15"/>
+                                <Border Style="{StaticResource SettingsDividerStyle}"/>
 
-                    <!-- NETWORK DRIVE SESSION STAGING (TODO #73) -->
-                    <TextBlock x:Name="SectionNetworkStaging" Text="Network Drives" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkEnableNetworkStaging" Content="Enable local staging for network drives" Checked="ChkEnableNetworkStaging_Changed" Unchecked="ChkEnableNetworkStaging_Changed" Margin="0,5,0,4" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <TextBlock x:Name="TxtNetworkStagingHint" Text="Improves session stability and prevents WhatsApp disconnection when running from network shares (SMB/UNC)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,15"/>
-
-                    <!-- TAB HIBERNATION SECTION (TODO #50) -->
-                    <TextBlock x:Name="SectionHibernation" Text="Tab Hibernation" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkEnableTabHibernation" Content="Enable inactive tab hibernation" Checked="ChkEnableTabHibernation_Changed" Unchecked="ChkEnableTabHibernation_Changed" Margin="0,5,0,5" Style="{StaticResource CustomCheckBoxStyle}"/>
-                    <Grid Margin="0,0,0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabelTabHibernationTimeout" Text="Inactivity timeout:" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboTabHibernationTimeout" Grid.Column="1" Width="180" SelectionChanged="ComboTabHibernationTimeout_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBoxItem Content="15 min" Tag="15"/>
-                            <ComboBoxItem Content="30 min" Tag="30"/>
-                            <ComboBoxItem Content="60 min" Tag="60"/>
-                        </ComboBox>
-                    </Grid>
-                    <TextBlock x:Name="TxtTabHibernationHint" Text="Reduces RAM usage by suspending background tabs when idle. They resume instantly when selected." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,15"/>
-
-                    <!-- CACHE & STORAGE (TODO #71 & #72) -->
-                    <TextBlock x:Name="SectionCache" Text="Cache &amp; Storage" Style="{StaticResource SectionHeaderStyle}"/>
-                    <Grid Margin="0,5,0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="LabelDiskCacheLimit" Text="Chromium disk cache limit:" Foreground="#aebac1" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ComboDiskCacheLimit" Grid.Column="1" Width="180" SelectionChanged="ComboDiskCacheLimit_SelectionChanged" Style="{StaticResource CustomComboBoxStyle}">
-                            <ComboBoxItem Content="50 MB (Compatto)" Tag="50"/>
-                            <ComboBoxItem Content="128 MB" Tag="128"/>
-                            <ComboBoxItem Content="256 MB (Consigliato)" Tag="256"/>
-                            <ComboBoxItem Content="512 MB" Tag="512"/>
-                            <ComboBoxItem Content="1024 MB (1 GB)" Tag="1024"/>
-                            <ComboBoxItem Content="Illimitata" Tag="0"/>
-                        </ComboBox>
-                    </Grid>
-                    <TextBlock x:Name="TxtDiskCacheLimitHint" Text="Limits disk space used by Chromium HTTP cache per profile (applied upon tab reload)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,8"/>
-
-                    <!-- Hot Compaction (TODO #104) -->
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="TxtOptimizeStorageHint" Text="Performs surgical live cache compaction (HTTP disk cache and Service Worker CacheStorage) without logging out accounts." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" x:Name="BtnOptimizeStorage" Content="Optimize Space" Click="BtnOptimizeStorage_Click" Style="{StaticResource ActionButtonStyle}" Height="28" Padding="12,2" FontSize="12"/>
-                    </Grid>
-                    <Grid Margin="0,0,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="TxtSmartCleanCacheHint" Text="Deletes temporary files, HTTP cache, shaders and GPU cache without logging out (cookies, sessions and IndexedDB remain intact)." Foreground="#8696a0" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" x:Name="BtnSmartCleanCache" Content="Pulisci Cache" Click="BtnSmartCleanCache_Click" Style="{StaticResource ActionButtonStyle}" Height="28" Padding="12,2" FontSize="12"/>
-                    </Grid>
-
-                    <!-- UPDATES SECTION -->
-                    <TextBlock x:Name="SectionUpdates" Text="Updates" Style="{StaticResource SectionHeaderStyle}"/>
-                    <CheckBox x:Name="ChkUseBetaChannel" Content="Use beta update channel" Checked="ChkUseBetaChannel_Changed" Unchecked="ChkUseBetaChannel_Changed" Margin="0,5,0,10" Style="{StaticResource CustomCheckBoxStyle}"/>
-
-
-                    <!-- DEVELOPER TOOLS & CACHE -->
-                    <TextBlock x:Name="SectionDevTools" Text="DevTools" Style="{StaticResource SectionHeaderStyle}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                        <Button x:Name="BtnDebugTab" Content="Debug active tab" Click="BtnDevTools_Click" Style="{StaticResource ActionButtonStyle}" Margin="0,0,10,0"/>
-                        <Button x:Name="BtnCheckUpdates" Content="Check Now" Click="BtnCheckUpdates_Click" Style="{StaticResource ActionButtonStyle}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <TextBlock x:Name="LabelDndMode"
+                                                   Text="Do Not Disturb"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   FontSize="13.5"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="TxtDndStatus"
+                                                   Text="Silence all notifications and audio"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   FontSize="12"
+                                                   Margin="0,2,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ui:ModernComboBox x:Name="ComboDndMode"
+                                                       Grid.Column="1"
+                                                       Width="180"
+                                                       SelectionChanged="ComboDndMode_SelectionChanged">
+                                        <ComboBoxItem x:Name="CbiDndOff" Content="Disabled" Tag="off"/>
+                                        <ComboBoxItem x:Name="CbiDnd30m" Content="30 minutes" Tag="30m"/>
+                                        <ComboBoxItem x:Name="CbiDnd1h" Content="1 hour" Tag="1h"/>
+                                        <ComboBoxItem x:Name="CbiDnd2h" Content="2 hours" Tag="2h"/>
+                                        <ComboBoxItem x:Name="CbiDnd8h" Content="8 hours" Tag="8h"/>
+                                        <ComboBoxItem x:Name="CbiDndIndefinite" Content="Until turned off" Tag="indefinite"/>
+                                    </ui:ModernComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </ui:ModernCard>
                     </StackPanel>
+                </ScrollViewer>
 
-                </StackPanel>
-            </ScrollViewer>
+                <!-- ========================================== -->
+                <!-- PANEL 2: ACCOUNTS                          -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelAccounts"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Accounts Toolbar Card -->
+                        <ui:ModernCard Margin="0,0,0,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <ui:ModernButton x:Name="BtnAddAccountSettings"
+                                                 Content="Add Account"
+                                                 Variant="Primary"
+                                                 IconKey="Plus"
+                                                 HorizontalAlignment="Left"
+                                                 Click="BtnAddAccountSettings_Click"/>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:StatusBadge x:Name="BadgeAccountsCount"
+                                                    Text=""
+                                                    Severity="Neutral"
+                                                    Margin="0,0,12,0"/>
+                                    <TextBlock x:Name="LabelMaxAccounts"
+                                               Text="Max accounts:"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               FontSize="13"/>
+                                    <ui:ModernComboBox x:Name="ComboMaxAccounts"
+                                                       Width="82"
+                                                       SelectionChanged="ComboMaxAccounts_SelectionChanged">
+                                        <ComboBoxItem Content="2" Tag="2"/>
+                                        <ComboBoxItem Content="3" Tag="3"/>
+                                        <ComboBoxItem Content="4" Tag="4"/>
+                                        <ComboBoxItem Content="5" Tag="5"/>
+                                        <ComboBoxItem Content="6" Tag="6"/>
+                                        <ComboBoxItem Content="7" Tag="7"/>
+                                        <ComboBoxItem Content="8" Tag="8"/>
+                                        <ComboBoxItem Content="9" Tag="9"/>
+                                        <ComboBoxItem Content="10" Tag="10"/>
+                                    </ui:ModernComboBox>
+                                </StackPanel>
+                            </Grid>
+                        </ui:ModernCard>
+
+                        <!-- Downgrade Notice Banner (Semantic Warning Tokens) -->
+                        <Border x:Name="BorderDowngradeNotice"
+                                Background="{DynamicResource WarningSubtleBrush}"
+                                BorderBrush="{DynamicResource WarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14,10"
+                                Margin="0,0,0,14"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0"
+                                      Data="M1,21H23L12,2L1,21ZM13,18H11V16H13V18ZM13,14H11V10H13V14Z"
+                                      Fill="{DynamicResource WarningBrush}"
+                                      Width="16"
+                                      Height="16"
+                                      Stretch="Uniform"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,10,0"/>
+                                <TextBlock x:Name="TxtDowngradeNotice"
+                                           Grid.Column="1"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource WarningBrush}"
+                                           FontSize="12.5"
+                                           FontWeight="Medium"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock x:Name="SectionAccounts"
+                                   Text="Configured Accounts"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,0,0,10"/>
+
+                        <!-- Accounts ItemsControl -->
+                        <ItemsControl x:Name="AccountsList" Margin="0,0,0,10">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border CornerRadius="8"
+                                            BorderThickness="1"
+                                            BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            Padding="14"
+                                            Margin="0,0,0,12"
+                                            SnapsToDevicePixels="True">
+                                        <StackPanel>
+                                            <!-- Row 1: Account Header -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="150"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Platform Icon Preview -->
+                                                <Border Grid.Column="0"
+                                                        Width="36"
+                                                        Height="36"
+                                                        CornerRadius="8"
+                                                        Background="{DynamicResource AppBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                        BorderThickness="1"
+                                                        Margin="0,0,10,0"
+                                                        VerticalAlignment="Center">
+                                                    <Path Data="{Binding PlatformIconData}"
+                                                          Fill="{Binding PlatformColorBrush}"
+                                                          Width="18"
+                                                          Height="18"
+                                                          Stretch="Uniform"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                                </Border>
+
+                                                <!-- Editable Account Name -->
+                                                <ui:ModernTextBox Grid.Column="1"
+                                                                  Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  LostFocus="TxtAccountName_LostFocus"
+                                                                  VerticalAlignment="Center"
+                                                                  Margin="0,0,10,0"/>
+
+                                                <!-- Platform Selector -->
+                                                <ui:ModernComboBox Grid.Column="2"
+                                                                   SelectedValuePath="Tag"
+                                                                   SelectedValue="{Binding Platform, Mode=TwoWay}"
+                                                                   SelectionChanged="ComboAccountPlatform_SelectionChanged"
+                                                                   PreviewMouseWheel="ComboAccountPlatform_PreviewMouseWheel"
+                                                                   Tag="{Binding Id}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,10,0">
+                                                    <ComboBoxItem Content="WhatsApp" Tag="WhatsApp"/>
+                                                    <ComboBoxItem Content="Telegram" Tag="Telegram"/>
+                                                    <ComboBoxItem Content="Discord" Tag="Discord"/>
+                                                    <ComboBoxItem Content="OpenClaw" Tag="OpenClaw"/>
+                                                    <ComboBoxItem Content="Hermes Agent" Tag="Hermes"/>
+                                                </ui:ModernComboBox>
+
+                                                <!-- Delete Account Button -->
+                                                <ui:ModernButton Grid.Column="3"
+                                                                 x:Name="BtnDeleteAccount"
+                                                                 Content="Delete"
+                                                                 Variant="Danger"
+                                                                 IconKey="Trash"
+                                                                 Click="BtnDeleteAccount_Click"
+                                                                 Tag="{Binding Id}"
+                                                                 Padding="12,6"
+                                                                 MinHeight="36"/>
+                                            </Grid>
+
+                                            <!-- Row 2: AI Gateway & Tailscale Panel (OpenClaw / Hermes Agent) -->
+                                            <Border Visibility="{Binding AgentSettingsVisibility}"
+                                                    Background="{DynamicResource AppBackgroundBrush}"
+                                                    CornerRadius="6"
+                                                    BorderThickness="1"
+                                                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                    Padding="14,12"
+                                                    Margin="0,12,0,0">
+                                                <StackPanel>
+                                                    <ui:ModernTextBox Label="Server URL / Tailscale"
+                                                                      Placeholder="https://gateway.ts.net"
+                                                                      Text="{Binding ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      LostFocus="TxtServerUrl_LostFocus"
+                                                                      ToolTip="{Binding ServerUrlTooltip}"
+                                                                      Margin="0,0,0,10"/>
+
+                                                    <ui:ModernTextBox Label="{Binding AuthTokenLabel}"
+                                                                      Placeholder="Bearer token..."
+                                                                      Text="{Binding AuthToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      LostFocus="TxtAuthToken_LostFocus"
+                                                                      ToolTip="{Binding AuthTokenTooltip}"
+                                                                      Margin="0,0,0,10"/>
+
+                                                    <CheckBox x:Name="ChkAccountTailscale"
+                                                              Content="Use embedded Tailscale node (tsnet portable)"
+                                                              IsChecked="{Binding TailscaleIntegration, Mode=TwoWay}"
+                                                              Click="ChkAccountTailscale_Click"
+                                                              Tag="{Binding Id}"
+                                                              Style="{StaticResource SettingsCheckBoxStyle}"
+                                                              Margin="0,2,0,4"/>
+
+                                                    <CheckBox x:Name="ChkAccountInsecureTls"
+                                                              Content="Bypass SSL/TLS certificate verification (insecure)"
+                                                              IsChecked="{Binding AllowInsecureTls, Mode=TwoWay}"
+                                                              Click="ChkAccountInsecureTls_Click"
+                                                              Tag="{Binding Id}"
+                                                              Style="{StaticResource SettingsCheckBoxStyle}"
+                                                              Margin="0,2,0,8"
+                                                              ToolTip="Enable only if the gateway server uses self-signed certificates without trusted CA."/>
+
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding ConnectionStatusText}"
+                                                                   ToolTip="{Binding ConnectionStatusTooltip}"
+                                                                   Foreground="{Binding ConnectionStatusBrush}"
+                                                                   FontSize="12.5"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="0,0,10,0"/>
+                                                        <ui:ModernButton Grid.Column="1"
+                                                                         x:Name="BtnTestAccountConnection"
+                                                                         Content="Test Connection"
+                                                                         Variant="Secondary"
+                                                                         IconKey="Refresh"
+                                                                         Click="BtnTestConnection_Click"
+                                                                         Tag="{Binding Id}"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ========================================== -->
+                <!-- PANEL 3: TRANSLATION                       -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelTranslation"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Card 1: Display Controls -->
+                        <ui:ModernCard x:Name="CardTranslationControls" Header="Display Controls" Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkTranslateMessageButton"
+                                          Content="Translate message button"
+                                          Checked="ChkSetting_Changed"
+                                          Unchecked="ChkSetting_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
+                                <CheckBox x:Name="ChkFullPageTranslation"
+                                          Content="Translate entire page"
+                                          Checked="ChkSetting_Changed"
+                                          Unchecked="ChkSetting_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
+                                <CheckBox x:Name="ChkShowTranslateAllButton"
+                                          Content="Title bar translate all messages button"
+                                          Checked="ChkSetting_Changed"
+                                          Unchecked="ChkSetting_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
+                            </StackPanel>
+                        </ui:ModernCard>
+
+                        <!-- Card 2: Translation Provider & Privacy -->
+                        <ui:ModernCard x:Name="CardTranslationProvider" Header="Translation Provider">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkTranslationPrivacyConsent"
+                                          Content="I consent to sending message text to the selected translation provider"
+                                          Checked="ChkSetting_Changed"
+                                          Unchecked="ChkSetting_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"
+                                          Margin="0,0,0,12"/>
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelTranslationProvider"
+                                               Text="Translation Provider"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <ui:ModernComboBox x:Name="ComboTranslationProvider"
+                                                       Grid.Column="1"
+                                                       Width="260"
+                                                       SelectionChanged="ComboTranslationProvider_SelectionChanged">
+                                        <ComboBoxItem x:Name="CbiProviderGoogle" Content="Google Translate (Cloud)" Tag="google"/>
+                                        <ComboBoxItem x:Name="CbiProviderLibreTranslate" Content="LibreTranslate (Self-Hosted)" Tag="libretranslate"/>
+                                        <ComboBoxItem x:Name="CbiProviderOllama" Content="Ollama (Local LLM)" Tag="ollama"/>
+                                        <ComboBoxItem x:Name="CbiProviderOpenAi" Content="OpenAI-Compatible (Custom Endpoint)" Tag="openai"/>
+                                    </ui:ModernComboBox>
+                                </Grid>
+
+                                <!-- LibreTranslate Config Panel -->
+                                <StackPanel x:Name="PanelLibreTranslate" Visibility="Collapsed" Margin="0,4,0,8">
+                                    <ui:ModernTextBox x:Name="TxtLibreTranslateUrl"
+                                                      Label="Endpoint URL"
+                                                      Placeholder="http://localhost:5000"
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,10"/>
+                                    <ui:ModernTextBox x:Name="TxtLibreTranslateApiKey"
+                                                      Label="API Key (optional)"
+                                                      Placeholder="Optional API key"
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,4"/>
+                                </StackPanel>
+
+                                <!-- Ollama Config Panel -->
+                                <StackPanel x:Name="PanelOllama" Visibility="Collapsed" Margin="0,4,0,8">
+                                    <ui:ModernTextBox x:Name="TxtOllamaUrl"
+                                                      Label="Endpoint URL"
+                                                      Placeholder="http://localhost:11434"
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,10"/>
+                                    <ui:ModernTextBox x:Name="TxtOllamaModel"
+                                                      Label="Model Name"
+                                                      Placeholder="llama3.2"
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,4"/>
+                                </StackPanel>
+
+                                <!-- OpenAI Config Panel -->
+                                <StackPanel x:Name="PanelOpenAi" Visibility="Collapsed" Margin="0,4,0,8">
+                                    <ui:ModernTextBox x:Name="TxtOpenAiUrl"
+                                                      Label="Endpoint URL"
+                                                      Placeholder="https://api.openai.com/v1"
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,10"/>
+                                    <ui:ModernTextBox x:Name="TxtOpenAiModel"
+                                                      Label="Model Name"
+                                                      Placeholder="gpt-4o-mini"
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,10"/>
+                                    <ui:ModernTextBox x:Name="TxtOpenAiApiKey"
+                                                      Label="API Key (optional)"
+                                                      Placeholder="sk-..."
+                                                      LostFocus="TranslationConfig_Changed"
+                                                      Margin="0,0,0,4"/>
+                                </StackPanel>
+
+                                <Border Style="{StaticResource SettingsDividerStyle}"/>
+
+                                <!-- Test Provider Button & Status -->
+                                <Grid x:Name="RowTranslationTest">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ui:ModernButton x:Name="BtnTestTranslationProvider"
+                                                     Content="Test Connection"
+                                                     Variant="Secondary"
+                                                     IconKey="Refresh"
+                                                     Click="BtnTestTranslationProvider_Click"/>
+                                    <TextBlock x:Name="TxtTranslationTestStatus"
+                                               Grid.Column="1"
+                                               Text=""
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontSize="12.5"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
+                                               TextWrapping="Wrap"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:ModernCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ========================================== -->
+                <!-- PANEL 4: NETWORK & TAILSCALE               -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelNetwork"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Card 1: Embedded Tailscale (tsnet) -->
+                        <ui:ModernCard x:Name="CardTsnet" Header="Embedded Tailscale (tsnet)" Margin="0,0,0,16">
+                            <ui:ModernCard.HeaderAction>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:StatusBadge x:Name="BadgeTsnetStatus"
+                                                    Text="Inactive"
+                                                    Severity="Neutral"
+                                                    Margin="0,0,8,0"/>
+                                    <ui:ModernButton x:Name="BtnTsnetLogin"
+                                                     Content="Sign in to Tailscale"
+                                                     Variant="Primary"
+                                                     Click="BtnTsnetLogin_Click"
+                                                     Visibility="Collapsed"/>
+                                </StackPanel>
+                            </ui:ModernCard.HeaderAction>
+
+                            <StackPanel>
+                                <TextBlock x:Name="TxtTsnetDescription"
+                                           Text="Reach hosts on your private Tailnet (*.ts.net or 100.x.y.z) in 100% portable mode without installing Tailscale on the host machine."
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,14"/>
+
+                                <ui:ModernTextBox x:Name="TxtTsnetAuthKey"
+                                                  Label="AuthKey (optional)"
+                                                  Placeholder="tskey-auth-..."
+                                                  LostFocus="TxtTsnetAuthKey_LostFocus"
+                                                  ToolTip="Pre-authenticated tskey-auth-... key for automatic node registration without browser login"/>
+                            </StackPanel>
+                        </ui:ModernCard>
+
+                        <!-- Card 2: Network Drive Staging -->
+                        <ui:ModernCard x:Name="CardNetworkStaging" Header="Network Drives">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkEnableNetworkStaging"
+                                          Content="Enable local staging for network drives"
+                                          Checked="ChkEnableNetworkStaging_Changed"
+                                          Unchecked="ChkEnableNetworkStaging_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
+                                <TextBlock x:Name="TxtNetworkStagingHint"
+                                           Text="Improves session stability and prevents WhatsApp disconnection when running from network shares (SMB/UNC)."
+                                           Style="{StaticResource SettingsHintTextStyle}"/>
+                            </StackPanel>
+                        </ui:ModernCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ========================================== -->
+                <!-- PANEL 5: APPEARANCE & CUSTOM CSS           -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelCss"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Collapsed">
+                    <StackPanel>
+                        <ui:ModernCard x:Name="CardCustomCss" Header="Custom CSS Editor">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkEnableCustomCss"
+                                          Content="Enable custom CSS rules"
+                                          Checked="ChkEnableCustomCss_Changed"
+                                          Unchecked="ChkEnableCustomCss_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"
+                                          Margin="0,0,0,12"/>
+
+                                <Border x:Name="CustomCssBorder"
+                                        CornerRadius="6"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource BorderStrongBrush}"
+                                        Background="{DynamicResource AppBackgroundBrush}"
+                                        Margin="0,0,0,14">
+                                    <TextBox x:Name="TxtCustomCss"
+                                             Height="210"
+                                             AcceptsReturn="True"
+                                             AcceptsTab="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             FontFamily="Cascadia Code, Consolas, Courier New, monospace"
+                                             FontSize="12.5"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
+                                             CaretBrush="{DynamicResource AccentBrush}"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Padding="12"/>
+                                </Border>
+
+                                <!-- Presets & Apply Action Bar -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <ui:ModernButton x:Name="BtnPresetOled" Content="OLED" Variant="Secondary" Click="BtnPresetOled_Click" Margin="0,0,8,6"/>
+                                        <ui:ModernButton x:Name="BtnPresetCompact" Content="Compact" Variant="Secondary" Click="BtnPresetCompact_Click" Margin="0,0,8,6"/>
+                                        <ui:ModernButton x:Name="BtnPresetFont" Content="Font" Variant="Secondary" Click="BtnPresetFont_Click" Margin="0,0,8,6"/>
+                                        <ui:ModernButton x:Name="BtnPresetReset" Content="Clear" Variant="Ghost" Click="BtnPresetReset_Click" Margin="0,0,8,6"/>
+                                    </WrapPanel>
+
+                                    <ui:ModernButton Grid.Column="1"
+                                                     x:Name="BtnApplyCustomCss"
+                                                     Content="Apply CSS"
+                                                     Variant="Primary"
+                                                     IconKey="Check"
+                                                     Click="BtnApplyCustomCss_Click"
+                                                     VerticalAlignment="Top"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:ModernCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ========================================== -->
+                <!-- PANEL 6: STORAGE & PERFORMANCE             -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelStorage"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Card 1: Tab Hibernation -->
+                        <ui:ModernCard x:Name="CardHibernation" Header="Tab Hibernation" Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkEnableTabHibernation"
+                                          Content="Enable inactive tab hibernation"
+                                          Checked="ChkEnableTabHibernation_Changed"
+                                          Unchecked="ChkEnableTabHibernation_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelTabHibernationTimeout"
+                                               Text="Inactivity timeout:"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <ui:ModernComboBox x:Name="ComboTabHibernationTimeout"
+                                                       Grid.Column="1"
+                                                       Width="160"
+                                                       SelectionChanged="ComboTabHibernationTimeout_SelectionChanged">
+                                        <ComboBoxItem Content="15 min" Tag="15"/>
+                                        <ComboBoxItem Content="30 min" Tag="30"/>
+                                        <ComboBoxItem Content="60 min" Tag="60"/>
+                                    </ui:ModernComboBox>
+                                </Grid>
+
+                                <TextBlock x:Name="TxtTabHibernationHint"
+                                           Text="Reduces RAM usage by suspending background tabs when idle. They resume instantly when selected."
+                                           Style="{StaticResource SettingsHintTextStyle}"/>
+                            </StackPanel>
+                        </ui:ModernCard>
+
+                        <!-- Card 2: Cache & Storage -->
+                        <ui:ModernCard x:Name="CardCache" Header="Cache &amp; Storage">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LabelDiskCacheLimit"
+                                               Text="Chromium disk cache limit:"
+                                               Style="{StaticResource SettingsRowLabelStyle}"
+                                               Margin="0,0,12,0"/>
+                                    <ui:ModernComboBox x:Name="ComboDiskCacheLimit"
+                                                       Grid.Column="1"
+                                                       Width="180"
+                                                       SelectionChanged="ComboDiskCacheLimit_SelectionChanged">
+                                        <ComboBoxItem Content="50 MB" Tag="50"/>
+                                        <ComboBoxItem Content="128 MB" Tag="128"/>
+                                        <ComboBoxItem Content="256 MB" Tag="256"/>
+                                        <ComboBoxItem Content="512 MB" Tag="512"/>
+                                        <ComboBoxItem Content="1024 MB (1 GB)" Tag="1024"/>
+                                        <ComboBoxItem Content="Unlimited" Tag="0"/>
+                                    </ui:ModernComboBox>
+                                </Grid>
+
+                                <TextBlock x:Name="TxtDiskCacheLimitHint"
+                                           Text="Limits disk space used by Chromium HTTP cache per profile (applied upon tab reload)."
+                                           Style="{StaticResource SettingsHintTextStyle}"/>
+
+                                <Border Style="{StaticResource SettingsDividerStyle}"/>
+
+                                <!-- Hot Compaction -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="TxtOptimizeStorageHint"
+                                               Text="Performs surgical live cache compaction without logging out accounts."
+                                               Style="{StaticResource SettingsHintTextStyle}"
+                                               Margin="0,0,16,0"
+                                               VerticalAlignment="Center"/>
+                                    <ui:ModernButton Grid.Column="1"
+                                                     x:Name="BtnOptimizeStorage"
+                                                     Content="Optimize Space"
+                                                     Variant="Secondary"
+                                                     IconKey="Sparkles"
+                                                     Click="BtnOptimizeStorage_Click"/>
+                                </Grid>
+
+                                <!-- Smart Clean Cache -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="TxtSmartCleanCacheHint"
+                                               Text="Deletes temporary files, HTTP cache, shaders and GPU cache without logging out (cookies, sessions and IndexedDB remain intact)."
+                                               Style="{StaticResource SettingsHintTextStyle}"
+                                               Margin="0,0,16,0"
+                                               VerticalAlignment="Center"/>
+                                    <ui:ModernButton Grid.Column="1"
+                                                     x:Name="BtnSmartCleanCache"
+                                                     Content="Clean Cache"
+                                                     Variant="Secondary"
+                                                     IconKey="Trash"
+                                                     Click="BtnSmartCleanCache_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:ModernCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ========================================== -->
+                <!-- PANEL 7: ABOUT & UPDATES                   -->
+                <!-- ========================================== -->
+                <ScrollViewer x:Name="PanelAbout"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="24,20"
+                              Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Card 1: Application Info -->
+                        <ui:ModernCard Header="HidaChat" Margin="0,0,0,16">
+                            <ui:ModernCard.HeaderAction>
+                                <ui:StatusBadge x:Name="BadgeAboutVersion"
+                                                Text="v0.0.0"
+                                                Severity="Info"/>
+                            </ui:ModernCard.HeaderAction>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="TxtAboutAppDescription"
+                                           Grid.Column="0"
+                                           Text="Portable, lightweight, multi-account desktop client for Windows."
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,16,0"/>
+                                <ui:ModernButton Grid.Column="1"
+                                                 x:Name="BtnOpenAboutDialog"
+                                                 Content="About"
+                                                 Variant="Secondary"
+                                                 IconKey="Info"
+                                                 Click="BtnAbout_Click"/>
+                            </Grid>
+                        </ui:ModernCard>
+
+                        <!-- Card 2: Updates -->
+                        <ui:ModernCard x:Name="CardUpdates" Header="Updates" Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkUseBetaChannel"
+                                          Content="Use beta update channel"
+                                          Checked="ChkUseBetaChannel_Changed"
+                                          Unchecked="ChkUseBetaChannel_Changed"
+                                          Style="{StaticResource SettingsCheckBoxStyle}"/>
+
+                                <Border Style="{StaticResource SettingsDividerStyle}"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Check for newer releases on GitHub Releases."
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,16,0"/>
+                                    <ui:ModernButton Grid.Column="1"
+                                                     x:Name="BtnCheckUpdates"
+                                                     Content="Check Now"
+                                                     Variant="Primary"
+                                                     IconKey="Download"
+                                                     Click="BtnCheckUpdates_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:ModernCard>
+
+                        <!-- Card 3: Developer Tools -->
+                        <ui:ModernCard x:Name="CardDevTools" Header="DevTools">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Inspect elements, console logs, and network traffic for the active tab."
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,16,0"/>
+                                <ui:ModernButton Grid.Column="1"
+                                                 x:Name="BtnDebugTab"
+                                                 Content="Debug active tab"
+                                                 Variant="Secondary"
+                                                 IconKey="Settings"
+                                                 Click="BtnDevTools_Click"/>
+                            </Grid>
+                        </ui:ModernCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Floating Non-Intrusive Toast Notification -->
+                <ui:ToastNotification x:Name="SettingsToast"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Bottom"
+                                      Margin="24"/>
+            </Grid>
         </Grid>
-    </Border>
 
+        <!-- Full-Window Loading Overlay for Async Maintenance Operations -->
+        <ui:LoadingOverlay x:Name="SettingsLoading"
+                           Grid.Column="0"
+                           Grid.ColumnSpan="2"
+                           Message="Working..."/>
+    </Grid>
 </Window>

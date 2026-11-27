@@ -206,36 +206,6 @@
   - **Test di accettazione**: Aprire la finestra Informazioni con entrambi i temi (scuro e chiaro): verificare che il titolo "HidaChat" sia ben marcato, nitido e perfettamente leggibile su qualsiasi sfondo.
   - **Priorità**: P2 (Gravità media) | **Impatto**: Basso-Medio | **Sforzo**: Basso
 
-- [ ] **TASK-0123** [Media] Restyling moderno e riorganizzazione strutturata della finestra Impostazioni (SettingsWindow)
-  - **File**: `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`, `Localization.vb`
-  - **Problema / Esigenza**:
-    - Attualmente tutte le impostazioni dell'applicazione (Aspetto e Tema, Lingua e Traduzioni, Notifiche e Non Disturbare, Gestione Multi-Account, Configurazione Tailscale tsnet, Editor CSS personalizzato con preset, Correttore ortografico, Staging locale dischi di rete, Ibernazione schede, Limite cache disco Chromium e ottimizzazione spazio, Canale aggiornamenti Beta e Strumenti di sviluppo) sono raggruppate in un unico elenco a scorrimento verticale lineare all'interno di una finestra fissa di 520x580 pixel.
-    - L'assenza di una suddivisione per categorie rende la navigazione disordinata e scomoda con il continuo aggiungersi di nuove funzionalità.
-    - Controlli fuori contesto: il pulsante "Controlla ora" per gli aggiornamenti è collocato arbitrariamente nella sezione DevTools anziché in Aggiornamenti/Info.
-    - Localizzazione incompleta o fissa nel markup: diversi testi e pulsanti (es. "Usa nodo Tailscale integrato", "Pulisci Cache", "Compatto", "Svuota", "Applica CSS") sono scritti direttamente in italiano nel file XAML anziché utilizzare i dizionari di `Localization.vb`.
-    - I pannelli dinamici per i fornitori di traduzione (LibreTranslate, Ollama, OpenAI) creano disordine visivo e continui salti di scorrimento nella vista principale.
-    - Gestione account sacrificata: le credenziali, l'URL del server, l'integrazione Tailscale e il test di connessione sono compressi in spazi ristretti.
-  - **Specifiche & Soluzione da implementare**:
-    - **Architettura di Navigazione Categorizzata (Schede o Sidebar moderna)**:
-      - Sostituire l'unica colonna a scorrimento con un'interfaccia a categorie pulita e intuitiva (sidebar laterale o barra a schede superiore):
-        - **Generale**: Tema applicazione (Sistema, Scuro, Chiaro), Lingua interfaccia, Notifiche popup, Durata Non Disturbare (DND), Lingua correttore ortografico.
-        - **Account**: Schede spaziose per la gestione account con selettore piattaforma, nome, URL del server, token di autenticazione, switch Tailscale e test di connessione.
-        - **Traduzioni**: Abilitazione pulsanti e traduzione intera pagina, scelta fornitore (Google, LibreTranslate, Ollama, OpenAI), pannelli di configurazione dedicati, consenso privacy e test di connettività.
-        - **Rete e Tailscale**: Badge di stato nodo Tailscale (tsnet), AuthKey, pulsante di accesso e opzione di staging locale per dischi di rete (SMB/UNC).
-        - **Aspetto e CSS**: Editor CSS personalizzato con font monospace, pulsanti di preset (OLED, Compatto, Font, Svuota) e pulsante di applicazione immediata.
-        - **Archiviazione e Prestazioni**: Timeout ibernazione schede inattive, limite cache disco Chromium, compattazione live dello spazio e pulizia cache sicura.
-        - **Info e Aggiornamenti**: Informazioni sulla versione, selezione canale (Beta/Stabile), pulsante di verifica aggiornamenti (spostato da DevTools), link alle release note e opzione per DevTools.
-    - **Rifinitura Grafica e Layout a Schede/Card**:
-      - Organizzare le impostazioni correlate in box/card visivamente distinti con bordi arrotondati, sfondi armonici e sottotitoli descrittivi.
-      - Garantire uniformità tipografica, allineamenti, altezze dei pulsanti e margini coerenti.
-    - **Localizzazione Completa**:
-      - Spostare tutte le stringhe hardcoded in `Localization.vb` sincronizzando tutti i 5 dizionari supportati (`EnStrings`, `ItStrings`, `FrStrings`, `EsStrings`, `DeStrings`).
-    - **Compatibilità con i Temi e Dimensionamento**:
-      - Assicurare il perfetto funzionamento di `ApplyTheme()` su tutti i componenti di navigazione, card e campi di input sia in tema Scuro che in tema Chiaro.
-      - Ampliare le dimensioni della finestra (es. larghezza ~680–720px, altezza ~540–580px) per offrire una visualizzazione confortevole senza conflitti di scrolling.
-  - **Test di accettazione**: Aprire le Impostazioni sia in tema Scuro che in tema Chiaro; verificare che tutte le categorie siano accessibili tramite navigazione intuitiva, che ogni impostazione mantenga lo stato e funzioni correttamente (modifiche account, CSS, test traduzione, pulizia cache, verifica aggiornamenti), che non vi siano stringhe fisse non localizzate e che il cambio lingua aggiorni dinamicamente tutte le etichette e sezioni nelle 5 lingue previste.
-  - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
-
 ## Integrazione Piattaforme
 
 - [ ] **TASK-0051** [Alta] Estensione a Nuove Piattaforme Web (Microsoft Teams, Slack)
@@ -291,3 +261,70 @@
         - Azioni interattive: pulsante "Riprova connessione" (resetta la soppressione e riavvia la diagnosi) e pulsante "Impostazioni account" (apre le impostazioni per verificare URL e token).
   - **Test di accettazione**: Configurare un account Hermes o OpenClaw con Tailscale attivo verso un endpoint non raggiungibile. Alla comparsa di `TailscaleConnectionErrorDialog`, premere "Annulla": verificare che il dialogo si chiuda e non ricompaia più ciclicamente, e verificare che nella scheda dell'account compaia il banner "Agente Offline" con pulsanti funzionanti per riprovare la connessione o accedere alle impostazioni.
   - **Priorità**: P1 (Gravità alta) | **Impatto**: Alto | **Sforzo**: Medio
+
+## Modernizzazione UI (Fluent Design System)
+
+- [ ] **TASK-0131** [Media] Fase 2 Modernizzazione UI: Migrare i dialoghi modali al Fluent Design System
+  - **File**: `AboutWindow.xaml`, `AboutWindow.xaml.vb`, `TranslationPrivacyConsentDialog.xaml`, `TranslationPrivacyConsentDialog.xaml.vb`, `TailscaleConnectionErrorDialog.xaml`, `TailscaleConnectionErrorDialog.xaml.vb`, `UpdateProgressDialog.xaml`, `UpdateProgressDialog.xaml.vb`, `ShutdownProgressDialog.xaml`, `ShutdownProgressDialog.xaml.vb`, `StorageRecoveryProgressDialog.xaml`, `StorageRecoveryProgressDialog.xaml.vb`
+  - **Correlato a**: TASK-0130, TASK-0112 (`docs/ui/audit-report.md` — Fase 2)
+  - **Problema / Esigenza**: Tutti i 6 dialoghi modali esistenti utilizzano colori hex hardcoded (83 occorrenze complessive), stili pulsante duplicati, `AllowsTransparency="True"` + `DropShadowEffect` e risultano privi di `UseLayoutRounding`/`SnapsToDevicePixels` (eccetto `AboutWindow`) e scorciatoie da tastiera uniformi (`Invio`/`Esc`). `AboutWindow.xaml` presenta inoltre un titolo XAML fisso in italiano e manca di `MinWidth`.
+  - **Soluzione da implementare**:
+    - Unire `UI/Themes/FluentDark.xaml` + `UI/Themes/ModernControls.xaml` e registrare ogni dialogo con `ThemeManager.Instance.RegisterWindow(Me)` (deregistrandolo in `OnClosed`).
+    - Adottare `ModernCard`, `ModernButton` e i pennelli semantici `{DynamicResource ...}`, eliminando tutti i colori hex hardcoded.
+    - Abilitare `UseLayoutRounding="True"`, `SnapsToDevicePixels="True"`, la navigabilità da tastiera (rimuovendo `Focusable="False"` dai pulsanti interattivi) e le scorciatoie `Invio`/`Esc`.
+    - Sostituire i titoli XAML predefiniti in italiano con titoli neutri in inglese prima della localizzazione a runtime.
+  - **Test di accettazione**: Aprire tutti e 6 i dialoghi modali in tema Chiaro e Scuro con scaling 100%–200%; verificare nitidezza, contrasto WCAG AA, navigazione da tastiera e 0 colori hex hardcoded tramite `scripts/ui/Find-HardcodedUiIssues.ps1`.
+  - **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso-Medio
+
+- [ ] **TASK-0132** [Media] Fase 3 Modernizzazione UI: Migrare `MessagePopup` ai token Fluent `ToastNotification` e al tema dinamico
+  - **File**: `MessagePopup.xaml`, `MessagePopup.xaml.vb`
+  - **Correlato a**: TASK-0130 (`docs/ui/audit-report.md` — Fase 3)
+  - **Problema / Esigenza**: `MessagePopup.xaml` utilizza colori hardcoded per il tema scuro (`#1f2c34`, `#2f3e46`, `#e9edef`, `#8696a0`), manca di `UseLayoutRounding`/`SnapsToDevicePixels` e non si adatta dinamicamente ai temi Chiaro/Scuro/Sistema né ai colori accent personalizzati.
+  - **Soluzione da implementare**:
+    - Unire `UI/Themes/FluentDark.xaml` + `UI/Themes/ModernControls.xaml` e vincolare superfici, bordi e tipografia di `MessagePopup` ai token `{DynamicResource ...}` gestiti da `ThemeManager`.
+    - Abilitare `UseLayoutRounding="True"` e `SnapsToDevicePixels="True"`, preservando il posizionamento multi-monitor sicuro e i badge colore delle piattaforme.
+  - **Test di accettazione**: Simulare notifiche in arrivo in modalità Chiara e Scura su configurazioni mono e multi-monitor; verificare adattamento dinamico del tema, icone vettoriali nitide e chiusura automatica senza leak di timer.
+  - **Priorità**: P2 (Gravità media) | **Impatto**: Medio | **Sforzo**: Basso
+
+- [ ] **TASK-0133** [Media] Fase 4 Modernizzazione UI: Migrare `BulkSenderWindow` ai controlli Fluent (`ModernDataGrid`, `SearchBox`, `LoadingOverlay`, `EmptyState`)
+  - **File**: `BulkSenderWindow.xaml`, `BulkSenderWindow.xaml.vb`
+  - **Correlato a**: TASK-0130 (`docs/ui/audit-report.md` — Fase 4)
+  - **Problema / Esigenza**: `BulkSenderWindow.xaml` contiene 80 occorrenze di colori hex hardcoded, stili pulsante duplicati (`PrimaryButtonStyle`, `SecondaryButtonStyle`, `TagButtonStyle`), `AllowsTransparency="True"` + `DropShadowEffect` e manca di `UseLayoutRounding`, tematizzazione `DynamicResource` e stati vuoti/caricamento standardizzati.
+  - **Soluzione da implementare**:
+    - Registrare `BulkSenderWindow` su `ThemeManager.Instance` e sostituire i colori hardcoded con i token `{DynamicResource ...}`.
+    - Sostituire i controlli legacy con `ModernDataGrid` (virtualizzato), `SearchBox`, `ModernButton`, `StatusBadge`, `LoadingOverlay` ed `EmptyState`, preservando integralmente la logica di invio massivo e tutti gli eventi esistenti.
+    - Rimuovere `AllowsTransparency="True"` + `DropShadowEffect` passando a composizione accelerata hardware e abilitare `UseLayoutRounding="True" SnapsToDevicePixels="True"`.
+  - **Test di accettazione**: Caricare contatti Excel/CSV, filtrare con `SearchBox`, verificare cambio tema Chiaro/Scuro in tempo reale, ridimensionamento fino a `880x600` e piena operatività del flusso di invio massivo.
+  - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
+
+- [ ] **TASK-0134** [Media] Fase 5 Modernizzazione UI: Migrare `SettingsWindow` al `ThemeManager` centralizzato e ai controlli Fluent standardizzati
+  - **File**: `SettingsWindow.xaml`, `SettingsWindow.xaml.vb`
+  - **Correlato a**: TASK-0130, TASK-0129 (`docs/ui/audit-report.md` — Fase 5)
+  - **Problema / Esigenza**: Sebbene TASK-0129 abbia introdotto pennelli dinamici locali in `SettingsWindow`, `SettingsWindow.xaml` e `SettingsWindow.xaml.vb` contengono ancora 133 occorrenze di colori hex hardcoded (91 in `ApplyTheme()` nel code-behind + 42 in XAML), mancano di `UseLayoutRounding`/`SnapsToDevicePixels` e duplicano `CardBorderStyle`, `NavBtnStyle`, `CustomComboBoxStyle` e `InputTextBoxStyle`.
+  - **Soluzione da implementare**:
+    - Collegare `SettingsWindow` a `ThemeManager.Instance` e `UI/Themes/ModernControls.xaml`, sostituendo la popolazione manuale dei colori hex in `ApplyTheme()` con i token centralizzati.
+    - Adottare progressivamente `NavigationSidebar`, `ModernCard`, `ModernTextBox`, `ModernComboBox`, `ModernButton` e `DialogManager.ShowConfirm` per le azioni distruttive (es. eliminazione account o pulizia cache).
+    - Rimuovere `Focusable="False"` dai pulsanti di navigazione/azione e aggiungere `UseLayoutRounding="True" SnapsToDevicePixels="True"`.
+  - **Test di accettazione**: Navigare tra tutte e 7 le categorie di impostazioni nei temi Chiaro, Scuro e Sistema con accent personalizzati; verificare zero regressioni visive, piena accessibilità da tastiera e superamento di tutti i test in `SessionTests`.
+  - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio
+
+- [ ] **TASK-0135** [Media] Fase 6 Modernizzazione UI: Modernizzare `MainWindow` (dimensioni minime, DPI rounding, token tema e valutazione `WindowChrome`)
+  - **File**: `MainWindow.xaml`, `MainWindow.xaml.vb`
+  - **Correlato a**: TASK-0130 (`docs/ui/audit-report.md` — Fase 6)
+  - **Problema / Esigenza**: `MainWindow.xaml` e `MainWindow.xaml.vb` contengono 53 occorrenze di colori hex hardcoded, mancano di `MinWidth`/`MinHeight` e `UseLayoutRounding`/`SnapsToDevicePixels`, usano `Focusable="False"` sui pulsanti header/tab e si basano su `AllowsTransparency="True"` + `DropShadowEffect`, introducendo overhead di composizione software attorno all'host WebView2.
+  - **Soluzione da implementare**:
+    - Impostare `MinWidth="800"` e `MinHeight="560"`, oltre a `UseLayoutRounding="True"` e `SnapsToDevicePixels="True"`.
+    - Collegare barra del titolo, barra delle schede account e bordo radice ai token `{DynamicResource ...}` di `ThemeManager`.
+    - Valutare ed eseguire la migrazione da `AllowsTransparency="True"` + `DropShadowEffect` a `WindowChrome` accelerato hardware, verificando rigorosamente airspace WebView2, fluidità di ridimensionamento, massimizzazione multi-monitor e ripristino dalla system tray.
+  - **Test di accettazione**: Ridimensionare `MainWindow` su scaling 100%–200% e configurazioni multi-monitor, cambiare tema in tempo reale, verificare che tutte le schede WebView2 (WhatsApp, Telegram, Discord, OpenClaw, Hermes) renderizzino senza sfarfallii o tagli e verificare minimizzazione/ripristino nella tray.
+  - **Priorità**: P2 (Gravità media) | **Impatto**: Alto | **Sforzo**: Medio-Alto
+
+- [ ] **TASK-0136** [Bassa] Fase 7 Test UI Automatizzati: Aggiungere progetto opzionale di smoke test UI con `FlaUI.UIA3`
+  - **File**: `Tests/HidaChat.UiTests/` (nuovo progetto di test, escluso dallo ZIP portabile di release)
+  - **Correlato a**: TASK-0130 (`docs/ui/dependencies.md`, `docs/ui/audit-report.md` — Fase 7)
+  - **Problema / Esigenza**: Attualmente la verifica UI si basa su test unitari (`HidaChat.SessionTests`) e audit statici PowerShell (`scripts/ui/`). L'aggiunta di smoke test desktop automatizzati tramite UI Automation (`FlaUI.UIA3`, licenza MIT) consentirà di intercettare automaticamente regressioni di layout, navigazione da tastiera e cambio tema.
+  - **Soluzione da implementare**:
+    - Creare un progetto separato `Tests/HidaChat.UiTests/HidaChat.UiTests.vbproj` con riferimento a `FlaUI.UIA3` (MIT), completamente esterno a `HidaChat.vbproj` così da non aggiungere alcuna DLL al pacchetto portabile.
+    - Implementare smoke test automatizzati che avviino `HidaChat.exe --ui-showcase`, alternino i temi Chiaro/Scuro, filtrino `ModernDataGrid` tramite `SearchBox`, aprano/annullino `ConfirmDialog` con `Esc` e verifichino il confronto screenshot.
+  - **Test di accettazione**: Eseguire la suite `HidaChat.UiTests` su Windows; verificare il superamento di tutti gli smoke test UIA3 e confermare che lo ZIP generato da `publish.ps1` escluda gli assembly di test.
+  - **Priorità**: P3 (Gravità bassa) | **Impatto**: Medio | **Sforzo**: Medio

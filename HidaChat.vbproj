@@ -21,7 +21,7 @@
     <None Include="tsnetd.exe" Condition="Exists('tsnetd.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <EmbeddedResource Include="Scripts\**" />
+    <EmbeddedResource Include="Scripts\**" Exclude="Scripts\ui\**" />
   </ItemGroup>
 
   <ItemGroup>

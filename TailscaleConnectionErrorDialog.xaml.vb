@@ -1,9 +1,11 @@
+Imports System.ComponentModel
 Imports System.Diagnostics
 Imports System.Windows
+Imports HidaChat.UI.Theme
 
 ''' <summary>
-''' Finestra modale informativa per segnalare all'utente problemi di connettività Tailscale,
-''' nodi offline o pagine bianche su profili Hermes / OpenClaw (TODO #75).
+''' Fluent Design modal diagnostic dialog for reporting Tailscale connectivity issues,
+''' offline nodes, or unreachable gateway hosts on Hermes / OpenClaw profiles.
 ''' </summary>
 Public Class TailscaleConnectionErrorDialog
 
@@ -13,11 +15,26 @@ Public Class TailscaleConnectionErrorDialog
 
     Private ReadOnly _loc As AppLocalizations
 
+    ''' <summary>
+    ''' Parameterless constructor preserved for Visual Studio XAML Designer compatibility.
+    ''' </summary>
+    Public Sub New()
+        InitializeComponent()
+    End Sub
+
     Public Sub New(loc As AppLocalizations, accountName As String, platform As String, statusKey As String, Optional details As String = "", Optional loginUrl As String = "")
         InitializeComponent()
         _loc = loc
         Me.LoginUrl = loginUrl
+        If Not DesignerProperties.GetIsInDesignMode(Me) Then
+            ThemeManager.Instance.RegisterWindow(Me)
+        End If
         ApplyDiagnosis(accountName, platform, statusKey, details, loginUrl)
+    End Sub
+
+    Protected Overrides Sub OnClosed(e As EventArgs)
+        ThemeManager.Instance.UnregisterWindow(Me)
+        MyBase.OnClosed(e)
     End Sub
 
     Private Sub ApplyDiagnosis(accountName As String, platform As String, statusKey As String, details As String, loginUrl As String)
@@ -25,7 +42,10 @@ Public Class TailscaleConnectionErrorDialog
         Dim effPlatform = If(Not String.IsNullOrWhiteSpace(platform), platform, "Hermes/OpenClaw")
 
         If _loc IsNot Nothing Then
-            TxtTitle.Text = _loc.Get("tailscale_dialog_title")
+            Dim titleText = _loc.Get("tailscale_dialog_title")
+            Me.Title = titleText
+            TxtTitle.Text = titleText
+
             Dim headerArgs As New Dictionary(Of String, String) From {
                 {"name", effName},
                 {"platform", effPlatform}
@@ -59,12 +79,12 @@ Public Class TailscaleConnectionErrorDialog
             BtnSettings.Content = _loc.Get("tailscale_btn_settings")
             BtnClose.Content = _loc.Get("tailscale_btn_close")
         Else
-            TxtTitle.Text = "HidaChat — Stato Connessione Tailscale"
-            TxtHeader.Text = $"Impossibile caricare {effPlatform}: {effName}"
-            TxtMessage.Text = $"La connessione a Tailscale o all'host '{details}' non risulta attiva. Verifica lo stato di Tailscale e riprova."
-            BtnRetry.Content = "Riprova"
-            BtnSettings.Content = "Impostazioni"
-            BtnClose.Content = "Chiudi"
+            TxtTitle.Text = "HidaChat — Tailscale Connection Status"
+            TxtHeader.Text = $"Unable to load {effPlatform}: {effName}"
+            TxtMessage.Text = $"Tailscale connectivity to '{details}' is not active. Check your Tailscale status and retry."
+            BtnRetry.Content = "Retry"
+            BtnSettings.Content = "Settings"
+            BtnClose.Content = "Close"
             If Not String.IsNullOrWhiteSpace(loginUrl) Then
                 BtnLogin.Visibility = Visibility.Visible
             End If

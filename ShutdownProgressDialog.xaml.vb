@@ -1,19 +1,29 @@
+Imports System.ComponentModel
 Imports System.Windows
 Imports System.Windows.Threading
+Imports HidaChat.UI.Theme
 
 ''' <summary>
-''' Finestra grafica modale compatta e localizzata che mostra l'avanzamento durante la fase di salvataggio
-''' e chiusura controllata di HidaChat (TODO #74).
+''' Compact, localized Fluent Design progress dialog shown during orderly
+''' HidaChat data saving and application shutdown.
 ''' </summary>
 Public Class ShutdownProgressDialog
 
     Public Sub New(Optional loc As AppLocalizations = Nothing)
         InitializeComponent()
+        If Not DesignerProperties.GetIsInDesignMode(Me) Then
+            ThemeManager.Instance.RegisterWindow(Me)
+        End If
         ApplyLocalization(loc)
     End Sub
 
+    Protected Overrides Sub OnClosed(e As EventArgs)
+        ThemeManager.Instance.UnregisterWindow(Me)
+        MyBase.OnClosed(e)
+    End Sub
+
     ''' <summary>
-    ''' Applica le etichette localizzate nelle 5 lingue supportate.
+    ''' Applies localized labels across the 5 supported languages.
     ''' </summary>
     Public Sub ApplyLocalization(loc As AppLocalizations)
         If loc IsNot Nothing Then
@@ -22,13 +32,13 @@ Public Class ShutdownProgressDialog
             TxtDetail.Text = loc.Get("shutdown_stage_settings")
         Else
             TxtTitle.Text = "HidaChat"
-            TxtHeader.Text = "Salvataggio dati e chiusura in corso..."
-            TxtDetail.Text = "Salvataggio impostazioni e preferenze account..."
+            TxtHeader.Text = "Saving data and closing..."
+            TxtDetail.Text = "Saving settings and account preferences..."
         End If
     End Sub
 
     ''' <summary>
-    ''' Aggiorna il testo descrittivo dello step di chiusura corrente.
+    ''' Updates the current shutdown stage text in a thread-safe manner.
     ''' </summary>
     Public Sub UpdateStatus(statusText As String)
         If String.IsNullOrWhiteSpace(statusText) Then Return
@@ -39,7 +49,6 @@ Public Class ShutdownProgressDialog
         End If
 
         TxtDetail.Text = statusText
-        ' Forza il refresh della UI WPF
         Dispatcher.Invoke(DispatcherPriority.Render, Sub()
                                                      End Sub)
     End Sub
