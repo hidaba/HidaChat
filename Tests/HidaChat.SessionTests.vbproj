@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../PlatformDefinition.vb" Link="PlatformDefinition.vb" />
+    <Compile Include="../NotificationPayloadPolicy.vb" Link="NotificationPayloadPolicy.vb" />
     <Compile Include="../SessionRecoveryPolicy.vb" Link="SessionRecoveryPolicy.vb" />
     <Compile Include="../ColdProfileCopy.vb" Link="ColdProfileCopy.vb" />
     <Compile Include="../NetworkProfileSync.vb" Link="NetworkProfileSync.vb" />

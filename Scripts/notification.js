@@ -6,6 +6,57 @@
 
   const activeCustomNotifications = {};
 
+  // Collapses newlines and repeated whitespace into a clean single-line preview string.
+  function normalizePreviewText(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).replace(/\s+/g, ' ').trim();
+  }
+
+  // Extracts visible text from a preview container while ignoring nested unread badge counters.
+  function extractTextWithoutBadges(el) {
+    if (!el) return '';
+    try {
+      if (typeof el.cloneNode === 'function') {
+        const clone = el.cloneNode(true);
+        const badges = clone.querySelectorAll('.Badge, .badge, .dialog-subtitle-badge, [class*="unread-count"], [class*="numberBadge"], [class*="badge"]');
+        for (let i = 0; i < badges.length; i++) {
+          if (badges[i] && badges[i].parentNode) {
+            badges[i].parentNode.removeChild(badges[i]);
+          }
+        }
+        return normalizePreviewText(clone.textContent || '');
+      }
+    } catch(e) {}
+    return normalizePreviewText(el.textContent || '');
+  }
+
+  // Cleans Discord aria-label strings by removing trailing unread/mention counters.
+  function cleanDiscordChannelLabel(label) {
+    const text = normalizePreviewText(label);
+    if (!text) return '';
+    return text
+      .replace(/,\s*\d+\s*(?:unread|mention|mentions|non\s*lett\w*|menzion\w*|ungelesen\w*|no\s*le[ií]\w*|non\s*lu\w*).*$/i, '')
+      .replace(/,\s*(?:unread|non\s*lett\w*).*$/i, '')
+      .trim();
+  }
+
+  // Attempts to extract the latest chat title and message preview from the active platform DOM.
+  function getLatestDomPreview() {
+    try {
+      const host = (location.hostname || '').toLowerCase();
+      if (host === 'web.telegram.org' || host === 'telegram.org' || host.endsWith('.telegram.org')) {
+        return scanTelegramUnreadCount();
+      }
+      if (host === 'discord.com' || host.endsWith('.discord.com')) {
+        return scanDiscordUnread();
+      }
+      if (host === 'web.whatsapp.com' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) {
+        return scanWhatsAppUnread();
+      }
+    } catch(e) {}
+    return { latestChatTitle: '', latestMessageText: '' };
+  }
+
   // --- CANALE DIAGNOSTICA AVANZATA (TODO #73) ---
   function sendDiagnostic(subType, details) {
     try {
@@ -119,20 +170,27 @@
   }
 
   try {
-    // 1. Intercetta ServiceWorkerRegistration.prototype.showNotification (usato da WhatsApp Web e Telegram PWA)
+    // 1. Intercept ServiceWorkerRegistration.prototype.showNotification (WhatsApp Web, Telegram PWA)
     if (window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype) {
       try {
         const originalShowNotification = window.ServiceWorkerRegistration.prototype.showNotification;
         window.ServiceWorkerRegistration.prototype.showNotification = function(title, options) {
           const id = Math.random().toString(36).substring(2, 9);
           try {
+            let cleanTitle = normalizePreviewText(title);
+            let cleanBody = normalizePreviewText(options ? (options.body || '') : '');
+            if (!cleanTitle || !cleanBody) {
+              const fallback = getLatestDomPreview();
+              if (!cleanTitle && fallback.latestChatTitle) cleanTitle = fallback.latestChatTitle;
+              if (!cleanBody && fallback.latestMessageText) cleanBody = fallback.latestMessageText;
+            }
             if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
               window.chrome.webview.postMessage({
                 channel: 'NotificationChannel',
                 type: 'NOTIFICATION_RECEIVED',
                 id: id,
-                title: title,
-                body: options ? (options.body || '') : '',
+                title: cleanTitle,
+                body: cleanBody,
                 icon: options ? (options.icon || '') : '',
                 bridgeToken: __bridgeToken
               });
@@ -143,7 +201,7 @@
       } catch(e) {}
     }
 
-    // 2. Intercetta window.Notification preservando prototype, costruttore nativo e static members
+    // 2. Intercept window.Notification while preserving prototype chain and static members
     const OrigNotification = window.Notification;
     if (OrigNotification) {
       function CustomNotification(title, options) {
@@ -155,13 +213,20 @@
         this._listeners = {};
 
         try {
+          let cleanTitle = normalizePreviewText(this.title);
+          let cleanBody = normalizePreviewText(this.options.body || '');
+          if (!cleanTitle || !cleanBody) {
+            const fallback = getLatestDomPreview();
+            if (!cleanTitle && fallback.latestChatTitle) cleanTitle = fallback.latestChatTitle;
+            if (!cleanBody && fallback.latestMessageText) cleanBody = fallback.latestMessageText;
+          }
           if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
             window.chrome.webview.postMessage({
               channel: 'NotificationChannel',
               type: 'NOTIFICATION_RECEIVED',
               id: this.id,
-              title: this.title,
-              body: this.options.body || '',
+              title: cleanTitle,
+              body: cleanBody,
               icon: this.options.icon || '',
               bridgeToken: __bridgeToken
             });
@@ -319,14 +384,19 @@
           const digits = rawText.replace(/[^\d]/g, '');
           const isExplicitUnread = el.classList.contains('unread') || el.classList.contains('Badge') || el.classList.contains('dialog-subtitle-badge') || (el.getAttribute('class') || '').includes('unread');
 
-          // Nome chat e anteprima messaggio
+          // Extract chat title and message preview without trailing badge digits
           let chatTitle = '';
           let messagePreview = '';
           try {
             const titleEl = container.querySelector('.peer-title, .title, .dialog-title, .user-title, h3, .name, [class*="title"]');
-            if (titleEl) chatTitle = titleEl.textContent.trim();
-            const prevEl = container.querySelector('.dialog-subtitle, .subtitle, .last-message, .dialog-subtitle-message, [class*="subtitle"], [class*="message"]');
-            if (prevEl) messagePreview = prevEl.textContent.trim();
+            if (titleEl) chatTitle = extractTextWithoutBadges(titleEl);
+            const prevEl = container.querySelector('.dialog-subtitle-message, .last-message, .dialog-subtitle, .subtitle, [class*="subtitle"], [class*="message"]');
+            if (prevEl) {
+              const candidate = extractTextWithoutBadges(prevEl);
+              if (candidate && candidate !== chatTitle) {
+                messagePreview = candidate;
+              }
+            }
           } catch(e) {}
 
           if (!latestChatTitle && chatTitle) {
@@ -451,11 +521,11 @@
             if (container) {
               const titleEl = container.querySelector('[data-testid="cell-frame-title"] span, span[title][dir="auto"], span[title], span[dir="auto"]');
               if (titleEl) {
-                latestChatTitle = (titleEl.getAttribute('title') || titleEl.textContent || '').trim();
+                latestChatTitle = normalizePreviewText(titleEl.getAttribute('title') || titleEl.textContent || '');
               }
-              const secEl = container.querySelector('[data-testid="cell-frame-secondary"] span[title], [data-testid="cell-frame-secondary"] span, [data-testid="last-msg-status"] + span');
+              const secEl = container.querySelector('[data-testid="cell-frame-secondary"] span[dir="ltr"], [data-testid="cell-frame-secondary"] span[dir="auto"], [data-testid="cell-frame-secondary"] span[title], [data-testid="cell-frame-secondary"] span, [data-testid="last-msg-status"] + span');
               if (secEl) {
-                const secText = (secEl.getAttribute('title') || secEl.textContent || '').trim();
+                const secText = normalizePreviewText(secEl.getAttribute('title') || extractTextWithoutBadges(secEl) || '');
                 if (secText && secText !== latestChatTitle) {
                   latestMessageText = secText;
                 }
@@ -493,12 +563,30 @@
           seen.add(el);
           const rawText = (el.textContent || '').trim();
           const digits = rawText.replace(/[^\d]/g, '');
+
+          if (!latestChatTitle) {
+            const item = el.closest('a[data-list-item-id], [data-list-item-id], [aria-label], li');
+            if (item) {
+              const ariaLabel = item.getAttribute('aria-label') || '';
+              const cleaned = cleanDiscordChannelLabel(ariaLabel);
+              if (cleaned) {
+                latestChatTitle = cleaned;
+              } else {
+                const nameEl = item.querySelector('[class*="name"], [class*="title"], span');
+                if (nameEl) {
+                  const candidate = extractTextWithoutBadges(nameEl);
+                  if (candidate && !/^\d+$/.test(candidate)) latestChatTitle = candidate;
+                }
+              }
+            }
+          }
+
           if (digits) {
             const n = parseInt(digits, 10);
             if (!isNaN(n) && n > 0) {
               count += n;
               debugItems.push({
-                chatTitle: 'Discord Mention',
+                chatTitle: latestChatTitle || 'Discord Mention',
                 count: n,
                 rawText: rawText,
                 classes: el.className
@@ -515,11 +603,33 @@
           .filter(pill => !pill.closest('[class*="muted"], [class*="isMuted"], [class*="modeMuted"]'));
         if (unreadPills && unreadPills.length > 0) {
           count = 1;
+          if (!latestChatTitle) {
+            const item = unreadPills[0].closest('li, [data-list-item-id], [aria-label]');
+            if (item) {
+              const linkWithLabel = item.querySelector('a[aria-label], [aria-label]') || item;
+              const cleaned = cleanDiscordChannelLabel(linkWithLabel.getAttribute('aria-label') || '');
+              if (cleaned) {
+                latestChatTitle = cleaned;
+              } else {
+                const nameEl = item.querySelector('[class*="name"], [class*="channelName"]');
+                if (nameEl) latestChatTitle = extractTextWithoutBadges(nameEl);
+              }
+            }
+          }
           debugItems.push({
-            chatTitle: 'Discord Unread Pill',
+            chatTitle: latestChatTitle || 'Discord Unread Pill',
             count: 1,
             classes: unreadPills[0].className
           });
+        }
+      }
+
+      // Extract latest visible message preview when a Discord channel/DM is open
+      if (count > 0 && !latestMessageText) {
+        const msgNodes = document.querySelectorAll('li[id^="chat-messages-"] [id^="message-content-"], [class*="messageContent"]');
+        if (msgNodes && msgNodes.length > 0) {
+          const lastMsg = normalizePreviewText(msgNodes[msgNodes.length - 1].textContent || '');
+          if (lastMsg) latestMessageText = lastMsg;
         }
       }
     } catch(e) {}
@@ -708,7 +818,7 @@
     let chatPanelObserverAttached = false;
     function tryAttachChatPanelObserver() {
       if (chatPanelObserverAttached) return;
-      const chatPanel = document.querySelector('#pane-side, [data-testid="chat-list"], .chatlist');
+      const chatPanel = document.querySelector('#pane-side, [data-testid="chat-list"], .chatlist, [data-list-id="channels"], [data-list-id="guildsnav"]');
       if (chatPanel) {
         const chatObserver = new MutationObserver(scheduleAllChecks);
         chatObserver.observe(chatPanel, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label', 'class'] });

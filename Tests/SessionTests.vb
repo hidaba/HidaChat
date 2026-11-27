@@ -1988,9 +1988,9 @@ Module SessionTests
         Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", opaqueToken), "ShouldAttachBearerToken allows opaque API token on API endpoint")
 
         ' =====================================================================
-        ' TASK-0129: SettingsWindow High-Contrast Styling & Dynamic Themes
+        ' TASK-0129 / TASK-0134: Version & UI Regression Checks
         ' =====================================================================
-        Check(Constants.AppVersion = "1.5.13-beta", "Constants.AppVersion bumped to 1.5.13-beta")
+        Check(Constants.AppVersion = "1.5.14-beta", "Constants.AppVersion bumped to 1.5.14-beta")
 
         Dim supportedLangs = {"en", "it", "fr", "es", "de"}
         Dim categoryKeys = {
@@ -2086,6 +2086,43 @@ Module SessionTests
             Dim locObj = AppLocalizations.CreateForLanguage(lang)
             Dim accentVal = locObj.Get("accent_color")
             Check(Not String.IsNullOrWhiteSpace(accentVal) AndAlso accentVal <> "accent_color", $"Key 'accent_color' localized in '{lang}': '{accentVal}'")
+        Next
+
+        ' =====================================================================
+        ' TASK-0109: In-App Popup Notifications (MessagePopup Metadata & Localization)
+        ' =====================================================================
+        Check(NotificationPayloadPolicy.NormalizePreviewText("  Hello" & vbCrLf & "  world   ") = "Hello world", "NormalizePreviewText collapses newlines and repeated spaces")
+        Dim longMsg = New String("A"c, 300)
+        Dim truncated = NotificationPayloadPolicy.NormalizePreviewText(longMsg, 50)
+        Check(truncated.Length <= 50 AndAlso truncated.EndsWith("…"), "NormalizePreviewText truncates long messages cleanly with ellipsis")
+
+        Check(NotificationPayloadPolicy.ExtractInitials("Mario Rossi") = "MR", "ExtractInitials returns 'MR' for 'Mario Rossi'")
+        Check(NotificationPayloadPolicy.ExtractInitials("Alice") = "A", "ExtractInitials returns 'A' for single word")
+        Check(NotificationPayloadPolicy.ExtractInitials("#general") = "G", "ExtractInitials strips leading '#' for Discord channels")
+        Check(NotificationPayloadPolicy.ExtractInitials("@telegram_user") = "T", "ExtractInitials strips leading '@' for usernames")
+        Check(NotificationPayloadPolicy.ExtractInitials("   ") = "?", "ExtractInitials returns '?' for whitespace")
+
+        Dim waPayload = NotificationPayloadPolicy.ResolvePopupPayload("Mario Rossi", "Ciao" & vbLf & "come stai?", "Work WA", "WhatsApp", 1, "Nuovo messaggio ricevuto", "{count} messaggi non letti")
+        Check(waPayload.Title = "Mario Rossi", "ResolvePopupPayload preserves sender name")
+        Check(waPayload.Body = "Ciao come stai?", "ResolvePopupPayload normalizes multiline message body")
+        Check(waPayload.Platform = "WhatsApp", "ResolvePopupPayload resolves WhatsApp platform")
+        Check(waPayload.Initials = "MR", "ResolvePopupPayload computes initials 'MR'")
+
+        Dim fallbackPayload = NotificationPayloadPolicy.ResolvePopupPayload("", "", "Team Discord", "Discord", 3, "New message received", "{count} unread messages")
+        Check(fallbackPayload.Title = "Team Discord", "ResolvePopupPayload falls back to account name when sender is empty")
+        Check(fallbackPayload.Body = "3 unread messages", "ResolvePopupPayload formats plural unread fallback")
+        Check(fallbackPayload.Platform = "Discord", "ResolvePopupPayload resolves Discord platform")
+
+        Dim platformFallback = NotificationPayloadPolicy.ResolvePopupPayload("", "", "", "Telegram", 1, "New message received", "{count} unread messages")
+        Check(platformFallback.Title = "Telegram", "ResolvePopupPayload falls back to platform DisplayName when both sender and account are empty")
+        Check(platformFallback.Body = "New message received", "ResolvePopupPayload uses single-message fallback for count=1")
+
+        For Each lang In supportedLangs
+            Dim locObj = AppLocalizations.CreateForLanguage(lang)
+            Dim newMsgVal = locObj.Get("popup_new_message")
+            Dim unreadVal = locObj.Get("popup_unread_messages")
+            Check(Not String.IsNullOrWhiteSpace(newMsgVal) AndAlso newMsgVal <> "popup_new_message", $"Key 'popup_new_message' localized in '{lang}': '{newMsgVal}'")
+            Check(Not String.IsNullOrWhiteSpace(unreadVal) AndAlso unreadVal <> "popup_unread_messages" AndAlso unreadVal.Contains("{count}"), $"Key 'popup_unread_messages' localized with {{count}} in '{lang}': '{unreadVal}'")
         Next
     End Function
 End Module

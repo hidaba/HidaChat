@@ -5,6 +5,37 @@
 
 ## 2026-11-27
 
+- [x] **TASK-0109** [Media] Notifiche popup in-app (MessagePopup): logo chat/piattaforma, nome mittente e anteprima messaggio
+  - Risultato:
+    - Migliorati `MessagePopup.xaml` e `MessagePopup.xaml.vb` con barra laterale d'accento colorata per piattaforma (`AccentIndicatorBar`), badge vettoriale della piattaforma sovrapposto all'avatar, griglia intestazione a 2 colonne reattiva che impedisce il taglio del nome piattaforma, anteprima messaggio su 2 righe con troncamento ellissi (`TextWrapping="Wrap"`, `CharacterEllipsis`) e tooltip completi.
+    - Aggiunto `NotificationPayloadPolicy.vb` per normalizzare anteprime multiriga, estrarre iniziali pulite (rimuovendo prefissi `#`/`@`) e risolvere i fallback mittente/account/piattaforma in modo uniforme su tutte e 5 le piattaforme.
+    - Potenziato `Scripts/notification.js` con estrazione pulita delle anteprime Telegram senza cifre badge, selettori WhatsApp migliorati, estrazione completa di canale/DM e anteprima messaggio su Discord, `MutationObserver` sulla sidebar Discord e fallback DOM quando `Notification` non include corpo o titolo.
+    - Aggiornato `AppAccounts.vb` per utilizzare `NotificationPayloadPolicy.ResolvePopupPayload` con fallback localizzati (`popup_new_message`, `popup_unread_messages`) sincronizzati in tutte e 5 le lingue in `Localization.vb`.
+  - Verifica: Superati `node Tests/notification.test.cjs` (WhatsApp, Telegram, Discord e fallback `CustomNotification`), `dotnet build HidaChat.vbproj` (0 avvisi, 0 errori), `Tests/HidaChat.SessionTests.vbproj` (1224 asserzioni di regressione superate con 0 errori), smoke test runtime STA di `MessagePopup` su tutte e 5 le piattaforme (`WhatsApp`, `Telegram`, `Discord`, `OpenClaw`, `Hermes`), `Test-UiLayouts.ps1` (12/12) e `Find-HardcodedUiIssues.ps1` (0 segnalazioni su `MessagePopup`).
+
+- [x] **TASK-0110** [Media] Correzione contrasto e colori menu a tendina "Fornitore di Traduzioni" in SettingsWindow
+  - Risultato: Risolta tramite `TASK-0129` e `TASK-0132`; `ComboTranslationProvider` in `SettingsWindow.xaml` utilizza ora `ui:ModernComboBox` collegato ai token `{DynamicResource ...}` di `ThemeManager` per sfondo, testo, bordi e stati `ComboBoxItem` sia in tema Chiaro che Scuro.
+  - Verifica: Verificata tramite `Test-UiLayouts.ps1`, `Find-HardcodedUiIssues.ps1` e `Tests/HidaChat.SessionTests.vbproj`.
+
+- [x] **TASK-0111** [Media] Adattamento cromatico e leggibilità della schermata / sezione Tailscale
+  - Risultato: Risolta tramite `TASK-0131`, `TASK-0132` e `TASK-0133`; sia la sezione Tailscale integrata in `SettingsWindow.xaml` (`CardTsnet`, `BadgeTsnetStatus`, `TxtTsnetAuthKey`) sia `TailscaleConnectionErrorDialog.xaml` utilizzano ora i pennelli semantici `{DynamicResource ...}` di `ThemeManager` e palette `StatusBadge` conformi WCAG AA con 0 colori hex hardcoded.
+  - Verifica: Verificata tramite le asserzioni di contrasto WCAG AA in `Tests/SessionTests.vb`, `Test-UiLayouts.ps1` e `Find-HardcodedUiIssues.ps1`.
+
+- [x] **TASK-0112** [Media] Contrasto e visibilità del titolo "HidaChat" nella finestra Informazioni (AboutWindow)
+  - Risultato: Risolta tramite `TASK-0133`; `AboutWindow.xaml` associa il `TextBlock` del titolo "HidaChat" a `Foreground="{DynamicResource TextPrimaryBrush}"` ed è registrata su `ThemeManager.Instance.RegisterWindow(Me)` per l'adattamento automatico ad alto contrasto in tema Chiaro e Scuro.
+  - Verifica: Verificata tramite `Test-UiLayouts.ps1` e `Find-HardcodedUiIssues.ps1` (0 colori hardcoded).
+
+- [x] **TASK-0135** [Media] Fase 6 Modernizzazione UI: Modernizzare `MainWindow` (dimensioni minime, DPI rounding, token tema e migrazione `WindowChrome`)
+  - Risultato: Completata nell'ambito di `TASK-0133` (`MainWindow.xaml` / `MainWindow.xaml.vb` migrati a `WindowChrome` con accelerazione hardware, `MinWidth="800" MinHeight="560"`, `UseLayoutRounding`/`SnapsToDevicePixels` e binding completi `{DynamicResource ...}` su `ThemeManager`).
+  - Verifica: Verificata tramite `dotnet build`, `Tests/HidaChat.SessionTests.vbproj`, `Test-UiLayouts.ps1` e `Find-HardcodedUiIssues.ps1`.
+
+- [x] **TASK-0134** [Alta] Correzione errore runtime all'apertura di BulkSenderWindow (firma delegato `SearchBox.SearchChanged` non compatibile)
+  - Risultato:
+    - Corretta la firma di `TxtContactSearch_SearchChanged` in `BulkSenderWindow.xaml.vb` da `(sender As Object, e As RoutedEventArgs)` a `(sender As Object, query As String)` per corrispondere a `SearchBox.SearchChanged` (`EventHandler(Of String)`), eliminando `XamlParseException` / `ArgumentException` durante `InitializeComponent()`.
+    - Verificati tutti i collegamenti ad eventi XAML dei controlli personalizzati `HidaChat.UI.Controls` in tutte le finestre per escludere altre firme non compatibili.
+    - Aggiornata la versione a `1.5.14-beta` in `Constants.vb` e aggiornato `Tests/SessionTests.vb`.
+  - Verifica: Verificato `dotnet build HidaChat.vbproj` (0 avvisi, 0 errori), eseguita la suite `Tests/HidaChat.SessionTests.vbproj` (tutte le asserzioni superate con 0 errori) e verificata l'istanziazione runtime di `BulkSenderWindow` su thread STA con `InitializeComponent()` completato senza eccezioni.
+
 - [x] **TASK-0133** [Alta] Completamento modernizzazione Fluent Design System su tutte le finestre rimanenti (Fasi 2, 3, 4 e 6)
   - Risultato:
     - **Fase 2 (Dialog modali)**: Modernizzati `AboutWindow`, `TranslationPrivacyConsentDialog`, `TailscaleConnectionErrorDialog`, `UpdateProgressDialog`, `ShutdownProgressDialog` e `StorageRecoveryProgressDialog` con `ThemeManager`, `ModernCard`, `ModernButton`, `StatusBadge`, `UseLayoutRounding`, `SnapsToDevicePixels`, scorciatoie `Invio`/`Esc`, titoli XAML predefiniti neutri in inglese e costruttori senza parametri per Visual Studio Designer.

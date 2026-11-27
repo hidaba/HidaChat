@@ -5,6 +5,17 @@
 
 ---
 
+## [1.5.14-beta] - 2026-11-27
+
+### Pre-release / Beta — Fix Bulk Sender Window Opening Error & Enhanced In-App Popup Notifications
+- **Bulk Sender Window (`BulkSenderWindow.xaml.vb` — TASK-0134)**:
+  - **Fixed** runtime `XamlParseException` / delegate binding failure when opening `BulkSenderWindow` caused by `TxtContactSearch_SearchChanged` declaring `e As RoutedEventArgs` instead of `query As String` for `SearchBox.SearchChanged` (`EventHandler(Of String)`).
+- **In-App Popup Notifications (`MessagePopup.xaml`, `MessagePopup.xaml.vb`, `NotificationPayloadPolicy.vb`, `AppAccounts.vb`, `Scripts/notification.js`, `Localization.vb` — TASK-0109)**:
+  - **Improved** `MessagePopup` with platform-colored left accent bar, responsive header grid preventing platform name clipping, 2-line wrapped message preview with ellipsis truncation, and full tooltips across WhatsApp, Telegram, Discord, OpenClaw, and Hermes.
+  - **Added** `NotificationPayloadPolicy.vb` for multiline preview normalization, clean initials extraction, and localized fallbacks (`popup_new_message`, `popup_unread_messages` across all 5 languages in `Localization.vb`).
+  - **Improved** `Scripts/notification.js` to extract Discord channel/DM titles and message previews, strip trailing badge counters from Telegram previews, observe Discord sidebar mutations, and fall back to DOM previews when web `Notification` payloads omit body or title.
+  - **Added** automated tests in `Tests/SessionTests.vb` (1224 total regression assertions) and `Tests/notification.test.cjs`.
+
 ## [1.5.13-beta] - 2026-11-27
 
 ### Pre-release / Beta — Full Fluent Design System Modernization Across All Windows (Phases 2, 3, 4 & 6)

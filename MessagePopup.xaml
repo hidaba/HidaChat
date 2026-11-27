@@ -6,8 +6,8 @@
         ShowInTaskbar="False"
         Topmost="True"
         ShowActivated="False"
-        Width="356"
-        Height="84"
+        Width="360"
+        Height="88"
         ResizeMode="NoResize"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
@@ -53,8 +53,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Semantic Accent Indicator Bar -->
-            <Border Grid.Column="0" Background="{DynamicResource AccentBrush}"/>
+            <!-- Semantic Platform Accent Indicator Bar -->
+            <Border x:Name="AccentIndicatorBar" Grid.Column="0" Background="{DynamicResource AccentBrush}"/>
 
             <Grid Grid.Column="1">
                 <Grid MouseDown="PopupGrid_MouseDown" Cursor="Hand">
@@ -75,20 +75,40 @@
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom">
                             <Path x:Name="PlatformBadgeIcon"
                                   Data="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2Z"
-                                  Fill="White" Width="10" Height="10" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                  Fill="{DynamicResource AccentForegroundBrush}" Width="10" Height="10" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </Grid>
 
                     <!-- Sender and Message Body -->
-                    <StackPanel Grid.Column="1" Margin="6,0,30,0" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Name="NameText" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold"
-                                       FontSize="13.5" TextTrimming="CharacterEllipsis" MaxWidth="195"/>
-                            <TextBlock Name="PlatformNameText" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11.5"
-                                       Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="Normal"/>
-                        </StackPanel>
-                        <TextBlock Name="MessageText" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12.5"
-                                   TextTrimming="CharacterEllipsis" MaxHeight="34" TextWrapping="NoWrap" Margin="0,2,0,0"/>
+                    <StackPanel Grid.Column="1" Margin="6,0,32,0" VerticalAlignment="Center">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Name="NameText"
+                                       Grid.Column="0"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontWeight="SemiBold"
+                                       FontSize="13.5"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Name="PlatformNameText"
+                                       Grid.Column="1"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontSize="11.5"
+                                       Margin="6,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontWeight="Normal"/>
+                        </Grid>
+                        <TextBlock Name="MessageText"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontSize="12.5"
+                                   LineHeight="17"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxHeight="36"
+                                   TextWrapping="Wrap"
+                                   Margin="0,3,0,0"/>
                     </StackPanel>
                 </Grid>
 

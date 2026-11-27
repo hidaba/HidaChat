@@ -5,6 +5,17 @@
 
 ---
 
+## [1.5.14-beta] - 2026-11-27
+
+### Pre-release / Beta — Correzione Apertura Invio Massivo e Potenziamento Notifiche Popup In-App
+- **Finestra Invio Massivo (`BulkSenderWindow.xaml.vb` — TASK-0134)**:
+  - **Corretto** l'errore runtime (`XamlParseException` / firma delegato non compatibile) all'apertura di `BulkSenderWindow`, causato dalla firma errata di `TxtContactSearch_SearchChanged` (`e As RoutedEventArgs` invece di `query As String` per l'evento `SearchBox.SearchChanged` di tipo `EventHandler(Of String)`).
+- **Notifiche Popup In-App (`MessagePopup.xaml`, `MessagePopup.xaml.vb`, `NotificationPayloadPolicy.vb`, `AppAccounts.vb`, `Scripts/notification.js`, `Localization.vb` — TASK-0109)**:
+  - **Migliorato** `MessagePopup` con barra laterale colorata per piattaforma, griglia intestazione reattiva che evita il taglio del nome piattaforma, anteprima messaggio su 2 righe con troncamento ellissi e tooltip completi su WhatsApp, Telegram, Discord, OpenClaw e Hermes.
+  - **Aggiunto** `NotificationPayloadPolicy.vb` per la normalizzazione di anteprime multiriga, estrazione pulita delle iniziali e fallback localizzati (`popup_new_message`, `popup_unread_messages` in tutte e 5 le lingue in `Localization.vb`).
+  - **Migliorato** `Scripts/notification.js` con estrazione di canale/DM e anteprima messaggio su Discord, rimozione delle cifre badge dalle anteprime Telegram, osservatore mutazioni sulla sidebar Discord e fallback DOM quando `Notification` non include corpo o titolo.
+  - **Aggiunto** test automatici in `Tests/SessionTests.vb` (1224 asserzioni di regressione totali) e `Tests/notification.test.cjs`.
+
 ## [1.5.13-beta] - 2026-11-27
 
 ### Pre-release / Beta — Modernizzazione Completa Fluent Design System su Tutte le Finestre (Fasi 2, 3, 4 e 6)

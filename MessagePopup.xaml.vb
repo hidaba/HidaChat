@@ -36,30 +36,23 @@ Public Class MessagePopup
         If Not DesignerProperties.GetIsInDesignMode(Me) Then
             ThemeManager.Instance.RegisterWindow(Me)
         End If
-        NameText.Text = title
-        MessageText.Text = body
-        InitialsText.Text = GetInitials(title)
-        SetPlatform(platform)
+        Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(title, body, String.Empty, platform)
+        NameText.Text = payload.Title
+        NameText.ToolTip = payload.Title
+        MessageText.Text = payload.Body
+        MessageText.ToolTip = payload.Body
+        InitialsText.Text = payload.Initials
+        SetPlatform(payload.Platform)
     End Sub
 
     Private Sub SetPlatform(platform As String)
         Dim def = PlatformRegistry.Get(platform)
+        AccentIndicatorBar.Background = def.ThemeBrush
         PlatformBadgeBorder.Background = def.ThemeBrush
         PlatformBadgeIcon.Data = Geometry.Parse(def.IconSvgPath)
         AvatarBorder.Background = def.ThemeBrush
         PlatformNameText.Text = $"• {def.DisplayName}"
     End Sub
-
-    ''' <summary>
-    ''' Extracts sender initials (e.g. "Mario Rossi" -> "MR") for the circular avatar badge.
-    ''' </summary>
-    Private Shared Function GetInitials(name As String) As String
-        If String.IsNullOrWhiteSpace(name) Then Return "?"
-        Dim parts = name.Trim().Split(" "c, StringSplitOptions.RemoveEmptyEntries)
-        If parts.Length = 0 Then Return "?"
-        If parts.Length = 1 Then Return parts(0).Substring(0, 1).ToUpper()
-        Return parts(0).Substring(0, 1).ToUpper() & parts(parts.Length - 1).Substring(0, 1).ToUpper()
-    End Function
 
     ''' <summary>
     ''' Returns all currently loaded popups while pruning dead WeakReferences.

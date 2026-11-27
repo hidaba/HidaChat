@@ -92,8 +92,8 @@ Public Class BulkSenderWindow
                (item.Company IsNot Nothing AndAlso item.Company.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
     End Function
 
-    Private Sub TxtContactSearch_SearchChanged(sender As Object, e As RoutedEventArgs)
-        _searchFilter = If(TxtContactSearch?.Text, String.Empty).Trim()
+    Private Sub TxtContactSearch_SearchChanged(sender As Object, query As String)
+        _searchFilter = If(query, String.Empty).Trim()
         _contactsView?.Refresh()
     End Sub
 

@@ -1913,13 +1913,15 @@ Public Class AppAccounts
             End Try
 
             _lastNotificationTime = DateTime.UtcNow
-            Dim popupTitle = If(Not String.IsNullOrWhiteSpace(title), title, If(Not String.IsNullOrWhiteSpace(Name), Name, Platform))
-            Dim popupBody = If(Not String.IsNullOrWhiteSpace(body), body, "Nuovo messaggio ricevuto")
+            Dim loc = settings?.Localizations
+            Dim newMsgFallback = If(loc IsNot Nothing, loc.Get("popup_new_message"), "New message received")
+            Dim unreadFallback = If(loc IsNot Nothing, loc.Get("popup_unread_messages"), "{count} unread messages")
+            Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(title, body, Name, Platform, 1, newMsgFallback, unreadFallback)
 
             If settings.ShowMessagePopup Then
                 Try
                     Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
-                        Dim popup As New MessagePopup(Id, popupTitle, popupBody, Platform)
+                        Dim popup As New MessagePopup(Id, payload.Title, payload.Body, payload.Platform)
                         popup.Show()
                     End Sub)
                 Catch ex As Exception
@@ -1973,15 +1975,17 @@ Public Class AppAccounts
             If isNewMessage AndAlso Not settings.IsDndActive Then
                 If (DateTime.UtcNow - _lastNotificationTime).TotalSeconds > 2.0 Then
                     _lastNotificationTime = DateTime.UtcNow
-                    
-                    Dim notifTitle = If(Not String.IsNullOrWhiteSpace(latestChatTitle), latestChatTitle, If(Not String.IsNullOrWhiteSpace(Name), Name, Platform))
-                    Dim notifBody = If(Not String.IsNullOrWhiteSpace(latestMessageText), latestMessageText, If(count = 1, "Nuovo messaggio ricevuto", $"{count} messaggi non letti"))
-                    
-                    ' Invia notifica Toast Windows se non in DND
+
+                    Dim loc = settings?.Localizations
+                    Dim newMsgFallback = If(loc IsNot Nothing, loc.Get("popup_new_message"), "New message received")
+                    Dim unreadFallback = If(loc IsNot Nothing, loc.Get("popup_unread_messages"), "{count} unread messages")
+                    Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(latestChatTitle, latestMessageText, Name, Platform, count, newMsgFallback, unreadFallback)
+
+                    ' Send Windows Toast notification when DND is inactive
                     Try
                         Dim builder As New ToastContentBuilder()
-                        builder.AddText(notifTitle)
-                        builder.AddText(notifBody)
+                        builder.AddText(payload.Title)
+                        builder.AddText(payload.Body)
                         builder.AddArgument("accountId", Id)
                         builder.AddArgument("notificationId", "unread_" + DateTime.UtcNow.Ticks.ToString())
                         builder.Show(Sub(toast) toast.SuppressPopup = settings.ShowMessagePopup)
@@ -1989,11 +1993,11 @@ Public Class AppAccounts
                         Debug.WriteLine($"Failed to show toast notification for unread change: {ex.Message}")
                     End Try
 
-                    ' Invia popup grafico
+                    ' Show in-app graphical popup notification
                     If settings.ShowMessagePopup Then
                         Try
                             Application.Current?.Dispatcher.BeginInvoke(Sub()
-                                Dim popup As New MessagePopup(Id, notifTitle, notifBody, Platform)
+                                Dim popup As New MessagePopup(Id, payload.Title, payload.Body, payload.Platform)
                                 popup.Show()
                             End Sub)
                         Catch ex As Exception
