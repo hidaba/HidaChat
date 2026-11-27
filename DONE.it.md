@@ -5,6 +5,13 @@
 
 ## 2026-11-27
 
+- [x] **TASK-0137** [Media] Correzione etichette tagliate nei pulsanti di AboutWindow (`Repository GitHub`, `Visualizza Release`, `Segnala Problema`)
+  - Risultato:
+    - Sostituita la `UniformGrid` a 3 colonne fisse in `AboutWindow.xaml` con un `WrapPanel` reattivo (`Orientation="Horizontal"`), così `BtnRepo`, `BtnReleases` e `BtnIssues` si dimensionano in base al testo localizzato e vanno a capo in sicurezza in caso di ridimensionamento caratteri/DPI elevati.
+    - Aumentata la larghezza di `AboutWindow.xaml` da `490` a `580` (`MinWidth="480"`) e allineati i testi predefiniti XAML (`GitHub Repository`, `View Releases`, `Report Issue`), consentendo a tutte e 5 le lingue supportate di disporsi su una sola riga senza tagli.
+    - Aggiornata la versione a `1.5.15-beta` in `Constants.vb` e aggiunte le asserzioni di regressione sulla localizzazione in `Tests/SessionTests.vb`.
+  - Verifica: Verificati `dotnet build HidaChat.vbproj` (0 avvisi, 0 errori), `Tests/HidaChat.SessionTests.vbproj` (1239 asserzioni di regressione superate con 0 errori), misurazione live WPF STA su tutte e 5 le lingue (`en`, `it`, `fr`, `es`, `de`) con conferma `SameRow=True` e zero tagli, oltre a `Test-UiLayouts.ps1` (12/12) e `Find-HardcodedUiIssues.ps1`.
+
 - [x] **TASK-0109** [Media] Notifiche popup in-app (MessagePopup): logo chat/piattaforma, nome mittente e anteprima messaggio
   - Risultato:
     - Migliorati `MessagePopup.xaml` e `MessagePopup.xaml.vb` con barra laterale d'accento colorata per piattaforma (`AccentIndicatorBar`), badge vettoriale della piattaforma sovrapposto all'avatar, griglia intestazione a 2 colonne reattiva che impedisce il taglio del nome piattaforma, anteprima messaggio su 2 righe con troncamento ellissi (`TextWrapping="Wrap"`, `CharacterEllipsis`) e tooltip completi.

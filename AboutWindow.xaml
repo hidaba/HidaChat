@@ -6,8 +6,8 @@
         xmlns:ui="clr-namespace:HidaChat.UI.Controls"
         mc:Ignorable="d"
         Title="About HidaChat"
-        Width="490"
-        MinWidth="440"
+        Width="580"
+        MinWidth="480"
         SizeToContent="Height"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -119,11 +119,11 @@
         </ui:ModernCard>
 
         <!-- External Links -->
-        <UniformGrid Columns="3" Margin="0,0,0,16">
-            <ui:ModernButton x:Name="BtnRepo" Content="GitHub Repo" Variant="Secondary" Click="BtnRepo_Click" Margin="0,0,6,0"/>
-            <ui:ModernButton x:Name="BtnReleases" Content="Releases" Variant="Secondary" Click="BtnReleases_Click" Margin="3,0,3,0"/>
-            <ui:ModernButton x:Name="BtnIssues" Content="Report Issue" Variant="Secondary" Click="BtnIssues_Click" Margin="6,0,0,0"/>
-        </UniformGrid>
+        <WrapPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <ui:ModernButton x:Name="BtnRepo" Content="GitHub Repository" Variant="Secondary" Click="BtnRepo_Click" Margin="0,0,8,8"/>
+            <ui:ModernButton x:Name="BtnReleases" Content="View Releases" Variant="Secondary" Click="BtnReleases_Click" Margin="0,0,8,8"/>
+            <ui:ModernButton x:Name="BtnIssues" Content="Report Issue" Variant="Secondary" Click="BtnIssues_Click" Margin="0,0,0,8"/>
+        </WrapPanel>
 
         <!-- Close Button -->
         <ui:ModernButton x:Name="BtnCloseBottom"

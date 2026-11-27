@@ -5,6 +5,13 @@
 
 ---
 
+## [1.5.15-beta] - 2026-11-27
+
+### Pre-release / Beta — Correzione Pulsanti Tagliati nella Finestra Informazioni
+- **Finestra Informazioni (`AboutWindow.xaml`, `Constants.vb`, `Tests/SessionTests.vb` — TASK-0137)**:
+  - **Corretto** il troncamento orizzontale del testo nei pulsanti dei collegamenti esterni (`Repository GitHub`, `Visualizza Release`, `Segnala Problema` e relative traduzioni) in `AboutWindow.xaml`, sostituendo la `UniformGrid` a 3 colonne fisse con un `WrapPanel` reattivo, aggiornando i testi predefiniti XAML e ampliando la larghezza della finestra da `490` a `580` (`MinWidth="480"`).
+  - **Aggiunto** asserzioni di regressione in `Tests/SessionTests.vb` per verificare la localizzazione di `github_repository`, `view_releases` e `report_issue` in tutte e 5 le lingue supportate (`en`, `it`, `fr`, `es`, `de`).
+
 ## [1.5.14-beta] - 2026-11-27
 
 ### Pre-release / Beta — Correzione Apertura Invio Massivo e Potenziamento Notifiche Popup In-App

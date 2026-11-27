@@ -5,6 +5,13 @@
 
 ## 2026-11-27
 
+- [x] **TASK-0137** [Medium] Fix clipped action button labels in AboutWindow (`Repository GitHub`, `Visualizza Release`, `Segnala Problema`)
+  - Result:
+    - Replaced the fixed 3-column `UniformGrid` in `AboutWindow.xaml` with a responsive `WrapPanel` (`Orientation="Horizontal"`) so `BtnRepo`, `BtnReleases`, and `BtnIssues` size naturally to their localized content and reflow cleanly under higher DPI/text scaling.
+    - Increased `AboutWindow.xaml` `Width` from `490` to `580` (`MinWidth="480"`) and aligned XAML fallback labels (`GitHub Repository`, `View Releases`, `Report Issue`) so all 5 supported languages fit on a single row without clipping.
+    - Bumped version to `1.5.15-beta` in `Constants.vb` and added localization regression assertions in `Tests/SessionTests.vb`.
+  - Verification: Verified `dotnet build HidaChat.vbproj` (0 warnings, 0 errors), `Tests/HidaChat.SessionTests.vbproj` (1239 regression assertions passing with 0 errors), live STA WPF measurement across all 5 languages (`en`, `it`, `fr`, `es`, `de`) confirming `SameRow=True` and zero clipping, plus `Test-UiLayouts.ps1` (12/12) and `Find-HardcodedUiIssues.ps1`.
+
 - [x] **TASK-0109** [Medium] In-app popup notifications (MessagePopup): chat/platform logo, sender name, and message preview
   - Result:
     - Upgraded `MessagePopup.xaml` and `MessagePopup.xaml.vb` with platform-colored left accent bar (`AccentIndicatorBar`), overlapping vector platform logo badge (`PlatformBadgeBorder` / `PlatformBadgeIcon`), responsive 2-column header grid preventing platform name clipping, 2-line wrapped message preview (`TextWrapping="Wrap"`, `CharacterEllipsis`), and full tooltips.

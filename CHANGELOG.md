@@ -5,6 +5,13 @@
 
 ---
 
+## [1.5.15-beta] - 2026-11-27
+
+### Pre-release / Beta — Fix Clipped Action Buttons in About Dialog
+- **About Dialog (`AboutWindow.xaml`, `Constants.vb`, `Tests/SessionTests.vb` — TASK-0137)**:
+  - **Fixed** horizontal text clipping on the external link buttons (`Repository GitHub`, `Visualizza Release`, `Segnala Problema`, and localized equivalents) in `AboutWindow.xaml` by replacing the fixed equal-width 3-column `UniformGrid` with a responsive `WrapPanel`, updating XAML fallback labels, and increasing dialog `Width` from `490` to `580` (`MinWidth="480"`).
+  - **Added** regression assertions in `Tests/SessionTests.vb` verifying localization coverage for `github_repository`, `view_releases`, and `report_issue` across all 5 supported languages (`en`, `it`, `fr`, `es`, `de`).
+
 ## [1.5.14-beta] - 2026-11-27
 
 ### Pre-release / Beta — Fix Bulk Sender Window Opening Error & Enhanced In-App Popup Notifications

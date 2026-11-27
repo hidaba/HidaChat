@@ -1988,11 +1988,19 @@ Module SessionTests
         Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", opaqueToken), "ShouldAttachBearerToken allows opaque API token on API endpoint")
 
         ' =====================================================================
-        ' TASK-0129 / TASK-0134: Version & UI Regression Checks
+        ' TASK-0129 / TASK-0134 / TASK-0137: Version & UI Regression Checks
         ' =====================================================================
-        Check(Constants.AppVersion = "1.5.14-beta", "Constants.AppVersion bumped to 1.5.14-beta")
+        Check(Constants.AppVersion = "1.5.15-beta", "Constants.AppVersion bumped to 1.5.15-beta")
 
         Dim supportedLangs = {"en", "it", "fr", "es", "de"}
+        Dim aboutLinkKeys = {"github_repository", "view_releases", "report_issue"}
+        For Each lang In supportedLangs
+            Dim locObj = AppLocalizations.CreateForLanguage(lang)
+            For Each linkKey In aboutLinkKeys
+                Dim val = locObj.Get(linkKey)
+                Check(Not String.IsNullOrWhiteSpace(val) AndAlso val <> linkKey, $"About link key '{linkKey}' localized in '{lang}': '{val}'")
+            Next
+        Next
         Dim categoryKeys = {
             "settings_cat_general", "settings_cat_accounts", "settings_cat_translation",
             "settings_cat_network", "settings_cat_css", "settings_cat_storage", "settings_cat_about"
