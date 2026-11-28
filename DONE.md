@@ -5,6 +5,15 @@
 
 ## 2026-11-27
 
+- [x] **TASK-0138** [Medium] Redesign MessagePopup with top platform logo, non-redundant header, message preview, and emoji/image miniatures
+  - Result:
+    - Redesigned `MessagePopup.xaml` and `MessagePopup.xaml.vb` to display the chat platform vector logo (`PlatformBadgeBorder` / `PlatformBadgeIcon`) in the top-left header next to the sender name (`NameText`), removing the duplicated `PlatformNameText` label from the top-right.
+    - Refined message preview wrapping (`MaxHeight="34"`, `LineHeight="17"`, `LineStackingStrategy="BlockLineHeight"`, `CharacterEllipsis`, `Segoe UI Emoji` fallback) so long messages show their beginning cleanly with full tooltips, and updated `PositionNewPopup()` to stack using `ActualHeight`.
+    - Added the 42x42 miniature preview slot (`MediaPreviewBorder` with `MediaThumbnailImage` and `EmojiThumbnailText`) plus `NotificationPayloadPolicy.ExtractFirstEmoji`, `NotificationPayloadPolicy.SanitizeThumbnailUrl`, and localized `popup_image_message` fallbacks across all 5 languages (`en`, `it`, `fr`, `es`, `de`) in `Localization.vb`.
+    - Enhanced `Scripts/notification.js` to preserve `<img alt>` / `data-plain-text` emojis in DOM extraction, capture media/sticker/custom-emoji thumbnails (`blob:` and loaded `<img>` converted via 64x64 `<canvas>`, ignoring 1x1 spacer GIFs and generic favicons), and wired `thumbnailUrl` / `latestThumbnailUrl` in `AppAccounts.vb`.
+    - Bumped version to `1.5.16-beta` in `Constants.vb` and added regression tests in `Tests/SessionTests.vb` and `Tests/notification.test.cjs`.
+  - Verification: Passed `node Tests/notification.test.cjs`, `dotnet build HidaChat.vbproj` (0 warnings, 0 errors), `Tests/HidaChat.SessionTests.vbproj` (1257 regression assertions passing with 0 errors), live STA WPF smoke test across all 5 platforms (`WhatsApp`, `Telegram`, `Discord`, `OpenClaw`, `Hermes`) verifying top badge placement, absence of `PlatformNameText`, emoji miniatures, and image thumbnails, plus `Test-UiLayouts.ps1` (12/12) and `Find-HardcodedUiIssues.ps1` (0 issues on `MessagePopup`).
+
 - [x] **TASK-0137** [Medium] Fix clipped action button labels in AboutWindow (`Repository GitHub`, `Visualizza Release`, `Segnala Problema`)
   - Result:
     - Replaced the fixed 3-column `UniformGrid` in `AboutWindow.xaml` with a responsive `WrapPanel` (`Orientation="Horizontal"`) so `BtnRepo`, `BtnReleases`, and `BtnIssues` size naturally to their localized content and reflow cleanly under higher DPI/text scaling.

@@ -109,7 +109,7 @@ function matchesSelector(el, sel) {
 }
 
 function matchesSimple(el, sel) {
-  if (sel === 'li' || sel === 'span' || sel === 'div' || sel === 'a' || sel === 'h3') {
+  if (sel === 'li' || sel === 'span' || sel === 'div' || sel === 'a' || sel === 'h3' || sel === 'img') {
     return el.tagName.toLowerCase() === sel;
   }
   if (sel.startsWith('.')) {
@@ -197,12 +197,18 @@ function runScenario(hostname, title, rootEl) {
   row.appendChild(badge);
   root.appendChild(row);
 
-  const { messages } = runScenario('web.whatsapp.com', '(2) WhatsApp', root);
+  const { messages, sandbox } = runScenario('web.whatsapp.com', '(2) WhatsApp', root);
   const unread = messages.find(m => m.type === 'UNREAD_COUNT_CHANGED');
   assert(unread, 'WhatsApp UNREAD_COUNT_CHANGED emitted');
   assert.strictEqual(unread.unreadCount, 2);
   assert.strictEqual(unread.latestChatTitle, 'Mario Rossi');
   assert.strictEqual(unread.latestMessageText, 'Ciao! Ci vediamo alle 15?');
+
+  // Ensure generic favicon icon is ignored when no media thumbnail exists in DOM
+  new sandbox.Notification('Mario Rossi', { body: 'Ciao 👍', icon: 'https://web.whatsapp.com/favicon.ico' });
+  const notif = messages.find(m => m.type === 'NOTIFICATION_RECEIVED');
+  assert(notif, 'Notification with favicon icon emitted');
+  assert.strictEqual(notif.thumbnailUrl, '', 'Ignored generic favicon icon URL');
 }
 
 // 2. Telegram Web unread extraction (strips trailing badge digits from subtitle)
@@ -242,11 +248,38 @@ function runScenario(hostname, title, rootEl) {
   assert.strictEqual(unread.latestMessageText, 'Nuova release v1.5.14 disponibile!');
 
   // Also test CustomNotification fallback when body is empty
-  new sandbox.Notification('Discord Alert', { body: '' });
+  new sandbox.Notification('Discord Alert', { body: '', image: 'https://cdn.discordapp.com/attachments/1/2/photo.png' });
   const notif = messages.find(m => m.type === 'NOTIFICATION_RECEIVED');
   assert(notif, 'CustomNotification emitted NOTIFICATION_RECEIVED');
   assert.strictEqual(notif.title, 'Discord Alert');
   assert.strictEqual(notif.body, 'Nuova release v1.5.14 disponibile!');
+  assert.strictEqual(notif.thumbnailUrl, 'https://cdn.discordapp.com/attachments/1/2/photo.png');
 }
 
-console.log('PASS: notification.test.cjs (WhatsApp, Telegram, Discord, and CustomNotification fallback)');
+// 4. WhatsApp emoji <img> extraction + media thumbnail extraction
+{
+  const root = makeElement({ tag: 'div' });
+  const row = makeElement({ tag: 'div', attrs: { 'data-testid': 'cell-frame-container' } });
+  const titleWrap = makeElement({ tag: 'div', attrs: { 'data-testid': 'cell-frame-title' } });
+  titleWrap.appendChild(makeElement({ tag: 'span', textContent: 'Giulia', attrs: { title: 'Giulia' } }));
+  const secWrap = makeElement({ tag: 'div', attrs: { 'data-testid': 'cell-frame-secondary' } });
+  const msgSpan = makeElement({ tag: 'span', attrs: { dir: 'auto' } });
+  msgSpan.appendChild(makeElement({ tag: 'span', textContent: 'Guarda qui' }));
+  msgSpan.appendChild(makeElement({ tag: 'img', className: 'emoji', attrs: { alt: '🔥', src: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' } }));
+  secWrap.appendChild(msgSpan);
+  secWrap.appendChild(makeElement({ tag: 'img', attrs: { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR42mNk+M9QzwAEjDAGACCKAoFF3q75AAAAAElFTkSuQmCC' } }));
+  const badge = makeElement({ tag: 'span', textContent: '1', attrs: { 'data-testid': 'unread-count' } });
+  row.appendChild(titleWrap);
+  row.appendChild(secWrap);
+  row.appendChild(badge);
+  root.appendChild(row);
+
+  const { messages } = runScenario('web.whatsapp.com', '(1) WhatsApp', root);
+  const unread = messages.find(m => m.type === 'UNREAD_COUNT_CHANGED');
+  assert(unread, 'WhatsApp emoji+image UNREAD_COUNT_CHANGED emitted');
+  assert.strictEqual(unread.latestChatTitle, 'Giulia');
+  assert.strictEqual(unread.latestMessageText, 'Guarda qui 🔥');
+  assert(unread.latestThumbnailUrl.startsWith('data:image/png;base64,'), 'Extracted WhatsApp photo thumbnail');
+}
+
+console.log('PASS: notification.test.cjs (WhatsApp, Telegram, Discord, emoji/thumbnail extraction, and CustomNotification fallback)');

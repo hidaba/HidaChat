@@ -1,4 +1,5 @@
 Imports System.ComponentModel
+Imports System.IO
 Imports System.Runtime.InteropServices
 Imports System.Windows.Interop
 Imports System.Windows.Threading
@@ -30,28 +31,105 @@ Public Class MessagePopup
         InitializeComponent()
     End Sub
 
-    Public Sub New(accountId As String, title As String, body As String, Optional platform As String = "WhatsApp")
+    Public Sub New(accountId As String, title As String, body As String, Optional platform As String = "WhatsApp", Optional thumbnailUrl As String = Nothing)
         InitializeComponent()
         _accountId = accountId
         If Not DesignerProperties.GetIsInDesignMode(Me) Then
             ThemeManager.Instance.RegisterWindow(Me)
         End If
-        Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(title, body, String.Empty, platform)
+        Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(
+            title,
+            body,
+            String.Empty,
+            platform,
+            1,
+            AppLocalizations.GetText("popup_new_message", "New message received"),
+            AppLocalizations.GetText("popup_unread_messages", "{count} unread messages"),
+            thumbnailUrl,
+            AppLocalizations.GetText("popup_image_message", "Sent an image"))
         NameText.Text = payload.Title
         NameText.ToolTip = payload.Title
         MessageText.Text = payload.Body
         MessageText.ToolTip = payload.Body
-        InitialsText.Text = payload.Initials
         SetPlatform(payload.Platform)
+        SetMediaPreview(payload.ThumbnailUrl, payload.EmojiPreview)
     End Sub
 
     Private Sub SetPlatform(platform As String)
         Dim def = PlatformRegistry.Get(platform)
         AccentIndicatorBar.Background = def.ThemeBrush
         PlatformBadgeBorder.Background = def.ThemeBrush
+        PlatformBadgeBorder.ToolTip = def.DisplayName
+        PlatformBadgeBorder.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, def.DisplayName)
         PlatformBadgeIcon.Data = Geometry.Parse(def.IconSvgPath)
-        AvatarBorder.Background = def.ThemeBrush
-        PlatformNameText.Text = $"• {def.DisplayName}"
+    End Sub
+
+    Private Sub SetMediaPreview(thumbnailUrl As String, emojiPreview As String)
+        MediaThumbnailImage.Source = Nothing
+        MediaThumbnailImage.Visibility = Visibility.Collapsed
+        EmojiThumbnailText.Text = String.Empty
+        EmojiThumbnailText.Visibility = Visibility.Collapsed
+        MediaPreviewBorder.Visibility = Visibility.Collapsed
+
+        If Not String.IsNullOrEmpty(thumbnailUrl) AndAlso TryShowImageThumbnail(thumbnailUrl, emojiPreview) Then
+            Return
+        End If
+
+        ShowEmojiThumbnail(emojiPreview)
+    End Sub
+
+    Private Function TryShowImageThumbnail(thumbnailUrl As String, fallbackEmoji As String) As Boolean
+        Try
+            If thumbnailUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) Then
+                Dim commaIdx = thumbnailUrl.IndexOf(","c)
+                If commaIdx > 0 AndAlso commaIdx + 1 < thumbnailUrl.Length Then
+                    Dim bytes = Convert.FromBase64String(thumbnailUrl.Substring(commaIdx + 1))
+                    Dim bmp As New BitmapImage()
+                    Using ms As New MemoryStream(bytes)
+                        bmp.BeginInit()
+                        bmp.CacheOption = BitmapCacheOption.OnLoad
+                        bmp.DecodePixelWidth = 84
+                        bmp.StreamSource = ms
+                        bmp.EndInit()
+                    End Using
+                    If bmp.CanFreeze Then bmp.Freeze()
+                    MediaThumbnailImage.Source = bmp
+                    MediaThumbnailImage.Visibility = Visibility.Visible
+                    MediaPreviewBorder.Visibility = Visibility.Visible
+                    Return True
+                End If
+            Else
+                Dim uriObj As New Uri(thumbnailUrl, UriKind.Absolute)
+                Dim bmp As New BitmapImage()
+                AddHandler bmp.DownloadFailed, Sub()
+                    MediaThumbnailImage.Source = Nothing
+                    MediaThumbnailImage.Visibility = Visibility.Collapsed
+                    ShowEmojiThumbnail(fallbackEmoji)
+                End Sub
+                bmp.BeginInit()
+                bmp.CacheOption = BitmapCacheOption.OnLoad
+                bmp.DecodePixelWidth = 84
+                bmp.UriSource = uriObj
+                bmp.EndInit()
+                MediaThumbnailImage.Source = bmp
+                MediaThumbnailImage.Visibility = Visibility.Visible
+                MediaPreviewBorder.Visibility = Visibility.Visible
+                Return True
+            End If
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to load popup miniature image: {ex.Message}")
+        End Try
+        Return False
+    End Function
+
+    Private Sub ShowEmojiThumbnail(emojiPreview As String)
+        If String.IsNullOrEmpty(emojiPreview) Then
+            MediaPreviewBorder.Visibility = Visibility.Collapsed
+            Return
+        End If
+        EmojiThumbnailText.Text = emojiPreview
+        EmojiThumbnailText.Visibility = Visibility.Visible
+        MediaPreviewBorder.Visibility = Visibility.Visible
     End Sub
 
     ''' <summary>
@@ -106,19 +184,20 @@ Public Class MessagePopup
     ''' </summary>
     Private Sub PositionNewPopup()
         Dim workArea = SystemParameters.WorkArea
+        Dim popupHeight = If(Me.ActualHeight > 0, Me.ActualHeight, If(Not Double.IsNaN(Me.Height) AndAlso Me.Height > 0, Me.Height, 92.0))
         Me.Left = workArea.Right - Me.Width - 16
 
         Dim active = GetActivePopups()
         Dim others = active.Where(Function(p) p IsNot Me).ToList()
         If others.Count > 0 Then
             Dim highestTop = others.Min(Function(p) p.Top)
-            Dim targetTop = highestTop - Me.Height - 8
+            Dim targetTop = highestTop - popupHeight - 8
             If targetTop < workArea.Top Then
                 targetTop = workArea.Top + 16
             End If
             Me.Top = targetTop
         Else
-            Me.Top = workArea.Bottom - Me.Height - 16
+            Me.Top = workArea.Bottom - popupHeight - 16
         End If
     End Sub
 

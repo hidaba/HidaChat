@@ -5,6 +5,16 @@
 
 ---
 
+## [1.5.16-beta] - 2026-11-28
+
+### Pre-release / Beta — Restyling Intestazione Popup Chat, Anteprima e Miniature Emoji/Immagini
+- **Popup Notifiche Chat (`MessagePopup.xaml`, `MessagePopup.xaml.vb`, `NotificationPayloadPolicy.vb`, `Scripts/notification.js`, `AppAccounts.vb`, `Localization.vb`, `Constants.vb`, `Tests/SessionTests.vb`, `Tests/notification.test.cjs` — TASK-0138)**:
+  - **Modificato** il layout di `MessagePopup.xaml` posizionando il logo vettoriale della piattaforma chat nell'intestazione in alto a sinistra accanto al mittente (`NameText`) ed eliminando la ripetizione del nome piattaforma in alto a destra (`PlatformNameText`).
+  - **Migliorato** il troncamento dell'anteprima messaggio (`MaxHeight="34"`, `LineHeight="17"`, `LineStackingStrategy="BlockLineHeight"`, `CharacterEllipsis`) con fallback font `Segoe UI Emoji` per mostrare chiaramente l'inizio dei messaggi troppo lunghi su 2 righe e il testo completo nei tooltip.
+  - **Aggiunto** riquadro miniatura (`MediaPreviewBorder`, 42x42 arrotondato) per visualizzare miniature di immagini (`data:image/...` o URI `https://...` / loopback) oppure miniature emoji Unicode estratte tramite `NotificationPayloadPolicy.ExtractFirstEmoji`, oltre al fallback localizzato `"popup_image_message"` in tutte e 5 le lingue (`en`, `it`, `fr`, `es`, `de`).
+  - **Migliorato** `Scripts/notification.js` per preservare le emoji `<img alt="...">` / `data-plain-text` nell'estrazione DOM, acquisire miniature di foto/sticker/emoji personalizzate (convertendo `blob:` e `<img>` DOM tramite `<canvas>` 64x64 ed escludendo GIF trasparenti 1x1 e favicon generiche) e propagare `thumbnailUrl` / `latestThumbnailUrl` tramite `AppAccounts.vb`.
+  - **Aggiunto** test automatici e di regressione STA WPF (`Tests/SessionTests.vb`: 1257 asserzioni; `Tests/notification.test.cjs`).
+
 ## [1.5.15-beta] - 2026-11-27
 
 ### Pre-release / Beta — Correzione Pulsanti Tagliati nella Finestra Informazioni

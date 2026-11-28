@@ -7,7 +7,9 @@
         Topmost="True"
         ShowActivated="False"
         Width="360"
-        Height="88"
+        SizeToContent="Height"
+        MinHeight="84"
+        MaxHeight="136"
         ResizeMode="NoResize"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
@@ -57,59 +59,93 @@
             <Border x:Name="AccentIndicatorBar" Grid.Column="0" Background="{DynamicResource AccentBrush}"/>
 
             <Grid Grid.Column="1">
-                <Grid MouseDown="PopupGrid_MouseDown" Cursor="Hand">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="62"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+                <Grid MouseDown="PopupGrid_MouseDown" Cursor="Hand" Margin="12,10,12,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <!-- Avatar with overlapping Platform Badge -->
-                    <Grid Grid.Column="0" Width="46" Height="46" Margin="10,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                        <Border x:Name="AvatarBorder" Width="40" Height="40" CornerRadius="20"
-                                Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left" VerticalAlignment="Top">
-                            <TextBlock Name="InitialsText" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"/>
-                        </Border>
-                        <Border x:Name="PlatformBadgeBorder" Width="20" Height="20" CornerRadius="10"
-                                Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource SurfaceBrush}" BorderThickness="2"
-                                HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <!-- Top Header: Chat Platform Logo + Sender Name (without repeating platform name on top-right) -->
+                    <Grid Grid.Row="0" Margin="0,0,28,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border x:Name="PlatformBadgeBorder"
+                                Grid.Column="0"
+                                Width="22"
+                                Height="22"
+                                CornerRadius="6"
+                                Background="{DynamicResource AccentBrush}"
+                                VerticalAlignment="Center">
                             <Path x:Name="PlatformBadgeIcon"
                                   Data="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2Z"
-                                  Fill="{DynamicResource AccentForegroundBrush}" Width="10" Height="10" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                  Fill="{DynamicResource AccentForegroundBrush}"
+                                  Width="12"
+                                  Height="12"
+                                  Stretch="Uniform"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
                         </Border>
+
+                        <TextBlock Name="NameText"
+                                   Grid.Column="1"
+                                   Margin="8,0,0,0"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontFamily="Segoe UI, Segoe UI Emoji"
+                                   FontWeight="SemiBold"
+                                   FontSize="13.5"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
                     </Grid>
 
-                    <!-- Sender and Message Body -->
-                    <StackPanel Grid.Column="1" Margin="6,0,32,0" VerticalAlignment="Center">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Name="NameText"
-                                       Grid.Column="0"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       FontWeight="SemiBold"
-                                       FontSize="13.5"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock Name="PlatformNameText"
-                                       Grid.Column="1"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       FontSize="11.5"
-                                       Margin="6,0,0,0"
-                                       VerticalAlignment="Center"
-                                       FontWeight="Normal"/>
-                        </Grid>
+                    <!-- Message Preview + Optional Emoji/Image Miniature -->
+                    <Grid Grid.Row="1" Margin="0,7,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
                         <TextBlock Name="MessageText"
+                                   Grid.Column="0"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontFamily="Segoe UI, Segoe UI Emoji"
                                    FontSize="12.5"
                                    LineHeight="17"
+                                   LineStackingStrategy="BlockLineHeight"
                                    TextTrimming="CharacterEllipsis"
-                                   MaxHeight="36"
+                                   MaxHeight="34"
                                    TextWrapping="Wrap"
-                                   Margin="0,3,0,0"/>
-                    </StackPanel>
+                                   VerticalAlignment="Center"/>
+
+                        <Border x:Name="MediaPreviewBorder"
+                                Grid.Column="1"
+                                Width="42"
+                                Height="42"
+                                Margin="10,0,0,0"
+                                CornerRadius="6"
+                                Background="{DynamicResource SurfaceElevatedBrush}"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                ClipToBounds="True"
+                                VerticalAlignment="Center"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Image x:Name="MediaThumbnailImage"
+                                       Stretch="UniformToFill"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       Visibility="Collapsed"/>
+                                <TextBlock x:Name="EmojiThumbnailText"
+                                           FontFamily="Segoe UI Emoji, Segoe UI"
+                                           FontSize="22"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextAlignment="Center"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- Dismiss button -->
@@ -119,7 +155,7 @@
                         VerticalAlignment="Top"
                         Width="24"
                         Height="24"
-                        Margin="0,6,6,0"
+                        Margin="0,8,8,0"
                         ToolTip="Dismiss"
                         AutomationProperties.Name="Dismiss notification"
                         Click="CloseBtn_Click">

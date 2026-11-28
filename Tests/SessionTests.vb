@@ -1988,9 +1988,9 @@ Module SessionTests
         Check(LocalAuthPolicy.ShouldAttachBearerToken("http://127.0.0.1:18900/api/chat", opaqueToken), "ShouldAttachBearerToken allows opaque API token on API endpoint")
 
         ' =====================================================================
-        ' TASK-0129 / TASK-0134 / TASK-0137: Version & UI Regression Checks
+        ' TASK-0129 / TASK-0134 / TASK-0137 / TASK-0138: Version & UI Regression Checks
         ' =====================================================================
-        Check(Constants.AppVersion = "1.5.15-beta", "Constants.AppVersion bumped to 1.5.15-beta")
+        Check(Constants.AppVersion = "1.5.16-beta", "Constants.AppVersion bumped to 1.5.16-beta")
 
         Dim supportedLangs = {"en", "it", "fr", "es", "de"}
         Dim aboutLinkKeys = {"github_repository", "view_releases", "report_issue"}
@@ -2129,8 +2129,33 @@ Module SessionTests
             Dim locObj = AppLocalizations.CreateForLanguage(lang)
             Dim newMsgVal = locObj.Get("popup_new_message")
             Dim unreadVal = locObj.Get("popup_unread_messages")
+            Dim imgMsgVal = locObj.Get("popup_image_message")
             Check(Not String.IsNullOrWhiteSpace(newMsgVal) AndAlso newMsgVal <> "popup_new_message", $"Key 'popup_new_message' localized in '{lang}': '{newMsgVal}'")
             Check(Not String.IsNullOrWhiteSpace(unreadVal) AndAlso unreadVal <> "popup_unread_messages" AndAlso unreadVal.Contains("{count}"), $"Key 'popup_unread_messages' localized with {{count}} in '{lang}': '{unreadVal}'")
+            Check(Not String.IsNullOrWhiteSpace(imgMsgVal) AndAlso imgMsgVal <> "popup_image_message", $"Key 'popup_image_message' localized in '{lang}': '{imgMsgVal}'")
         Next
+
+        ' =====================================================================
+        ' TASK-0138: MessagePopup Emoji & Image Miniature Extraction / Sanitization
+        ' =====================================================================
+        Check(NotificationPayloadPolicy.ExtractFirstEmoji("Ciao come stai? 😊🎉") = "😊", "ExtractFirstEmoji finds surrogate-pair emoji in message text")
+        Check(NotificationPayloadPolicy.ExtractFirstEmoji("Buon lavoro ❤️") = "❤️", "ExtractFirstEmoji preserves variation-selector heart emoji")
+        Check(NotificationPayloadPolicy.ExtractFirstEmoji("Messaggio solo testo #123 *test*") = String.Empty, "ExtractFirstEmoji ignores plain text, digits, #, and *")
+
+        Dim validPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR42mNk+M9QzwAEjDAGACCKAoFF3q75AAAAAElFTkSuQmCC"
+        Check(NotificationPayloadPolicy.SanitizeThumbnailUrl(validPngDataUrl) = validPngDataUrl, "SanitizeThumbnailUrl accepts valid base64 PNG data URI")
+        Check(NotificationPayloadPolicy.SanitizeThumbnailUrl("https://cdn.discordapp.com/emojis/12345.webp?size=48") = "https://cdn.discordapp.com/emojis/12345.webp?size=48", "SanitizeThumbnailUrl accepts HTTPS media URL")
+        Check(NotificationPayloadPolicy.SanitizeThumbnailUrl("http://127.0.0.1:18789/media/thumb.png") = "http://127.0.0.1:18789/media/thumb.png", "SanitizeThumbnailUrl accepts loopback gateway URL")
+        Check(NotificationPayloadPolicy.SanitizeThumbnailUrl("blob:https://web.whatsapp.com/abc-123") = String.Empty, "SanitizeThumbnailUrl rejects raw blob URL")
+        Check(NotificationPayloadPolicy.SanitizeThumbnailUrl("file:///C:/Windows/win.ini") = String.Empty, "SanitizeThumbnailUrl rejects local file URI")
+        Check(NotificationPayloadPolicy.SanitizeThumbnailUrl("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7") = String.Empty, "SanitizeThumbnailUrl rejects 1x1 blank spacer GIF")
+
+        Dim emojiPayload = NotificationPayloadPolicy.ResolvePopupPayload("Luca", "Guarda che bello 🔥", "Work WA", "WhatsApp")
+        Check(emojiPayload.EmojiPreview = "🔥", "ResolvePopupPayload extracts emoji miniature from message")
+        Check(emojiPayload.ThumbnailUrl = String.Empty, "ResolvePopupPayload leaves ThumbnailUrl empty when none supplied")
+
+        Dim imageOnlyPayload = NotificationPayloadPolicy.ResolvePopupPayload("Anna", "", "Personal TG", "Telegram", 1, "New message received", "{count} unread messages", validPngDataUrl, "Sent an image")
+        Check(imageOnlyPayload.Body = "Sent an image", "ResolvePopupPayload uses localized image fallback when caption is empty")
+        Check(imageOnlyPayload.ThumbnailUrl = validPngDataUrl, "ResolvePopupPayload preserves sanitized thumbnail data URI")
     End Function
 End Module

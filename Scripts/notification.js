@@ -12,6 +12,40 @@
     return String(value).replace(/\s+/g, ' ').trim();
   }
 
+  // Recursively extracts text from DOM nodes while preserving <img alt="..."> emoji characters.
+  function extractElementText(node) {
+    if (!node) return '';
+    try {
+      if (node.nodeType === 3) {
+        return node.nodeValue || '';
+      }
+      const tag = (node.tagName || '').toUpperCase();
+      if (tag === 'IMG') {
+        return (typeof node.getAttribute === 'function' ? (node.getAttribute('data-plain-text') || node.getAttribute('alt')) : '') || '';
+      }
+      if (tag === 'BR') {
+        return ' ';
+      }
+      if (node.childNodes && node.childNodes.length > 0) {
+        let buf = '';
+        for (let i = 0; i < node.childNodes.length; i++) {
+          buf += extractElementText(node.childNodes[i]);
+        }
+        return buf;
+      }
+      if (node.children && node.children.length > 0) {
+        const parts = [];
+        for (let i = 0; i < node.children.length; i++) {
+          const t = extractElementText(node.children[i]);
+          if (t) parts.push(t);
+        }
+        if (parts.length > 0) return parts.join(' ');
+      }
+      return node.textContent || '';
+    } catch(e) {}
+    return node.textContent || '';
+  }
+
   // Extracts visible text from a preview container while ignoring nested unread badge counters.
   function extractTextWithoutBadges(el) {
     if (!el) return '';
@@ -24,10 +58,139 @@
             badges[i].parentNode.removeChild(badges[i]);
           }
         }
-        return normalizePreviewText(clone.textContent || '');
+        return normalizePreviewText(extractElementText(clone));
       }
     } catch(e) {}
-    return normalizePreviewText(el.textContent || '');
+    return normalizePreviewText(extractElementText(el));
+  }
+
+  // Returns true if the URL is a known 1x1 spacer or generic platform logo/favicon rather than message media.
+  function isIgnoredMediaUrl(url) {
+    if (!url || typeof url !== 'string') return true;
+    const trimmed = url.trim();
+    if (!trimmed) return true;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('data:image/gif;base64,r0lgodlhaqab')) return true;
+    if (lower.includes('favicon') || lower.includes('apple-touch-icon') || lower.includes('manifest-icon')) return true;
+    if (/\/(logo|app-icon|pwa-icon|whatsapp-logo|telegram-logo|discord-logo)[\.\-_]/i.test(lower)) return true;
+    return false;
+  }
+
+  // Checks whether a DOM <img> represents a message photo, sticker, or custom emoji worth showing as a thumbnail.
+  function isUsefulThumbnailImg(img) {
+    if (!img || typeof img.getAttribute !== 'function') return false;
+    const src = img.getAttribute('src') || img.currentSrc || '';
+    if (isIgnoredMediaUrl(src)) return false;
+
+    const alt = (img.getAttribute('data-plain-text') || img.getAttribute('alt') || '').trim();
+    const cls = (img.className || '').toLowerCase();
+    // Skip standard Unicode emoji sprite <img> tags (their Unicode glyph is extracted cleanly by extractElementText).
+    if (cls.includes('emoji') && alt && !/^:[a-z0-9_+-]+:$/i.test(alt) && !src.includes('cdn.discordapp.com/emojis/')) {
+      return false;
+    }
+
+    if (typeof img.complete === 'boolean' && img.complete && typeof img.naturalWidth === 'number') {
+      if (img.naturalWidth <= 4 || img.naturalHeight <= 4) return false;
+    }
+    return true;
+  }
+
+  // Finds the first message thumbnail image inside a DOM container, skipping contact avatars.
+  function extractThumbnailFromContainer(container) {
+    if (!container || typeof container.querySelectorAll !== 'function') {
+      return { url: '', imgEl: null };
+    }
+    try {
+      const imgs = container.querySelectorAll('img');
+      for (let i = 0; i < imgs.length; i++) {
+        const img = imgs[i];
+        if (!isUsefulThumbnailImg(img)) continue;
+        if (typeof img.closest === 'function') {
+          if (img.closest('[data-testid="cell-frame-title"], .Avatar, [class*="avatar" i], [data-testid="default-user"]')) {
+            continue;
+          }
+        }
+        const src = img.getAttribute('src') || img.currentSrc || '';
+        if (src) {
+          return { url: src, imgEl: img };
+        }
+      }
+    } catch(e) {}
+    return { url: '', imgEl: null };
+  }
+
+  // Draws a loaded <img> onto a compact 64x64 canvas to safely convert blob/authenticated images into a portable data URL.
+  function tryDrawImgToDataUrl(img) {
+    try {
+      if (!img || typeof document === 'undefined' || typeof document.createElement !== 'function') return '';
+      if (typeof img.naturalWidth === 'number' && img.naturalWidth <= 4) return '';
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      const w = img.naturalWidth || size;
+      const h = img.naturalHeight || size;
+      const scale = Math.min(size / w, size / h);
+      const dw = Math.max(1, Math.round(w * scale));
+      const dh = Math.max(1, Math.round(h * scale));
+      const dx = Math.round((size - dw) / 2);
+      const dy = Math.round((size - dh) / 2);
+      ctx.drawImage(img, dx, dy, dw, dh);
+      return canvas.toDataURL('image/png');
+    } catch(e) {
+      return '';
+    }
+  }
+
+  // Resolves a raw image URL or DOM <img> into a WPF-compatible thumbnail URL (data:image/... or https://...).
+  function resolveThumbnailUrlAsync(rawUrl, imgEl, callback) {
+    if (!rawUrl || isIgnoredMediaUrl(rawUrl)) {
+      callback('');
+      return;
+    }
+    if (rawUrl.startsWith('data:image/')) {
+      callback(rawUrl.length <= 350000 ? rawUrl : '');
+      return;
+    }
+    if (imgEl && imgEl.complete) {
+      const drawn = tryDrawImgToDataUrl(imgEl);
+      if (drawn) {
+        callback(drawn);
+        return;
+      }
+    }
+    if (rawUrl.startsWith('blob:') && typeof Image === 'function' && typeof document !== 'undefined' && typeof document.createElement === 'function') {
+      let done = false;
+      const finish = function(val) {
+        if (done) return;
+        done = true;
+        callback(val || '');
+      };
+      try {
+        const loader = new Image();
+        const timer = setTimeout(function() { finish(''); }, 180);
+        loader.onload = function() {
+          clearTimeout(timer);
+          finish(tryDrawImgToDataUrl(loader));
+        };
+        loader.onerror = function() {
+          clearTimeout(timer);
+          finish('');
+        };
+        loader.src = rawUrl;
+        return;
+      } catch(e) {
+        callback('');
+        return;
+      }
+    }
+    if (rawUrl.startsWith('https://') || rawUrl.startsWith('http://127.0.0.1') || rawUrl.startsWith('http://localhost')) {
+      callback(rawUrl);
+      return;
+    }
+    callback('');
   }
 
   // Cleans Discord aria-label strings by removing trailing unread/mention counters.
@@ -40,7 +203,7 @@
       .trim();
   }
 
-  // Attempts to extract the latest chat title and message preview from the active platform DOM.
+  // Attempts to extract the latest chat title, message preview, and thumbnail from the active platform DOM.
   function getLatestDomPreview() {
     try {
       const host = (location.hostname || '').toLowerCase();
@@ -54,7 +217,7 @@
         return scanWhatsAppUnread();
       }
     } catch(e) {}
-    return { latestChatTitle: '', latestMessageText: '' };
+    return { latestChatTitle: '', latestMessageText: '', latestThumbnailUrl: '', latestThumbnailEl: null };
   }
 
   // --- CANALE DIAGNOSTICA AVANZATA (TODO #73) ---
@@ -179,22 +342,37 @@
           try {
             let cleanTitle = normalizePreviewText(title);
             let cleanBody = normalizePreviewText(options ? (options.body || '') : '');
-            if (!cleanTitle || !cleanBody) {
+            let rawThumb = '';
+            let thumbEl = null;
+            if (options) {
+              if (options.image && !isIgnoredMediaUrl(options.image)) rawThumb = options.image;
+              else if (options.icon && !isIgnoredMediaUrl(options.icon)) rawThumb = options.icon;
+            }
+            if (!cleanTitle || !cleanBody || !rawThumb) {
               const fallback = getLatestDomPreview();
               if (!cleanTitle && fallback.latestChatTitle) cleanTitle = fallback.latestChatTitle;
               if (!cleanBody && fallback.latestMessageText) cleanBody = fallback.latestMessageText;
+              if (!rawThumb && fallback.latestThumbnailUrl) {
+                rawThumb = fallback.latestThumbnailUrl;
+                thumbEl = fallback.latestThumbnailEl || null;
+              }
             }
-            if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
-              window.chrome.webview.postMessage({
-                channel: 'NotificationChannel',
-                type: 'NOTIFICATION_RECEIVED',
-                id: id,
-                title: cleanTitle,
-                body: cleanBody,
-                icon: options ? (options.icon || '') : '',
-                bridgeToken: __bridgeToken
-              });
-            }
+            resolveThumbnailUrlAsync(rawThumb, thumbEl, function(resolvedThumb) {
+              try {
+                if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+                  window.chrome.webview.postMessage({
+                    channel: 'NotificationChannel',
+                    type: 'NOTIFICATION_RECEIVED',
+                    id: id,
+                    title: cleanTitle,
+                    body: cleanBody,
+                    icon: options ? (options.icon || '') : '',
+                    thumbnailUrl: resolvedThumb || '',
+                    bridgeToken: __bridgeToken
+                  });
+                }
+              } catch(e) {}
+            });
           } catch(e) {}
           return Promise.resolve();
         };
@@ -215,22 +393,35 @@
         try {
           let cleanTitle = normalizePreviewText(this.title);
           let cleanBody = normalizePreviewText(this.options.body || '');
-          if (!cleanTitle || !cleanBody) {
+          let rawThumb = '';
+          let thumbEl = null;
+          if (this.options.image && !isIgnoredMediaUrl(this.options.image)) rawThumb = this.options.image;
+          else if (this.options.icon && !isIgnoredMediaUrl(this.options.icon)) rawThumb = this.options.icon;
+          if (!cleanTitle || !cleanBody || !rawThumb) {
             const fallback = getLatestDomPreview();
             if (!cleanTitle && fallback.latestChatTitle) cleanTitle = fallback.latestChatTitle;
             if (!cleanBody && fallback.latestMessageText) cleanBody = fallback.latestMessageText;
+            if (!rawThumb && fallback.latestThumbnailUrl) {
+              rawThumb = fallback.latestThumbnailUrl;
+              thumbEl = fallback.latestThumbnailEl || null;
+            }
           }
-          if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
-            window.chrome.webview.postMessage({
-              channel: 'NotificationChannel',
-              type: 'NOTIFICATION_RECEIVED',
-              id: this.id,
-              title: cleanTitle,
-              body: cleanBody,
-              icon: this.options.icon || '',
-              bridgeToken: __bridgeToken
-            });
-          }
+          resolveThumbnailUrlAsync(rawThumb, thumbEl, function(resolvedThumb) {
+            try {
+              if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+                window.chrome.webview.postMessage({
+                  channel: 'NotificationChannel',
+                  type: 'NOTIFICATION_RECEIVED',
+                  id: self.id,
+                  title: cleanTitle,
+                  body: cleanBody,
+                  icon: self.options.icon || '',
+                  thumbnailUrl: resolvedThumb || '',
+                  bridgeToken: __bridgeToken
+                });
+              }
+            } catch(e) {}
+          });
         } catch(e) {}
 
         this.close = function() {
@@ -353,6 +544,8 @@
     const debugItems = [];
     let latestChatTitle = '';
     let latestMessageText = '';
+    let latestThumbnailUrl = '';
+    let latestThumbnailEl = null;
     try {
       // 1. Badge chat Telegram Web (Web A, Web K, Web Z)
       const tgChatSelectors = [
@@ -387,6 +580,7 @@
           // Extract chat title and message preview without trailing badge digits
           let chatTitle = '';
           let messagePreview = '';
+          let thumb = { url: '', imgEl: null };
           try {
             const titleEl = container.querySelector('.peer-title, .title, .dialog-title, .user-title, h3, .name, [class*="title"]');
             if (titleEl) chatTitle = extractTextWithoutBadges(titleEl);
@@ -396,12 +590,19 @@
               if (candidate && candidate !== chatTitle) {
                 messagePreview = candidate;
               }
+              thumb = extractThumbnailFromContainer(prevEl);
+            }
+            if (!thumb.url) {
+              const mediaWrap = container.querySelector('.dialog-subtitle-media, .dialog-subtitle, .last-message');
+              if (mediaWrap) thumb = extractThumbnailFromContainer(mediaWrap);
             }
           } catch(e) {}
 
           if (!latestChatTitle && chatTitle) {
             latestChatTitle = chatTitle;
             latestMessageText = messagePreview;
+            latestThumbnailUrl = thumb.url;
+            latestThumbnailEl = thumb.imgEl;
           }
 
           if (digits) {
@@ -479,13 +680,15 @@
         }
       }
     } catch(e) {}
-    return { count: count, items: debugItems, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
+    return { count: count, items: debugItems, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText, latestThumbnailUrl: latestThumbnailUrl, latestThumbnailEl: latestThumbnailEl };
   }
 
   function scanWhatsAppUnread() {
     let count = 0;
     let latestChatTitle = '';
     let latestMessageText = '';
+    let latestThumbnailUrl = '';
+    let latestThumbnailEl = null;
     try {
       const waSelectors = [
         '[data-testid="unread-count"]', '[data-testid="icon-unread-count"]',
@@ -521,8 +724,9 @@
             if (container) {
               const titleEl = container.querySelector('[data-testid="cell-frame-title"] span, span[title][dir="auto"], span[title], span[dir="auto"]');
               if (titleEl) {
-                latestChatTitle = normalizePreviewText(titleEl.getAttribute('title') || titleEl.textContent || '');
+                latestChatTitle = normalizePreviewText(titleEl.getAttribute('title') || extractElementText(titleEl) || '');
               }
+              const secWrap = container.querySelector('[data-testid="cell-frame-secondary"]');
               const secEl = container.querySelector('[data-testid="cell-frame-secondary"] span[dir="ltr"], [data-testid="cell-frame-secondary"] span[dir="auto"], [data-testid="cell-frame-secondary"] span[title], [data-testid="cell-frame-secondary"] span, [data-testid="last-msg-status"] + span');
               if (secEl) {
                 const secText = normalizePreviewText(secEl.getAttribute('title') || extractTextWithoutBadges(secEl) || '');
@@ -530,12 +734,17 @@
                   latestMessageText = secText;
                 }
               }
+              const thumb = extractThumbnailFromContainer(secWrap || secEl);
+              if (thumb.url) {
+                latestThumbnailUrl = thumb.url;
+                latestThumbnailEl = thumb.imgEl;
+              }
             }
           }
         });
       }
     } catch(e) {}
-    return { count: count, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
+    return { count: count, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText, latestThumbnailUrl: latestThumbnailUrl, latestThumbnailEl: latestThumbnailEl };
   }
 
   function scanDiscordUnread() {
@@ -543,6 +752,8 @@
     const debugItems = [];
     let latestChatTitle = '';
     let latestMessageText = '';
+    let latestThumbnailUrl = '';
+    let latestThumbnailEl = null;
     try {
       const discordMentionSelectors = [
         'div[class*="numberBadge"]',
@@ -624,16 +835,25 @@
         }
       }
 
-      // Extract latest visible message preview when a Discord channel/DM is open
-      if (count > 0 && !latestMessageText) {
+      // Extract latest visible message preview and media thumbnail when a Discord channel/DM is open
+      if (count > 0) {
         const msgNodes = document.querySelectorAll('li[id^="chat-messages-"] [id^="message-content-"], [class*="messageContent"]');
         if (msgNodes && msgNodes.length > 0) {
-          const lastMsg = normalizePreviewText(msgNodes[msgNodes.length - 1].textContent || '');
-          if (lastMsg) latestMessageText = lastMsg;
+          const lastNode = msgNodes[msgNodes.length - 1];
+          if (!latestMessageText) {
+            const lastMsg = extractTextWithoutBadges(lastNode);
+            if (lastMsg) latestMessageText = lastMsg;
+          }
+          const msgScope = (typeof lastNode.closest === 'function' ? lastNode.closest('li[id^="chat-messages-"], [class*="message__"], [class*="message-"]') : null) || lastNode;
+          const thumb = extractThumbnailFromContainer(msgScope);
+          if (thumb.url) {
+            latestThumbnailUrl = thumb.url;
+            latestThumbnailEl = thumb.imgEl;
+          }
         }
       }
     } catch(e) {}
-    return { count: count, items: debugItems, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText };
+    return { count: count, items: debugItems, latestChatTitle: latestChatTitle, latestMessageText: latestMessageText, latestThumbnailUrl: latestThumbnailUrl, latestThumbnailEl: latestThumbnailEl };
   }
 
   function checkAndNotifyUnreadCount() {
@@ -650,23 +870,31 @@
     let debugItems = [];
     let latestChatTitle = '';
     let latestMessageText = '';
+    let latestThumbnailUrl = '';
+    let latestThumbnailEl = null;
     if (isTelegram) {
       const tgRes = scanTelegramUnreadCount();
       domCount = tgRes.count;
       debugItems = tgRes.items;
       latestChatTitle = tgRes.latestChatTitle || '';
       latestMessageText = tgRes.latestMessageText || '';
+      latestThumbnailUrl = tgRes.latestThumbnailUrl || '';
+      latestThumbnailEl = tgRes.latestThumbnailEl || null;
     } else if (isDiscord) {
       const dcRes = scanDiscordUnread();
       domCount = dcRes.count;
       debugItems = dcRes.items;
       latestChatTitle = dcRes.latestChatTitle || '';
       latestMessageText = dcRes.latestMessageText || '';
+      latestThumbnailUrl = dcRes.latestThumbnailUrl || '';
+      latestThumbnailEl = dcRes.latestThumbnailEl || null;
     } else if (isWhatsApp) {
       const waRes = scanWhatsAppUnread();
       domCount = waRes.count;
       latestChatTitle = waRes.latestChatTitle || '';
       latestMessageText = waRes.latestMessageText || '';
+      latestThumbnailUrl = waRes.latestThumbnailUrl || '';
+      latestThumbnailEl = waRes.latestThumbnailEl || null;
     }
 
     if (!latestChatTitle && titleMatch) {
@@ -685,25 +913,28 @@
       const isNewMessage = (lastReportedUnreadCount >= 0 && effectiveCount > lastReportedUnreadCount);
       lastReportedUnreadCount = effectiveCount;
       lastHeartbeatTime = now;
-      try {
-        if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
-          window.chrome.webview.postMessage({
-            channel: 'NotificationChannel',
-            type: 'UNREAD_COUNT_CHANGED',
-            id: 'unread_' + now,
-            unreadCount: effectiveCount,
-            title: title,
-            domCount: domCount,
-            appBadgeCount: appBadgeCount,
-            titleCount: titleCount,
-            latestChatTitle: latestChatTitle,
-            latestMessageText: latestMessageText,
-            isNewMessage: isNewMessage,
-            debugItems: debugItems,
-            bridgeToken: __bridgeToken
-          });
-        }
-      } catch(e) {}
+      resolveThumbnailUrlAsync(latestThumbnailUrl, latestThumbnailEl, function(resolvedThumb) {
+        try {
+          if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+            window.chrome.webview.postMessage({
+              channel: 'NotificationChannel',
+              type: 'UNREAD_COUNT_CHANGED',
+              id: 'unread_' + now,
+              unreadCount: effectiveCount,
+              title: title,
+              domCount: domCount,
+              appBadgeCount: appBadgeCount,
+              titleCount: titleCount,
+              latestChatTitle: latestChatTitle,
+              latestMessageText: latestMessageText,
+              latestThumbnailUrl: resolvedThumb || '',
+              isNewMessage: isNewMessage,
+              debugItems: debugItems,
+              bridgeToken: __bridgeToken
+            });
+          }
+        } catch(e) {}
+      });
     }
   }
 

@@ -1901,6 +1901,14 @@ Public Class AppAccounts
                 body = bodyNode.GetString()
             End If
 
+            Dim thumbnailUrl = ""
+            Dim thumbNode As JsonElement = Nothing
+            If root.TryGetProperty("thumbnailUrl", thumbNode) AndAlso thumbNode.ValueKind = JsonValueKind.String Then
+                thumbnailUrl = thumbNode.GetString()
+            ElseIf root.TryGetProperty("icon", thumbNode) AndAlso thumbNode.ValueKind = JsonValueKind.String Then
+                thumbnailUrl = thumbNode.GetString()
+            End If
+
             Try
                 Dim builder As New ToastContentBuilder()
                 builder.AddText(title)
@@ -1916,12 +1924,13 @@ Public Class AppAccounts
             Dim loc = settings?.Localizations
             Dim newMsgFallback = If(loc IsNot Nothing, loc.Get("popup_new_message"), "New message received")
             Dim unreadFallback = If(loc IsNot Nothing, loc.Get("popup_unread_messages"), "{count} unread messages")
-            Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(title, body, Name, Platform, 1, newMsgFallback, unreadFallback)
+            Dim imgMsgFallback = If(loc IsNot Nothing, loc.Get("popup_image_message"), "Sent an image")
+            Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(title, body, Name, Platform, 1, newMsgFallback, unreadFallback, thumbnailUrl, imgMsgFallback)
 
             If settings.ShowMessagePopup Then
                 Try
                     Dim op = Application.Current?.Dispatcher.BeginInvoke(Sub()
-                        Dim popup As New MessagePopup(Id, payload.Title, payload.Body, payload.Platform)
+                        Dim popup As New MessagePopup(Id, payload.Title, payload.Body, payload.Platform, payload.ThumbnailUrl)
                         popup.Show()
                     End Sub)
                 Catch ex As Exception
@@ -1963,6 +1972,12 @@ Public Class AppAccounts
                 latestMessageText = msgTextNode.GetString().Trim()
             End If
 
+            Dim latestThumbnailUrl As String = ""
+            Dim latestThumbNode As JsonElement = Nothing
+            If root.TryGetProperty("latestThumbnailUrl", latestThumbNode) AndAlso latestThumbNode.ValueKind = JsonValueKind.String Then
+                latestThumbnailUrl = latestThumbNode.GetString().Trim()
+            End If
+
             Dim isNewMessage As Boolean = False
             Dim newMsgNode As JsonElement = Nothing
             If root.TryGetProperty("isNewMessage", newMsgNode) AndAlso (newMsgNode.ValueKind = JsonValueKind.True OrElse newMsgNode.ValueKind = JsonValueKind.False) Then
@@ -1979,7 +1994,8 @@ Public Class AppAccounts
                     Dim loc = settings?.Localizations
                     Dim newMsgFallback = If(loc IsNot Nothing, loc.Get("popup_new_message"), "New message received")
                     Dim unreadFallback = If(loc IsNot Nothing, loc.Get("popup_unread_messages"), "{count} unread messages")
-                    Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(latestChatTitle, latestMessageText, Name, Platform, count, newMsgFallback, unreadFallback)
+                    Dim imgMsgFallback = If(loc IsNot Nothing, loc.Get("popup_image_message"), "Sent an image")
+                    Dim payload = NotificationPayloadPolicy.ResolvePopupPayload(latestChatTitle, latestMessageText, Name, Platform, count, newMsgFallback, unreadFallback, latestThumbnailUrl, imgMsgFallback)
 
                     ' Send Windows Toast notification when DND is inactive
                     Try
@@ -1997,7 +2013,7 @@ Public Class AppAccounts
                     If settings.ShowMessagePopup Then
                         Try
                             Application.Current?.Dispatcher.BeginInvoke(Sub()
-                                Dim popup As New MessagePopup(Id, payload.Title, payload.Body, payload.Platform)
+                                Dim popup As New MessagePopup(Id, payload.Title, payload.Body, payload.Platform, payload.ThumbnailUrl)
                                 popup.Show()
                             End Sub)
                         Catch ex As Exception

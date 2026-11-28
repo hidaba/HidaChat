@@ -5,6 +5,16 @@
 
 ---
 
+## [1.5.16-beta] - 2026-11-28
+
+### Pre-release / Beta — Redesigned Chat Popup Header, Preview & Emoji/Image Miniatures
+- **Chat Notification Popup (`MessagePopup.xaml`, `MessagePopup.xaml.vb`, `NotificationPayloadPolicy.vb`, `Scripts/notification.js`, `AppAccounts.vb`, `Localization.vb`, `Constants.vb`, `Tests/SessionTests.vb`, `Tests/notification.test.cjs` — TASK-0138)**:
+  - **Changed** `MessagePopup.xaml` layout to place the chat platform vector logo at the top-left header beside the sender name (`NameText`) and removed the redundant platform name text (`PlatformNameText`) from the top-right.
+  - **Improved** message preview truncation (`MaxHeight="34"`, `LineHeight="17"`, `LineStackingStrategy="BlockLineHeight"`, `CharacterEllipsis`) with `Segoe UI Emoji` fallback so long messages cleanly show their beginning across 2 lines with full text in tooltips.
+  - **Added** miniature preview slot (`MediaPreviewBorder`, 42x42 rounded frame) rendering image thumbnails (`data:image/...` or `https://...` / loopback URIs) or Unicode emoji miniatures extracted by `NotificationPayloadPolicy.ExtractFirstEmoji`, plus localized `"popup_image_message"` fallbacks across all 5 languages (`en`, `it`, `fr`, `es`, `de`).
+  - **Improved** `Scripts/notification.js` to preserve `<img alt="...">` / `data-plain-text` emojis in DOM text extraction, capture photo/sticker/custom-emoji thumbnails (converting `blob:` and loaded DOM images via 64x64 `<canvas>` while ignoring 1x1 spacer GIFs and generic favicons), and propagate `thumbnailUrl` / `latestThumbnailUrl` through `AppAccounts.vb`.
+  - **Added** unit and live STA WPF regression tests (`Tests/SessionTests.vb`: 1257 assertions; `Tests/notification.test.cjs`).
+
 ## [1.5.15-beta] - 2026-11-27
 
 ### Pre-release / Beta — Fix Clipped Action Buttons in About Dialog

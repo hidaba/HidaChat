@@ -5,6 +5,15 @@
 
 ## 2026-11-27
 
+- [x] **TASK-0138** [Media] Restyling MessagePopup con logo piattaforma in alto, intestazione senza duplicati, anteprima messaggio e miniature emoji/immagini
+  - Risultato:
+    - Ripensati `MessagePopup.xaml` e `MessagePopup.xaml.vb` posizionando il logo vettoriale della piattaforma chat (`PlatformBadgeBorder` / `PlatformBadgeIcon`) nell'intestazione in alto a sinistra accanto al mittente (`NameText`), rimuovendo la ripetizione `PlatformNameText` in alto a destra.
+    - Perfezionato il troncamento dell'anteprima messaggio (`MaxHeight="34"`, `LineHeight="17"`, `LineStackingStrategy="BlockLineHeight"`, `CharacterEllipsis`, fallback `Segoe UI Emoji`) per mostrare chiaramente l'inizio dei messaggi lunghi con tooltip completi, e aggiornato `PositionNewPopup()` usando `ActualHeight`.
+    - Aggiunto il riquadro miniatura 42x42 (`MediaPreviewBorder` con `MediaThumbnailImage` ed `EmojiThumbnailText`), oltre a `NotificationPayloadPolicy.ExtractFirstEmoji`, `NotificationPayloadPolicy.SanitizeThumbnailUrl` e al fallback localizzato `popup_image_message` in tutte e 5 le lingue (`en`, `it`, `fr`, `es`, `de`) in `Localization.vb`.
+    - Potenziato `Scripts/notification.js` per preservare le emoji `<img alt>` / `data-plain-text` nel DOM, acquisire miniature di immagini/sticker/emoji personalizzate (`blob:` e `<img>` convertiti tramite `<canvas>` 64x64, ignorando GIF 1x1 e favicon generiche), collegando `thumbnailUrl` / `latestThumbnailUrl` in `AppAccounts.vb`.
+    - Aggiornata la versione a `1.5.16-beta` in `Constants.vb` e aggiunti i test di regressione in `Tests/SessionTests.vb` e `Tests/notification.test.cjs`.
+  - Verifica: Superati `node Tests/notification.test.cjs`, `dotnet build HidaChat.vbproj` (0 avvisi, 0 errori), `Tests/HidaChat.SessionTests.vbproj` (1257 asserzioni di regressione superate con 0 errori), smoke test live WPF in thread STA su tutte e 5 le piattaforme (`WhatsApp`, `Telegram`, `Discord`, `OpenClaw`, `Hermes`) con verifica del logo in alto, assenza di `PlatformNameText`, miniature emoji e miniature immagini, oltre a `Test-UiLayouts.ps1` (12/12) e `Find-HardcodedUiIssues.ps1` (0 segnalazioni su `MessagePopup`).
+
 - [x] **TASK-0137** [Media] Correzione etichette tagliate nei pulsanti di AboutWindow (`Repository GitHub`, `Visualizza Release`, `Segnala Problema`)
   - Risultato:
     - Sostituita la `UniformGrid` a 3 colonne fisse in `AboutWindow.xaml` con un `WrapPanel` reattivo (`Orientation="Horizontal"`), così `BtnRepo`, `BtnReleases` e `BtnIssues` si dimensionano in base al testo localizzato e vanno a capo in sicurezza in caso di ridimensionamento caratteri/DPI elevati.
